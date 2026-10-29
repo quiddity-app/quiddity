@@ -9,5 +9,6 @@
 	- It only happens while the entity is empty and nothing but that block links to it, and neither link has qualifiers. Notes under it, or another link to it, make it real and it keeps its name.
 	- Being empty rules out journals, property entities and a link that reached its entity by an alias, because each has a properties block.
 	- The links either side of the edit are set aside and the ones in between are paired in order, so adding a link in front of the others is a new link and not a rename.
+- Deleting an entity leaves the links to it in the text, and they go nowhere again. [[All entities]]
 - Saving is one step of undo, apart from the typing before it. [[Undo]]
 - Back to [[The UI]].

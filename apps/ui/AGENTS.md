@@ -128,6 +128,17 @@ The action strip above the main pane holds the search button; **Cmd/Ctrl-K**
 - The graph's `searchTitles` and `searchText` aren't cached: the panel asks per keystroke and
   an answer is rarely wanted twice.
 
+## All entities
+
+`AllEntities` is a sortable table with a checkbox on each row. **Selection is
+the set of IDs ticked, filtered by the rows still there**, so an entity that an
+undo or a sync removes simply stops counting. Deleting asks first, inline
+(`role="alertdialog"`) rather than with `window.confirm`, which the Tauri
+webview can't be relied on to show; **changing the selection withdraws the
+question**, so what is confirmed is what was asked about. Deletion
+(`graph.deleteEntities`) is one undo step, and links to a deleted entity stay
+in the text as links to nowhere.
+
 ## Rendering
 
 `RenderedBlock` is how a block reads when not being edited: `splitBlock` takes
