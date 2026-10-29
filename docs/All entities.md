@@ -4,6 +4,10 @@
 	- Tags: only enough to tell apart entities that share a title. See below.
 	- Words: whitespace-separated words in the entity's blocks, at any depth. The title does not count, and nor does a block of nothing but property lines.
 	- Incoming links: the blocks of *other* entities that link to it. A duplicate merged into the entity counts as the entity, so a journal's twin does not link to it.
+- Sorting
+	- Click a column heading to sort by it, and click it again to reverse. The heading says which way with an arrow, and `aria-sort`.
+	- It starts by title. Rows arrive in that order and the sort is stable, so ties keep it.
+	- Titles are compared ignoring case and accents, and numbers by value, so `Note 2` comes before `Note 10`. Tags are compared as the text shown.
 - Tags
 	- A tag is a property with no value (`#tag`, anywhere in the entity) or a value of a `tags` property, written as a list: `tags:: [a, b]`. [[Properties]]
 	- Nothing defined "tags" before this, so that is a reading, not a decision about the model. If tags should mean something else, `tags_in` in `crates/view/src/query.rs` is the one place to change.
