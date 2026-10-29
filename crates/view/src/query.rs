@@ -5,7 +5,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use jiff::civil::Date;
 use quiddity_core::schema::{Typed, coerce};
 use quiddity_core::syntax::{
-    Link, Property as Prop, PropertyStyle, Value, format_link, is_properties_block, parse_block,
+    Link, Property as Prop, PropertyStyle, Value, format_link, is_properties_block, normalise_name,
+    parse_block,
 };
 use quiddity_core::{BlockId, Identity, Index, Resolution, ensure_journal};
 use serde::Serialize;
@@ -26,6 +27,21 @@ pub struct Connections {
     /// As [`View::entities`].
     pub nodes: Vec<EntityRef>,
     pub edges: Vec<Edge>,
+}
+
+/// One row of the list of every entity.
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct Summary {
+    pub id: String,
+    pub title: String,
+    /// Enough of the entity's tags to tell it from the others with the same
+    /// title. Empty when the title is unique.
+    pub tags: Vec<String>,
+    /// Words in its blocks, not counting its title or its property lines.
+    pub words: usize,
+    /// Blocks in other entities that link to it.
+    pub incoming: usize,
 }
 
 /// One entity linking to another, from anywhere in its blocks. However many
@@ -188,6 +204,63 @@ impl View {
             .collect::<Result<Vec<_>>>()?;
         refs.sort_by_cached_key(|e| (e.title.to_lowercase(), e.id.clone()));
         Ok(refs)
+    }
+
+    /// Every entity with what is needed to choose between them, in the order
+    /// of [`View::entities`].
+    pub fn summaries(&self) -> Result<Vec<Summary>> {
+        let mut words: BTreeMap<BlockId, usize> = BTreeMap::new();
+        let mut tags: BTreeMap<BlockId, BTreeSet<String>> = BTreeMap::new();
+        for block in self.graph.blocks() {
+            let root = self.graph.entity_of(block);
+            if block == root {
+                continue;
+            }
+            let entity = self.index()?.canonical(root);
+            let text = self.graph.text(block)?;
+            if !is_properties_block(&text) {
+                *words.entry(entity).or_default() += text.split_whitespace().count();
+            }
+            tags.entry(entity).or_default().extend(tags_in(&text));
+        }
+        let rows = self
+            .entities()?
+            .into_iter()
+            .map(|e| Ok((self.entity_id(&e.id)?, e)))
+            .collect::<Result<Vec<_>>>()?;
+        let mut same_title: BTreeMap<String, Vec<BlockId>> = BTreeMap::new();
+        for (id, e) in &rows {
+            same_title
+                .entry(e.title.to_lowercase())
+                .or_default()
+                .push(*id);
+        }
+        let none = BTreeSet::new();
+        let tags_of = |id: &BlockId| tags.get(id).unwrap_or(&none);
+        let mut summaries = Vec::new();
+        for (id, e) in &rows {
+            let rivals: Vec<_> = same_title[&e.title.to_lowercase()]
+                .iter()
+                .filter(|j| *j != id)
+                .map(tags_of)
+                .collect();
+            let incoming = {
+                let index = self.index()?;
+                index
+                    .backlinks(*id)
+                    .iter()
+                    .filter(|b| index.canonical(self.graph.entity_of(b.source)) != *id)
+                    .count()
+            };
+            summaries.push(Summary {
+                id: e.id.clone(),
+                title: e.title.clone(),
+                tags: distinguishing(tags_of(id), &rivals),
+                words: words.get(id).copied().unwrap_or(0),
+                incoming,
+            });
+        }
+        Ok(summaries)
     }
 
     /// Every entity, and the links between them. Links to nowhere, and an
@@ -465,4 +538,49 @@ pub(crate) fn contains_word(text: &str, name: &str) -> bool {
         let after = text[at + name.len()..].chars().next();
         !before.is_some_and(word) && !after.is_some_and(word)
     })
+}
+
+/// The tags written in a block: properties with no value (`#tag`), and the
+/// values of a `tags` property.
+fn tags_in(text: &str) -> Vec<String> {
+    fn push(value: &Value, out: &mut Vec<String>) {
+        match value {
+            Value::Text(t) => out.push(normalise_name(t)),
+            Value::Link(link) => out.push(normalise_name(&link.name)),
+            Value::List(items) => items.iter().for_each(|v| push(v, out)),
+            Value::BlockRef(_) => {}
+        }
+    }
+    let mut out = Vec::new();
+    for p in parse_block(text).properties {
+        match &p.value {
+            None => out.push(normalise_name(&p.key)),
+            Some(v) if normalise_name(&p.key) == "tags" => push(v, &mut out),
+            Some(_) => {}
+        }
+    }
+    out.retain(|t| !t.is_empty());
+    out
+}
+
+/// Some of `own` that tell it from every one of `rivals`: each rival lacks at
+/// least one of them. Greedy, taking the tag that rules out most rivals first
+/// (ties to the alphabetically first). If a rival has all of `own`, nothing
+/// can tell them apart, and it is left out of the reckoning.
+pub(crate) fn distinguishing(own: &BTreeSet<String>, rivals: &[&BTreeSet<String>]) -> Vec<String> {
+    let mut remaining: Vec<_> = rivals.to_vec();
+    let mut chosen = Vec::new();
+    while !remaining.is_empty() {
+        let best = own
+            .iter()
+            .filter(|t| !chosen.contains(*t))
+            .map(|t| (remaining.iter().filter(|r| !r.contains(t)).count(), t))
+            .filter(|(n, _)| *n > 0)
+            .max_by(|a, b| a.0.cmp(&b.0).then(b.1.cmp(a.1)));
+        let Some((_, tag)) = best else { break };
+        remaining.retain(|r| r.contains(tag));
+        chosen.push(tag.clone());
+    }
+    chosen.sort();
+    chosen
 }

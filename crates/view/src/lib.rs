@@ -20,6 +20,7 @@ pub use edit::Merged;
 pub use fts::BlockHit;
 pub use query::{
     Block, Connections, Edge, Entity, EntityRef, LinkTarget, Property, PropertyValue, Reference,
+    Summary,
 };
 pub use search::{Match, TitleHit, fuzzy_match};
 
