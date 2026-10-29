@@ -11,6 +11,7 @@ favourite:: true
 	- [[The UI]]: the three panes and the replica the UI holds, with [[Editing]], [[Undo]], [[Rendering]] and [[Properties]].
 	- [[Links to nowhere]] and [[Renaming]]: how entities get made and renamed from the text.
 	- [[Graph view]]: every entity and the links between them, drawn.
+	- [[All entities]]: every entity as a table to read, sort and tidy.
 	- [[Running the app]]: `mise run app`, and the other tasks.
 	- [[Device list]]: which devices may connect.
 	- [[Search]]: the Cmd/Ctrl-K panel, with [[Title matching]] and [[Text search]].

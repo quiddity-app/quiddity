@@ -98,6 +98,11 @@ impl Replica {
         js(&self.view.search_text(query, limit)?)
     }
 
+    /// Every entity with its tags, word count and incoming links, for listing.
+    pub fn summaries(&self) -> Result<JsValue, JsError> {
+        js(&self.view.summaries()?)
+    }
+
     /// Every entity and the links between them, for drawing as a graph.
     pub fn connections(&self) -> Result<JsValue, JsError> {
         js(&self.view.connections()?)

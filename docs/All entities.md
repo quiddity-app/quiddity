@@ -1,0 +1,14 @@
+- Every entity, as a table. It is one of the fixed entrypoints on the left. [[The UI]]
+- Columns
+	- Title: a link to the entity.
+	- Tags: only enough to tell apart entities that share a title. See below.
+	- Words: whitespace-separated words in the entity's blocks, at any depth. The title does not count, and nor does a block of nothing but property lines.
+	- Incoming links: the blocks of *other* entities that link to it. A duplicate merged into the entity counts as the entity, so a journal's twin does not link to it.
+- Tags
+	- A tag is a property with no value (`#tag`, anywhere in the entity) or a value of a `tags` property, written as a list: `tags:: [a, b]`. [[Properties]]
+	- Nothing defined "tags" before this, so that is a reading, not a decision about the model. If tags should mean something else, `tags_in` in `crates/view/src/query.rs` is the one place to change.
+	- Tags are compared as names are, ignoring case and spacing.
+	- They are shown only where two entities have the same title, ignoring case. For each such entity the fewest tags are picked, greedily, that every other entity with the title lacks at least one of. Entities that cannot be told apart show none.
+- Where it comes from
+	- The view crate's `summaries()` answers the whole table in one query, in the order of `entities()`, so it is a whole-graph cost paid once per revision. The UI reads it as `graph.summaries()`.
+- Back to [[The UI]].

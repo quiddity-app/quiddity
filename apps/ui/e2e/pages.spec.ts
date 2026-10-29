@@ -59,3 +59,12 @@ test("recents forget what no longer exists", async ({ page }) => {
   await expect(recents.getByText("Nothing yet.")).toBeVisible();
   await expect(recents.getByRole("link")).toHaveCount(0);
 });
+
+test("all entities is a table of words and incoming links", async ({ page }) => {
+  await page.goto("/all/");
+  const table = page.locator("main table");
+  await expect(table.getByRole("columnheader")).toHaveText(["Title", "Tags", "Words", "Incoming links"]);
+  const loro = table.getByRole("row").filter({ has: page.getByRole("link", { name: "Loro", exact: true }) });
+  // "A CRDT library. Documents are movable trees of text." is linked from Quiddity.
+  await expect(loro.getByRole("cell")).toHaveText(["", "9", "1"]);
+});

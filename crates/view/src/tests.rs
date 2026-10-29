@@ -976,6 +976,89 @@ mod connections {
     }
 }
 
+mod summaries {
+    use std::collections::BTreeSet;
+
+    use super::*;
+    use crate::query::distinguishing;
+
+    fn row(v: &View, title: &str) -> Summary {
+        v.summaries()
+            .unwrap()
+            .into_iter()
+            .find(|s| s.title == title)
+            .unwrap()
+    }
+
+    #[test]
+    fn words_count_prose_but_not_the_title_or_property_lines() {
+        let v = view_with(|g| {
+            let a = g.create_entity("A long title indeed", &[]).unwrap();
+            note(g, a, "alias:: other name");
+            let top = note(g, a, "three words here");
+            note(g, top, "  and  two ");
+        });
+        assert_eq!(row(&v, "A long title indeed").words, 5);
+    }
+
+    #[test]
+    fn incoming_counts_linking_blocks_in_other_entities() {
+        let v = view_with(|g| {
+            let a = g.create_entity("A", &[]).unwrap();
+            let b = g.create_entity("B", &[]).unwrap();
+            note(g, a, "to [[B]]");
+            note(g, a, "again [[B]]");
+            note(g, b, "to itself [[B]] and [[A]]");
+        });
+        assert_eq!(row(&v, "B").incoming, 2);
+        assert_eq!(row(&v, "A").incoming, 1);
+    }
+
+    #[test]
+    fn tags_only_appear_to_tell_same_titled_entities_apart() {
+        let v = view_with(|g| {
+            let a = g.create_entity("Mercury", &[]).unwrap();
+            note(g, a, "#planet #hot");
+            // A property that isn't `tags` has a value, but it isn't a tag.
+            note(g, a, "orbit:: fast");
+            let b = g.create_entity("Mercury", &[]).unwrap();
+            note(g, b, "tags:: [element, cold]");
+            let c = g.create_entity("Venus", &[]).unwrap();
+            note(g, c, "#planet");
+        });
+        let mercuries: Vec<_> = v
+            .summaries()
+            .unwrap()
+            .into_iter()
+            .filter(|s| s.title == "Mercury")
+            .map(|s| s.tags)
+            .collect();
+        assert_eq!(mercuries, [["hot"], ["cold"]]);
+        assert_eq!(row(&v, "Venus").tags, Vec::<String>::new());
+    }
+
+    #[test]
+    fn identical_tags_cannot_be_told_apart_and_show_none() {
+        let v = view_with(|g| {
+            for _ in 0..2 {
+                let e = g.create_entity("Twin", &[]).unwrap();
+                note(g, e, "#same");
+            }
+        });
+        assert!(v.summaries().unwrap().iter().all(|s| s.tags.is_empty()));
+    }
+
+    #[test]
+    fn distinguishing_takes_the_tag_that_rules_out_most_rivals() {
+        let set = |t: &[&str]| t.iter().map(|s| (*s).to_owned()).collect::<BTreeSet<_>>();
+        let own = set(&["a", "b", "c"]);
+        let (r1, r2, r3) = (set(&["a", "b"]), set(&["a", "c"]), set(&["a"]));
+        // "b" and "c" each rule out two rivals, "a" none; "b" first, then "c".
+        assert_eq!(distinguishing(&own, &[&r1, &r2, &r3]), ["b", "c"]);
+        assert!(distinguishing(&own, &[]).is_empty());
+    }
+}
+
 mod property_links {
     use super::*;
 

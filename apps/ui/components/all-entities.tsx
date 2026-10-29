@@ -8,21 +8,47 @@ import { EntityLink } from "./entity-link";
 import { useView } from "./use-view";
 
 function List() {
-  const entities = useRead((g) => g.entities());
-  if (entities.length === 0) return <p>Nothing here yet.</p>;
+  const rows = useRead((g) => g.summaries());
+  if (rows.length === 0) return <p>Nothing here yet.</p>;
+  const numeric = "px-3 py-1 text-right tabular-nums";
   return (
-    <ul className="columns-1 gap-8 sm:columns-2">
-      {entities.map((e) => (
-        <li key={e.id} className="break-inside-avoid py-0.5">
-          <EntityLink
-            id={e.id}
-            className="text-sky-700 underline-offset-2 hover:underline dark:text-sky-300"
-          >
-            {e.title}
-          </EntityLink>
-        </li>
-      ))}
-    </ul>
+    <table className="w-full border-collapse text-left">
+      <thead>
+        <tr className="border-b border-slate-300 dark:border-slate-600">
+          <th scope="col" className="px-3 py-1 font-medium">
+            Title
+          </th>
+          <th scope="col" className="px-3 py-1 font-medium">
+            Tags
+          </th>
+          <th scope="col" className={`${numeric} font-medium`}>
+            Words
+          </th>
+          <th scope="col" className={`${numeric} font-medium`}>
+            Incoming links
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((e) => (
+          <tr key={e.id} className="border-b border-slate-200 dark:border-slate-700">
+            <th scope="row" className="px-3 py-1 font-normal">
+              <EntityLink
+                id={e.id}
+                className="text-sky-700 underline-offset-2 hover:underline dark:text-sky-300"
+              >
+                {e.title}
+              </EntityLink>
+            </th>
+            <td className="px-3 py-1 text-slate-600 dark:text-slate-400">
+              {e.tags.map((t) => `#${t}`).join(" ")}
+            </td>
+            <td className={numeric}>{e.words}</td>
+            <td className={numeric}>{e.incoming}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 
@@ -60,7 +86,7 @@ function NewEntity() {
 
 export function AllEntities() {
   return (
-    <article className="mx-auto max-w-3xl px-6 py-8">
+    <article className="mx-auto max-w-4xl px-6 py-8">
       <h1 className="mb-4 text-2xl font-semibold">All entities</h1>
       <Region
         pending={<Skeleton className="h-4 w-1/2" />}

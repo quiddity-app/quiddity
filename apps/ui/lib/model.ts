@@ -41,6 +41,16 @@ export type LinkTarget =
   | { kind: "ambiguous"; ids: EntityId[] }
   | { kind: "missing" };
 
+/** One row of the list of every entity. */
+export interface Summary extends EntityRef {
+  /** Enough of its tags to tell it from others with the same title. */
+  tags: string[];
+  /** Words in its blocks, not counting its title or property lines. */
+  words: number;
+  /** Blocks in other entities that link to it. */
+  incoming: number;
+}
+
 /** Every entity, and which link to which: one edge per pair, however many links. */
 export interface Connections {
   nodes: EntityRef[];

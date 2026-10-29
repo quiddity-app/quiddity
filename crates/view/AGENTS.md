@@ -67,6 +67,23 @@ entity's links to itself and links to nowhere make no edge. It walks every
 backlink, so like the other queries it is a whole-graph cost the UI pays once
 per revision.
 
+## Summaries
+
+`summaries()` is the list of every entity, in the order of `entities()`, with
+what the All entities table shows.
+
+- **Words** are whitespace-separated words in the entity's blocks at any depth,
+  not its title and not blocks of nothing but property lines.
+- **Incoming** counts blocks in *other* entities that link to it (a duplicate
+  merged into the entity counts as the entity), so it is not the number of
+  edges `connections()` draws.
+- **Tags** are properties with no value (`#tag`, anywhere in the entity) and the
+  values of a `tags` property (`tags:: [a, b]`; a bare `tags:: a, b` is one text
+  value), compared by `normalise_name`. They are shown only to tell entities
+  with the same title (ignoring case) apart: `distinguishing` picks, greedily,
+  the fewest of an entity's tags that every same-titled rival lacks at least
+  one of. Entities that are indistinguishable show none.
+
 ## Links to nowhere
 
 A `[[link]]` with no entity is made one in two ways (`links.rs`):
