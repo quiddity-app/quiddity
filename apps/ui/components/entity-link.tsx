@@ -10,10 +10,12 @@ import { useView } from "./use-view";
 export function EntityLink({
   id,
   className,
+  title,
   children,
 }: {
   id: EntityId;
   className?: string;
+  title?: string;
   children: ReactNode;
 }) {
   const view = useView();
@@ -22,6 +24,7 @@ export function EntityLink({
     <Link
       href={view.toMain(id)}
       className={className}
+      title={title}
       onClick={(e) => {
         if (e.shiftKey) {
           e.preventDefault();

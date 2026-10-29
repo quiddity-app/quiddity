@@ -1,7 +1,7 @@
 "use client";
 
 import { useContext } from "react";
-import type { Block, EntityId, LinkTarget } from "@/lib/model";
+import type { Block, EntityId, ResolvedLink } from "@/lib/model";
 import { useRead } from "@/lib/use-graph";
 import { BlockEditor } from "./block-editor";
 import { EditableOutline } from "./editing";
@@ -9,7 +9,7 @@ import { EditingContext } from "./editing-context";
 import { RenderedBlock, splitBlock } from "./rendered-block";
 
 /** One block: its text, rendered or being edited, then its children. */
-function BlockRow({ block, links }: { block: Block; links: Record<string, LinkTarget> }) {
+function BlockRow({ block, links }: { block: Block; links: Record<string, ResolvedLink> }) {
   const editing = useContext(EditingContext);
   const current = editing?.current;
   const isEditing = current?.id === block.id;
@@ -65,7 +65,7 @@ export function Outline({
   links,
 }: {
   blocks: Block[];
-  links: Record<string, LinkTarget>;
+  links: Record<string, ResolvedLink>;
 }) {
   return (
     <ul className="space-y-1">

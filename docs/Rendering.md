@@ -7,6 +7,9 @@
 - How it is drawn
 	- `react-markdown` makes React elements rather than HTML strings, and a small plugin turns `[[links]]`, `((refs))` and the property placeholders into elements of our own, in prose only and never in code.
 	- A link to an entity is a link. One that goes nowhere is a button. [[Links to nowhere]]
+- A link shows its name and nothing else. Qualifiers such as `#type(library)` only pick the target, so `[[Loro#type(library)]]` reads as "Loro" and the qualifiers appear on hover. [[Links to nowhere]]
+	- The view reports each link's name and qualifiers with where it goes, so the UI never parses link text itself.
+	- On a link to nowhere the tooltip also says that opening it makes the entity, with the qualifiers it will have. On an ambiguous link it says which qualifiers several entities match.
 - Block text comes from other devices, so it is untrusted.
 	- Raw HTML is shown as text, never run. There is no `rehype-raw` and none should be added.
 	- Only `http(s)` and `mailto` links are links, and they open in the system's browser rather than replacing the app. Anything else is inert text.

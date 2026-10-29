@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useGraph } from "@/lib/use-graph";
-import type { Block, EntityId, LinkTarget } from "@/lib/model";
+import type { Block, EntityId, ResolvedLink } from "@/lib/model";
 import { EditingContext, useEditing, type Editing } from "./editing-context";
 import { Outline } from "./entity-view";
 
@@ -40,7 +40,7 @@ export function EditableOutline({
 }: {
   entityId: EntityId;
   blocks: Block[];
-  links: Record<string, LinkTarget>;
+  links: Record<string, ResolvedLink>;
 }) {
   const graph = useGraph();
   const [current, setCurrent] = useState<Editing["current"]>(null);
