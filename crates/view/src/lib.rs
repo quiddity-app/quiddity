@@ -13,8 +13,10 @@ mod query;
 mod search;
 
 use std::cell::{Cell, Ref, RefCell};
+use std::collections::HashMap;
 
-use quiddity_core::{BlockId, Graph, Index};
+use jiff::Timestamp;
+use quiddity_core::{BlockId, Graph, Index, Version};
 
 pub use edit::Merged;
 pub use fts::BlockHit;
@@ -53,6 +55,15 @@ pub struct View {
     stale: Cell<bool>,
     /// Whether a burst of typing is open, as one undo step.
     typing: Cell<bool>,
+    activity: RefCell<Activity>,
+}
+
+/// When blocks' text was last edited, as far as the graph's history says.
+/// History only grows, so it is read once and then only what is new.
+#[derive(Debug, Default)]
+struct Activity {
+    seen: Version,
+    edited: HashMap<BlockId, Timestamp>,
 }
 
 impl View {
@@ -63,6 +74,7 @@ impl View {
             index: RefCell::new(index),
             stale: Cell::new(false),
             typing: Cell::new(false),
+            activity: RefCell::default(),
         })
     }
 
@@ -70,6 +82,18 @@ impl View {
     /// [`View::changed`].
     pub fn graph(&self) -> &Graph {
         &self.graph
+    }
+
+    /// Reads the history there is to read since last time.
+    fn refresh_activity(&self) -> Result<()> {
+        let mut activity = self.activity.borrow_mut();
+        let now = self.graph.version();
+        for (block, at) in self.graph.text_edits_since(&activity.seen)? {
+            let latest = activity.edited.entry(block).or_insert(at);
+            *latest = (*latest).max(at);
+        }
+        activity.seen = now;
+        Ok(())
     }
 
     /// Records that the graph changed, from an edit or an import, so the

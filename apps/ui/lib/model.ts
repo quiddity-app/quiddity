@@ -49,6 +49,11 @@ export interface Summary extends EntityRef {
   words: number;
   /** Blocks in other entities that link to it. */
   incoming: number;
+  /** Seconds since the Unix epoch. Null if it wasn't recorded, or the history
+   * that says has been compacted away. */
+  created: number | null;
+  /** When a block of it was last added, moved or edited, as `created`. */
+  modified: number | null;
 }
 
 /** Every entity, and which link to which: one edge per pair, however many links. */

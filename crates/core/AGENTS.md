@@ -61,6 +61,30 @@ edit with nothing beneath it can't be applied by a compacted replica.
 - `undo` and `redo` commit first, so edits made but not yet committed are a
   step of their own rather than lost.
 
+## Times
+
+Every replica records commit times (`Graph::blank` turns it on, so `new` and
+`from_snapshot` have it too); Loro doesn't sync the setting. `created_at`,
+`placed_at` (created or last moved) and `text_edits_since` read them back.
+
+- **Times are to the second, and a change keeps its first edit's time.** Loro
+  joins a replica's consecutive edits into one change, so the merge interval is
+  0: the default of 1,000 seconds would leave a block's time up to a quarter of
+  an hour behind its last edit.
+- **Unknown is `None`, not zero.** Edits made before recording was on have a
+  timestamp of 0, and history dropped by `shallow_snapshot` has no change to
+  ask. **Compacting loses created dates**; modified dates survive only for what
+  is edited afterwards.
+- **Don't ask Loro for a diff of history from before a compaction.**
+  `find_id_spans_between` unwraps a `None` and panics, which in the browser
+  is an opaque `unreachable` from WASM. `text_edits_since` walks each peer's
+  changes with `get_change` from no earlier than `history_start` instead.
+- **A deletion isn't attributed to anything**: it leaves no block to ask.
+- The text of a block is its own container, so a text edit isn't a move: ask
+  `text_edits_since` for those and `placed_at` for the others. Reading history
+  is the costly part, so callers keep what they read and ask only for what is
+  new (`quiddity-view` does).
+
 ## Text
 
 `splice_text` counts UTF-16 code units, the unit JavaScript and CodeMirror

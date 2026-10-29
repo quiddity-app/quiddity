@@ -84,6 +84,14 @@ what the All entities table shows.
   the fewest of an entity's tags that every same-titled rival lacks at least
   one of. Entities that are indistinguishable show none.
 
+- **Created and modified** are seconds since the epoch, or `None` when the graph
+  has no time for it (see Times in `quiddity-core`). Created is when the entity's
+  root was made. Modified is the latest of when any of its blocks was added,
+  moved or had its text edited; deleting a block doesn't count. Merging
+  duplicate journals moves blocks, so it counts as a move. The text edit times
+  are read from history once and then only what is new (`Activity`), kept for
+  the life of the `View`.
+
 ## Links to nowhere
 
 A `[[link]]` with no entity is made one in two ways (`links.rs`):
