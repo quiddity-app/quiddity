@@ -163,3 +163,11 @@ test("a block of nothing but properties has no bullet, until it is edited", asyn
   await first.click();
   await expect(row.locator("[data-bullet]")).not.toHaveClass(/invisible/);
 });
+
+test("a link's qualifiers are in its tooltip, not its text", async ({ page }) => {
+  const block = await write(page, "see [[Loro#type(library)]] there");
+  const link = block.getByRole("link", { name: "Loro", exact: true });
+  await expect(link).toBeVisible();
+  await expect(block.getByText("#type(library)")).toHaveCount(0);
+  await expect(link).toHaveAttribute("title", /#type\(library\)/);
+});

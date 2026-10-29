@@ -3,38 +3,47 @@
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useGraph } from "@/lib/use-graph";
-import type { LinkTarget, Property, PropertyValue } from "@/lib/model";
+import type { Property, PropertyValue, ResolvedLink } from "@/lib/model";
 import { EntityLink } from "./entity-link";
 import { useView } from "./use-view";
 
 const unresolved = "cursor-help underline decoration-dashed underline-offset-2";
 
-/** A link to an entity, as the core resolved it. */
+/**
+ * A link to an entity, as the core resolved it. `fallback` is the name to show
+ * if the core has no answer for `linkKey`.
+ */
 export function LinkOrNot({
-  name,
-  linkKey = name,
+  linkKey,
+  fallback = linkKey,
   links,
 }: {
-  name: string;
-  linkKey?: string;
-  links: Record<string, LinkTarget>;
+  linkKey: string;
+  fallback?: string;
+  links: Record<string, ResolvedLink>;
 }) {
-  const target = links[linkKey] ?? { kind: "missing" };
+  const resolved = links[linkKey];
+  const target = resolved ?? { kind: "missing" };
+  const name = resolved?.name ?? fallback;
+  const qualifiers = resolved?.qualifiers ?? "";
   if (target.kind === "entity") {
     return (
       <EntityLink
         id={target.id}
         className="text-sky-700 underline-offset-2 hover:underline dark:text-sky-300"
+        title={qualifiers || undefined}
       >
         {name}
       </EntityLink>
     );
   }
-  if (target.kind === "missing") return <NewEntityLink name={name} linkKey={linkKey} />;
+  if (target.kind === "missing") {
+    return <NewEntityLink name={name} linkKey={linkKey} qualifiers={qualifiers} />;
+  }
   return (
     <span
       className={`text-slate-500 dark:text-slate-400 ${unresolved}`}
-      title="Several entities match"
+      title={qualifiers ? `Several entities match ${qualifiers}` : "Several entities match"}
     >
       {name}
     </span>
@@ -42,7 +51,15 @@ export function LinkOrNot({
 }
 
 /** A link to an entity that doesn't exist yet. Following it makes the entity. */
-function NewEntityLink({ name, linkKey }: { name: string; linkKey: string }) {
+function NewEntityLink({
+  name,
+  linkKey,
+  qualifiers,
+}: {
+  name: string;
+  linkKey: string;
+  qualifiers: string;
+}) {
   const graph = useGraph();
   const view = useView();
   const router = useRouter();
@@ -50,7 +67,7 @@ function NewEntityLink({ name, linkKey }: { name: string; linkKey: string }) {
     <button
       type="button"
       className="text-sky-700 underline decoration-dashed underline-offset-2 hover:decoration-solid dark:text-sky-300"
-      title="No such entity yet. Open it to make it."
+      title={`No such entity yet. Open it to make it.${qualifiers ? ` ${qualifiers}` : ""}`}
       onClick={(e) => {
         const id = graph.followLink(linkKey);
         router.push(e.shiftKey ? view.toSide(id) : view.toMain(id));
@@ -66,13 +83,13 @@ function Value({
   links,
 }: {
   value: PropertyValue;
-  links: Record<string, LinkTarget>;
+  links: Record<string, ResolvedLink>;
 }) {
   switch (value.kind) {
     case "text":
       return <>{value.text}</>;
     case "link":
-      return <LinkOrNot name={value.name} linkKey={value.key} links={links} />;
+      return <LinkOrNot linkKey={value.key} fallback={value.name} links={links} />;
     case "ref":
       return <span className="text-slate-500 dark:text-slate-400">(({value.id}))</span>;
     case "list":
@@ -131,7 +148,7 @@ export function PropertyChip({
   links,
 }: {
   property: Property;
-  links: Record<string, LinkTarget>;
+  links: Record<string, ResolvedLink>;
 }) {
   return (
     <span className="inline-flex items-baseline gap-1 rounded-full bg-slate-200 px-2 py-0.5 text-xs leading-5 dark:bg-slate-700">

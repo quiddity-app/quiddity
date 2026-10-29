@@ -114,8 +114,8 @@ mod queries {
         assert_eq!(e.blocks[1].text, "Built on [[apple]], [[Nope]]");
         assert_eq!(e.blocks[1].children[0].text, "nested");
         let apple = v.entities().unwrap().remove(0).id;
-        assert_eq!(e.links["apple"], LinkTarget::Entity { id: apple });
-        assert_eq!(e.links["Nope"], LinkTarget::Missing);
+        assert_eq!(e.links["apple"].target, LinkTarget::Entity { id: apple });
+        assert_eq!(e.links["Nope"].target, LinkTarget::Missing);
     }
 
     #[test]
@@ -191,8 +191,11 @@ mod queries {
         assert_eq!(beta.blocks[0].children[0].text, "and again [[Alpha]]");
         let gamma = &refs[1];
         assert_eq!(gamma.blocks.len(), 2, "its property and its note");
-        assert_eq!(gamma.links["Nope"], LinkTarget::Missing);
-        assert!(matches!(gamma.links["Alpha"], LinkTarget::Entity { .. }));
+        assert_eq!(gamma.links["Nope"].target, LinkTarget::Missing);
+        assert!(matches!(
+            gamma.links["Alpha"].target,
+            LinkTarget::Entity { .. }
+        ));
     }
 
     #[test]
@@ -530,6 +533,20 @@ mod properties {
     }
 
     #[test]
+    fn a_link_reports_its_name_apart_from_its_qualifiers() {
+        let v = view_with(|g| {
+            let e = g.create_entity("Source", &[]).unwrap();
+            note(g, e, "see [[Jane #type(person)#born(1970)]] and [[Plain]]");
+        });
+        let links = v.entity(&id_of(&v, "Source")).unwrap().links;
+        let jane = &links["Jane#type(person)#born(1970)"];
+        assert_eq!(jane.name, "Jane");
+        assert_eq!(jane.qualifiers, "#type(person)#born(1970)");
+        assert_eq!(links["Plain"].name, "Plain");
+        assert_eq!(links["Plain"].qualifiers, "");
+    }
+
+    #[test]
     fn a_links_key_finds_it_in_the_entitys_links() {
         let v = view_with(|g| {
             g.create_entity("Target", &[]).unwrap();
@@ -578,7 +595,7 @@ mod rename {
         assert_eq!(e.id, id, "the same entity");
         assert_eq!(titles(&v.references(&id).unwrap()), ["Other"]);
         let other = v.entity(&id_of(&v, "Other")).unwrap();
-        assert_eq!(other.links["Old name"], LinkTarget::Entity { id });
+        assert_eq!(other.links["Old name"].target, LinkTarget::Entity { id });
     }
 
     #[test]
@@ -732,8 +749,8 @@ mod new_links {
         assert_eq!(made.len(), 2, "Alpha once");
         assert_eq!(names(&v), ["Alpha", "Beta", "Page"]);
         let links = v.entity(&page).unwrap().links;
-        assert!(matches!(links["Alpha"], LinkTarget::Entity { .. }));
-        assert!(matches!(links["Beta"], LinkTarget::Entity { .. }));
+        assert!(matches!(links["Alpha"].target, LinkTarget::Entity { .. }));
+        assert!(matches!(links["Beta"].target, LinkTarget::Entity { .. }));
     }
 
     #[test]
@@ -771,7 +788,7 @@ mod new_links {
         let links = v.entity(&page).unwrap().links;
         assert_eq!(links.len(), 1, "{links:?}");
         assert_eq!(
-            links.into_values().next().unwrap(),
+            links.into_values().next().unwrap().target,
             LinkTarget::Entity { id }
         );
     }
@@ -786,7 +803,7 @@ mod new_links {
         assert_eq!(texts(&e.blocks), [""], "and no alias");
         assert_eq!(names(&v), ["Fooo", "Page"]);
         let links = v.entity(&page).unwrap().links;
-        assert_eq!(links["Fooo"], LinkTarget::Entity { id });
+        assert_eq!(links["Fooo"].target, LinkTarget::Entity { id });
     }
 
     #[test]
@@ -871,7 +888,7 @@ mod new_links {
         assert_ne!(typed, plain, "the plain Foo can't match the qualifier");
         let links = v.entity(&page).unwrap().links;
         assert_eq!(
-            links.into_values().next().unwrap(),
+            links.into_values().next().unwrap().target,
             LinkTarget::Entity { id: typed }
         );
         assert_eq!(v.entity(&plain).unwrap().title, "Foo");
