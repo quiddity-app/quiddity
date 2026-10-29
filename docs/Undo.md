@@ -9,5 +9,6 @@
 - Things worth knowing
 	- Loro brings a deleted block back as a new block. An id held across an undo of its deletion is dead, so tests compare text and not ids, and the editor treats a dead id as the end of editing.
 	- What the app does itself, such as creating today's journal, is not on the stack.
+	- Deleting entities from [[All entities]] is a step of its own, however many go, and undoing it brings them back.
 	- Saving a block, which can make an entity for a new link, is a step of its own, apart from the typing. Undoing it removes the entity and leaves the link. [[Links to nowhere]]
 - Back to [[The UI]].

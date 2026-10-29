@@ -36,6 +36,10 @@ value is `None` here and `null` in JavaScript (the wasm layer sets that).
   should use the ID in the answer.
 - **Block IDs don't survive an undo** of a deletion or redo of a creation
   (see `quiddity-core`). Tests compare text, not IDs, across an undo.
+- `delete_entities` checks every ID before deleting any, and **deletes the
+  duplicates merged into an entity with it**, or a journal's twin would show
+  in its place. It leaves links to the entity alone: they become links to
+  nowhere, as if the entity had never been made.
 - Links are looked up in `Entity::links` by the text between their brackets as
   the syntax crate writes it (`link_key`). A link written some other way
   isn't found and renders as unresolved.

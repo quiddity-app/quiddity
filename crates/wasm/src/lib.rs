@@ -199,6 +199,13 @@ impl Replica {
         Ok(self.view.rename_entity(id, name)?)
     }
 
+    /// Deletes entities and everything in them, as one undo step. Returns how
+    /// many went.
+    #[wasm_bindgen(js_name = deleteEntities)]
+    pub fn delete_entities(&self, ids: Vec<String>) -> Result<usize, JsError> {
+        Ok(self.view.delete_entities(&ids)?)
+    }
+
     /// The entity a link goes to, made first if there is none. `key` is the
     /// text between the brackets, as the entity's `links` has it.
     #[wasm_bindgen(js_name = followLink)]

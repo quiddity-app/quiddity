@@ -1323,3 +1323,88 @@ mod text {
         assert!(contains_word("éalpha alpha", "alpha"));
     }
 }
+
+mod deleting_entities {
+    use super::*;
+
+    fn names(v: &View) -> Vec<String> {
+        v.entities().unwrap().into_iter().map(|e| e.title).collect()
+    }
+
+    fn three() -> View {
+        let v = view_with(|g| {
+            for name in ["A", "B", "C"] {
+                let e = g.create_entity(name, &[]).unwrap();
+                note(g, e, "text");
+            }
+        });
+        v.graph().enable_undo();
+        v
+    }
+
+    #[test]
+    fn the_chosen_entities_go_and_the_rest_stay() {
+        let v = three();
+        let gone = [id_of(&v, "A"), id_of(&v, "C")];
+        assert_eq!(v.delete_entities(&gone).unwrap(), 2);
+        assert_eq!(names(&v), ["B"]);
+        assert!(v.entity(&gone[0]).is_err(), "and the entity is no more");
+        assert_eq!(v.delete_entities(&[]).unwrap(), 0);
+    }
+
+    #[test]
+    fn a_bad_id_stops_everything() {
+        let (v, page, ids) = page(&["x"]);
+        for bad in [ids[0].clone(), "junk".to_owned()] {
+            assert!(matches!(
+                v.delete_entities(&[page.clone(), bad]),
+                Err(Error::NotAnEntity(_))
+            ));
+        }
+        assert_eq!(
+            names(&v),
+            ["Page"],
+            "a block isn't an entity, so nothing went"
+        );
+    }
+
+    #[test]
+    fn deleting_the_same_entity_twice_counts_it_once() {
+        let v = three();
+        let a = id_of(&v, "A");
+        assert_eq!(v.delete_entities(&[a.clone(), a]).unwrap(), 1);
+    }
+
+    #[test]
+    fn one_undo_brings_them_all_back() {
+        let v = three();
+        let gone = [id_of(&v, "A"), id_of(&v, "B")];
+        v.delete_entities(&gone).unwrap();
+        assert!(v.undo().unwrap());
+        assert_eq!(names(&v), ["A", "B", "C"]);
+        let a = id_of(&v, "A");
+        assert_eq!(
+            texts(&v.entity(&a).unwrap().blocks),
+            ["text"],
+            "with their blocks"
+        );
+        assert!(v.redo().unwrap());
+        assert_eq!(names(&v), ["C"]);
+    }
+
+    #[test]
+    fn a_duplicate_journal_goes_with_its_twin() {
+        let props = [("type", text("journal")), ("date", text("2026-10-26"))];
+        let v = view_with(|g| {
+            g.create_entity("2026-10-26", &props).unwrap();
+            g.create_entity("2026-10-26", &props).unwrap();
+        });
+        let day = id_of(&v, "2026-10-26");
+        assert_eq!(v.delete_entities(&[day]).unwrap(), 1);
+        assert_eq!(
+            names(&v),
+            Vec::<String>::new(),
+            "or the twin would show instead"
+        );
+    }
+}

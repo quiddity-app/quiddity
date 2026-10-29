@@ -3,6 +3,8 @@
 //! Every edit is committed on its own, so it syncs and undoes as one unit.
 //! Block ids are the strings the queries hand out.
 
+use std::collections::BTreeSet;
+
 use quiddity_core::BlockId;
 use serde::Serialize;
 
@@ -118,6 +120,31 @@ impl View {
         }
         let renamed = self.graph.rename_entity(entity, name);
         self.edited(renamed.map_err(Error::from))
+    }
+
+    /// Deletes entities and everything in them, as one undo step. Nothing is
+    /// deleted if any of `ids` isn't an entity. A journal or property entity
+    /// goes with any duplicates merged into it, or one of them would take its
+    /// place. Links to a deleted entity are left in the text and point nowhere.
+    /// Returns how many entities went.
+    pub fn delete_entities(&self, ids: &[String]) -> Result<usize> {
+        self.structural();
+        let targets = ids
+            .iter()
+            .map(|id| self.entity_id(id))
+            .collect::<Result<BTreeSet<_>>>()?;
+        let doomed: Vec<_> = {
+            let index = self.index()?;
+            self.graph
+                .roots()
+                .into_iter()
+                .filter(|&root| targets.contains(&index.canonical(root)))
+                .collect()
+        };
+        let deleted = doomed
+            .into_iter()
+            .try_for_each(|root| self.graph.delete_block(root));
+        self.edited(deleted.map(|()| targets.len()).map_err(Error::from))
     }
 
     /// Splits a block at `at` (UTF-16 units): the text after it moves to a new

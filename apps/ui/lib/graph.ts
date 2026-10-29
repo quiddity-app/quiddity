@@ -151,6 +151,11 @@ export class Graph {
     return this.edited(this.replica.renameEntity(id, name));
   }
 
+  /** Deletes entities and everything in them, as one undo step. */
+  deleteEntities(ids: string[]) {
+    return this.edited(this.replica.deleteEntities(ids));
+  }
+
   /** The entity a link goes to, made first if there is none. `key` is the
    * text between the brackets, as an entity's `links` has it. */
   followLink(key: string) {

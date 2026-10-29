@@ -8,6 +8,14 @@
 	- Click a column heading to sort by it, and click it again to reverse. The heading says which way with an arrow, and `aria-sort`.
 	- It starts by title. Rows arrive in that order and the sort is stable, so ties keep it.
 	- Titles are compared ignoring case and accents, and numbers by value, so `Note 2` comes before `Note 10`. Tags are compared as the text shown.
+- Selecting and deleting
+	- Each row has a checkbox, and the one in the header selects every row, or clears them.
+	- Deleting asks first, in the page. It does not use `window.confirm`, which the desktop app's webview can't be relied on to show. Changing the selection withdraws the question, so what you confirm is what you were asked about.
+	- Deletion is one step of undo, however many entities go. [[Undo]]
+	- It removes an entity with everything in it. Links to it stay in the text of other blocks, and become links to nowhere, as if it had never been made. [[Links to nowhere]]
+	- A journal or property entity goes with any duplicates merged into it, since otherwise the twin would appear in its place.
+	- Nothing is deleted if any of the IDs is not an entity.
+	- The selection is the set of IDs ticked, filtered by the rows still there, so an entity that an undo or a sync removes stops counting.
 - Created and last modified
 	- Loro records a commit time on every replica, so the table can say when an entity was made and when any of its blocks was last added, moved or edited. They are in your local time, to the minute.
 	- A time that was never recorded, or whose history has been compacted away, is unknown. It shows blank and sorts last, whichever way the column is sorted. [[Compaction]]
