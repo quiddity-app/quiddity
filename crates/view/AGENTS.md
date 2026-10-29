@@ -43,6 +43,9 @@ value is `None` here and `null` in JavaScript (the wasm layer sets that).
 - Links are looked up in `Entity::links` by the text between their brackets as
   the syntax crate writes it (`link_key`). A link written some other way
   isn't found and renders as unresolved.
+- Each entry (`ResolvedLink`) also carries the link's `name` and its written
+  `qualifiers`, so the UI never parses link text: it shows the name and puts
+  the qualifiers in a tooltip.
 
 ## Edits
 

@@ -41,6 +41,15 @@ export type LinkTarget =
   | { kind: "ambiguous"; ids: EntityId[] }
   | { kind: "missing" };
 
+/** A link in a block: what is shown of it, and where it goes. */
+export type ResolvedLink = LinkTarget & {
+  /** What it is called, which is all that is shown of it. */
+  name: string;
+  /** The `#key(value)` qualifiers that narrow it, as written, or empty.
+   * Shown on hover. */
+  qualifiers: string;
+};
+
 /** One row of the list of every entity. */
 export interface Summary extends EntityRef {
   /** Enough of its tags to tell it from others with the same title. */
@@ -68,7 +77,7 @@ export interface Entity extends EntityRef {
   renamable: boolean;
   blocks: Block[];
   /** Keyed by the text between a link's brackets. */
-  links: Record<string, LinkTarget>;
+  links: Record<string, ResolvedLink>;
 }
 
 /** What typing Backspace at the start of a block did: joined it to another. */
@@ -84,7 +93,7 @@ export interface Reference {
   source: EntityRef;
   /** Each with its children, for context. */
   blocks: Block[];
-  links: Record<string, LinkTarget>;
+  links: Record<string, ResolvedLink>;
 }
 
 /** An entity whose title matched a search. */

@@ -3,7 +3,7 @@
 import { createElement, memo, useMemo, type ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { Block, LinkTarget, Property } from "@/lib/model";
+import type { Block, Property, ResolvedLink } from "@/lib/model";
 import { isExternal, openExternal } from "@/lib/open-external";
 import { PROP_CLOSE, PROP_OPEN, remarkQuiddity } from "@/lib/remark-quiddity";
 import { LinkOrNot, PropertyChip } from "./property-chip";
@@ -39,7 +39,7 @@ const styled = (tag: string, className: string) =>
     return createElement(tag, { className }, children);
   };
 
-function components(links: Record<string, LinkTarget>, inline: Property[]): Components {
+function components(links: Record<string, ResolvedLink>, inline: Property[]): Components {
   const map = {
     p: styled("p", "whitespace-pre-line break-words"),
     h1: styled("h1", "text-xl font-semibold"),
@@ -87,7 +87,7 @@ function components(links: Record<string, LinkTarget>, inline: Property[]): Comp
       ),
     // Elements of our own, made by remarkQuiddity.
     "quiddity-link": ({ name }: { name?: string }) => (
-      <LinkOrNot name={name ?? ""} links={links} />
+      <LinkOrNot linkKey={name ?? ""} links={links} />
     ),
     "quiddity-ref": ({ id }: { id?: string }) => <span className={muted}>(({id}))</span>,
     "quiddity-prop": ({ index }: { index?: string }) => {
@@ -104,7 +104,7 @@ export const RenderedBlock = memo(function RenderedBlock({
   links,
 }: {
   block: Pick<Block, "text" | "properties">;
-  links: Record<string, LinkTarget>;
+  links: Record<string, ResolvedLink>;
 }): ReactNode {
   const { prose, lineProps, inlineProps } = useMemo(() => splitBlock(block), [block]);
   const map = useMemo(() => components(links, inlineProps), [links, inlineProps]);

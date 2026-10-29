@@ -116,6 +116,15 @@ pub(crate) fn link_key(link: &Link) -> String {
         .to_owned()
 }
 
+/// The qualifiers of a link as written, which follow its name in [`link_key`].
+fn link_qualifiers(link: &Link) -> String {
+    let bare = Link {
+        name: link.name.clone(),
+        qualifiers: Vec::new(),
+    };
+    link_key(link)[link_key(&bare).len()..].to_owned()
+}
+
 fn property_value(value: &Value) -> PropertyValue {
     match value {
         Value::Text(text) => PropertyValue::Text { text: text.clone() },
@@ -157,6 +166,19 @@ pub enum LinkTarget {
     Missing,
 }
 
+/// A link in a block, as the UI draws it.
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ResolvedLink {
+    /// What the link is called, which is all that is shown of it.
+    pub name: String,
+    /// The `#key(value)` qualifiers that narrow it, written out; empty if
+    /// there are none. Shown on hover rather than in the text.
+    pub qualifiers: String,
+    #[serde(flatten)]
+    pub target: LinkTarget,
+}
+
 #[derive(Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Entity {
@@ -169,7 +191,7 @@ pub struct Entity {
     /// Every link in the entity's blocks, keyed by the text between the
     /// brackets as the syntax crate writes it. Links written some other way
     /// are not found here and render as unresolved.
-    pub links: BTreeMap<String, LinkTarget>,
+    pub links: BTreeMap<String, ResolvedLink>,
 }
 
 /// The blocks of one entity that mention another.
@@ -180,7 +202,7 @@ pub struct Reference {
     /// Each with its children, for context.
     pub blocks: Vec<Block>,
     /// As [`Entity::links`], for the links in these blocks.
-    pub links: BTreeMap<String, LinkTarget>,
+    pub links: BTreeMap<String, ResolvedLink>,
 }
 
 impl View {
@@ -378,7 +400,7 @@ impl View {
         })
     }
 
-    fn block(&self, id: BlockId, links: &mut BTreeMap<String, LinkTarget>) -> Result<Block> {
+    fn block(&self, id: BlockId, links: &mut BTreeMap<String, ResolvedLink>) -> Result<Block> {
         let text = self.graph.text(id)?;
         let index = self.index()?;
         let parsed = parse_block(&text);
@@ -393,7 +415,14 @@ impl View {
                 },
                 Resolution::Missing => LinkTarget::Missing,
             };
-            links.insert(key, target);
+            links.insert(
+                key,
+                ResolvedLink {
+                    name: link.name.clone(),
+                    qualifiers: link_qualifiers(&link),
+                    target,
+                },
+            );
         }
         let properties = parsed
             .properties
