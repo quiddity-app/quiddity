@@ -1,5 +1,5 @@
-use jiff::ToSpan;
 use jiff::civil::Date;
+use jiff::{Timestamp, ToSpan};
 use quiddity_core::syntax::{Link, Value};
 use quiddity_core::{BlockId, Graph};
 
@@ -1035,6 +1035,55 @@ mod summaries {
             .collect();
         assert_eq!(mercuries, [["hot"], ["cold"]]);
         assert_eq!(row(&v, "Venus").tags, Vec::<String>::new());
+    }
+
+    #[test]
+    fn created_and_modified_follow_the_history() {
+        let mut b_text = None;
+        let v = view_with(|g| {
+            g.create_entity("A", &[]).unwrap();
+            let b = g.create_entity("B", &[]).unwrap();
+            b_text = Some(note(g, b, "first"));
+        });
+        let before = Timestamp::now().as_second();
+        let (a, b) = (row(&v, "A"), row(&v, "B"));
+        let made = a.created.expect("recorded");
+        // Loro rounds to the nearest second, so it may be a second ahead.
+        assert!(made.abs_diff(before) <= 2, "made just now");
+        assert_eq!(b.created, a.created, "made in the same commit");
+        assert_eq!(a.modified, a.created, "nothing since");
+
+        std::thread::sleep(std::time::Duration::from_millis(1100));
+        v.splice_text(&b_text.unwrap().to_string(), 0, 0, "re")
+            .unwrap();
+        let (a, b) = (row(&v, "A"), row(&v, "B"));
+        assert_eq!(a.modified, a.created, "A was left alone");
+        assert_eq!(
+            b.created, a.created,
+            "editing doesn't change when it was made"
+        );
+        assert!(b.modified > b.created, "{b:?}");
+    }
+
+    #[test]
+    fn a_compacted_graph_has_no_created_time_but_still_summarises() {
+        let g = Graph::new();
+        let a = g.create_entity("A", &[]).unwrap();
+        let text = note(&g, a, "one");
+        g.commit();
+        let at = g.version();
+        g.splice_text(text, 0, 0, "x").unwrap();
+        g.commit();
+        let snapshot = g.shallow_snapshot(&at).unwrap();
+
+        let v = View::new(Graph::from_snapshot(&snapshot).unwrap()).unwrap();
+        let before = row(&v, "A");
+        assert_eq!(before.created, None, "that history is gone");
+        assert!(before.modified.is_some(), "the edit after it isn't");
+
+        let text = v.entity(&id_of(&v, "A")).unwrap().blocks[0].id.clone();
+        v.splice_text(&text, 0, 0, "y").unwrap();
+        assert!(row(&v, "A").modified >= before.modified);
     }
 
     #[test]

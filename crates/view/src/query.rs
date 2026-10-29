@@ -2,6 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use jiff::Timestamp;
 use jiff::civil::Date;
 use quiddity_core::schema::{Typed, coerce};
 use quiddity_core::syntax::{
@@ -42,6 +43,11 @@ pub struct Summary {
     pub words: usize,
     /// Blocks in other entities that link to it.
     pub incoming: usize,
+    /// When it was made, in seconds since the Unix epoch. `None` if that
+    /// wasn't recorded or the history that says has been compacted away.
+    pub created: Option<i64>,
+    /// When a block of it was last added, moved or edited, in the same units.
+    pub modified: Option<i64>,
 }
 
 /// One entity linking to another, from anywhere in its blocks. However many
@@ -209,14 +215,25 @@ impl View {
     /// Every entity with what is needed to choose between them, in the order
     /// of [`View::entities`].
     pub fn summaries(&self) -> Result<Vec<Summary>> {
+        self.refresh_activity()?;
+        let activity = self.activity.borrow();
+        let mut modified: BTreeMap<BlockId, Timestamp> = BTreeMap::new();
         let mut words: BTreeMap<BlockId, usize> = BTreeMap::new();
         let mut tags: BTreeMap<BlockId, BTreeSet<String>> = BTreeMap::new();
         for block in self.graph.blocks() {
             let root = self.graph.entity_of(block);
+            let entity = self.index()?.canonical(root);
+            let touched = [
+                self.graph.placed_at(block),
+                activity.edited.get(&block).copied(),
+            ];
+            if let Some(at) = touched.into_iter().flatten().max() {
+                let latest = modified.entry(entity).or_insert(at);
+                *latest = (*latest).max(at);
+            }
             if block == root {
                 continue;
             }
-            let entity = self.index()?.canonical(root);
             let text = self.graph.text(block)?;
             if !is_properties_block(&text) {
                 *words.entry(entity).or_default() += text.split_whitespace().count();
@@ -258,6 +275,8 @@ impl View {
                 tags: distinguishing(tags_of(id), &rivals),
                 words: words.get(id).copied().unwrap_or(0),
                 incoming,
+                created: self.graph.created_at(*id).map(Timestamp::as_second),
+                modified: modified.get(id).copied().map(Timestamp::as_second),
             });
         }
         Ok(summaries)

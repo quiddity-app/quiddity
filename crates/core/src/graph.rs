@@ -1,11 +1,13 @@
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::fmt;
 use std::str::FromStr;
 use std::sync::{Mutex, MutexGuard};
 
+use jiff::Timestamp;
 use loro::{
-    Container, ExportMode, LoroDoc, LoroText, LoroTree, LoroValue, TreeID, TreeParentId,
-    UndoManager, UpdateOptions, ValueOrContainer, VersionVector,
+    Container, ContainerID, ContainerTrait, ExportMode, ID, LoroDoc, LoroText, LoroTree, LoroValue,
+    TreeID, TreeParentId, UndoManager, UpdateOptions, ValueOrContainer, VersionVector,
 };
 
 use crate::{Error, Result};
@@ -100,6 +102,12 @@ impl Graph {
     pub fn blank() -> Self {
         let doc = LoroDoc::new();
         doc.get_tree(BLOCKS).enable_fractional_index(0);
+        // Recording is per replica and isn't synced, so every one turns it on.
+        // Loro joins a replica's consecutive edits into one change, and the
+        // change keeps the time of its first edit, so a merge interval of
+        // zero keeps times to the second rather than to the quarter hour.
+        doc.set_record_timestamp(true);
+        doc.set_change_merge_interval(0);
         Self {
             doc,
             undo: Mutex::new(None),
@@ -115,6 +123,70 @@ impl Graph {
             graph.import(bytes)?;
         }
         Ok(graph)
+    }
+
+    /// When the block was created, if that was recorded and is still in the
+    /// history this replica holds.
+    pub fn created_at(&self, id: BlockId) -> Option<Timestamp> {
+        self.recorded(ID::new(id.0.peer, id.0.counter))
+    }
+
+    /// When the block was created or last moved (indented, say, or put under
+    /// another parent), if that was recorded.
+    pub fn placed_at(&self, id: BlockId) -> Option<Timestamp> {
+        let op = self.tree().get_last_move_id(&id.0)?;
+        self.recorded(op)
+    }
+
+    /// The time of the change containing `op`. Edits made before recording was
+    /// on, or in history a compaction dropped, have none.
+    fn recorded(&self, op: ID) -> Option<Timestamp> {
+        let change = self.doc.get_change(op)?;
+        (change.timestamp > 0)
+            .then(|| Timestamp::from_second(change.timestamp).ok())
+            .flatten()
+    }
+
+    /// Which blocks' text was edited since `since`, and when. A block appears
+    /// once for each change that touched its text, so take the latest. Edits
+    /// with no recorded time, or from before a compaction, are left out.
+    pub fn text_edits_since(&self, since: &Version) -> Result<Vec<(BlockId, Timestamp)>> {
+        // Loro's `find_id_spans_between` panics when a compaction cut the
+        // history it is asked about, so walk each peer's changes instead,
+        // starting no earlier than where the history starts.
+        let mut from = since.clone();
+        from.merge(&self.history_start());
+        let to = self.doc.oplog_vv();
+        if from.0.includes_vv(&to) {
+            return Ok(Vec::new());
+        }
+        let texts: HashMap<ContainerID, BlockId> = self
+            .blocks()
+            .into_iter()
+            .filter_map(|b| Some((self.text_container(b).ok()?.id(), b)))
+            .collect();
+        let mut edits = Vec::new();
+        for &peer in to.keys() {
+            let mut counter = from.0.get(&peer).copied().unwrap_or(0);
+            // A peer's changes end where its history does, which stops this.
+            while let Some(change) = self.doc.get_change(ID::new(peer, counter)) {
+                let until = change.id.counter + change.len as i32;
+                if let Some(at) = self.recorded(ID::new(peer, counter)) {
+                    let containers = self.doc.get_changed_containers_in(
+                        ID::new(peer, counter),
+                        (until - counter) as usize,
+                    );
+                    edits.extend(
+                        containers
+                            .iter()
+                            .filter_map(|c| texts.get(c))
+                            .map(|&b| (b, at)),
+                    );
+                }
+                counter = until;
+            }
+        }
+        Ok(edits)
     }
 
     /// The schema version the graph was created with, if known yet.
@@ -616,5 +688,70 @@ mod tests {
         let block = graph.create_block(None, None, "x")?;
         assert_eq!(block.to_string().parse::<BlockId>()?, block);
         Ok(())
+    }
+
+    mod times {
+        use super::*;
+
+        fn now() -> Timestamp {
+            Timestamp::now()
+        }
+
+        #[test]
+        fn creation_and_moves_are_stamped_to_the_second() -> Result<()> {
+            let before = now().as_second();
+            let graph = Graph::new();
+            let page = graph.create_block(None, None, "Page")?;
+            let a = graph.create_block(Some(page), None, "a")?;
+            let b = graph.create_block(Some(page), None, "b")?;
+            graph.commit();
+            graph.move_block(b, Some(a), None)?;
+            graph.commit();
+            let after = now().as_second();
+            let within = |t: Option<Timestamp>| {
+                let t = t.expect("recorded").as_second();
+                // Loro rounds to the nearest second.
+                (before - 1..=after + 1).contains(&t)
+            };
+            assert!(within(graph.created_at(page)));
+            assert!(within(graph.created_at(b)));
+            assert!(within(graph.placed_at(b)), "a move is stamped");
+            Ok(())
+        }
+
+        #[test]
+        fn edits_made_while_not_recording_have_no_time() -> Result<()> {
+            // A replica that never recorded times. It must have nothing
+            // earlier: Loro joins an unstamped change onto the one before it,
+            // which would lend it that one's time.
+            let graph = Graph::blank();
+            graph.doc.set_record_timestamp(false);
+            let page = graph.create_block(None, None, "Page")?;
+            graph.commit();
+            assert_eq!(graph.created_at(page), None);
+            assert_eq!(graph.placed_at(page), None);
+            Ok(())
+        }
+
+        #[test]
+        fn text_edits_since_names_only_the_blocks_edited_after() -> Result<()> {
+            let graph = Graph::new();
+            let page = graph.create_block(None, None, "Page")?;
+            let a = graph.create_block(Some(page), None, "a")?;
+            let b = graph.create_block(Some(page), None, "b")?;
+            graph.commit();
+            let seen = graph.version();
+            graph.splice_text(b, 1, 0, "!")?;
+            graph.commit();
+            let edits = graph.text_edits_since(&seen)?;
+            assert!(edits.iter().all(|(block, _)| *block == b), "{edits:?}");
+            assert!(!edits.is_empty());
+            let everything = graph.text_edits_since(&Version::default())?;
+            for block in [page, a, b] {
+                assert!(everything.iter().any(|(e, _)| *e == block));
+            }
+            assert_eq!(graph.text_edits_since(&graph.version())?, []);
+            Ok(())
+        }
     }
 }

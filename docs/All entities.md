@@ -8,6 +8,13 @@
 	- Click a column heading to sort by it, and click it again to reverse. The heading says which way with an arrow, and `aria-sort`.
 	- It starts by title. Rows arrive in that order and the sort is stable, so ties keep it.
 	- Titles are compared ignoring case and accents, and numbers by value, so `Note 2` comes before `Note 10`. Tags are compared as the text shown.
+- Created and last modified
+	- Loro records a commit time on every replica, so the table can say when an entity was made and when any of its blocks was last added, moved or edited. They are in your local time, to the minute.
+	- A time that was never recorded, or whose history has been compacted away, is unknown. It shows blank and sorts last, whichever way the column is sorted. [[Compaction]]
+	- Times are to the second, and a change keeps the time of its first edit. So that Last modified is not left behind by a long run of typing, the replica never joins one commit to the next.
+	- Deleting a block does not count as modifying the entity: it leaves nothing to ask.
+	- Merged duplicates of a journal move their blocks into one entity, and a move counts.
+	- Created dates are lost when history is compacted. Modified dates are only known for edits made afterwards.
 - Tags
 	- A tag is a property with no value (`#tag`, anywhere in the entity) or a value of a `tags` property, written as a list: `tags:: [a, b]`. [[Properties]]
 	- Nothing defined "tags" before this, so that is a reading, not a decision about the model. If tags should mean something else, `tags_in` in `crates/view/src/query.rs` is the one place to change.

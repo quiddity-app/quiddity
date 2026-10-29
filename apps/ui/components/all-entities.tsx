@@ -8,14 +8,24 @@ import { Region, Skeleton } from "./boundary";
 import { EntityLink } from "./entity-link";
 import { useView } from "./use-view";
 
-type Column = "title" | "tags" | "words" | "incoming";
+type Column = "title" | "tags" | "words" | "incoming" | "created" | "modified";
 
 const columns: { key: Column; label: string; numeric: boolean }[] = [
   { key: "title", label: "Title", numeric: false },
   { key: "tags", label: "Tags", numeric: false },
   { key: "words", label: "Words", numeric: true },
   { key: "incoming", label: "Incoming links", numeric: true },
+  { key: "created", label: "Created", numeric: false },
+  { key: "modified", label: "Last modified", numeric: false },
 ];
+
+const when = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
+
+function When({ seconds }: { seconds: number | null }) {
+  if (seconds === null) return null;
+  const date = new Date(seconds * 1000);
+  return <time dateTime={date.toISOString()}>{when.format(date)}</time>;
+}
 
 const collator = new Intl.Collator(undefined, { sensitivity: "base", numeric: true });
 
@@ -25,10 +35,17 @@ function compare(column: Column, a: Summary, b: Summary): number {
       return collator.compare(a.title, b.title);
     case "tags":
       return collator.compare(a.tags.join(" "), b.tags.join(" "));
+    case "created":
+    case "modified":
+      return (a[column] ?? 0) - (b[column] ?? 0);
     default:
       return a[column] - b[column];
   }
 }
+
+/** Whether a row has nothing to sort by in this column, so goes last. */
+const unknown = (column: Column, row: Summary) =>
+  (column === "created" || column === "modified") && row[column] === null;
 
 function List() {
   const rows = useRead((g) => g.summaries());
@@ -39,6 +56,8 @@ function List() {
   });
   if (rows.length === 0) return <p>Nothing here yet.</p>;
   const sorted = rows.toSorted((a, b) => {
+    const gap = Number(unknown(sort.column, a)) - Number(unknown(sort.column, b));
+    if (gap !== 0) return gap;
     const order = compare(sort.column, a, b);
     return sort.descending ? -order : order;
   });
@@ -90,6 +109,12 @@ function List() {
             </td>
             <td className={numeric}>{e.words}</td>
             <td className={numeric}>{e.incoming}</td>
+            <td className="px-3 py-1 whitespace-nowrap">
+              <When seconds={e.created} />
+            </td>
+            <td className="px-3 py-1 whitespace-nowrap">
+              <When seconds={e.modified} />
+            </td>
           </tr>
         ))}
       </tbody>
@@ -131,7 +156,7 @@ function NewEntity() {
 
 export function AllEntities() {
   return (
-    <article className="mx-auto max-w-4xl px-6 py-8">
+    <article className="mx-auto max-w-6xl px-6 py-8">
       <h1 className="mb-4 text-2xl font-semibold">All entities</h1>
       <Region
         pending={<Skeleton className="h-4 w-1/2" />}

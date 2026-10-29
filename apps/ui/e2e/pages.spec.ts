@@ -63,10 +63,10 @@ test("recents forget what no longer exists", async ({ page }) => {
 test("all entities is a table of words and incoming links", async ({ page }) => {
   await page.goto("/all/");
   const table = page.locator("main table");
-  await expect(table.getByRole("columnheader")).toContainText(["Title", "Tags", "Words", "Incoming links"]);
+  await expect(table.getByRole("columnheader")).toContainText(["Title", "Tags", "Words", "Incoming links", "Created", "Last modified"]);
   const loro = table.getByRole("row").filter({ has: page.getByRole("link", { name: "Loro", exact: true }) });
   // "A CRDT library. Documents are movable trees of text." is linked from Quiddity.
-  await expect(loro.getByRole("cell")).toHaveText(["", "9", "1"]);
+  await expect(loro.getByRole("cell")).toHaveText(["", "9", "1", /./, /./]);
 });
 
 test("the all entities table sorts by a column, and the other way on a second click", async ({ page }) => {
@@ -82,4 +82,14 @@ test("the all entities table sorts by a column, and the other way on a second cl
   await expect(table.getByRole("columnheader", { name: /Words/ })).toHaveAttribute("aria-sort", "descending");
   const down = await words();
   expect(down).toEqual([...down].sort((a, b) => b - a));
+});
+
+test("the all entities table shows when each entity was made and last changed", async ({ page }) => {
+  await page.goto("/all/");
+  const loro = page.locator("main table").getByRole("row").filter({ has: page.getByRole("link", { name: "Loro", exact: true }) });
+  await expect(loro.locator("time")).toHaveCount(2);
+  const times = await loro.locator("time").evaluateAll((ts) => ts.map((t) => Date.parse(t.getAttribute("datetime") ?? "")));
+  const [created, modified] = times as [number, number];
+  expect(Math.abs(Date.now() - created)).toBeLessThan(10 * 60_000);
+  expect(modified).toBeGreaterThanOrEqual(created);
 });
