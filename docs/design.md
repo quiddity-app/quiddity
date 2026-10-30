@@ -318,13 +318,21 @@ own: iroh pings connections and closes quiet ones, so there are no
 timeouts of ours.
 ### Devices and pairing
 
-- The list of authorised devices is stored **in the graph**, as blocks of type
-  `device` holding the node ID, a name and a `revoked` flag. Adding or revoking
-  a device is an ordinary edit that syncs like everything else.
-- Pairing: an existing device shows a QR code with its node ID and a one-time
-  token. The new device connects, presents the token and is added.
-- A peer accepts connections only from node IDs listed and not revoked in its
-  own copy of the graph.
+- **The graph's device list is the list of devices allowed to connect.** It
+  lives in the graph, keyed by node ID, and is the same list compaction uses
+  (see below). A peer accepts a connection from a device listed in its own
+  copy of the graph, whatever else it has been told. The list decides who may
+  *connect*, not whose edits are kept: updates are merged whoever made them.
+- **Authorising a device is a graph edit** (`quiddity-node allow`, or
+  `Peer::allow`): it lists the device, and the entry syncs to every other
+  device, which then lets it connect too. A device a peer has been told
+  about explicitly (`--allow`) is also let in, and listed when it
+  connects, which is how the first is let in. A blank replica can't
+  authorise anyone until it has joined.
+- Not built yet: pairing by QR code and one-time token (an existing device
+  shows its node ID and a token; the new one presents it), and revocation.
+  Eviction (silence for 30 days) affects only compaction, not whether a
+  device may connect.
 
 ### Protocol
 

@@ -14,7 +14,7 @@ use iroh::{Endpoint, EndpointAddr, EndpointId, RelayMode};
 use quiddity_core::files::{export_dir, import_dir};
 use quiddity_core::{Index, merge_duplicates};
 use quiddity_node::store::Store;
-use quiddity_node::{ALPN, Allowed, Peer};
+use quiddity_node::{ALPN, Allowed, Peer, allow_device};
 
 #[derive(Parser)]
 #[command(version, about)]
@@ -38,7 +38,10 @@ enum Command {
     Import { dir: PathBuf },
     /// Export the graph as a directory of Markdown.
     Export { dir: PathBuf },
-    /// Print this device's ID, for other devices' --allow lists.
+    /// Let a device connect to every device holding this graph, by listing
+    /// it in the graph. The device's ID is what `id` prints on it.
+    Allow { device: EndpointId },
+    /// Print this device's ID, for `allow`.
     Id,
     /// List the devices holding this graph, latest first, with when each
     /// last saved it (as far as this device has heard).
@@ -124,6 +127,12 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
             let written = export_dir(&store.load()?, &dir)?;
             println!("exported {written} entities");
         }
+        Command::Allow { device } => {
+            let graph = store.load()?;
+            allow_device(&graph, &device.to_string(), jiff::Timestamp::now())?;
+            store.save(&graph)?;
+            println!("{device} may connect");
+        }
         Command::Id => println!("{}", store.key()?.public()),
         Command::Devices => {
             let me = store.key()?.public().to_string();
@@ -143,8 +152,12 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
             allow_any,
             net,
         } => {
-            if allow.is_empty() && !allow_any {
-                anyhow::bail!("say which devices may connect, with --allow or --allow-any");
+            let me = store.key()?.public().to_string();
+            let others = store.load()?.devices().iter().any(|d| d.id != me);
+            if allow.is_empty() && !allow_any && !others {
+                anyhow::bail!(
+                    "no device is allowed to connect: use `allow`, or --allow or --allow-any"
+                );
             }
             let allowed = if allow_any {
                 Allowed::Any

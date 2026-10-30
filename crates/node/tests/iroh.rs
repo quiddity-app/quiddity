@@ -453,3 +453,87 @@ async fn the_idle_time_is_the_one_set() {
     assert!(arrived.is_ok(), "sent after 100 ms, not the default");
     shut_down(routers, task).await;
 }
+
+/// A peer whose device ID is its endpoint ID, as a real device's is, so
+/// that the graph's device list can name it.
+async fn member(graph: Graph) -> (Peer, Router, EndpointAddr) {
+    let endpoint = Endpoint::builder(presets::Minimal)
+        .relay_mode(RelayMode::Disabled)
+        .bind_addr(SocketAddr::from((Ipv4Addr::LOCALHOST, 0)))
+        .unwrap()
+        .alpns(vec![ALPN.to_vec()])
+        .bind()
+        .await
+        .unwrap();
+    let addr = EndpointAddr::new(endpoint.id()).with_ip_addr(endpoint.bound_sockets()[0]);
+    let peer = Peer::new(
+        graph,
+        Allowed::Only(HashSet::new()),
+        endpoint.id().to_string(),
+    );
+    let router = Router::builder(endpoint).accept(ALPN, peer.clone()).spawn();
+    (peer, router, addr)
+}
+
+async fn dial(peer: &Peer, router: &Router, to: &EndpointAddr) -> Result<(), quiddity_node::Error> {
+    let idle = Some(Duration::from_secs(2));
+    peer.connect(router.endpoint(), to.clone(), idle).await
+}
+
+/// Being in the graph's device list is what lets a device connect.
+#[tokio::test]
+async fn listed_devices_may_connect_and_others_may_not() {
+    let (home, home_router, home_addr) = member(Graph::new()).await;
+    edit(&home, "private");
+    let (guest, guest_router, _) = member(Graph::blank()).await;
+
+    let refused = dial(&guest, &guest_router, &home_addr).await;
+    assert!(refused.is_err(), "nobody has listed the guest");
+    assert!(guest.graph().roots().is_empty());
+
+    home.allow(&guest_router.endpoint().id().to_string())
+        .unwrap();
+    dial(&guest, &guest_router, &home_addr).await.unwrap();
+    assert_eq!(guest.graph().roots().len(), 1);
+
+    home_router.shutdown().await.unwrap();
+    guest_router.shutdown().await.unwrap();
+}
+
+/// A device listed by one device may connect to all of them, including ones
+/// it has never met, once they have the list.
+#[tokio::test]
+async fn being_listed_spreads_through_the_graph() {
+    let (a, a_router, a_addr) = member(Graph::new()).await;
+    edit(&a, "shared");
+    let (b, b_router, b_addr) = member(Graph::blank()).await;
+    let (c, c_router, _) = member(Graph::blank()).await;
+
+    a.allow(&b_router.endpoint().id().to_string()).unwrap();
+    dial(&b, &b_router, &a_addr).await.unwrap();
+    assert_eq!(b.graph().roots().len(), 1);
+
+    // Only a knows about c, until b hears.
+    a.allow(&c_router.endpoint().id().to_string()).unwrap();
+    dial(&b, &b_router, &a_addr).await.unwrap();
+    let c_id = c_router.endpoint().id().to_string();
+    assert!(b.graph().devices().iter().any(|d| d.id == c_id));
+
+    dial(&c, &c_router, &b_addr).await.unwrap();
+    assert_eq!(c.graph().roots().len(), 1, "c syncs with b, not a");
+
+    for router in [a_router, b_router, c_router] {
+        router.shutdown().await.unwrap();
+    }
+}
+
+/// A blank device has no history to list anyone in: it must join first.
+#[tokio::test]
+async fn a_blank_device_cannot_authorise_anyone() {
+    let blank = Peer::new(Graph::blank(), Allowed::Any, "blank");
+    assert!(matches!(
+        blank.allow("someone"),
+        Err(quiddity_node::AllowError::NotJoined)
+    ));
+    assert!(blank.graph().devices().is_empty());
+}

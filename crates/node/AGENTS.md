@@ -18,6 +18,15 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
   count). The graph in memory keeps its history, so open sessions aren't
   affected; only what's on disk is compacted. A blank replica records
   nothing, and `import` refuses one: it must join by syncing first.
+- **The graph's device list is the allow list.** `accept` lets in a device
+  that is listed (checked on each connection) or in `Allowed::Only`.
+  `Peer::allow` / `quiddity-node allow` list a device with nothing stored,
+  which also stops compaction past what it might lack until it has synced;
+  a blank replica refuses, since an edit with nothing beneath it can't be
+  applied by a compacted device. A device that connects is listed by the
+  session's vouching, so one explicit `--allow` is enough to start. Listing
+  is one device's say-so for all of them: that is the model, but it means
+  any member can add one. Nothing revokes yet.
 - **A device behind its peer's history** gets `Error::Behind`. The side
   that finds its peer behind closes with code `BEHIND`, so the other can say
   why even if the close arrives before the peer's hello is read.

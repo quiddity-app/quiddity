@@ -1,0 +1,17 @@
+- The graph's device list says which devices may connect. It is the list devices already keep so that history can be compacted, doing a second job. [[design]]
+- A device that is listed may connect to any device that has the graph.
+	- It is checked on each connection, against the connecting device's copy of the graph.
+	- It decides who may connect, not whose edits are kept. Nothing filters ops: updates are merged whoever made them.
+- Authorising a device is a graph edit.
+	- `quiddity-node allow <id>`, or `Peer::allow`, lists the device. The entry syncs like any edit.
+	- A device that has never met the new one lets it connect once it has the list, so a third device can join through whichever device it can reach.
+	- The entry records nothing stored for the device, which also stops anyone compacting past what it might lack until it has synced and recorded itself.
+	- A blank replica cannot authorise anyone, because an edit with nothing beneath it could not be applied by a compacted device. It has to join first.
+- The first device is let in some other way.
+	- `serve --allow <id>` admits a device that nothing lists yet. A device that connects is listed, so one flag is enough to start.
+	- `serve` needs no `--allow` once the graph lists a device other than this one.
+- Things worth knowing
+	- One member's say-so authorises a device for all of them, so any member can add one. That is the model: it is a personal graph first.
+	- Nothing revokes a device yet.
+	- Eviction after 30 days of silence affects compaction only. An evicted device is still listed, and may still connect.
+- Pairing with a QR code and a one-time token is not built. The design describes it. [[design]]
