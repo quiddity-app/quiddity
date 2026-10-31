@@ -1,0 +1,11 @@
+- A property is a `key:: value` line or an inline `#key(value)`, and the Markdown is the source of truth. [[design]]
+- Every property key can have an entity that defines it: a property entity, named for the key, with `type:: property`.
+	- Property names are unique, matched as names are, ignoring case and spacing.
+	- The entity can hold a property's schema, and describes the property in prose.
+- A chip's key goes to the entity that defines the property. [[Rendering]]
+	- The view reports the definition's id with each property, or none.
+	- With none yet the key is a dashed button, and following it makes the entity: a property entity with an empty block to describe it in. Shift-click opens it at the side.
+	- Making it is one step of undo. [[Undo]]
+- A property entity cannot be renamed, because its name is what identifies it. [[Renaming]]
+- A property with no value is written `#key`, in a properties block and in prose.
+- Back to [[The UI]].

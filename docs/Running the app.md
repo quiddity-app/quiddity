@@ -1,0 +1,11 @@
+- `mise run app` builds and launches the desktop app, from a clean checkout. `mise tasks` lists the rest. [[The UI]]
+- What it takes
+	- `scripts/doctor.sh` checks what mise cannot install: Rust, Node and pnpm, the `wasm32-unknown-unknown` target, a `wasm-bindgen` CLI of exactly the version `crates/wasm` pins, and on Linux the system libraries Tauri needs. It is the first step of the tasks that need them.
+	- `pnpm app dev` is what the task runs. It builds the WASM for the UI, starts `next dev` and opens the shell on it.
+- Other tasks
+	- `mise run check` runs what CI does apart from fuzzing and mutation testing.
+	- `mise run docs` builds this site. [[Publishing]]
+	- The tasks are defined in `mise.toml`, and are kept in step with CI when either changes.
+- Browser tests need Playwright's Chromium. [[Testing]]
+- `next dev` writes its own agent instructions into `AGENTS.md` when it notices an AI agent. `agentRules: false` in the Next config stops that, because the file is written by hand.
+- Back to [[Quiddity]].

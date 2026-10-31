@@ -1,0 +1,18 @@
+- A block shows rendered Markdown, and becomes a CodeMirror 6 editor when you click it. [[Rendering]]
+- What is typed goes into the replica as the splice that was typed.
+	- Offsets are in UTF-16 units, which is what CodeMirror and JavaScript count in. Rust's byte offsets never leave the crate.
+	- Changes are applied last to first so earlier offsets stay valid, and concurrent edits merge as the typists meant.
+	- Changes coming back from the graph reach an open editor as the smallest edit that turns its text into the graph's, and are marked so they are not sent again.
+	- The editor reconciles against the graph's text, never against props, which can be a keystroke behind.
+- Keys
+	- Enter splits the block at the caret. The tail becomes the next sibling, or the first child if there are children.
+	- Shift-Enter inserts a newline.
+	- Tab and Shift-Tab indent and outdent, Backspace at the start joins the block to the one before, and Alt-Up and Alt-Down move it among its siblings.
+	- The arrows move between blocks at the edges, and Escape leaves the editor.
+	- A key that moves the block being edited says where editing continues before it moves it, because moving makes React remount the block.
+- Every edit other than typing is a step of its own. [[Undo]]
+- Leaving a block saves it.
+	- The outline remembers each block's text from when editing began, and when editing moves on it tells the graph. That is when a new `[[link]]` gets an entity. [[Links to nowhere]]
+- The edits live in `crates/view`, so they are tested natively, in Rust, with the same code the browser runs.
+	- Edits that cannot apply change nothing. A split checks the offset is between characters before touching the text, and a merge says so when there is nothing to merge into.
+- Back to [[The UI]].
