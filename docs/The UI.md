@@ -1,4 +1,5 @@
 - The UI is a Next.js static export that runs in the Tauri webview, or in any browser for development and tests. It has three panes. [[design]]
+	- Above the main pane is an action strip, with the Search button (Cmd/Ctrl-K) so far. [[Search]]
 - What shows where
 	- Entrypoints, favourites and recents on the left. Entrypoints are fixed: the journals, all entities and the [[Graph view]].
 	- The current entity in the middle. Opening another entity with a click replaces it; shift-click opens it at the side.

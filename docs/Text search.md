@@ -1,0 +1,21 @@
+- Finding a block by the words in it. [[Search]]
+- The rules
+	- Words are runs of letters and digits, compared ignoring case. Punctuation and emoji separate words.
+	- A block is found when every query word matches one of its words. The last may be unfinished, because the query is usually still being typed: `note` finds `notes`, but `not loro` doesn't find `notes on loro`.
+	- An entity's own name is not text. [[Title matching]] has titles.
+- Ranking is BM25.
+	- A rarer word counts for more, repeats count for less and less, and a block shorter than average beats a longer one with the same words.
+	- A query of several words gets a bonus when they are together and in order, so `alpha beta` ranks `alpha beta` above `alpha x beta`.
+	- Equal scores come out in block order, so the answer doesn't depend on how the graph happens to be traversed.
+- The answer is the block's text, the entity it is on and the matched words as UTF-16 runs. The UI shows the stretch of the block around the first match, so a long block is shown where it matches and not from its start.
+- Cost
+	- Every query reads every block, as an index rebuild does: about 18 ms at 10,000 blocks was measured for the rebuild, and this has not been measured.
+	- The next step, if it is slow, is an inverted index kept beside the `Index` in `quiddity-view` and rebuilt with it.
+- Limits
+	- No stemming, so `link` doesn't find `linking`.
+	- Property lines are searched like any other text.
+	- Results land on the page, not the block.
+- Code: `View::search_text` in `crates/view/src/fts.rs`, and `apps/ui/lib/search/text.ts`.
+- Testing [[Testing]]
+	- Properties: tokens cover their words with correct UTF-16 offsets; a block is found exactly when each query word matches one of its words; the ranges mark matching words.
+	- The BM25 formulas are checked against values worked by hand, and a whole corpus score against the same formulas. That is what killed the mutants in the arithmetic, where a test that only compared orderings let them live.
