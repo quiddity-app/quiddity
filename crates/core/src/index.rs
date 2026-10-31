@@ -51,7 +51,8 @@ impl EntityInfo {
             .then(|| Identity::Property(normalise_name(&self.name)))
     }
 
-    fn matches(&self, q: &Qualifier) -> bool {
+    /// Whether one of the entity's properties satisfies the qualifier.
+    pub fn matches(&self, q: &Qualifier) -> bool {
         let key = normalise_name(&q.key);
         self.properties
             .iter()

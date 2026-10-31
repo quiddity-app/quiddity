@@ -2,6 +2,8 @@ use proptest::prelude::*;
 
 use super::*;
 use crate::tests::view_with;
+use quiddity_core::Resolution;
+use quiddity_core::syntax::{Value, parse_block};
 
 /// Characters the matcher treats specially: both cases, a separator, digits
 /// and punctuation, with a few that need more than one UTF-16 unit or byte.
@@ -211,4 +213,175 @@ fn scores_add_up_from_their_parts() {
     );
     assert_eq!(score("b", "ab"), MATCH + SAME_CASE - 2);
     assert_eq!(score("b", "a b"), MATCH + WORD_START + SAME_CASE - 3);
+}
+
+fn text_value(s: &str) -> Option<Value> {
+    Some(Value::Text(s.to_owned()))
+}
+
+fn hit<'a>(hits: &'a [TitleHit], qualifiers: &str) -> &'a TitleHit {
+    hits.iter()
+        .find(|h| h.qualifiers == qualifiers)
+        .unwrap_or_else(|| panic!("no hit with qualifiers {qualifiers:?}"))
+}
+
+#[test]
+fn a_hit_lists_its_properties_once_each() {
+    let v = view_with(|g| {
+        g.create_entity(
+            "Loro",
+            &[
+                ("type", text_value("library")),
+                (
+                    "tags",
+                    Some(Value::List(vec![
+                        Value::Text("crdt".into()),
+                        Value::Text("rust".into()),
+                    ])),
+                ),
+                ("draft", None),
+            ],
+        )
+        .unwrap();
+    });
+    let hits = v.search_titles("loro", 10).unwrap();
+    let props: Vec<_> = hits[0]
+        .properties
+        .iter()
+        .map(|p| (p.key.as_str(), p.value.as_deref()))
+        .collect();
+    assert_eq!(
+        props,
+        [
+            ("type", Some("library")),
+            ("tags", Some("crdt, rust")),
+            ("draft", None)
+        ]
+    );
+}
+
+#[test]
+fn a_unique_title_needs_no_qualifiers() {
+    let v = view_with(|g| {
+        g.create_entity("Loro", &[("type", text_value("library"))])
+            .unwrap();
+    });
+    assert_eq!(v.search_titles("loro", 10).unwrap()[0].qualifiers, "");
+}
+
+#[test]
+fn same_titled_entities_are_told_apart_by_a_property_value() {
+    let v = view_with(|g| {
+        g.create_entity("Mercury", &[("type", text_value("planet"))])
+            .unwrap();
+        g.create_entity("Mercury", &[("type", text_value("element"))])
+            .unwrap();
+    });
+    let hits = v.search_titles("mercury", 10).unwrap();
+    assert_eq!(hits.len(), 2);
+    hit(&hits, "#type(planet)");
+    hit(&hits, "#type(element)");
+}
+
+#[test]
+fn the_fewest_qualifiers_that_rule_out_every_rival_are_chosen() {
+    let v = view_with(|g| {
+        g.create_entity(
+            "Jane",
+            &[("type", text_value("person")), ("born", text_value("1970"))],
+        )
+        .unwrap();
+        g.create_entity(
+            "Jane",
+            &[("type", text_value("person")), ("born", text_value("1980"))],
+        )
+        .unwrap();
+        g.create_entity(
+            "Jane",
+            &[("type", text_value("pet")), ("born", text_value("1970"))],
+        )
+        .unwrap();
+    });
+    let hits = v.search_titles("jane", 10).unwrap();
+    // The birth year rules out the other person, and the type the pet.
+    hit(&hits, "#born(1970)#type(person)");
+    hit(&hits, "#born(1980)");
+    hit(&hits, "#type(pet)");
+    assert_eq!(hits.len(), 3);
+}
+
+#[test]
+fn the_qualifiers_chosen_resolve_to_the_entity() {
+    let v = view_with(|g| {
+        g.create_entity(
+            "Mercury",
+            &[
+                ("type", text_value("planet")),
+                (
+                    "tags",
+                    Some(Value::List(vec![
+                        Value::Text("hot".into()),
+                        Value::Text("small".into()),
+                    ])),
+                ),
+            ],
+        )
+        .unwrap();
+        g.create_entity(
+            "Mercury",
+            &[("tags", Some(Value::List(vec![Value::Text("hot".into())])))],
+        )
+        .unwrap();
+        g.create_entity("Mercury", &[]).unwrap();
+    });
+    let index = v.index().unwrap();
+    for h in v.search_titles("mercury", 10).unwrap() {
+        if h.qualifiers.is_empty() {
+            continue;
+        }
+        let parsed = parse_block(&format!("[[Mercury{}]]", h.qualifiers));
+        let Resolution::Unique(found) = index.resolve(&parsed.links[0]) else {
+            panic!("{} is not unique", h.qualifiers);
+        };
+        assert_eq!(found.to_string(), h.entity.id);
+    }
+}
+
+#[test]
+fn entities_that_cannot_be_told_apart_get_no_qualifiers() {
+    let v = view_with(|g| {
+        g.create_entity("Twin", &[("type", text_value("same"))])
+            .unwrap();
+        g.create_entity("Twin", &[("type", text_value("same"))])
+            .unwrap();
+    });
+    assert!(
+        v.search_titles("twin", 10)
+            .unwrap()
+            .iter()
+            .all(|h| h.qualifiers.is_empty())
+    );
+}
+
+#[test]
+fn a_bare_property_tells_apart_when_the_rival_has_none() {
+    let v = view_with(|g| {
+        g.create_entity("Draft", &[("wip", None)]).unwrap();
+        g.create_entity("Draft", &[]).unwrap();
+    });
+    let hits = v.search_titles("draft", 10).unwrap();
+    hit(&hits, "#wip");
+}
+
+#[test]
+fn the_link_to_write_is_the_escaped_title_and_the_qualifiers() {
+    let v = view_with(|g| {
+        g.create_entity("Odd [name] #1", &[("type", text_value("a"))])
+            .unwrap();
+        g.create_entity("Odd [name] #1", &[]).unwrap();
+        g.create_entity("Plain", &[]).unwrap();
+    });
+    let odd = v.search_titles("odd", 10).unwrap();
+    assert_eq!(hit(&odd, "#type(a)").link, r"Odd \[name\] \#1#type(a)");
+    assert_eq!(v.search_titles("plain", 10).unwrap()[0].link, "Plain");
 }

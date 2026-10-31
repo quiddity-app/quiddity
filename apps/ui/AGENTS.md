@@ -76,6 +76,15 @@ the current entity in the middle, open secondaries on the right.
   link is corrected. A link to nowhere that is already in a block (written on
   another device, or left by an undo) is a button, `NewEntityLink`, and
   following it makes the entity (`graph.followLink`).
+- **Links are completed in the editor** (`lib/link-completion.ts`, with
+  `lib/auto-brackets.ts` pairing `[`). Its keys sit above the outliner's, so
+  in a link the arrows and Enter are the list's; **Escape is left to the
+  outliner** unless an entry is chosen, or leaving the block would no longer
+  save it. The list opens only on a user edit that touches the link (never a
+  `fromGraph` change, never just the caret arriving), and choosing an entry
+  writes it into the link, marked `previewing` so it doesn't reopen the list.
+  Enter with no list follows the link. A hit's `link` is the text to write,
+  escaped and qualified by Rust.
 - **A property chip's key goes to the entity that defines the property**
   (`Property.definition`). With none yet it is a button, and following it
   makes the entity (`graph.defineProperty`), as a link to nowhere does. A block

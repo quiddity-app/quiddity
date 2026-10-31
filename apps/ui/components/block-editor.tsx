@@ -1,13 +1,15 @@
 "use client";
 
 import { defaultKeymap, insertNewline } from "@codemirror/commands";
-import { Annotation, EditorState, Prec } from "@codemirror/state";
+import { EditorState, Prec } from "@codemirror/state";
 import { EditorView, keymap, type KeyBinding } from "@codemirror/view";
 import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from "react";
+import { useRouter } from "next/navigation";
+import { autoBrackets } from "@/lib/auto-brackets";
+import { fromGraph } from "@/lib/cm-annotations";
+import { linkCompletion } from "@/lib/link-completion";
 import { useEditing, type Caret, type Editing } from "./editing-context";
-
-/** Marks changes that came from the graph, which must not go back to it. */
-const fromGraph = Annotation.define<boolean>();
+import { useView } from "./use-view";
 
 const isHighSurrogate = (s: string, i: number) => {
   const c = s.charCodeAt(i);
@@ -153,6 +155,10 @@ export function BlockEditor({ id, caret }: { id: string; caret: Caret }) {
   const { graph } = editing;
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
+  const router = useRouter();
+  const nav = useView();
+  const go = useRef({ router, nav });
+  go.current = { router, nav };
   // The key handlers outlive a render, so they read the latest state from here.
   const latest = useRef(editing);
   latest.current = editing;
@@ -178,6 +184,22 @@ export function BlockEditor({ id, caret }: { id: string; caret: Caret }) {
         selection: { anchor },
         extensions: [
           EditorView.lineWrapping,
+          autoBrackets(),
+          // Before the outliner's keys: in a link, arrows and Enter are the list's.
+          Prec.highest(
+            linkCompletion({
+              search: (query, limit) => graph.searchTitles(query, limit),
+              follow: (key) => {
+                let target: string;
+                try {
+                  target = graph.followLink(key);
+                } catch {
+                  return; // Empty, or ambiguous (no page to choose yet).
+                }
+                go.current.router.push(go.current.nav.toMain(target));
+              },
+            }),
+          ),
           Prec.highest(keymap.of(outlinerKeys(id, latest))),
           keymap.of(defaultKeymap),
           EditorView.updateListener.of((update) => {
