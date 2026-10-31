@@ -28,9 +28,19 @@ use quiddity_sync::{
     DecodeError, FrameError, FrameReader, Message, Presence, Record, Session, State, write_frame,
 };
 use tokio::sync::watch;
+use tokio::task::JoinSet;
 
 /// The protocol's name, negotiated when connecting.
 pub const ALPN: &[u8] = b"quiddity/sync/2";
+
+/// How long to wait before dialling a listed device again, at first and at
+/// most (it doubles in between, so a device that is off isn't pestered).
+const REDIAL_MIN: Duration = Duration::from_secs(1);
+const REDIAL_MAX: Duration = Duration::from_secs(60);
+
+/// How long to wait for a connection to be made, before giving up and, for a
+/// dialler, trying again. Waiting out a dead address takes much longer.
+const HANDSHAKE: Duration = Duration::from_secs(10);
 
 /// How long after the last keystroke an edit nobody is watching is sent.
 const EDIT_IDLE: Duration = Duration::from_secs(2);
@@ -55,6 +65,8 @@ pub enum Error {
     Decode(#[from] DecodeError),
     #[error(transparent)]
     Sync(#[from] quiddity_sync::Error),
+    #[error("timed out making the connection")]
+    TimedOut,
     #[error("the peer's graph uses schema {0:?}, which this build can't sync with")]
     Incompatible(Option<i64>),
     #[error("this device is behind the peer's history: it needs to start again from a snapshot")]
@@ -127,6 +139,7 @@ struct Inner {
     /// flushes. It follows `changes` except while edits are held back.
     publish: watch::Sender<u64>,
     gate: Mutex<Gate>,
+    dialling: Mutex<Dialling>,
     /// Bumped when the gate's deadline moves, so connections re-read it.
     gate_changes: watch::Sender<u64>,
     presence: Mutex<PresenceState>,
@@ -142,6 +155,15 @@ struct Gate {
     /// When they are sent regardless: `idle` after the latest edit.
     deadline: Option<tokio::time::Instant>,
     idle: Duration,
+}
+
+/// How a peer dials: how long it waits between attempts, at first and at
+/// most, and how long it waits for one to connect.
+#[derive(Debug, Clone, Copy)]
+struct Dialling {
+    min: Duration,
+    max: Duration,
+    handshake: Duration,
 }
 
 #[derive(Debug)]
@@ -187,6 +209,11 @@ impl Peer {
                     deadline: None,
                     idle: EDIT_IDLE,
                 }),
+                dialling: Mutex::new(Dialling {
+                    min: REDIAL_MIN,
+                    max: REDIAL_MAX,
+                    handshake: HANDSHAKE,
+                }),
                 gate_changes: watch::Sender::new(0),
                 publish: watch::Sender::new(0),
                 device,
@@ -207,6 +234,96 @@ impl Peer {
         allow_device(self.graph(), device, Timestamp::now())?;
         self.changed();
         Ok(())
+    }
+
+    /// How long to wait before dialling a device again, at first and at
+    /// most.
+    pub fn set_redial(&self, min: Duration, max: Duration) {
+        let mut dialling = self.dialling();
+        dialling.min = min;
+        dialling.max = max;
+    }
+
+    /// How long to wait for a connection to be made.
+    pub fn set_handshake_timeout(&self, timeout: Duration) {
+        self.dialling().handshake = timeout;
+    }
+
+    fn dialling(&self) -> MutexGuard<'_, Dialling> {
+        self.inner
+            .dialling
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Keeps a connection up to every device the graph lists, other than
+    /// this one, for as long as it is polled (spawn it, and abort the task to
+    /// stop). A device listed later is picked up as soon as the listing
+    /// arrives. `address` says how to find a device from its ID; for a
+    /// device on the internet that is just its ID, and iroh looks the rest
+    /// up. It is asked again for every attempt, so a device that comes back
+    /// somewhere else is found.
+    ///
+    /// Each device is dialled on its own: a failure, or a connection that
+    /// ends, is retried after a delay that doubles to a minute. Two devices
+    /// that both dial may end up with two connections between them, which
+    /// works but sends everything twice.
+    pub async fn dial_listed(
+        &self,
+        endpoint: &Endpoint,
+        address: impl Fn(EndpointId) -> EndpointAddr + Send + Sync + 'static,
+    ) {
+        let address = Arc::new(address);
+        let mut changes = self.subscribe();
+        let mut dialling = HashSet::new();
+        let mut tasks = JoinSet::new();
+        loop {
+            let listed = self.graph().devices();
+            for device in listed.into_iter().map(|d| d.id) {
+                // A name that isn't an endpoint ID can't be dialled.
+                let Ok(id) = device.parse::<EndpointId>() else {
+                    continue;
+                };
+                if device == self.inner.device || !dialling.insert(device.clone()) {
+                    continue;
+                }
+                let (peer, endpoint, address) = (self.clone(), endpoint.clone(), address.clone());
+                tasks.spawn(async move {
+                    peer.keep_connected(&endpoint, &device, id, &*address).await;
+                });
+            }
+            if changes.changed().await.is_err() {
+                return;
+            }
+        }
+    }
+
+    /// Dials `device` whenever it isn't connected, forever.
+    async fn keep_connected(
+        &self,
+        endpoint: &Endpoint,
+        device: &str,
+        id: EndpointId,
+        address: &(dyn Fn(EndpointId) -> EndpointAddr + Send + Sync),
+    ) {
+        let Dialling { min, max, .. } = *self.dialling();
+        let mut delay = min;
+        loop {
+            if self.presence().links.contains_key(device) {
+                // It dialled us. Look again soon.
+                delay = min;
+            } else {
+                let started = tokio::time::Instant::now();
+                let _ = self.connect(endpoint, address(id), None).await;
+                // A connection that outlasted the longest wait was a good one:
+                // go back to retrying at once.
+                if started.elapsed() >= max {
+                    delay = min;
+                }
+            }
+            tokio::time::sleep(delay).await;
+            delay = (delay * 2).min(max);
+        }
     }
 
     /// Whether the graph lists `device`.
@@ -390,7 +507,10 @@ impl Peer {
         addr: impl Into<EndpointAddr>,
         idle: Option<Duration>,
     ) -> Result<(), Error> {
-        let connection = endpoint.connect(addr, ALPN).await?;
+        let handshake = self.dialling().handshake;
+        let connection = tokio::time::timeout(handshake, endpoint.connect(addr, ALPN))
+            .await
+            .map_err(|_| Error::TimedOut)??;
         let (send, recv) = connection.open_bi().await?;
         let result = self.sync(send, recv, idle).await;
         close(&connection, &result);
