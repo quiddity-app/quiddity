@@ -11,6 +11,9 @@ inputs:
   cargo-workspace:
     description: The Cargo workspace whose target directory the cache keeps.
     default: .
+  mbx:
+    description: Whether to cache cargo's builds with mbx ("true" or "false"). Builds that mbx bypasses, such as cargo-fuzz's, gain nothing from it.
+    default: "true"
 
 runs:
   using: composite
@@ -25,17 +28,20 @@ runs:
       cache: pnpm
       cache-dependency-path: pnpm-lock.yaml
   # The toolchain must already be on PATH: the cache key includes rustc's.
-  - uses: jdx/mr-boxington-action@88acf2bb50552c7c508cbac13e5f8c576b95b1de # v1.7.3
+  - if: inputs.mbx == 'true'
+    uses: jdx/mr-boxington-action@88acf2bb50552c7c508cbac13e5f8c576b95b1de # v1.7.3
     with:
       working-directory: ${{ inputs.cargo-workspace }}
   # mbx's cargo shim sits first on PATH, so plain `cargo` (including the
   # calls scripts, cargo-mutants and cargo-fuzz make) goes through mbx too.
   # The directory is built from runner-set variables only, never from input.
-  - shell: bash
+  - if: inputs.mbx == 'true'
+    shell: bash
     run: | # zizmor: ignore[github-env]
       mbx setup
       echo "${XDG_DATA_HOME:-$HOME/.local/share}/mbx/bin" >> "$GITHUB_PATH"
-  - shell: bash
+  - if: inputs.mbx == 'true'
+    shell: bash
     run: |
       shim="${XDG_DATA_HOME:-$HOME/.local/share}/mbx/bin/cargo"
       test "$(command -v cargo)" = "$shim" || { echo "cargo is $(command -v cargo), not mbx's shim" >&2; exit 1; }

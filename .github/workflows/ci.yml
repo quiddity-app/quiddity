@@ -152,12 +152,26 @@ jobs:
     - uses: $/.github/actions/setup
       with:
         tools: cargo-binstall rust cargo:cargo-fuzz
-        cargo-workspace: fuzz
+        mbx: "false"
+    # mbx bypasses almost every compilation under cargo-fuzz's sanitizer flags,
+    # so it never has anything to save. Cache the target directory instead:
+    # main saves it, and pull requests restore it and rebuild what changed.
+    - id: fuzz-build
+      uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+      with:
+        path: fuzz/target
+        key: fuzz-${{ matrix.target }}-${{ hashFiles('fuzz/Cargo.lock', 'mise.toml') }}-${{ github.sha }}
+        restore-keys: fuzz-${{ matrix.target }}-${{ hashFiles('fuzz/Cargo.lock', 'mise.toml') }}-
     - run: rustup toolchain install nightly --profile minimal
     - run: mkdir -p fuzz/corpus/${{ matrix.target }}
     # The prebuilt cargo-fuzz otherwise targets musl, which isn't installed.
     - run: >-
         cargo +nightly fuzz run --target x86_64-unknown-linux-gnu ${{ matrix.target }} fuzz/corpus/${{ matrix.target }} fuzz/seeds/${{ matrix.target }} -- -max_total_time=60
+    - if: success() && github.event_name == 'push'
+      uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+      with:
+        path: fuzz/target
+        key: ${{ steps.fuzz-build.outputs.cache-primary-key }}
     - if: failure()
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
