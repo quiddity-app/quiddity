@@ -15,13 +15,16 @@
 pub mod store;
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
-use iroh::endpoint::{Connection, ConnectionError, ReadError, RecvStream, SendStream, WriteError};
-use iroh::protocol::{AcceptError, ProtocolHandler};
-use iroh::{Endpoint, EndpointAddr, EndpointId};
+use iroh::endpoint::{
+    Connection, ConnectionError, ReadError, RecvStream, SendStream, WriteError, presets,
+};
+use iroh::protocol::{AcceptError, ProtocolHandler, Router};
+use iroh::{Endpoint, EndpointAddr, EndpointId, RelayMode, SecretKey};
 use jiff::Timestamp;
 use quiddity_core::{Graph, Index, merge_duplicates};
 use quiddity_sync::{
@@ -101,6 +104,8 @@ pub enum Allowed {
 
 #[derive(Debug, thiserror::Error)]
 pub enum AllowError {
+    #[error("{0:?} is not a device ID")]
+    NotADevice(String),
     #[error("this device has not joined a graph yet: sync before authorising others")]
     NotJoined,
     #[error(transparent)]
@@ -133,6 +138,8 @@ struct Inner {
     device: String,
     graph: Graph,
     allowed: Allowed,
+    /// Devices let in for now, not listed in the graph: see [`Peer::trust`].
+    trusted: Mutex<HashSet<EndpointId>>,
     /// Bumped whenever the graph changes, so that it is saved.
     changes: watch::Sender<u64>,
     /// Bumped when the changes so far are to be sent, so every connection
@@ -219,6 +226,7 @@ impl Peer {
                 device,
                 graph,
                 allowed,
+                trusted: Mutex::new(HashSet::new()),
                 changes: watch::Sender::new(0),
             }),
         }
@@ -323,6 +331,42 @@ impl Peer {
             }
             tokio::time::sleep(delay).await;
             delay = (delay * 2).min(max);
+        }
+    }
+
+    /// Lets `device` connect, until this peer stops. It is not recorded in
+    /// the graph: a replica that has joined nothing yet has no history to
+    /// list anyone in, and needs to let in the device it will join through.
+    /// That device lists it when it connects, which does last.
+    pub fn trust(&self, device: EndpointId) {
+        self.inner
+            .trusted
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(device);
+    }
+
+    fn trusted(&self, device: &EndpointId) -> bool {
+        self.inner
+            .trusted
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .contains(device)
+    }
+
+    /// Lets the device `device` (an endpoint ID, as text) in: lists it in the
+    /// graph, or, if this replica has not joined a graph yet and so has none
+    /// to list it in, trusts it for now (see [`Peer::trust`]). It is the
+    /// action behind pairing two devices.
+    pub fn admit(&self, device: &str) -> Result<(), AllowError> {
+        let id: EndpointId = device
+            .parse()
+            .map_err(|_| AllowError::NotADevice(device.to_owned()))?;
+        if self.graph().version() == quiddity_core::Version::default() {
+            self.trust(id);
+            Ok(())
+        } else {
+            self.allow(device)
         }
     }
 
@@ -654,10 +698,97 @@ fn read_error(e: ReadError) -> Error {
     }
 }
 
+/// Why an endpoint could not be started.
+pub type NetError = Box<dyn std::error::Error + Send + Sync>;
+
+/// Binds an endpoint with `key`. With `local` it listens on that address
+/// only, with no relays or address lookup: for a local network, or testing.
+pub async fn bind(key: SecretKey, local: Option<SocketAddr>) -> Result<Endpoint, NetError> {
+    let builder = match local {
+        Some(addr) => Endpoint::builder(presets::Minimal)
+            .relay_mode(RelayMode::Disabled)
+            .bind_addr(addr)?,
+        None => Endpoint::builder(presets::N0),
+    };
+    Ok(builder
+        .secret_key(key)
+        .alpns(vec![ALPN.to_vec()])
+        .bind()
+        .await?)
+}
+
+/// A peer on the network: an endpoint that serves it and, unless it is
+/// local, dials the devices its graph lists. Dropping it stops dialling;
+/// [`Server::shutdown`] closes the endpoint too.
+#[derive(Debug)]
+pub struct Server {
+    router: Router,
+    dialler: Option<tokio::task::JoinHandle<()>>,
+}
+
+impl Server {
+    pub fn endpoint(&self) -> &Endpoint {
+        self.router.endpoint()
+    }
+
+    /// Closes the endpoint, and with it every connection.
+    pub async fn shutdown(self) -> Result<(), NetError> {
+        Ok(self.router.shutdown().await?)
+    }
+}
+
+impl Drop for Server {
+    fn drop(&mut self) {
+        if let Some(dialler) = &self.dialler {
+            dialler.abort();
+        }
+    }
+}
+
+/// Starts `peer` on the network with this device's `key`. See [`bind`] for
+/// `local`; with it, devices can't be found from their IDs, so none is
+/// dialled and they must dial in.
+pub async fn serve(
+    peer: &Peer,
+    key: SecretKey,
+    local: Option<SocketAddr>,
+) -> Result<Server, NetError> {
+    let router = Router::builder(bind(key, local).await?)
+        .accept(ALPN, peer.clone())
+        .spawn();
+    let dialler = local.is_none().then(|| {
+        let (peer, endpoint) = (peer.clone(), router.endpoint().clone());
+        tokio::spawn(async move { peer.dial_listed(&endpoint, EndpointAddr::new).await })
+    });
+    Ok(Server { router, dialler })
+}
+
+/// Saves the graph shortly after it changes, batching bursts of changes.
+/// Duplicate journals that arrived from different devices are merged first,
+/// and the merge is sent on to connected devices.
+pub fn save_on_change(peer: Peer, store: store::Store) {
+    let mut changes = peer.subscribe();
+    tokio::spawn(async move {
+        while changes.changed().await.is_ok() {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+            changes.mark_unchanged();
+            let saved = (|| -> Result<(), Box<dyn std::error::Error>> {
+                peer.tidy()?;
+                store.save(peer.graph())?;
+                Ok(())
+            })();
+            if let Err(e) = saved {
+                eprintln!("quiddity: saving failed: {e}");
+            }
+        }
+    });
+}
+
 impl ProtocolHandler for Peer {
     async fn accept(&self, connection: Connection) -> Result<(), AcceptError> {
         if let Allowed::Only(ids) = &self.inner.allowed
             && !ids.contains(&connection.remote_id())
+            && !self.trusted(&connection.remote_id())
             && !self.listed(&connection.remote_id())
         {
             connection.close(1u32.into(), b"not allowed");
@@ -667,5 +798,48 @@ impl ProtocolHandler for Peer {
         let result = self.sync(send, recv, None).await;
         close(&connection, &result);
         result.map_err(AcceptError::from_err)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    use super::*;
+
+    /// Sets a flag when dropped, as a task's state is when it is aborted.
+    struct Flag(Arc<AtomicBool>);
+
+    impl Drop for Flag {
+        fn drop(&mut self) {
+            self.0.store(true, Ordering::SeqCst);
+        }
+    }
+
+    /// Dropping the server stops the dialler that goes with it.
+    #[tokio::test]
+    async fn dropping_the_server_stops_its_dialler() {
+        let local = Some(SocketAddr::from(([127, 0, 0, 1], 0)));
+        let router = Router::builder(bind(SecretKey::generate(), local).await.unwrap()).spawn();
+        let stopped = Arc::new(AtomicBool::new(false));
+        let flag = Flag(stopped.clone());
+        let dialler = tokio::spawn(async move {
+            let _flag = flag;
+            std::future::pending::<()>().await;
+        });
+        tokio::task::yield_now().await;
+        assert!(!stopped.load(Ordering::SeqCst), "running until dropped");
+
+        drop(Server {
+            router,
+            dialler: Some(dialler),
+        });
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while !stopped.load(Ordering::SeqCst) {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("the dialler is aborted");
     }
 }

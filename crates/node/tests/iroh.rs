@@ -734,3 +734,91 @@ async fn the_dialler_does_not_dial_itself() {
     }
     home_router.shutdown().await.unwrap();
 }
+
+/// A device that was trusted for now may connect, and is listed by the
+/// connection, so that it keeps being let in.
+#[tokio::test]
+async fn a_trusted_device_may_connect_and_is_listed_by_it() {
+    let (home, home_router, home_addr) = member(Graph::new()).await;
+    edit(&home, "shared");
+    let (guest, guest_router, _) = member(Graph::blank()).await;
+    let guest_id = guest_router.endpoint().id();
+
+    assert!(dial(&guest, &guest_router, &home_addr).await.is_err());
+    assert!(
+        !home
+            .graph()
+            .devices()
+            .iter()
+            .any(|d| d.id == guest_id.to_string())
+    );
+
+    home.trust(guest_id);
+    dial(&guest, &guest_router, &home_addr).await.unwrap();
+    assert_eq!(guest.graph().roots().len(), 1);
+    assert!(
+        home.graph()
+            .devices()
+            .iter()
+            .any(|d| d.id == guest_id.to_string())
+    );
+
+    home_router.shutdown().await.unwrap();
+    guest_router.shutdown().await.unwrap();
+}
+
+/// `serve` puts a peer on the network: others can reach it by the address of
+/// its endpoint, and shutting it down closes the endpoint.
+#[tokio::test]
+async fn serve_puts_a_peer_on_the_network() {
+    let key = iroh::SecretKey::generate();
+    let home = Peer::new(Graph::new(), Allowed::Any, key.public().to_string());
+    edit(&home, "served");
+    let local = Some(SocketAddr::from((Ipv4Addr::LOCALHOST, 0)));
+    let server = quiddity_node::serve(&home, key, local).await.unwrap();
+    let addr = EndpointAddr::new(server.endpoint().id())
+        .with_ip_addr(server.endpoint().bound_sockets()[0]);
+
+    let (guest, guest_router, _) = member(Graph::blank()).await;
+    dial(&guest, &guest_router, &addr).await.unwrap();
+    assert_eq!(guest.graph().roots().len(), 1);
+
+    let endpoint = server.endpoint().clone();
+    server.shutdown().await.unwrap();
+    assert!(endpoint.is_closed());
+    guest_router.shutdown().await.unwrap();
+}
+
+/// Admitting lists a device in a graph that has history, and only trusts
+/// one in a blank replica, which has none to list anyone in.
+#[tokio::test]
+async fn admitting_a_device_lists_it_or_trusts_it() {
+    let key = iroh::SecretKey::generate().public().to_string();
+    let joined = Peer::new(Graph::new(), Allowed::Only(HashSet::new()), "joined");
+    joined.admit(&key).unwrap();
+    assert!(joined.graph().devices().iter().any(|d| d.id == key));
+
+    let (home, home_router, _) = member(Graph::new()).await;
+    edit(&home, "shared");
+    let (blank, blank_router, _) = member(Graph::blank()).await;
+    blank
+        .admit(&home_router.endpoint().id().to_string())
+        .unwrap();
+    assert!(blank.graph().devices().is_empty(), "nothing to list it in");
+    // Trusted, so the home device can reach the blank one (which accepts
+    // only what it is told to), and the join lists it from there.
+    let blank_addr = EndpointAddr::new(blank_router.endpoint().id())
+        .with_ip_addr(blank_router.endpoint().bound_sockets()[0]);
+    home.admit(&blank_router.endpoint().id().to_string())
+        .unwrap();
+    dial(&home, &home_router, &blank_addr).await.unwrap();
+    assert_eq!(blank.graph().roots().len(), 1);
+    assert!(!blank.graph().devices().is_empty());
+
+    assert!(matches!(
+        joined.admit("not a device"),
+        Err(quiddity_node::AllowError::NotADevice(_))
+    ));
+    home_router.shutdown().await.unwrap();
+    blank_router.shutdown().await.unwrap();
+}
