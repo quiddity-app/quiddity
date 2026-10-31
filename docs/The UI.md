@@ -1,0 +1,23 @@
+- The UI is a Next.js static export that runs in the Tauri webview, or in any browser for development and tests. It has three panes. [[design]]
+- What shows where
+	- Entrypoints, favourites and recents on the left. Entrypoints are fixed: the journals, all entities and the [[Graph view]].
+	- The current entity in the middle. Opening another entity with a click replaces it; shift-click opens it at the side.
+	- Open secondaries on the right, each its own card.
+- The UI holds its own replica of the graph.
+	- The core is compiled to WASM (`crates/wasm`, over `crates/view`) and loaded from a snapshot at startup. Every query is answered locally and every edit applies locally, so nothing typed waits on IPC. [[Editing]]
+	- The shell is sent the updates a moment later, 300 ms after the last edit.
+	- `lib/graph.ts` is the one place that touches the replica. Reads are kept until the next edit, so what a component reads is stable between edits.
+	- Typing notifies the views after a pause and structure changes notify at once, so a block is not rebuilt per keystroke.
+- View state is the URL: `/entity/?id=<main>&open=<a>,<b>`.
+	- A static export cannot enumerate entities for path segments, and the right pane is a list, not a route.
+- Nothing blocks anything else.
+	- Reading the URL suspends, so each pane, and each secondary within the right pane, has its own `Suspense` and error boundary. A card's header sits outside its content's boundary so it can always be closed.
+- The graph only exists in the browser, so everything that reads it renders inside `ClientOnly`.
+	- A static export never renders those panes on a server, but `next dev` does, on every request. A pane left outside `ClientOnly` works in the export and fails in development with a server error, so there are tests that run against `next dev` too. [[Testing]]
+- Three backends, chosen when the app starts.
+	- Tauri: the shell holds the graph and the UI asks it for a snapshot. `QUIDDITY_GRAPH` names the graph the shell opens.
+	- Static: the snapshot is published beside the pages. [[Static build]]
+	- Memory: a made-up graph, built through the same replica, for development and tests. Its ids differ on every load, so anything remembered by id has to cope with the entity no longer existing. Recents do.
+- Looks: Tailwind's slate palette (light 50/800, dark 900/200, following the system), and IBM Plex Sans.
+- Running it: [[Running the app]].
+- Back to [[Quiddity]].

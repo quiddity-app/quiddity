@@ -1,0 +1,13 @@
+- Undo covers the whole graph, not one editor, and only this device's own edits. [[design]]
+- Core: Loro's `UndoManager`, opt in.
+	- `enable_undo` binds it to a replica. The shell and the headless node never call it and pay nothing.
+	- One commit is one step, so a split (a splice and a create) undoes as one. `begin_undo_group` and `end_undo_group` make the commits between them a single step.
+- View: where typing bursts begin and end.
+	- `splice_text` opens a group, so a burst of typing is one step until typing pauses, about 800 ms.
+	- Every other edit calls `structural()` first, which ends the burst. A new edit that forgets would be merged into the typing before it.
+- UI: Ctrl/Cmd-Z and Ctrl/Cmd-Shift-Z work whichever block has the focus, or none. [[Editing]]
+- Things worth knowing
+	- Loro brings a deleted block back as a new block. An id held across an undo of its deletion is dead, so tests compare text and not ids, and the editor treats a dead id as the end of editing.
+	- What the app does itself, such as creating today's journal, is not on the stack.
+	- Saving a block, which can make an entity for a new link, is a step of its own, apart from the typing. Undoing it removes the entity and leaves the link. [[Links to nowhere]]
+- Back to [[The UI]].

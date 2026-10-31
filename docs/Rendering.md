@@ -1,0 +1,14 @@
+- A block that is not being edited is drawn from its Markdown: CommonMark with GFM, so tables, task lists and strikethrough. [[Editing]]
+- Properties are chips. [[Properties]]
+	- `key:: value` lines come out of the text and are drawn as pills below it. A list is a comma-separated run, and a link value is a live link.
+	- Inline `#tag` and `#prop(value)` become pills where they were written.
+	- A block of nothing but properties is only chips, so its bullet is hidden. The bullet keeps its place so the chips line up with the text around them, and comes back while the block is edited.
+- The view reports where each property is written, in UTF-16 units, so the UI never parses block text itself.
+- How it is drawn
+	- `react-markdown` makes React elements rather than HTML strings, and a small plugin turns `[[links]]`, `((refs))` and the property placeholders into elements of our own, in prose only and never in code.
+	- A link to an entity is a link. One that goes nowhere is a button. [[Links to nowhere]]
+- Block text comes from other devices, so it is untrusted.
+	- Raw HTML is shown as text, never run. There is no `rehype-raw` and none should be added.
+	- Only `http(s)` and `mailto` links are links, and they open in the system's browser rather than replacing the app. Anything else is inert text.
+	- Remote images are not fetched, because fetching one is a request to whoever wrote it.
+- Back to [[The UI]].

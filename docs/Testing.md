@@ -11,10 +11,16 @@
 	- Each simulation caught a real design flaw before it shipped: compacting before catching up, a creator missing from the device list, gossip that forgot records.
 - Fuzzing covers arbitrary input: nothing panics, and formatting reaches a fixed point.
 	- Targets are `block`, `outline` and `peer`. A crash becomes a seed and a regression test in the crate it is about.
+- The UI is tested in a browser.
+	- Playwright runs against the static export, and a few tests against `next dev`, which renders on a server as development does and shows React warnings that a production build hides. [[The UI]]
+	- Each test starts from the same made-up graph, and fails if the page logs an error.
+	- The editing, the queries and the rest of what a UI does live in `crates/view`, and are tested natively. The browser tests check what only a browser can: that it is drawn, focused and navigated.
+	- A test that counts something on a page must wait for the graph to load first, because it only exists in the browser. Counting rows straight after `goto` counts zero.
 - When a mutant survives
 	- If it changes behaviour, add the test that notices. Usually that is a stronger property or a better-weighted generator, not one more example.
 	- If it cannot change behaviour, the code is redundant: simplify it. A guard that the next check already implies went this way.
 	- Only if neither applies, exclude it in `.cargo/mutants.toml`, with the reason beside it.
 - A timeout counts as caught but costs the run time, so look for a fast failure first.
+	- A loop whose exit test is flipped by a mutant runs forever. Written as a recursion it overflows the stack at once instead, which is a quick failure.
 - Check that a new test fails without the fix before trusting it.
 - `cargo nextest run` is the suite. It has profiles for CI and for mutants, where the first failing test ends the run.

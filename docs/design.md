@@ -484,7 +484,8 @@ born:: 1970-01-01
 - **Three panes.** Entrypoints, favourites and recents on the left; the
   current entity in the middle; open secondaries on the right. The panes live
   in the root layout, so the middle pane is the routed page.
-- **The left pane**: fixed entrypoints (journals, all entities); favourites,
+- **The left pane**: fixed entrypoints (journals, all entities, the graph, see
+  [[Graph view]]); favourites,
   which are the entities with `favourite:: true`, so they live in the graph and
   sync; and recents, which are per device and kept locally.
 - **View state is the URL**: `/entity/?id=<main>&open=<a>,<b>`. A static
@@ -516,12 +517,18 @@ born:: 1970-01-01
   keystroke.
 - **Pages** are entities. **Journals** are the default home: today's page, then
   earlier days as you scroll.
+- **Entities get made from the text.** A `[[link]]` to an entity that doesn't
+  exist is active: saving the block makes the entity, following the link does
+  too, and correcting the link before anything else is done with the entity
+  renames it without an alias. See [[Links to nowhere]] and [[Renaming]].
 - **Properties** are rendered as chips when a block isn't being edited, and
   as their Markdown when it is. `key:: value` lines come out of the text and
   are drawn as pills below it (a link value is a live link, a list is a
   comma-separated run); inline `#tag` and `#prop(value)` become pills where
   they were written. The view returns each block's properties with where they
-  are written, in UTF-16 units, so the UI does not parse them itself.
+  are written, in UTF-16 units, so the UI does not parse them itself. A chip's
+  key goes to the entity that defines the property, made on first use (see
+  [[Properties]]), and a block of only properties has no bullet.
 - **Block text is Markdown** (CommonMark with GFM: tables, task lists,
   strikethrough) when not being edited, drawn by a renderer that makes React
   elements rather than HTML strings, and that ignores raw HTML. Text comes from

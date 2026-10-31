@@ -1,0 +1,16 @@
+- The graph view draws every entity as a point and the links between them as lines. It is an entrypoint, at `/graph/`. [[The UI]]
+- The data
+	- `View::connections()` returns every entity, as the list of entities does, and one edge per pair where one links to the other from anywhere in its blocks, however many links there are.
+	- Property values count. An entity's links to itself, and links to nowhere, make no edge. Links from a merged duplicate count for the entity it was merged into.
+- The drawing is d3, with React owning only the `<svg>`.
+	- `d3-force` lays it out, `d3-zoom` pans and zooms and `d3-drag` moves nodes. d3 owns what is inside the `<svg>`.
+	- Nodes are real links. Click opens the entity and shift-click opens it at the side.
+	- Hovering or focusing a node dims everything that is not its neighbour.
+	- The static site's base path applies to the nodes' links, since they are written by hand. [[Static build]]
+- Where things are is remembered.
+	- Positions and the pan and zoom are kept in memory, so leaving the graph and coming back finds it as it was, and in localStorage, so restarting does too.
+	- An entity with no remembered position starts beside one it links to, and the layout only settles gently, so what was there does not move.
+	- Positions of entities that have gone are dropped when next saved.
+- Things worth knowing
+	- Setting the initial zoom ends a zoom, which used to save an empty layout over the remembered one before it could be restored. Nothing is saved before the first nodes are drawn.
+	- Every entity is drawn, journals included, with every label. It will want filtering and level of detail as graphs grow.
