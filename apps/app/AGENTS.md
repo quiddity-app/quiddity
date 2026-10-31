@@ -8,13 +8,16 @@ holds its own replica and answers its own queries (see `apps/ui` and
   because it needs Tauri's system packages (webkit) that the core's CI
   shouldn't. It has its own `Cargo.lock`, its own CI job, and its own
   `cargo fmt`, `clippy` and `test` runs (from `src-tauri`).
-- **Five commands.** `load_graph` returns a snapshot and `push_updates`
+- **Six commands.** `load_graph` returns a snapshot and `push_updates`
   takes Loro updates as the request body, imports them, saves and sends them
   to other devices, both as raw bytes rather than JSON arrays. Updates that
   arrive out of order are held by Loro until their causes do.
-  `subscribe_updates` is below. `device_id` and `allow_device` are for
-  letting another device in (see `docs/App sync.md`); nothing in the UI calls
-  them yet.
+  `push_updates` takes an `x-typed` header naming the blocks typed in, when
+  that is all the updates are: the shell calls `Peer::edited` for them and
+  `changed` otherwise. `set_focus` takes the block being edited. The UI sends
+  the focus after flushing what it typed, so moving on ends the typing.
+  `subscribe_updates` is below. `device_id` and `allow_device` are for letting
+  another device in (see `docs/App sync.md`); nothing in the UI calls them yet.
 - **The shell's graph is a `quiddity_node::Peer`, on the network from
   `setup`.** `start_network` binds an endpoint, serves the peer, dials the
   devices the graph lists and saves a moment after any change. It never

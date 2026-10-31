@@ -61,6 +61,13 @@ export function EditableOutline({
     },
     [graph],
   );
+  // Other devices are told which block is open.
+  const open = current?.id;
+  useEffect(() => {
+    if (open === undefined) return;
+    graph.focus(open);
+    return () => graph.blur(open);
+  }, [graph, open]);
   // Leaving the page is leaving the block.
   useEffect(
     () => () => [...opened.current.keys()].forEach(save),
