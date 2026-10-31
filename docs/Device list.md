@@ -10,6 +10,12 @@
 - The first device is let in some other way.
 	- `serve --allow <id>` admits a device that nothing lists yet. A device that connects is listed, so one flag is enough to start.
 	- `serve` needs no `--allow` once the graph lists a device other than this one.
+- Listed devices are dialled, not just waited for. `Peer::dial_listed` keeps a connection up to each one, and `serve` runs it.
+	- A device listed later is picked up as soon as the entry arrives. A name that is not an endpoint ID, such as a test name, is skipped.
+	- Each device is dialled on its own. A failure, or a connection that ends, is retried after a delay that doubles from 1 s to a minute, and starts again after a connection that lasted. Its address is looked up again for every attempt, so a device that comes back elsewhere is found.
+	- Waiting out a dead address takes much longer than anyone wants, so making a connection is given 10 s.
+	- Devices that both dial may end up with two connections. That works, and sends everything twice. Choosing who dials is a job for later.
+	- `serve --local` does not dial: with no address lookup there is no way to find a device from its ID.
 - Things worth knowing
 	- One member's say-so authorises a device for all of them, so any member can add one. That is the model: it is a personal graph first.
 	- Nothing revokes a device yet.

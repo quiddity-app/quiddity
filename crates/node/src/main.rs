@@ -175,6 +175,13 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
                 None => println!("serving {}", endpoint.id()),
             }
             let router = Router::builder(endpoint).accept(ALPN, peer.clone()).spawn();
+            if net.local.is_none() {
+                // Reach the devices the graph lists, rather than waiting for
+                // them. Without address lookup (--local) there is no way to
+                // find them from their IDs.
+                let (peer, endpoint) = (peer.clone(), router.endpoint().clone());
+                tokio::spawn(async move { peer.dial_listed(&endpoint, EndpointAddr::new).await });
+            }
             save_on_change(peer.clone(), store.clone());
             tokio::signal::ctrl_c().await?;
             router.shutdown().await?;
