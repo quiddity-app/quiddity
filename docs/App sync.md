@@ -6,8 +6,11 @@
 	- The shell remembers what the UI is known to have: the snapshot it started from, what it has pushed and what it has been sent. Whatever the graph has beyond that is sent as one update, on a channel as raw bytes, whenever the graph changes.
 	- The UI imports it and tells its views at once, as for any change that is not typing. It does not push it back, since the shell has it.
 	- Saving records the device in the graph, so a push is followed by a small update that is only that record. It does no harm, but it is wasteful, and a record that is only made when something changed would stop it.
+- The UI tells the shell which block is open, and which blocks a push was typed in.
+	- That is what drives the publish gate: typing in a block nobody else has open is held back, and goes when the user moves on. [[Publish gate]]
+	- It also makes this device visible to the others, who can know it is in a block. [[Presence]]
 - Not yet
-	- The UI does not report which blocks are open, so the publish gate is not driven and presence is not shown. [[Publish gate]] [[Presence]]
+	- Presence is not shown. Other devices' open blocks are known to the shell and not drawn. [[Presence]]
 	- The UI has no screen for any of this: the commands exist, nothing calls them.
 - Letting two devices meet
 	- Each device has an ID, which is its endpoint ID. The app gives it with `device_id`, and `quiddity-node id` prints a node's.
