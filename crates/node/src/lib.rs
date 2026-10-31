@@ -74,10 +74,39 @@ pub enum StoreError {
 }
 
 /// Which devices may connect.
+///
+/// The graph's device list is the standing answer: a device listed there
+/// may always connect, whatever else is said here. `Only` adds devices that
+/// aren't listed yet, which is how the first is let in; a device that
+/// connects is listed (see `Session`), so from then on the graph says so,
+/// to every device. The list decides who may connect, not whose edits are
+/// kept: edits are merged whoever made them.
 #[derive(Debug, Clone)]
 pub enum Allowed {
     Any,
     Only(HashSet<EndpointId>),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum AllowError {
+    #[error("this device has not joined a graph yet: sync before authorising others")]
+    NotJoined,
+    #[error(transparent)]
+    Graph(#[from] quiddity_core::Error),
+}
+
+/// Lists `device` in the graph, so that every device that has this edit
+/// lets it connect. Nothing is recorded for a blank replica: an edit with
+/// nothing beneath it couldn't be applied by a compacted device.
+///
+/// Until the device has synced and recorded what it has stored, no device
+/// compacts past what it might lack.
+pub fn allow_device(graph: &Graph, device: &str, now: Timestamp) -> Result<(), AllowError> {
+    if graph.version() == quiddity_core::Version::default() {
+        return Err(AllowError::NotJoined);
+    }
+    graph.vouch_for(device, &quiddity_core::Version::default(), now)?;
+    Ok(())
 }
 
 /// A graph, shared with every device it is connected to.
@@ -170,6 +199,20 @@ impl Peer {
 
     pub fn graph(&self) -> &Graph {
         &self.inner.graph
+    }
+
+    /// Authorises `device` (an endpoint ID) to connect to every device that
+    /// shares this graph, by listing it in the graph.
+    pub fn allow(&self, device: &str) -> Result<(), AllowError> {
+        allow_device(self.graph(), device, Timestamp::now())?;
+        self.changed();
+        Ok(())
+    }
+
+    /// Whether the graph lists `device`.
+    fn listed(&self, device: &EndpointId) -> bool {
+        let device = device.to_string();
+        self.graph().devices().iter().any(|d| d.id == device)
     }
 
     /// Call after committing local changes, to send them, and any edits
@@ -495,6 +538,7 @@ impl ProtocolHandler for Peer {
     async fn accept(&self, connection: Connection) -> Result<(), AcceptError> {
         if let Allowed::Only(ids) = &self.inner.allowed
             && !ids.contains(&connection.remote_id())
+            && !self.listed(&connection.remote_id())
         {
             connection.close(1u32.into(), b"not allowed");
             return Ok(());

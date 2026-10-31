@@ -68,8 +68,13 @@ fn import_serve_sync_export() {
     let early = node(&b).arg("import").arg(&from_b).output().unwrap();
     assert!(!early.status.success(), "a blank replica must join first");
 
+    // b is let in by being listed in the graph, not by a flag.
+    assert_eq!(
+        run(node(&a).args(["allow", &b_id])),
+        format!("{b_id} may connect")
+    );
     let mut server = node(&a)
-        .args(["serve", "--allow", &b_id, "--local", "127.0.0.1:0"])
+        .args(["serve", "--local", "127.0.0.1:0"])
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
         .spawn()
@@ -97,7 +102,7 @@ fn import_serve_sync_export() {
     synced(&b);
     run(node(&b).arg("import").arg(&from_b));
     synced(&b);
-    assert!(!sync(&c).status.success(), "c isn't on the allow list");
+    assert!(!sync(&c).status.success(), "c isn't listed");
     server.kill().unwrap();
     server.wait().unwrap();
 
@@ -144,7 +149,31 @@ fn serve_needs_to_be_told_who_may_connect() {
     server.wait().unwrap();
     assert!(line.starts_with("serving "), "{line:?}");
 
-    let output = node(&graph).arg("serve").output().unwrap();
-    assert!(!output.status.success());
-    assert!(String::from_utf8_lossy(&output.stderr).contains("--allow"));
+    // Only itself is listed, so there is nobody to let in. It must say so
+    // at once, not serve to no one.
+    let mut refused = node(&graph)
+        .arg("serve")
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    let status = loop {
+        if let Some(status) = refused.try_wait().unwrap() {
+            break Some(status);
+        }
+        if std::time::Instant::now() > deadline {
+            refused.kill().unwrap();
+            refused.wait().unwrap();
+            break None;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    };
+    assert!(
+        status.is_some_and(|s| !s.success()),
+        "serve should refuse to start"
+    );
+    let mut stderr = String::new();
+    std::io::Read::read_to_string(&mut refused.stderr.take().unwrap(), &mut stderr).unwrap();
+    assert!(stderr.contains("allow"), "{stderr}");
 }
