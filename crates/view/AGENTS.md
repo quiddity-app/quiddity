@@ -133,7 +133,10 @@ case, but **a capital must start a word (or be that same capital)** and so must
 anything typed after a space, as an IDE's "go to" does. Of the possible
 alignments the best scoring wins (adjacent runs, word starts and the start of
 the name count for more). Its ranges are UTF-16 units, for highlighting.
-`search_titles` runs it over every entity's title. Whitespace in a query is
+`search_titles` runs it over every entity's title, and gives each hit its
+properties and the `link` to write (title plus the greedy fewest qualifiers
+that rule out every rival `Index::named` finds; none if some can't be told
+apart), so a completion list needs nothing else. Whitespace in a query is
 never matched itself. Tests use the weights by name, so retuning them doesn't
 break the tests; the ranking tests are the ones to read when changing them.
 

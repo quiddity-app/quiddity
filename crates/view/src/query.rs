@@ -117,7 +117,7 @@ pub(crate) fn link_key(link: &Link) -> String {
 }
 
 /// The qualifiers of a link as written, which follow its name in [`link_key`].
-fn link_qualifiers(link: &Link) -> String {
+pub(crate) fn link_qualifiers(link: &Link) -> String {
     let bare = Link {
         name: link.name.clone(),
         qualifiers: Vec::new(),

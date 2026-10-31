@@ -1,8 +1,13 @@
 //! Search: fuzzy matching of names, and the title search built on it.
 
+use std::cmp::Reverse;
+use std::collections::BTreeMap;
+
+use quiddity_core::syntax::{Link, Qualifier, Value, format_inline_property};
+use quiddity_core::{BlockId, Index};
 use serde::Serialize;
 
-use crate::query::EntityRef;
+use crate::query::{EntityRef, link_key, link_qualifiers};
 use crate::{Result, View};
 
 /// What a matched character is worth, before bonuses.
@@ -195,6 +200,15 @@ fn utf16_runs(chars: &[char], at: &[usize]) -> Vec<(usize, usize)> {
     runs
 }
 
+/// A property of an entity, for showing beside it in a list of choices.
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct HitProperty {
+    pub key: String,
+    /// The value as plain text, or `None` for a bare `#tag`.
+    pub value: Option<String>,
+}
+
 /// An entity whose title matched a search.
 #[derive(Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -203,28 +217,141 @@ pub struct TitleHit {
     pub score: i32,
     /// As [`Match::ranges`], in the title.
     pub ranges: Vec<(usize, usize)>,
+    /// The entity's properties, without repeats, in the order written.
+    pub properties: Vec<HitProperty>,
+    /// The `#key(value)` qualifiers that make a link to this title reach this
+    /// entity and no other, as they are written after the name. Empty when
+    /// the title is not shared, or when nothing tells the entities apart.
+    pub qualifiers: String,
+    /// What to write between the brackets to link here: the title, escaped
+    /// as needed, then the qualifiers.
+    pub link: String,
+}
+
+/// A value as plain text.
+fn plain(value: &Value) -> String {
+    match value {
+        Value::Text(t) => t.clone(),
+        Value::Link(l) => l.name.clone(),
+        Value::BlockRef(id) => format!("(({id}))"),
+        Value::List(items) => items.iter().map(plain).collect::<Vec<_>>().join(", "),
+    }
+}
+
+/// The properties of `id` as shown in a list of choices.
+fn properties_of(index: &Index, id: BlockId) -> Vec<HitProperty> {
+    let mut out: Vec<HitProperty> = Vec::new();
+    for p in index.entity(id).map_or(&[][..], |e| &e.properties) {
+        let shown = HitProperty {
+            key: p.key.clone(),
+            value: p.value.as_ref().map(plain),
+        };
+        if !out.contains(&shown) {
+            out.push(shown);
+        }
+    }
+    out
+}
+
+/// Qualifiers that, written after the title, pick `id` out from every other
+/// entity a link to that title could reach (those with the same name or
+/// alias). Greedy: each is the one that rules out most of the entities still
+/// in the running, preferring `#key(value)` to a bare `#key`, which a rival
+/// may come to have. Empty if there are no rivals, or some can't be told apart.
+fn qualifiers_for(index: &Index, id: BlockId, title: &str) -> Vec<Qualifier> {
+    let Some(own) = index.entity(id) else {
+        return Vec::new();
+    };
+    let mut rivals: Vec<_> = index
+        .named(title)
+        .into_iter()
+        .filter(|r| index.canonical(*r) != id)
+        .filter_map(|r| index.entity(r))
+        .collect();
+    if rivals.is_empty() {
+        return Vec::new();
+    }
+    // Every way of narrowing a link that this entity satisfies, by how it is
+    // written. A reference to a block can't be written into a link.
+    let mut candidates: BTreeMap<String, Qualifier> = BTreeMap::new();
+    for p in &own.properties {
+        let mut add = |value: Option<Value>| {
+            let written = format_inline_property(&p.key, value.as_ref());
+            candidates.entry(written).or_insert(Qualifier {
+                key: p.key.clone(),
+                value,
+            });
+        };
+        add(None);
+        let items = match &p.value {
+            Some(Value::List(items)) => items.clone(),
+            Some(v) => vec![v.clone()],
+            None => vec![],
+        };
+        for item in items
+            .into_iter()
+            .filter(|i| !matches!(i, Value::BlockRef(_)))
+        {
+            add(Some(item));
+        }
+    }
+    let mut chosen = Vec::new();
+    while !rivals.is_empty() {
+        let best = candidates
+            .iter()
+            .map(|(written, q)| {
+                let ruled_out = rivals.iter().filter(|r| !r.matches(q)).count();
+                (ruled_out, q.value.is_some(), Reverse(written), q)
+            })
+            .filter(|(n, ..)| *n > 0)
+            .max_by(|a, b| (a.0, a.1, &a.2).cmp(&(b.0, b.1, &b.2)));
+        let Some((.., q)) = best else {
+            return Vec::new();
+        };
+        chosen.push(q.clone());
+        rivals.retain(|r| r.matches(q));
+    }
+    chosen
 }
 
 impl View {
     /// The entities whose titles match `query` (see [`fuzzy_match`]), best
     /// first and at most `limit`. Equal scores are in title order.
     pub fn search_titles(&self, query: &str, limit: usize) -> Result<Vec<TitleHit>> {
-        let mut hits: Vec<TitleHit> = self
+        let mut hits: Vec<(EntityRef, Match)> = self
             .entities()?
             .into_iter()
             .filter_map(|entity| {
                 let m = fuzzy_match(query, &entity.title)?;
-                Some(TitleHit {
-                    entity,
-                    score: m.score,
-                    ranges: m.ranges,
-                })
+                Some((entity, m))
             })
             .collect();
         // Stable, and `entities` is in title order.
-        hits.sort_by_key(|h| std::cmp::Reverse(h.score));
+        hits.sort_by_key(|(_, m)| Reverse(m.score));
         hits.truncate(limit);
-        Ok(hits)
+        let ids = hits
+            .iter()
+            .map(|(e, _)| self.entity_id(&e.id))
+            .collect::<Result<Vec<_>>>()?;
+        let index = self.index()?;
+        Ok(hits
+            .into_iter()
+            .zip(ids)
+            .map(|((entity, m), id)| {
+                let link = Link {
+                    name: entity.title.clone(),
+                    qualifiers: qualifiers_for(&index, id, &entity.title),
+                };
+                TitleHit {
+                    properties: properties_of(&index, id),
+                    qualifiers: link_qualifiers(&link),
+                    link: link_key(&link),
+                    entity,
+                    score: m.score,
+                    ranges: m.ranges,
+                }
+            })
+            .collect())
     }
 }
 
