@@ -2,8 +2,11 @@
 - There are two replicas on one device, and only one is on the network.
 	- [[The UI]] holds its own, in WASM, so typing never waits on IPC. The shell holds the other, which is the device as the network sees it.
 	- The UI pushes its edits to the shell a few hundred milliseconds after typing stops. The shell imports them, saves, and sends them on to connected devices.
+- Changes from other devices reach the UI as they happen.
+	- The shell remembers what the UI is known to have: the snapshot it started from, what it has pushed and what it has been sent. Whatever the graph has beyond that is sent as one update, on a channel as raw bytes, whenever the graph changes.
+	- The UI imports it and tells its views at once, as for any change that is not typing. It does not push it back, since the shell has it.
+	- Saving records the device in the graph, so a push is followed by a small update that is only that record. It does no harm, but it is wasteful, and a record that is only made when something changed would stop it.
 - Not yet
-	- Changes from other devices reach the shell, and are saved, but are not pushed back to the UI. The UI shows them after a restart.
 	- The UI does not report which blocks are open, so the publish gate is not driven and presence is not shown. [[Publish gate]] [[Presence]]
 	- The UI has no screen for any of this: the commands exist, nothing calls them.
 - Letting two devices meet
