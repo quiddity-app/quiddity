@@ -27,6 +27,13 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
   session's vouching, so one explicit `--allow` is enough to start. Listing
   is one device's say-so for all of them: that is the model, but it means
   any member can add one. Nothing revokes yet.
+- **`Peer::dial_listed` dials the listed devices** (`serve` runs it, except
+  with `--local`). One task per device, spawned in a `JoinSet` so aborting
+  the dialler stops them. `address` is called for every attempt: a device
+  that came back elsewhere would otherwise be dialled at its old address.
+  **Connecting has its own timeout** (10 s): QUIC waits far longer for a dead
+  address, and that wait is the redial. Devices that both dial may hold two
+  connections at once; it works but doubles the traffic.
 - **A device behind its peer's history** gets `Error::Behind`. The side
   that finds its peer behind closes with code `BEHIND`, so the other can say
   why even if the close arrives before the peer's hello is read.

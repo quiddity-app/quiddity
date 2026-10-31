@@ -2,10 +2,13 @@
 
 use std::collections::HashSet;
 use std::net::{Ipv4Addr, SocketAddr};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use iroh::endpoint::presets;
+use iroh::endpoint::{Connection, presets};
 use iroh::protocol::Router;
+use iroh::protocol::{AcceptError, ProtocolHandler};
 use iroh::{Endpoint, EndpointAddr, RelayMode};
 use quiddity_core::{BlockId, Graph, Index, ensure_journal};
 use quiddity_node::{ALPN, Allowed, Peer};
@@ -536,4 +539,198 @@ async fn a_blank_device_cannot_authorise_anyone() {
         Err(quiddity_node::AllowError::NotJoined)
     ));
     assert!(blank.graph().devices().is_empty());
+}
+
+/// An endpoint with this key, on localhost.
+async fn bind(key: &iroh::SecretKey) -> (Endpoint, EndpointAddr) {
+    let endpoint = Endpoint::builder(presets::Minimal)
+        .relay_mode(RelayMode::Disabled)
+        .bind_addr(SocketAddr::from((Ipv4Addr::LOCALHOST, 0)))
+        .unwrap()
+        .secret_key(key.clone())
+        .alpns(vec![ALPN.to_vec()])
+        .bind()
+        .await
+        .unwrap();
+    let addr = EndpointAddr::new(endpoint.id()).with_ip_addr(endpoint.bound_sockets()[0]);
+    (endpoint, addr)
+}
+
+/// A dialler for `peer`, finding devices in `addresses`.
+fn dial_listed(
+    peer: &Peer,
+    router: &Router,
+    addresses: Arc<Mutex<Vec<EndpointAddr>>>,
+) -> tokio::task::JoinHandle<()> {
+    let (peer, endpoint) = (peer.clone(), router.endpoint().clone());
+    peer.set_redial(Duration::from_millis(50), Duration::from_millis(200));
+    peer.set_handshake_timeout(Duration::from_millis(500));
+    tokio::spawn(async move {
+        peer.dial_listed(&endpoint, move |id| {
+            let known = addresses.lock().unwrap();
+            known
+                .iter()
+                .find(|a| a.id == id)
+                .cloned()
+                .unwrap_or_else(|| EndpointAddr::new(id))
+        })
+        .await;
+    })
+}
+
+/// A listed device is dialled, and dialled again when it goes away and comes
+/// back, wherever it comes back.
+#[tokio::test]
+async fn listed_devices_are_dialled_and_dialled_again() {
+    let b_key = iroh::SecretKey::generate();
+    let b_id = b_key.public();
+    let (home, home_router, _) = member(Graph::new()).await;
+    edit(&home, "before");
+
+    // B accepts the home device because it was told to, as at first
+    // pairing; the home device dials it because it lists it.
+    let b = Peer::new(
+        Graph::blank(),
+        Allowed::Only(HashSet::from([home_router.endpoint().id()])),
+        b_id.to_string(),
+    );
+    let (b_endpoint, b_addr) = bind(&b_key).await;
+    let b_router = Router::builder(b_endpoint).accept(ALPN, b.clone()).spawn();
+    home.allow(&b_id.to_string()).unwrap();
+
+    let addresses = Arc::new(Mutex::new(vec![b_addr]));
+    let dialler = dial_listed(&home, &home_router, addresses.clone());
+    converged(&[&home, &b]).await;
+
+    // B goes away; the home device edits meanwhile; B comes back elsewhere.
+    b_router.shutdown().await.unwrap();
+    edit(&home, "while away");
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    let (b_endpoint, b_addr) = bind(&b_key).await;
+    *addresses.lock().unwrap() = vec![b_addr];
+    let b_router = Router::builder(b_endpoint).accept(ALPN, b.clone()).spawn();
+    converged(&[&home, &b]).await;
+    assert_eq!(b.graph().roots().len(), 2);
+
+    dialler.abort();
+    home_router.shutdown().await.unwrap();
+    b_router.shutdown().await.unwrap();
+}
+
+/// A device listed after the dialler started is picked up, and a name that
+/// isn't an endpoint ID is left alone.
+#[tokio::test]
+async fn devices_listed_later_are_dialled_and_odd_names_are_not() {
+    let (home, home_router, _) = member(Graph::new()).await;
+    edit(&home, "shared");
+    let dialler = dial_listed(&home, &home_router, Arc::default());
+    tokio::time::sleep(Duration::from_millis(200)).await;
+
+    home.allow("not an endpoint id").unwrap();
+    let key = iroh::SecretKey::generate();
+    let late = Peer::new(
+        Graph::blank(),
+        Allowed::Only(HashSet::from([home_router.endpoint().id()])),
+        key.public().to_string(),
+    );
+    let (endpoint, addr) = bind(&key).await;
+    let late_router = Router::builder(endpoint).accept(ALPN, late.clone()).spawn();
+    dialler.abort();
+    // Restart with the late device's address known, now it is listed.
+    home.allow(&key.public().to_string()).unwrap();
+    let dialler = dial_listed(&home, &home_router, Arc::new(Mutex::new(vec![addr])));
+    converged(&[&home, &late]).await;
+    assert!(!dialler.is_finished(), "the odd name didn't stop it");
+
+    dialler.abort();
+    home_router.shutdown().await.unwrap();
+    late_router.shutdown().await.unwrap();
+}
+
+/// Counts the connections made to it, and closes each at once.
+#[derive(Debug, Clone)]
+struct Counter(Arc<AtomicUsize>);
+
+impl ProtocolHandler for Counter {
+    async fn accept(&self, connection: Connection) -> Result<(), AcceptError> {
+        self.0.fetch_add(1, Ordering::SeqCst);
+        connection.close(1u32.into(), b"counted");
+        Ok(())
+    }
+}
+
+/// A device that keeps refusing is tried again at a growing interval (here
+/// from 50 ms to 200 ms): not hammered, and not forgotten.
+#[tokio::test]
+async fn a_listed_device_that_refuses_is_retried_with_backoff() {
+    let (home, home_router, _) = member(Graph::new()).await;
+    let key = iroh::SecretKey::generate();
+    let (endpoint, addr) = bind(&key).await;
+    let attempts = Arc::new(AtomicUsize::new(0));
+    let router = Router::builder(endpoint)
+        .accept(ALPN, Counter(attempts.clone()))
+        .spawn();
+    home.allow(&key.public().to_string()).unwrap();
+
+    let dialler = dial_listed(&home, &home_router, Arc::new(Mutex::new(vec![addr])));
+    tokio::time::sleep(Duration::from_millis(1500)).await;
+    // About nine: at 0, 50, 150, then every 200 ms. Retrying every 50 ms
+    // would be thirty, and the default delay of a second would be two.
+    let n = attempts.load(Ordering::SeqCst);
+    assert!((5..=14).contains(&n), "{n} attempts in 1.5 s");
+
+    dialler.abort();
+    home_router.shutdown().await.unwrap();
+    router.shutdown().await.unwrap();
+}
+
+/// An address nobody answers at is given up on, not waited on for as long
+/// as QUIC would.
+#[tokio::test]
+async fn a_dead_address_is_given_up_on() {
+    let (home, home_router, _) = member(Graph::new()).await;
+    let (endpoint, addr) = bind(&iroh::SecretKey::generate()).await;
+    endpoint.close().await;
+    home.set_handshake_timeout(Duration::from_millis(300));
+
+    let result = tokio::time::timeout(
+        Duration::from_secs(3),
+        home.connect(home_router.endpoint(), addr, None),
+    )
+    .await;
+    assert!(
+        matches!(result, Ok(Err(quiddity_node::Error::TimedOut))),
+        "{result:?}"
+    );
+    home_router.shutdown().await.unwrap();
+}
+
+/// The dialler asks where the other devices are, and never about itself.
+#[tokio::test]
+async fn the_dialler_does_not_dial_itself() {
+    let (home, home_router, _) = member(Graph::new()).await;
+    let other = iroh::SecretKey::generate().public();
+    // The graph lists this device as well, as a saved graph does.
+    home.allow(&home_router.endpoint().id().to_string())
+        .unwrap();
+    home.allow(&other.to_string()).unwrap();
+
+    let asked = Arc::new(Mutex::new(Vec::new()));
+    let (peer, endpoint, log) = (home.clone(), home_router.endpoint().clone(), asked.clone());
+    let dialler = tokio::spawn(async move {
+        peer.dial_listed(&endpoint, move |id| {
+            log.lock().unwrap().push(id);
+            EndpointAddr::new(id)
+        })
+        .await;
+    });
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    dialler.abort();
+
+    {
+        let asked = asked.lock().unwrap();
+        assert!(asked.contains(&other), "{asked:?}");
+        assert!(!asked.contains(&home_router.endpoint().id()), "{asked:?}");
+    }
+    home_router.shutdown().await.unwrap();
 }
