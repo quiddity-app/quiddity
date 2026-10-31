@@ -8,13 +8,11 @@ use std::process::ExitCode;
 use std::time::Duration;
 
 use clap::{Parser, Subcommand};
-use iroh::endpoint::presets;
-use iroh::protocol::Router;
-use iroh::{Endpoint, EndpointAddr, EndpointId, RelayMode};
+use iroh::{Endpoint, EndpointAddr, EndpointId};
 use quiddity_core::files::{export_dir, import_dir};
 use quiddity_core::{Index, merge_duplicates};
 use quiddity_node::store::Store;
-use quiddity_node::{ALPN, Allowed, Peer, allow_device};
+use quiddity_node::{Allowed, NetError, Peer, allow_device};
 
 #[derive(Parser)]
 #[command(version, about)]
@@ -76,20 +74,14 @@ struct Net {
     local: Option<SocketAddr>,
 }
 
+/// An error from the network, for `?` in `anyhow` code.
+fn net<T>(result: Result<T, NetError>) -> anyhow::Result<T> {
+    result.map_err(anyhow::Error::from_boxed)
+}
+
 impl Net {
     async fn endpoint(&self, store: &Store) -> anyhow::Result<Endpoint> {
-        let key = store.key()?;
-        let builder = match self.local {
-            Some(addr) => Endpoint::builder(presets::Minimal)
-                .relay_mode(RelayMode::Disabled)
-                .bind_addr(addr)?,
-            None => Endpoint::builder(presets::N0),
-        };
-        Ok(builder
-            .secret_key(key)
-            .alpns(vec![ALPN.to_vec()])
-            .bind()
-            .await?)
+        net(quiddity_node::bind(store.key()?, self.local).await)
     }
 }
 
@@ -165,7 +157,8 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
                 Allowed::Only(allow.into_iter().collect::<HashSet<_>>())
             };
             let peer = Peer::new(store.load()?, allowed, store.key()?.public().to_string());
-            let endpoint = net.endpoint(&store).await?;
+            let server = self::net(quiddity_node::serve(&peer, store.key()?, net.local).await)?;
+            let endpoint = server.endpoint();
             match net.local {
                 Some(_) => println!(
                     "serving {} at {}",
@@ -174,17 +167,9 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
                 ),
                 None => println!("serving {}", endpoint.id()),
             }
-            let router = Router::builder(endpoint).accept(ALPN, peer.clone()).spawn();
-            if net.local.is_none() {
-                // Reach the devices the graph lists, rather than waiting for
-                // them. Without address lookup (--local) there is no way to
-                // find them from their IDs.
-                let (peer, endpoint) = (peer.clone(), router.endpoint().clone());
-                tokio::spawn(async move { peer.dial_listed(&endpoint, EndpointAddr::new).await });
-            }
-            save_on_change(peer.clone(), store.clone());
+            quiddity_node::save_on_change(peer.clone(), store.clone());
             tokio::signal::ctrl_c().await?;
-            router.shutdown().await?;
+            self::net(server.shutdown().await)?;
             store.save(peer.graph())?;
         }
         Command::Sync {
@@ -212,25 +197,4 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
         }
     }
     Ok(())
-}
-
-/// Saves the graph shortly after it changes, batching bursts of changes.
-/// Duplicate journals that arrived from different devices are merged first,
-/// and the merge is sent on to connected devices.
-fn save_on_change(peer: Peer, store: Store) {
-    let mut changes = peer.subscribe();
-    tokio::spawn(async move {
-        while changes.changed().await.is_ok() {
-            tokio::time::sleep(Duration::from_millis(500)).await;
-            changes.mark_unchanged();
-            let saved = (|| -> anyhow::Result<()> {
-                peer.tidy()?;
-                store.save(peer.graph())?;
-                Ok(())
-            })();
-            if let Err(e) = saved {
-                eprintln!("quiddity-node: saving failed: {e:#}");
-            }
-        }
-    });
 }

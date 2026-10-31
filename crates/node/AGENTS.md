@@ -34,6 +34,14 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
   **Connecting has its own timeout** (10 s): QUIC waits far longer for a dead
   address, and that wait is the redial. Devices that both dial may hold two
   connections at once; it works but doubles the traffic.
+- **`serve` and `save_on_change` are the library's, shared by the CLI and
+  the app shell.** `serve` binds the endpoint, runs the router and (unless
+  `local`) the dialler; dropping the `Server` stops the dialler, and
+  `shutdown` closes the endpoint. **`Peer::trust` is for now only**: it lets a
+  device connect without listing it, for a blank replica to let in the device
+  it joins through; that device lists it on connecting. `Peer::admit` is the
+  pairing action: it lists a device, or trusts it if this replica has not joined
+  a graph yet.
 - **A device behind its peer's history** gets `Error::Behind`. The side
   that finds its peer behind closes with code `BEHIND`, so the other can say
   why even if the close arrives before the peer's hello is read.
