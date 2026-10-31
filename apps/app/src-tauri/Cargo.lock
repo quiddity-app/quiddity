@@ -4659,6 +4659,7 @@ dependencies = [
 name = "quiddity-app"
 version = "0.1.0"
 dependencies = [
+ "iroh",
  "quiddity-core",
  "quiddity-node",
  "serde",
@@ -4667,6 +4668,7 @@ dependencies = [
  "tauri-plugin-opener",
  "tempfile",
  "thiserror 2.0.21",
+ "tokio",
 ]
 
 [[package]]

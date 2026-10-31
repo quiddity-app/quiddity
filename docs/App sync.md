@@ -1,0 +1,18 @@
+- The desktop app shares its graph with the user's other devices. The shell holds a `Peer`, and puts it on the network when the app starts. [[Device list]]
+- There are two replicas on one device, and only one is on the network.
+	- The UI holds its own, in WASM, so typing never waits on IPC. The shell holds the other, which is the device as the network sees it.
+	- The UI pushes its edits to the shell a few hundred milliseconds after typing stops. The shell imports them, saves, and sends them on to connected devices.
+- Not yet
+	- Changes from other devices reach the shell, and are saved, but are not pushed back to the UI. The UI shows them after a restart.
+	- The UI does not report which blocks are open, so the publish gate is not driven and presence is not shown. [[Publish gate]] [[Presence]]
+	- The UI has no screen for any of this: the commands exist, nothing calls them.
+- Letting two devices meet
+	- Each device has an ID, which is its endpoint ID. The app gives it with `device_id`, and `quiddity-node id` prints a node's.
+	- A device that has the graph lists the other with `allow_device` (`quiddity-node allow` on a node). A blank app has no graph to list anyone in, so `allow_device` trusts the ID until the app closes, and the device it joins through lists it when it connects.
+	- A node that lists the app dials it, so only the node needs to be reachable by name. [[Device list]]
+- Settings, as environment variables
+	- `QUIDDITY_NO_SYNC` leaves the network off.
+	- `QUIDDITY_LOCAL` is an address to listen on and nothing else, with no relays or lookup, for two devices on a network or one machine.
+- Things worth knowing
+	- Saving and sync do not wait for each other. The shell saves when the UI pushes and again a moment after any change, whoever made it.
+	- The UI replica starts a new Loro peer ID each session, so each launch adds an entry to the graph's version. A stable ID per device would avoid that, and must differ from the shell's own.

@@ -8,10 +8,18 @@ holds its own replica and answers its own queries (see `apps/ui` and
   because it needs Tauri's system packages (webkit) that the core's CI
   shouldn't. It has its own `Cargo.lock`, its own CI job, and its own
   `cargo fmt`, `clippy` and `test` runs (from `src-tauri`).
-- **Two commands, both raw bytes**: `load_graph` returns a snapshot;
-  `push_updates` takes Loro updates as the request body, imports them and
-  saves. Bytes cross IPC as raw bodies rather than JSON arrays. Updates that
-  arrive out of order are held by Loro until their causes do.
+- **Four commands.** `load_graph` returns a snapshot and `push_updates`
+  takes Loro updates as the request body, imports them, saves and sends them
+  to other devices, both as raw bytes rather than JSON arrays. Updates that
+  arrive out of order are held by Loro until their causes do. `device_id`
+  and `allow_device` are for letting another device in (see `docs/App sync.md`);
+  nothing in the UI calls them yet.
+- **The shell's graph is a `quiddity_node::Peer`, on the network from
+  `setup`.** `start_network` binds an endpoint, serves the peer, dials the
+  devices the graph lists and saves a moment after any change. It never
+  blocks startup: a failure is printed and the app runs without sync.
+  `QUIDDITY_NO_SYNC` turns it off and `QUIDDITY_LOCAL` keeps it to one
+  address. Changes from other devices are saved but not pushed to the UI.
 - **Each push saves a whole snapshot**, atomically. That is fine at this size;
   an update log is the fix when it isn't. The UI pushes a few hundred
   milliseconds after typing stops, and on the window being hidden.
