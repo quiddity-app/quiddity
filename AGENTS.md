@@ -1,7 +1,7 @@
 # Working on Quiddity
 
 Notes for anyone (person or agent) changing this repository. The design is in
-[docs/design.md](docs/design.md); the layout and commands are in the
+[docs/Design.md](docs/Design.md); the layout and commands are in the
 [README](README.md). Crates with non-obvious behaviour have their own
 `AGENTS.md`, and so do the apps (`apps/ui`, `apps/app`): read it before
 changing that crate or app. Each one has a `CLAUDE.md` beside it that imports
@@ -33,7 +33,26 @@ Pages as the UI showing its own documentation (see
 
 - **Update the pages a change affects in the same commit.** A page per topic,
   named for the topic (`docs/Static build.md`), linking to related pages with
-  `[[double brackets]]`. A page that is no longer true is worse than none.
+  `[[double brackets]]`. A page that is no longer true is worse than none, so
+  say plainly what is planned and not built.
+- **Every page is an outline**: `- ` bullets, children indented with a tab,
+  and tables or fenced code as continuation lines of a bullet. Prose before
+  the first bullet would be read as the entity's name and properties, and a
+  heading after it as part of the bullet above.
+- **Two hubs**: [User guide](docs/User%20guide.md) is what someone using
+  Quiddity needs, and [Developer guide](docs/Developer%20guide.md) is how it
+  is built. A page that serves both puts what the user sees first and how it
+  works after. Link a new page from the hub it belongs to.
+- **Proper nouns and project terms are entities.** A crate, library, tool or
+  inspiration gets a short page with `type:: crate`, `library`, `tool` or
+  `prior art`, saying what it is and what Quiddity uses it for. A term with a
+  meaning of its own here gets a page, or an `alias::` on the page that
+  explains it. Each built-in property has a page with `type:: property`. Link
+  the first mention on a page.
+- **A prose line with a `` `key:: value` `` code span is still a property
+  line** if nothing before the `::` stops it being a key (a `:`, `#`, bracket
+  or parenthesis does), and is drawn as a chip. Word such lines so one comes
+  first.
 - **Add a journal entry** in `docs/journals/YYYY-MM-DD.md` for the day's work,
   or add to the day's entry if it exists: what changed and why, and what the
   next person should know, linking to the pages it touches. The format is the

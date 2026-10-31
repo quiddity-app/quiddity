@@ -9,7 +9,7 @@
 	- The connections are what define the network presence gossips over.
 	- Peers that predate the message ignore it, as they do any unknown type.
 	- The node routes it between connections, because presence belongs to the device and not to one connection. A connection becomes a link once the peer's hello has arrived, and is withdrawn when its task ends, however it ends.
-- Gossip works like update sync: each link remembers what its peer has been told, and sends the live records it lacks. [[design]]
+- Gossip works like update sync: each link remembers what its peer has been told, and sends the live records it lacks. [[Sync]]
 	- Forwarding only what was news did not work. A neighbour that already held a record never passed it on, so a device that had forgotten it, or never had it, never heard it again. A simulation found that.
 - A device is live if it is reachable over links that both ends list.
 	- A device that drops cuts off whatever hung from it, even if it never says so: its neighbours stop listing it.

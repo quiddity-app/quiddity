@@ -1,4 +1,6 @@
-- Renaming an entity keeps the old name as an `alias`, so links written against it still work, including ones written by a device that was offline. [[design]]
+alias:: rename
+
+- Renaming an entity keeps the old name as an `alias`, so links written against it still work, including ones written by a device that was offline. [[alias]]
 	- The alias is a line in the entity's properties block, which is made if there is none.
 	- No alias is added if the old name already is one (aliases may be a list, matched as names are) or if only the case or spacing changed.
 - Where: the main pane's title is a field when the entity can be renamed. Enter or leaving the field keeps the name and Escape drops it. Side cards and the journals show plain titles. [[The UI]]

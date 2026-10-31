@@ -1,0 +1,14 @@
+- The unit of everything: each bullet in the outline is a block. [[Editing]]
+- A block has
+	- Text, written in Markdown. It merges character by character, so two devices typing in one block both keep what they typed. [[Rendering]]
+	- A parent, or none if it is the root of an [[Entity]].
+	- A place among its siblings. Blocks can be indented, outdented and moved, and moves made on two devices at once can't make a loop.
+	- An ID, which is stable and unique but internal to the graph. To refer to a block from elsewhere, give it an `id::` property. [[Block references]]
+- Everything else about a block is read from its text.
+	- [[Properties]]: `key:: value` lines and inline `#key(value)`.
+	- [[Links]] to entities, `[[Name]]`, and references to blocks, `((id))`.
+	- So the text exports and imports with nothing lost. [[Export and import]]
+- A block's property lines are its own. An entity's own properties are in its first child, the properties block. [[Entity]]
+- Undoing a deletion brings the block back as a new block, with a new ID. [[Undo]]
+- The full syntax is in [[Syntax]].
+- Back to the [[User guide]].

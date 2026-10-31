@@ -1,0 +1,26 @@
+favourite:: true
+
+- How Quiddity is built, and how to work on it. Using it is in the [[User guide]]. The repository's `AGENTS.md` files have the working notes; these pages have the reasoning.
+- Start here
+	- [[Design]]: the goals, the decisions and the open questions.
+	- [[Architecture]]: the app, the headless node and the crates.
+	- [[Running the app]] and [[Testing]].
+- The parts
+	- Crates: [[quiddity-syntax]], [[quiddity-core]], [[quiddity-sync]], [[quiddity-node]], [[quiddity-view]] and [[quiddity-wasm]].
+	- Apps: [[The UI]] and [[The shell]].
+	- What they are built on is listed under [[Library]], and what they are built with under [[Tool]].
+- Between devices
+	- [[Sync]]: the protocol, over [[iroh]].
+	- [[Device list]]: who may connect.
+	- [[Presence]]: who is here, and which blocks they have open.
+	- [[Publish gate]]: holding back typing nobody can see.
+	- [[Compaction]]: what history each device keeps.
+	- [[Duplicates]]: merging what two devices made at once.
+- On disk
+	- [[Storage]]: the graph's directory, and what is derived.
+	- [[Versioning]]: changing the format without breaking stored graphs.
+	- [[Binaries]]: files in the graph, still to come.
+- This site
+	- [[Publishing]]: how CI builds it, and [[Static build]], what that asks of the UI.
+	- Each day's work has a [[Journal]] entry.
+- Back to [[Quiddity]].

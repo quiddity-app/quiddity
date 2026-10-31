@@ -1,0 +1,3 @@
+- The tools Quiddity is meant to feel familiar beside: [[Logseq]], [[Obsidian]] and [[Roam]]. Someone who has used one should find outliner editing, pages, journals, `[[links]]`, `#tags` and backlinks where they expect them. [[Design]]
+- What Quiddity does differently: every device holds the whole graph and syncs peer to peer, with no service in the middle, and properties are typed by data in the graph rather than by code.
+- Back to [[Quiddity]].

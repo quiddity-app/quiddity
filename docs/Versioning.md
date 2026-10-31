@@ -1,0 +1,12 @@
+- How Quiddity will change its data format without breaking graphs that are already stored. [[Design]]
+- Built
+	- The document carries a schema version, written when a graph is made. A blank replica has none until it syncs.
+	- The sync handshake compares schema versions. A device that can't read the other side's stops there, and never imports updates it can't understand. [[Sync]]
+	- Unknown properties are always kept, since the text is the source of truth, and unknown message types are ignored.
+- The rules for what comes next
+	- **New versions read old data.** Migration only goes forwards. It is done on read, through version lenses, and writes always use the current format.
+	- The document is not rewritten wholesale: two devices running the same migration at once would make duplicate edits.
+	- When a migration must change stored data (rarely, such as restructuring the meta-schema), it is a deterministic, idempotent transform keyed by a migration ID and recorded in the document, so a second run does nothing.
+	- **Old versions don't read new data.** A device that is behind keeps working on its own data, and is read-only for synced data until it is upgraded.
+	- Unknown value tags are kept, so that within one schema version new value types can arrive without breaking anything. [[Properties]]
+- Back to the [[Developer guide]].

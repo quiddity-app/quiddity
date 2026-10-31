@@ -1,0 +1,9 @@
+alias:: [shell, apps/app]
+
+- The [[Tauri]] 2 app that hosts [[The UI]]: `apps/app`. It holds the graph on disk and hands it to the UI, which keeps its own replica, so there is little here by design. [[Architecture]]
+- Two commands, both raw bytes: `load_graph` returns a snapshot, and `push_updates` imports [[Loro]] updates from the UI and saves.
+- It opens the one graph in the app's data directory, or the directory `QUIDDITY_GRAPH` names. [[Storage]]
+- It opens `http(s)` and `mailto` links in the system's browser, so following one doesn't replace the UI. [[Rendering]]
+- It sits outside the Cargo workspace, because it needs Tauri's system libraries, and has its own CI job, whose builds go through [[mbx]].
+- It doesn't sync yet. [[Sync]]
+- Back to the [[Developer guide]].
