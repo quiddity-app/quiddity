@@ -1,0 +1,8 @@
+- Files kept in a graph: images, PDFs and the like. Planned, not built. [[Design]]
+- A binary is referred to from text by its content hash, in a property whose value type is `blob` (a value type still to come). The value is a BLAKE3 hash, with the MIME type, size and an optional file name beside it. [[Properties]]
+- The bytes live in an iroh-blobs store, not in the [[Loro]] document, and travel on iroh-blobs' own protocol. [[iroh]]
+- Portable devices fetch a blob when it is opened, and may evict it later. The headless node keeps them all. [[quiddity-node]]
+- An `asset` block type holds a blob with its captions, dimensions and so on, so embedding one is a [[block reference]].
+- Garbage collection: a blob nothing refers to is deleted after a grace period, and only once every device's stored version is past the point where the last reference went. [[Compaction]]
+- An export writes blobs to `assets/`, named `<blake3>.<ext>`. [[Export and import]]
+- Back to the [[Developer guide]].

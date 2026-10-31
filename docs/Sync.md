@@ -1,0 +1,20 @@
+- How devices exchange a [[Graph]]'s changes, peer to peer. It is built in [[quiddity-sync]], which knows nothing of the network, and [[quiddity-node]], which runs it over [[iroh]].
+- Transport
+	- Each device is an iroh endpoint, identified by its endpoint ID, an Ed25519 public key. `quiddity-node id` prints it.
+	- Connections are authenticated QUIC. They use hole punching where they can and fall back to a relay. Quiddity could run its own relays.
+	- The protocol is `quiddity/sync/2`, by ALPN: [[Loro]] versions and updates, with [[Presence]] on the same stream.
+	- Which devices may connect is the [[Device list]].
+- The protocol
+	- On connecting, each side sends a hello: its graph's schema version (none, for a blank replica), its device ID, where its history starts, and its Loro version vector.
+	- A side that can't read the other's schema stops there, so a device that is behind never imports data it doesn't understand. [[Versioning]]
+	- So does a side that is behind where the other's history starts. [[Compaction]]
+	- Otherwise it vouches for the other if it hasn't heard of it, and sends the updates the other is missing, or a snapshot to a blank peer it can't bring up to date with updates.
+	- From then on each side sends new updates whenever its graph changes, whether by local edits or by updates from another peer. So live editing syncs character by character, and a device in the middle relays.
+		- Each session tracks what its peer has, including what the peer sent, so nothing is sent twice or echoed back.
+		- Typing that nobody else can see is held back until the edit is over. [[Publish gate]]
+	- Messages are length-prefixed frames on one QUIC stream. Unknown message types are ignored, so newer versions can add messages.
+	- Acknowledgements aren't messages. Each device records what it has stored in the graph itself, which syncs like any edit. [[Compaction]]
+- After every sync, duplicate journals and property entities are merged. [[Duplicates]]
+- Using it: `quiddity-node serve` keeps a graph online, and `quiddity-node sync <id>` syncs with one device until neither has anything more to send. [[quiddity-node]]
+- Tested over a simulated network that connects, disconnects and scrambles delivery, and over real iroh connections on localhost. [[Testing]]
+- Back to the [[Developer guide]].

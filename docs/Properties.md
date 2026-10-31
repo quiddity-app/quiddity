@@ -1,11 +1,28 @@
-- A property is a `key:: value` line or an inline `#key(value)`, and the Markdown is the source of truth. [[design]]
-- Every property key can have an entity that defines it: a property entity, named for the key, with `type:: property`.
-	- Property names are unique, matched as names are, ignoring case and spacing.
-	- The entity can hold a property's schema, and describes the property in prose.
-- A chip's key goes to the entity that defines the property. [[Rendering]]
-	- The view reports the definition's id with each property, or none.
-	- With none yet the key is a dashed button, and following it makes the entity: a property entity with an empty block to describe it in. Shift-click opens it at the side.
-	- Making it is one step of undo. [[Undo]]
-- A property entity cannot be renamed, because its name is what identifies it. [[Renaming]]
-- A property with no value is written `#key`, in a properties block and in prose.
-- Back to [[The UI]].
+alias:: property
+
+- A property is one of two things: a `key:: value` line, or an inline `#key(value)` anywhere in running text. Both are read from a [[Block]]'s Markdown, which is the source of truth. [[Syntax]]
+	- An [[Entity]]'s own properties are in its properties block, its first child.
+	- A block's `type` property is its type. [[type]]
+	- A property with no value is written `#key`, in a properties block and in prose. In prose that is a tag. [[tags]]
+- One value or several
+	- `#tag(a) #tag(b)`, or two `tag::` lines, are two instances of `tag`, with one value each.
+	- `#steps([a, b, c])`, or `steps:: [a, b, c]`, is one instance holding an ordered list.
+- Property entities
+	- Every key can have an entity that defines it (a property entity), named for the key, with `type:: property`. The built-in ones are documented that way: [[type]], [[alias]], [[date]], [[favourite]], [[id]], [[title]] and [[tags]].
+	- Property names are unique, matched as names are, ignoring case and spacing. If two devices make the same property entity, the two are merged. [[Duplicates]]
+	- A property entity describes the property in prose, and can give it a schema.
+	- It can't be renamed, because its name is what identifies it. [[Renaming]]
+- Schemas
+	- A property entity can say how its values are read, with three properties of its own.
+		- `value-type`: `text`, `number` (a double), `boolean` (`true`, `false`, `yes` or `no`), `date` (an ISO 8601 date), `datetime` (RFC 3339, with an offset) or `ref`. More will come, such as `blob`. [[Binaries]]
+		- `form`: `scalar` or `list`.
+		- `cardinality`: `one` or `many`.
+	- A property nobody has described is text, scalar, with any number of instances.
+	- References: for a `ref` property, bare text is a name, so `type:: person` means `type:: [[person]]`. [[Links]]
+	- Quiddity's own properties have built-in schemas, so a new graph needs nothing written into it first.
+	- A schema can't reject anything: the text is what it is. A value that doesn't fit is flagged instead.
+- In the UI
+	- When a block isn't being edited, its properties are chips. [[Rendering]]
+	- A chip's key goes to the property's entity. If there is none yet, the key is a dashed button, and following it makes one with an empty block to describe it in. Shift-click opens it at the side. Making it is one step of [[Undo]].
+- How it works: the view reports each property with where it is written, in UTF-16 units, and with the ID of the entity that defines it, so the UI never parses the text itself. [[quiddity-view]]
+- Back to the [[User guide]].

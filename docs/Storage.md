@@ -1,0 +1,13 @@
+- What a device keeps on disk, and what it works out again.
+- The [[Loro]] document is the only source of truth.
+	- A graph on disk is a directory, made by `quiddity-node init`. It holds `graph.loro`, the graph's snapshot, and `device.key`, the device's secret key. [[quiddity-node]]
+	- Saving writes the whole snapshot atomically, by writing a new file and renaming it over the old. It records this device in the graph's device list first, and compacts what it writes. [[Compaction]]
+	- [[The shell]] keeps its graph the same way, in the app's data directory, or wherever `QUIDDITY_GRAPH` says. It saves after each batch of updates from the UI.
+- Everything else is derived.
+	- The index, of names and aliases, properties, links and how each resolved, is rebuilt from the document in memory and never synced or stored. [[quiddity-core]]
+	- Full-text search reads every block when asked. [[Text search]]
+- Planned, not built
+	- A snapshot plus an append-only log of updates, compacted now and then, so that a save doesn't rewrite everything. The shell's `AGENTS.md` says when that will be needed.
+	- The derived indexes and full-text search in SQLite tables, which can be rebuilt from the document at any time and are never synced.
+	- Blobs in their own store. [[Binaries]]
+- Back to the [[Developer guide]].

@@ -24,9 +24,7 @@
 	- Merged duplicates of a journal move their blocks into one entity, and a move counts.
 	- Created dates are lost when history is compacted. Modified dates are only known for edits made afterwards.
 - Tags
-	- A tag is a property with no value (`#tag`, anywhere in the entity) or a value of a `tags` property, written as a list: `tags:: [a, b]`. [[Properties]]
-	- Nothing defined "tags" before this, so that is a reading, not a decision about the model. If tags should mean something else, `tags_in` in `crates/view/src/query.rs` is the one place to change.
-	- Tags are compared as names are, ignoring case and spacing.
+	- What a tag is, and that the definition is a reading rather than a decision, is on [[tags]].
 	- They are shown only where two entities have the same title, ignoring case. For each such entity the fewest tags are picked, greedily, that every other entity with the title lacks at least one of. Entities that cannot be told apart show none.
 - Where it comes from
 	- The view crate's `summaries()` answers the whole table in one query, in the order of `entities()`, so it is a whole-graph cost paid once per revision. The UI reads it as `graph.summaries()`.

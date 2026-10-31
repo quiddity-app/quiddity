@@ -1,4 +1,4 @@
-- Undo covers the whole graph, not one editor, and only this device's own edits. [[design]]
+- Undo covers the whole graph, not one editor, and only this device's own edits.
 - Core: Loro's `UndoManager`, opt in.
 	- `enable_undo` binds it to a replica. The shell and the headless node never call it and pay nothing.
 	- One commit is one step, so a split (a splice and a create) undoes as one. `begin_undo_group` and `end_undo_group` make the commits between them a single step.
