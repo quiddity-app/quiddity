@@ -13,5 +13,6 @@ favourite:: true
 	- [[Graph view]]: every entity and the links between them, drawn.
 	- [[Running the app]]: `mise run app`, and the other tasks.
 	- [[Device list]]: which devices may connect.
+	- [[Search]]: the Cmd/Ctrl-K panel, with [[Title matching]] and [[Text search]].
 	- [[Publishing]]: how this site gets built, and [[Static build]], what that asks of the UI.
 	- The journals: a short entry for each day's work.

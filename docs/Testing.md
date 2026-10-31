@@ -16,6 +16,9 @@
 	- Each test starts from the same made-up graph, and fails if the page logs an error.
 	- The editing, the queries and the rest of what a UI does live in `crates/view`, and are tested natively. The browser tests check what only a browser can: that it is drawn, focused and navigated.
 	- A test that counts something on a page must wait for the graph to load first, because it only exists in the browser. Counting rows straight after `goto` counts zero.
+- Scores are tested as numbers, not only as orderings. [[Text search]]
+	- A mutant that swaps `/` for `*` in a ranking formula still ranks the same way, so only a test of the value notices.
+	- Where the weights are constants, the tests build the expected value from them by name, so retuning doesn't break the tests. [[Title matching]]
 - When a mutant survives
 	- If it changes behaviour, add the test that notices. Usually that is a stronger property or a better-weighted generator, not one more example.
 	- If it cannot change behaviour, the code is redundant: simplify it. A guard that the next check already implies went this way.

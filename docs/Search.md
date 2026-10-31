@@ -1,0 +1,16 @@
+- Search is a panel opened by the Search button in the action strip above the main pane, or by Cmd/Ctrl-K. [[Title matching]] [[Text search]]
+	- Arrows move, Enter opens the page in the main pane, Shift-Enter opens it at the side, Escape closes. This is how a click and a shift-click work everywhere else.
+	- The shortcut is captured before the page sees it, so it works while a block is being edited.
+- A panel is a list of facets, one section each.
+	- A facet is a function from the query to hits, best first. It may be asynchronous. Pages and Text are the two so far.
+	- Each facet runs on its own and its section fills in when it finishes, so a slow one (embeddings, say) never holds up a fast one. An old answer stays on screen until its replacement arrives, so sections don't flicker.
+	- A hit is data: a label, the runs to highlight, a score and a target, either an entity to open or something to run. It is not a callback, so hits can be ranked and logged later.
+	- New facets are built from old ones with `limited(n, facet)` and `when(applies, facet)`. The second is for a prefix that selects a facet, such as `>` for actions.
+- Where things live
+	- The matching is in `quiddity-view`, so it is property-tested and mutation-tested natively, and reaches the UI through `quiddity-wasm`. The facets in `apps/ui/lib/search` only turn its answers into hits.
+	- Nothing is cached: a query is rarely asked twice, and the panel asks on every keystroke.
+- Not built yet
+	- Page aliases, so that a renamed page is found by its old name.
+	- An actions facet, which needs a registry of commands.
+	- Ranking across sections, with embeddings and a model for which result matters most. Each facet's scores only mean anything beside its own.
+	- Settings and sync status in the action strip, beside Search.
