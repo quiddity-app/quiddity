@@ -15,6 +15,9 @@ import type {
 export interface Backend {
   load(): Promise<Uint8Array>;
   push(updates: Uint8Array): Promise<void>;
+  /** Calls `onUpdates` with what other devices change, for as long as the
+   * page lives. Backends with no other devices don't have it. */
+  subscribe?(onUpdates: (updates: Uint8Array) => void): Promise<void>;
 }
 
 /** Views catch up this long after typing stops; structure changes at once. */
@@ -108,6 +111,15 @@ export class Graph {
 
   /** A block's text as it is now, which a rendered view may lag behind. */
   blockText = (id: string) => this.replica.blockText(id);
+
+  /** Takes changes made on another device, which the shell passes on.
+   * Views are told at once, as for any change that isn't typing. They are not
+   * pushed back: the shell has them. */
+  receive(updates: Uint8Array) {
+    this.replica.import(updates);
+    this.cache.clear();
+    this.notify();
+  }
 
   /** Records an edit. Typing notifies after a pause, so a view of the block
    * being typed in isn't rebuilt per keystroke; structure notifies at once. */
@@ -242,6 +254,10 @@ export function bootGraph(): Promise<Graph> {
         ? (await import("./backend-tauri")).tauriBackend
         : (await import("./backend-memory")).memoryBackend;
     const graph = new Graph(new Replica(await backend.load()), backend);
+    // Before today's page is made, so nothing that arrives is missed.
+    backend
+      .subscribe?.((updates) => graph.receive(updates))
+      .catch((error) => console.error("Couldn't listen for other devices", error));
     graph.ensureToday();
     // Making today's page isn't the user's doing, so it isn't theirs to undo.
     graph.clearUndo();

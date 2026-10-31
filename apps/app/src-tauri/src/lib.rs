@@ -12,7 +12,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use session::{Error, Session};
-use tauri::ipc::{InvokeBody, Request, Response};
+use tauri::ipc::{Channel, InvokeBody, InvokeResponseBody, Request, Response};
 use tauri::{Manager, State};
 
 type Shared<'a> = State<'a, Mutex<Session>>;
@@ -35,6 +35,35 @@ async fn push_updates(state: Shared<'_>, request: Request<'_>) -> Result<(), Err
         return Err(Error::NotBytes);
     };
     state.lock().expect("session lock poisoned").apply(updates)
+}
+
+/// Sends the UI what other devices change, as raw bytes on `channel`, for
+/// as long as the UI listens. The UI imports them into its replica.
+#[tauri::command]
+async fn subscribe_updates(
+    state: Shared<'_>,
+    channel: Channel<InvokeResponseBody>,
+) -> Result<(), Error> {
+    let session = state.lock().expect("session lock poisoned").clone();
+    tauri::async_runtime::spawn(async move {
+        let mut changes = session.peer().subscribe();
+        loop {
+            match session.ui_updates() {
+                Ok(Some(updates)) => {
+                    // The UI has gone, such as when it reloaded: stop.
+                    if channel.send(InvokeResponseBody::Raw(updates)).is_err() {
+                        return;
+                    }
+                }
+                Ok(None) => {}
+                Err(e) => eprintln!("quiddity: couldn't update the UI: {e}"),
+            }
+            if changes.changed().await.is_err() {
+                return;
+            }
+        }
+    });
+    Ok(())
 }
 
 /// This device's ID, for letting it in from another device.
@@ -104,6 +133,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             load_graph,
             push_updates,
+            subscribe_updates,
             device_id,
             allow_device
         ])

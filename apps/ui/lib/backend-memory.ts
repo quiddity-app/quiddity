@@ -72,10 +72,31 @@ function seeded(): Replica {
   return replica;
 }
 
+/** What the page was started from, which another device would have too. */
+let started: Uint8Array | undefined;
+
+/** For tests: what another device could do, reaching the page the way the
+ * shell's updates do. */
+interface Remote {
+  createEntity(name: string): void;
+}
+
 export const memoryBackend: Backend = {
   async load() {
-    return seeded().snapshot();
+    started = seeded().snapshot();
+    return started;
   },
   // Nothing outlives the page: this is for looking at the UI.
   async push() {},
+  async subscribe(onUpdates) {
+    const other = new Replica(started!);
+    const remote: Remote = {
+      createEntity(name) {
+        const before = other.version();
+        other.createEntity(name);
+        onUpdates(other.exportUpdates(before));
+      },
+    };
+    (window as unknown as { __quiddityRemote: Remote }).__quiddityRemote = remote;
+  },
 };

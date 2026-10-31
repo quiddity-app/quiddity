@@ -17,6 +17,10 @@ the current entity in the middle, open secondaries on the right.
   `settle()` delivers a pending notification, and runs before a block stops
   being edited so it never shows its old text.
 - **Backends** (`backend-tauri.ts`, `backend-memory.ts`) are chosen at runtime.
+  A backend may `subscribe` to what other devices change: the shell sends it
+  on a channel and `Graph.receive` imports it and tells views at once, without
+  pushing it back. The memory backend plays another device through
+  `window.__quiddityRemote`, for `e2e/remote.spec.ts`.
   Outside the app the graph is a made-up one in memory, built through the same
   replica, and reset on reload. **Its IDs differ on every load**, so tests
   can't keep an ID across a reload, and anything remembered by ID (Recents)
