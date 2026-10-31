@@ -102,6 +102,13 @@ export interface TitleHit {
   score: number;
   /** The matched text in the title, as ascending `[start, end)` runs of UTF-16 units. */
   ranges: [number, number][];
+  /** The entity's properties, each once, in the order written. */
+  properties: { key: string; value: string | null }[];
+  /** The `#key(value)` qualifiers that pick this entity out from others of
+   * the same title, as written after the name. Empty if it needs none. */
+  qualifiers: string;
+  /** What to write between a link's brackets to reach this entity. */
+  link: string;
 }
 
 /** A block whose text matched a search. */

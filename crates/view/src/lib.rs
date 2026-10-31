@@ -24,7 +24,7 @@ pub use query::{
     Block, Connections, Edge, Entity, EntityRef, LinkTarget, Property, PropertyValue, Reference,
     ResolvedLink, Summary,
 };
-pub use search::{Match, TitleHit, fuzzy_match};
+pub use search::{HitProperty, Match, TitleHit, fuzzy_match};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

@@ -10,6 +10,14 @@
 	- Tab and Shift-Tab indent and outdent, Backspace at the start joins the block to the one before, and Alt-Up and Alt-Down move it among its siblings.
 	- The arrows move between blocks at the edges, and Escape leaves the editor.
 	- A key that moves the block being edited says where editing continues before it moves it, because moving makes React remount the block.
+- Links
+	- `[` makes `[]` with the caret inside, so `[[` makes `[[]]`. With a selection, the brackets go round it. `]` steps over a closer rather than doubling it, and Backspace in an empty pair removes both. A `[` before a word is left alone.
+	- Typing in a `[[link]]`, or making a new one, offers the pages whose titles match, by the same matching as search. [[Title matching]]
+	- Each entry shows the page's properties. When several pages share the title, the link written also carries the qualifiers that tell them apart: `Mercury#type(planet)`. [[Links]]
+	- The list is offered when the link's name is typed in or the link is new, not when the caret merely arrives. A link already written is left alone until it is edited.
+	- Down and Up, or a click, move into the list and write the entry into the link, so the text is what was chosen. Past either end is back to what was typed, and Escape with an entry chosen puts that back too.
+	- Enter accepts what is written, chosen or not, and moves the caret past the brackets. Enter in a link whose list was never offered since the caret came in follows the link instead, making the page if it goes nowhere. An ambiguous link goes nowhere yet. [[Links to nowhere]]
+	- Code: `lib/link-completion.ts` and `lib/auto-brackets.ts`.
 - Every edit other than typing is a step of its own. [[Undo]]
 - Leaving a block saves it.
 	- The outline remembers each block's text from when editing began, and when editing moves on it tells the graph. That is when a new `[[link]]` gets an entity. [[Links to nowhere]]
