@@ -101,7 +101,14 @@ jobs:
     - run: pnpm ui build
     - working-directory: apps/app/src-tauri
       env:
-        MBX_DISABLE: 1
+        # mbx 1.29 runs build scripts through a `#!/bin/sh` wrapper, and dash
+        # (Ubuntu's sh) drops environment variables whose names aren't valid
+        # identifiers. tauri passes its core permissions to tauri-build as
+        # DEP_TAURI_CORE:PATH__... and the like, so with the wrapper they go
+        # missing and generate_context! fails with SetPermissionNotFound. Run
+        # build scripts directly; compilation is still cached. Drop this once
+        # mbx stops using sh for the wrapper.
+        MBX_BUILD_SCRIPT_EXECUTION: 0
       run: |
         cargo fmt --check
         cargo clippy --all-targets --locked
