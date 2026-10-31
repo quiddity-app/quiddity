@@ -15,5 +15,5 @@
 	- Saving is never held back. "The graph changed" (`Peer::subscribe`, which drives saving) and "send the changes" are separate signals.
 	- The timers live in the connection tasks, so `Peer` needs no runtime of its own.
 - Not wired yet
-	- Nothing calls `edited` or `set_focus` from the app. The UI runs `View` in the browser and the shell holds the native graph, so the UI will report edits and focus to the shell with commands. [[design]]
+	- Nothing calls `edited` or `set_focus` from the app. The UI runs `View` in the browser and the shell holds the native graph, so the UI will report edits and focus to the shell with commands. [[Architecture]]
 - Tests run real iroh connections on localhost: idle release, a watched block, a block that becomes watched, moving away, and ending the edit. [[Testing]]

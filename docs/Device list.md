@@ -1,4 +1,4 @@
-- The graph's device list says which devices may connect. It is the list devices already keep so that history can be compacted, doing a second job. [[Compaction]] [[design]]
+- The graph's device list says which devices may connect. It is the list devices already keep so that history can be compacted, doing a second job. [[Compaction]]
 - A device that is listed may connect to any device that has the graph.
 	- It is checked on each connection, against the connecting device's copy of the graph.
 	- It decides who may connect, not whose edits are kept. Nothing filters ops: updates are merged whoever made them.
@@ -23,6 +23,6 @@
 	- One member's say-so authorises a device for all of them, so any member can add one. That is the model: it is a personal graph first.
 	- Nothing revokes a device yet.
 	- Eviction after 30 days of silence affects compaction only. [[Compaction]] An evicted device is still listed, and may still connect.
-- Pairing with a QR code and a one-time token is not built. The design describes it. [[design]]
+- Planned, not built: pairing with a QR code and a one-time token, where an existing device shows its endpoint ID and a token and the new one presents it, and revoking a device. [[Design]]
 - Devices that connect also tell each other which blocks they have open. [[Presence]]
 - The desktop app does this too. [[App sync]]

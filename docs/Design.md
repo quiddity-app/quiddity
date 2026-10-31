@@ -1,0 +1,38 @@
+- What Quiddity is for, and the choices that shape it. How each part works is on its own page, listed in the [[Developer guide]].
+- Quiddity is a local-first second brain in the vein of [[Logseq]], [[Obsidian]] and [[Roam]]. It should feel familiar to people who have used those tools, run as a desktop and mobile app, sync between a person's devices without a central service, export to and import from a sensible text format, and store typed binaries.
+- Goals
+	- **Local first.** Every device holds the whole [[Graph]] and works fully offline.
+	- **Familiar.** Outliner editing, pages, journals, `[[links]]`, `#tags` and backlinks. [[Prior art]]
+	- **Peer-to-peer sync.** No central service. A headless node that the user runs themselves, [[quiddity-node]], fills in when portable devices aren't online at the same time. [[Sync]]
+	- **Text in, text out.** A Markdown export that is readable on its own and good enough to re-import as a backup. [[Export and import]]
+	- **Extensible.** Types and properties are data, not code. New value types and block types can be added without breaking stored graphs. [[Properties]] [[Versioning]]
+- Not goals, for now
+	- A hosted web version. [[Next.js]] is purely the UI's shell. The documentation site is the UI over a fixed graph, not a service. [[Static build]]
+	- Sharing part of a graph. Sharing is whole-graph only.
+	- Large-scale collaboration. The main case is one person with several devices. Several people on one graph should work, but it isn't what Quiddity is optimised for.
+	- Older versions reading data written by newer ones. [[Versioning]]
+- Decisions
+	- **The Markdown is the source of truth.** Nothing about a [[Block]]'s properties, links or references is stored outside its text. They are parsed from it, into an index that can be rebuilt at any time and is never synced.
+		- Export and import are lossless with no special cases.
+		- A property edit is a text edit, so it merges character by character like any other. Two devices changing the same value at once can produce a merged string rather than one winner. With one person on several devices that is rare, and the result is visible and fixable rather than silently dropping one side.
+		- The schema can't reject anything. Values that don't fit it are flagged.
+	- **One [[Loro]] document per graph**, with every block in one tree. A move between entities is a tree move, and Loro handles concurrent moves, cycles included.
+	- **Properties** are Logseq-style `key:: value` lines, with an entity's own in its first block, plus inline `#key(value)`. Lists are explicit: `#key([a, b])`. [[Properties]]
+	- **Property names are unique.** [[Properties]]
+	- **Names are not unique.** An [[Entity]] is identified by its name together with its properties. [[Links]]
+	- **Links are resolved when followed**, not when written, so a link can be written before what it points to exists. [[Links to nowhere]]
+	- **[[quiddity-syntax]] is the reference parser.** The UI never parses block text itself: it is told where things are by [[quiddity-view]], compiled to WASM.
+	- **Every device is equal**, the headless node included. An earlier plan had a node that acknowledged stored history for the others; it was dropped for this. [[Compaction]]
+	- **[[Tauri]] on every platform.** Networking, storage and indexing run in native Rust. A WebView can't reliably listen for connections or find devices on the local network, and iOS evicts browser storage when it likes. [[Architecture]]
+- Open questions
+	- **Unsynced edits on eviction.** What happens to edits made on a device that was evicted: diff and re-apply, or keep them as a separate entity to sort out by hand? [[Compaction]]
+	- **Encryption at rest on the headless node.** Is the user's own node trusted with plaintext, or should it eventually run "blind" and store only encrypted snapshots?
+	- **Concurrent edits to one property value.** Since properties are text, two devices editing the same value offline get a character-level merge. Is that acceptable, or should the UI notice a value that changed on both sides and ask?
+- Designed but not built yet. This page was written before the code, and these parts of it are still to come.
+	- Storage as a snapshot plus an update log, with indexes and full-text search in SQLite. [[Storage]]
+	- Binaries in a content-addressed store. [[Binaries]]
+	- Migrations by version lenses. [[Versioning]]
+	- Pairing by QR code, and revoking a device. [[Device list]]
+	- A disambiguation page for links that match several entities, and an offer to merge entities with the same name. [[Links]] [[Duplicates]]
+	- Editing aids driven by the schema, such as a date picker and autocomplete for references, which write Markdown into the text. [[Properties]]
+	- Mobile builds, cursors in [[Presence]], queries over properties, table and board views by type, and a plugin API.

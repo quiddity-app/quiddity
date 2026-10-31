@@ -1,8 +1,15 @@
-- Live edits go to online peers in full detail, but the stored history is compacted. The reasoning is in [[design]], under "Live edits versus stored history".
+alias:: [vouching, eviction]
+
+- Live edits go to online peers in full detail, but the stored history is compacted: each device keeps only the history some device might still need. [[Sync]]
 - Every device follows the same rule; none is special, the headless node included.
 	- Each device records in the graph what it has durably stored. That is the device list.
 	- A device compacts at what every active device has stored, once it holds everything any of them has stored.
 	- The device that creates a graph records itself from the start, and a device vouches for each newcomer it gives the graph to.
+- Why it is safe
+	- Each device writes only its own entry, just before saving, so the entry is saved with what it describes and entries never conflict. The entries are sync metadata, kept beside the blocks rather than in them, and never exported.
+	- A device handing the graph to one it hasn't heard of records the newcomer at the newcomer's own version, until the newcomer records itself. So any device that might compact past a newcomer's history has heard of it: records made before the vouch are in what the newcomer received, and later ones arrive with it.
+	- An edit can be made on history a device has dropped only if it was made before its author recorded storing it, and by then the compacting device has it.
+	- Compacting replaces the stored document with a [[Loro]] shallow snapshot taken at that point.
 - It is implemented in layers.
 	- `crates/core`: shallow snapshots, `Graph::compaction_point`, and refusing what a compacted replica cannot do.
 	- `crates/sync`: the hello says where history starts, and a blank peer is sent a snapshot. A side behind the other's history is told so. [[Presence]]
@@ -12,6 +19,8 @@
 	- A document that has imported anything, even an empty snapshot, ignores a compacted snapshot, silently. So `from_snapshot` skips an empty import, and `import` checks that what it imported shows in the version.
 	- A compacted replica cannot update a peer behind where its history starts: the updates would never apply.
 	- A compacted replica refuses edits made on the history it dropped.
-- A device that is silent for 30 days stops holding compaction back. If it returns with edits made on dropped history, they cannot be applied; what to do for it is an open question.
+- Eviction: a device that is silent for 30 days stops holding compaction back.
+	- If it returns, edits it made on history the others have dropped cannot be applied. The plan is for it to re-sync from a snapshot, with its unsynced edits saved as a diff against the fresh one and offered for re-applying. Exactly how is an open question. [[Design]]
+- Planned: undo will bound it further, never compacting past the start of the local undo stack. [[Undo]]
 - Devices
 	- The same list says who may connect. Authorising a device is a graph edit. [[Device list]]

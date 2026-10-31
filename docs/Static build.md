@@ -11,4 +11,4 @@
 - Limits
 	- The graph only exists in the browser, so the pages are a shell until the snapshot has loaded.
 	- Nothing is saved: the backend discards edits, so a reload starts again from the published graph.
-- See [[Publishing]] for how CI uses this, and [[design]] for the UI model.
+- See [[Publishing]] for how CI uses this, and [[The UI]] for the UI model.

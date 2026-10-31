@@ -1,19 +1,19 @@
 - Tests should be useful, not numerous: each behaviour is checked once, at the layer that owns it. [[Compaction]]
 - Each layer is tested on its own.
-	- `cargo mutants` runs each mutant against its own crate's tests only, so a crate cannot lean on another crate's tests.
+	- `cargo mutants` ([[cargo-mutants]]) runs each mutant against its own crate's tests only, so a crate cannot lean on another crate's tests.
 	- CI runs it over the lines each pull request changes, and nothing may be missed.
 - Property tests come first.
 	- Generators are weighted towards the inputs that matter, such as the characters a parser treats specially, so a few dozen cases find the edges.
 	- A handful of named examples cover what a generator is unlikely to hit.
-	- Failures that proptest finds are kept in `*.proptest-regressions` files and replayed.
+	- Failures that [[proptest]] finds are kept in `*.proptest-regressions` files and replayed.
 - Whole systems are simulated.
 	- Sync runs sessions over a network that connects, disconnects and delivers in a scrambled order. [[Presence]]
 	- Each simulation caught a real design flaw before it shipped: compacting before catching up, a creator missing from the device list, gossip that forgot records.
-- Fuzzing covers arbitrary input: nothing panics, and formatting reaches a fixed point.
+- Fuzzing covers arbitrary input: nothing panics, and formatting reaches a fixed point. [[cargo-fuzz]]
 	- Targets are `block`, `outline` and `peer`. A crash becomes a seed and a regression test in the crate it is about.
-	- CI fuzzes for a minute per target on pull requests and on `main`. mbx can't cache cargo-fuzz's builds, so `main` saves the dependencies' build with `rust-cache` for pull requests to restore.
+	- CI fuzzes for a minute per target on pull requests and on `main`. [[mbx]] can't cache cargo-fuzz's builds, so `main` saves the dependencies' build with [[rust-cache]] for pull requests to restore.
 - The UI is tested in a browser.
-	- Playwright runs against the static export, and a few tests against `next dev`, which renders on a server as development does and shows React warnings that a production build hides. [[The UI]]
+	- [[Playwright]] runs against the static export, and a few tests against `next dev`, which renders on a server as development does and shows React warnings that a production build hides. [[The UI]]
 	- Each test starts from the same made-up graph, and fails if the page logs an error.
 	- The editing, the queries and the rest of what a UI does live in `crates/view`, and are tested natively. The browser tests check what only a browser can: that it is drawn, focused and navigated.
 	- A test that counts something on a page must wait for the graph to load first, because it only exists in the browser. Counting rows straight after `goto` counts zero.

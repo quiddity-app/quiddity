@@ -1,6 +1,6 @@
-- The desktop app shares its graph with the user's other devices. The shell holds a `Peer`, and puts it on the network when the app starts. [[Device list]]
+- The desktop app shares its graph with the user's other devices. [[The shell]] holds a `Peer` from [[quiddity-node]], and puts it on the network when the app starts. [[Device list]]
 - There are two replicas on one device, and only one is on the network.
-	- The UI holds its own, in WASM, so typing never waits on IPC. The shell holds the other, which is the device as the network sees it.
+	- [[The UI]] holds its own, in WASM, so typing never waits on IPC. The shell holds the other, which is the device as the network sees it.
 	- The UI pushes its edits to the shell a few hundred milliseconds after typing stops. The shell imports them, saves, and sends them on to connected devices.
 - Not yet
 	- Changes from other devices reach the shell, and are saved, but are not pushed back to the UI. The UI shows them after a restart.

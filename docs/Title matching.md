@@ -9,7 +9,7 @@
 	- Shorter titles beat longer ones that match the same way, so an exact match comes first.
 	- `QD` against `Quiddity Design` picks the `D` that begins a word, not the one inside `Quiddity`.
 	- It is a small dynamic programme over query and title, so a query costs in proportion to the number of titles.
-- The answer says where it matched, as runs in UTF-16 units, because that is what JavaScript counts in, for highlighting. [[design]]
+- The answer says where it matched, as runs in UTF-16 units, because that is what JavaScript counts in, for highlighting. [[quiddity-view]]
 - Code: `fuzzy_match` and `View::search_titles` in `crates/view/src/search.rs`.
 - Testing [[Testing]]
 	- Properties: a title matches itself; a lower-case query without spaces matches exactly when it is a subsequence; the ranges spell the query; the capitals of a title's words find those word starts and nothing else.

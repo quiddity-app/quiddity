@@ -1,7 +1,8 @@
 # quiddity
 Local first, multiplayer, second brain
 
-See [docs/design.md](docs/design.md) for the current design.
+See [docs/Design.md](docs/Design.md) for the design, and `docs/` for the rest of
+the documentation, published as a site (below).
 Before changing anything, read [AGENTS.md](AGENTS.md): how we work, and
 where to find the notes on each crate.
 

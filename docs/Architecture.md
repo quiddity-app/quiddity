@@ -1,0 +1,24 @@
+- How the pieces fit together. Why they are this shape is in [[Design]]; the repository's layout is in the README.
+- The app
+	- [[The shell]] is a [[Tauri]] 2 app. It holds the [[Graph]] on disk and hands the UI a snapshot of it.
+	- [[The UI]] is a [[Next.js]] static export in the shell's webview. It holds its own replica of the graph: [[quiddity-view]] compiled to WASM by [[quiddity-wasm]].
+		- Every query and edit is local to the UI, so typing never waits on IPC. The editor is [[CodeMirror]], bound to the replica.
+		- The UI sends the shell the [[Loro]] updates it made, a moment after the last edit, and the shell imports them, saves, and sends them on to other devices. [[App sync]]
+		- Using the core compiled to WASM, rather than Loro's JavaScript bindings, means there is one implementation of the graph model, the index and the outliner's edits, tested natively.
+- The headless node
+	- [[quiddity-node]] is the core run as a command line tool and daemon, without the UI. It is a full peer owned by the user, not a relay, and follows the same rules as every other device. Being always on, it is what lets devices that are never online together sync.
+- The crates
+	- [[quiddity-syntax]]: block text, parsed and formatted.
+	- [[quiddity-core]]: the graph on Loro, the index, schemas, journals, merging duplicates and the text format.
+	- [[quiddity-sync]]: the sync protocol, independent of transport.
+	- [[quiddity-node]]: sync over [[iroh]], the on-disk store and the command line.
+	- [[quiddity-view]]: what a UI shows of a graph, and the edits it makes.
+	- [[quiddity-wasm]]: the view, compiled for the browser.
+	- Each has its own `AGENTS.md` for what isn't obvious from the code.
+- Between devices
+	- Devices talk over iroh, peer to peer. [[Sync]]
+	- Who may connect is in the graph. [[Device list]]
+	- Which blocks each device has open travels beside the updates. [[Presence]] [[Publish gate]]
+	- What each device keeps of the history is agreed through the graph. [[Compaction]]
+- Not wired yet: changes from other devices reach the shell but aren't pushed on to the UI, which shows them after a restart. [[App sync]]
+- Back to the [[Developer guide]].

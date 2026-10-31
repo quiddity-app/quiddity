@@ -1,0 +1,26 @@
+favourite:: true
+
+- Using Quiddity: what you write, and what it does with it. How it is built is in the [[Developer guide]].
+- The ideas
+	- Your [[Graph]] is everything you keep, and every device has all of it.
+	- An [[Entity]] is a page. Its body is an outline, and each bullet is a [[Block]].
+	- Each day has a [[Journal]] page, and the journals are where the app opens.
+- Writing
+	- [[Editing]]: the outliner, and its keys.
+	- [[Rendering]]: how a block looks when you aren't editing it.
+	- [[Properties]]: `key:: value` and `#key(value)`, with [[tags]] and the built-in properties.
+	- [[Links]]: `[[Name]]`, with qualifiers to pick between entities with one name, and the references at the foot of each page.
+	- [[Links to nowhere]]: how a link makes the entity it names.
+	- [[Block references]]: `((id))`.
+	- [[Renaming]], and the [[alias]] it leaves behind.
+	- [[Undo]]: across the whole graph.
+	- [[Syntax]]: all of it on one page.
+- Finding things
+	- [[Search]]: Cmd/Ctrl-K, by [[Title matching]] and [[Text search]].
+	- [[All entities]]: every entity as a table, to sort and tidy.
+	- [[Graph view]]: every entity and the links between them, drawn.
+- Your data
+	- [[Export and import]]: the graph as Markdown, and importing from [[Logseq]].
+	- Syncing between devices is done by [[quiddity-node]] so far, and is described for developers under [[Sync]].
+- Running it: there is no release yet, so the app is built from source. [[Running the app]]
+- Back to [[Quiddity]].
