@@ -25,3 +25,4 @@
 	- Eviction after 30 days of silence affects compaction only. [[Compaction]] An evicted device is still listed, and may still connect.
 - Pairing with a QR code and a one-time token is not built. The design describes it. [[design]]
 - Devices that connect also tell each other which blocks they have open. [[Presence]]
+- The desktop app does this too. [[App sync]]

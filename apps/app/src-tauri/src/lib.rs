@@ -1,9 +1,10 @@
-//! The Tauri shell: opens the graph, hands it to the UI, and keeps the UI's
-//! edits safe.
+//! The Tauri shell: opens the graph, hands it to the UI, keeps the UI's
+//! edits safe, and shares the graph with the user's other devices.
 //!
 //! The UI holds its own replica of the graph (the core compiled to WASM), so
 //! typing never waits on IPC. These commands carry the graph in as a snapshot
-//! and the edits back as updates, both as raw bytes.
+//! and the edits back as updates, both as raw bytes. The shell's replica is
+//! the one on the network.
 
 mod session;
 
@@ -36,6 +37,49 @@ async fn push_updates(state: Shared<'_>, request: Request<'_>) -> Result<(), Err
     state.lock().expect("session lock poisoned").apply(updates)
 }
 
+/// This device's ID, for letting it in from another device.
+#[tauri::command]
+async fn device_id(state: Shared<'_>) -> Result<String, Error> {
+    state.lock().expect("session lock poisoned").device_id()
+}
+
+/// Lets another device connect: the ID that device shows.
+#[tauri::command]
+async fn allow_device(state: Shared<'_>, device: String) -> Result<(), Error> {
+    state.lock().expect("session lock poisoned").allow(&device)
+}
+
+/// Puts the session on the network, and keeps it saved as other devices
+/// change it. `QUIDDITY_NO_SYNC` leaves it off, and `QUIDDITY_LOCAL` (an
+/// address) keeps it to that address, with no relays or lookup: for trying
+/// it between two devices on a network, or on one machine.
+fn start_network(session: &Session) {
+    if std::env::var_os("QUIDDITY_NO_SYNC").is_some() {
+        return;
+    }
+    let local = std::env::var("QUIDDITY_LOCAL")
+        .ok()
+        .and_then(|address| address.parse().ok());
+    let (peer, store) = (session.peer().clone(), session.store().clone());
+    tauri::async_runtime::spawn(async move {
+        let started = match store.key() {
+            Ok(key) => quiddity_node::serve(&peer, key, local)
+                .await
+                .map_err(|e| e.to_string()),
+            Err(e) => Err(e.to_string()),
+        };
+        match started {
+            Ok(server) => {
+                quiddity_node::save_on_change(peer, store);
+                // The endpoint lives as long as the app.
+                let _server = server;
+                std::future::pending::<()>().await;
+            }
+            Err(e) => eprintln!("quiddity: not syncing: {e}"),
+        }
+    });
+}
+
 /// `QUIDDITY_GRAPH` names the graph's directory, for working on a graph made
 /// with `quiddity-node`; otherwise there is one graph in the app's data
 /// directory.
@@ -52,10 +96,17 @@ pub fn run() {
         // Opens links from the text of a block in the system's browser.
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            app.manage(Mutex::new(Session::open(&graph_dir(app)?)?));
+            let session = Session::open(&graph_dir(app)?)?;
+            start_network(&session);
+            app.manage(Mutex::new(session));
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![load_graph, push_updates])
+        .invoke_handler(tauri::generate_handler![
+            load_graph,
+            push_updates,
+            device_id,
+            allow_device
+        ])
         .run(tauri::generate_context!())
         .expect("error while running the Quiddity app");
 }
