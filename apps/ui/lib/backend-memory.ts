@@ -79,6 +79,10 @@ let started: Uint8Array | undefined;
  * shell's updates do. */
 interface Remote {
   createEntity(name: string): void;
+  /** The blocks the page last said it was editing. */
+  focus: string[];
+  /** What each push said it was typing in. */
+  typed: string[][];
 }
 
 export const memoryBackend: Backend = {
@@ -86,17 +90,33 @@ export const memoryBackend: Backend = {
     started = seeded().snapshot();
     return started;
   },
-  // Nothing outlives the page: this is for looking at the UI.
-  async push() {},
+  // Nothing outlives the page: this is for looking at the UI. What the
+  // shell would be told is kept for tests to read.
+  async push(_updates, typed) {
+    remote().typed.push(typed);
+  },
+  async focus(blocks) {
+    remote().focus = blocks;
+  },
   async subscribe(onUpdates) {
     const other = new Replica(started!);
-    const remote: Remote = {
-      createEntity(name) {
+    Object.assign(remote(), {
+      createEntity(name: string) {
         const before = other.version();
         other.createEntity(name);
         onUpdates(other.exportUpdates(before));
       },
-    };
-    (window as unknown as { __quiddityRemote: Remote }).__quiddityRemote = remote;
+    });
   },
 };
+
+/** The test hook, made when first needed. */
+function remote(): Remote {
+  const w = window as unknown as { __quiddityRemote?: Remote };
+  w.__quiddityRemote ??= {
+    createEntity() {},
+    focus: [],
+    typed: [],
+  };
+  return w.__quiddityRemote;
+}

@@ -11,6 +11,19 @@ export const test = base.extend<{ page: Page }>({
   },
 });
 
+/** What the memory backend lets a test see and do as the shell and as other devices. */
+declare global {
+  interface Window {
+    __quiddityRemote?: {
+      createEntity(name: string): void;
+      /** The blocks the page last said it was editing. */
+      focus: string[];
+      /** What each push said it was typing in. */
+      typed: string[][];
+    };
+  }
+}
+
 export { expect };
 
 /** The text of every block of the entity in the main pane, in reading order. */
