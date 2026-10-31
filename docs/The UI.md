@@ -7,6 +7,7 @@
 - The UI holds its own replica of the graph.
 	- The core is compiled to WASM (`crates/wasm`, over `crates/view`) and loaded from a snapshot at startup. Every query is answered locally and every edit applies locally, so nothing typed waits on IPC. [[Editing]]
 	- The shell is sent the updates a moment later, 300 ms after the last edit.
+	- Changes from other devices come the other way, from the shell, and are imported at once. [[App sync]]
 	- `lib/graph.ts` is the one place that touches the replica. Reads are kept until the next edit, so what a component reads is stable between edits.
 	- Typing notifies the views after a pause and structure changes notify at once, so a block is not rebuilt per keystroke.
 - View state is the URL: `/entity/?id=<main>&open=<a>,<b>`.
