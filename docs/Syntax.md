@@ -11,7 +11,8 @@
 	  | `[[Name#type(person)]]` | a link narrowed by its target's properties |
 	  | `#author([[Jane#type(person)]])` | a link as a property's value |
 	  | `((id))` | a reference to the block with that `id::` |
-	- [[Properties]], [[Links]] and [[Block references]] have the details.
+	  | `##key(parameter)` | a meta-property, in a property's own properties block (planned) |
+	- [[Properties]], [[Links]], [[Block references]] and [[Meta-properties]] have the details, and [[Queries]] has the language a meta-property's parameter is written in.
 - Values
 	- Text, written bare, or `"quoted"` when it contains a delimiter.
 	- A link, `[[Name#key(value)]]`, or a block reference, `((id))`.
