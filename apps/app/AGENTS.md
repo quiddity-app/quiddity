@@ -17,7 +17,7 @@ holds its own replica and answers its own queries (see `apps/ui` and
   `changed` otherwise. `set_focus` takes the block being edited. The UI sends
   the focus after flushing what it typed, so moving on ends the typing.
   `subscribe_updates` is below. `device_id` and `allow_device` are for letting
-  another device in (see `docs/App sync.md`); nothing in the UI calls them yet.
+  another device in (see `docs/App sync.md`); the Devices page calls them.
 - **The shell's graph is a `quiddity_node::Peer`, on the network from
   `setup`.** `start_network` binds an endpoint, serves the peer, dials the
   devices the graph lists and saves a moment after any change. It never

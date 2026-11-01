@@ -1,7 +1,7 @@
 - The UI is a Next.js static export that runs in the Tauri webview, or in any browser for development and tests. It has three panes. [[Architecture]]
 	- Above the main pane is an action strip, with the Search button (Cmd/Ctrl-K) so far. [[Search]]
 - What shows where
-	- Entrypoints, favourites and recents on the left. Entrypoints are fixed: the journals, [[All entities]] and the [[Graph view]].
+	- Entrypoints, favourites and recents on the left. Entrypoints are fixed: the journals, [[All entities]], the [[Graph view]] and Devices, where another device is added. [[Add a device]]
 	- The current entity in the middle. Opening another entity with a click replaces it; shift-click opens it at the side.
 	- Open secondaries on the right, each its own card.
 - The UI holds its own replica of the graph.

@@ -2,6 +2,7 @@ import init, { Replica } from "./wasm/quiddity_wasm";
 import type {
   BlockHit,
   Connections,
+  Device,
   Entity,
   EntityId,
   EntityRef,
@@ -23,6 +24,12 @@ export interface Backend {
   /** Calls `onUpdates` with what other devices change, for as long as the
    * page lives. Backends with no other devices don't have it. */
   subscribe?(onUpdates: (updates: Uint8Array) => void): Promise<void>;
+  /** This device's ID, for letting it in from another device. Only the app
+   * is a device that others can reach. */
+  deviceId?(): Promise<string>;
+  /** Lets another device in, given the ID it shows. Rejects with the reason
+   * if the ID is not one. */
+  allowDevice?(device: string): Promise<void>;
 }
 
 /** Views catch up this long after typing stops; structure changes at once. */
@@ -120,6 +127,26 @@ export class Graph {
   /** Blocks whose text matches `query`, best first. Not kept, as above. */
   searchText = (query: string, limit: number) =>
     this.replica.searchText(query, limit) as BlockHit[];
+
+  /** The devices the graph records, most recently seen first. */
+  devices = () => this.read<Device[]>("devices", () => this.replica.devices());
+
+  /** Whether this build is a device others can reach, and so can pair. */
+  canPair = () => this.backend.deviceId !== undefined && this.backend.allowDevice !== undefined;
+
+  private id: Promise<string> | undefined;
+
+  /** This device's ID. Asked for once: a promise to `use`. */
+  deviceId = () => (this.id ??= this.backend.deviceId!());
+
+  /** Lets another device in. Rejects with a message the user can read. */
+  async allowDevice(device: string) {
+    try {
+      await this.backend.allowDevice!(device);
+    } catch (error) {
+      throw new Error(error instanceof Error ? error.message : String(error));
+    }
+  }
 
   /** A block's text as it is now, which a rendered view may lag behind. */
   blockText = (id: string) => this.replica.blockText(id);

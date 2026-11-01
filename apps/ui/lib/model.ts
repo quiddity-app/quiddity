@@ -5,6 +5,14 @@ export interface EntityRef {
   title: string;
 }
 
+/** A device the graph records: one that holds it, or has been let in to it. */
+export interface Device {
+  /** Its endpoint ID, which another device needs to let it in. */
+  id: string;
+  /** When it last saved, as an RFC 3339 timestamp in UTC. */
+  seen: string;
+}
+
 export interface Block {
   id: string;
   text: string;

@@ -20,6 +20,8 @@ declare global {
       focus: string[];
       /** What each push said it was typing in. */
       typed: string[][];
+      /** The devices the page asked to let in. */
+      allowed: string[];
     };
   }
 }
