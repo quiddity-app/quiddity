@@ -28,13 +28,34 @@ async fn load_graph(state: Shared<'_>) -> Result<Response, Error> {
     Ok(Response::new(session.snapshot()?))
 }
 
-/// Updates from the UI's edits, as the request body.
+/// Updates from the UI's edits, as the request body. The `x-typed` header
+/// names the blocks they were typed in, comma separated, when that is all they
+/// are: those are held back from devices that can't see them.
 #[tauri::command]
 async fn push_updates(state: Shared<'_>, request: Request<'_>) -> Result<(), Error> {
     let InvokeBody::Raw(updates) = request.body() else {
         return Err(Error::NotBytes);
     };
-    state.lock().expect("session lock poisoned").apply(updates)
+    let typed: Vec<String> = request
+        .headers()
+        .get("x-typed")
+        .and_then(|value| value.to_str().ok())
+        .map(|value| value.split(',').map(str::to_owned).collect())
+        .unwrap_or_default();
+    state
+        .lock()
+        .expect("session lock poisoned")
+        .apply(updates, &typed)
+}
+
+/// The blocks the user has open, which other devices see.
+#[tauri::command]
+async fn set_focus(state: Shared<'_>, blocks: Vec<String>) -> Result<(), Error> {
+    state
+        .lock()
+        .expect("session lock poisoned")
+        .set_focus(&blocks);
+    Ok(())
 }
 
 /// Sends the UI what other devices change, as raw bytes on `channel`, for
@@ -133,6 +154,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             load_graph,
             push_updates,
+            set_focus,
             subscribe_updates,
             device_id,
             allow_device

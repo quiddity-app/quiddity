@@ -14,7 +14,12 @@ import type {
 /** Where the graph lives: the Tauri shell, or memory for plain-browser dev. */
 export interface Backend {
   load(): Promise<Uint8Array>;
-  push(updates: Uint8Array): Promise<void>;
+  /** `typed` names the blocks the updates were typed in, when that is all
+   * they are: the shell holds typing back from devices that can't see it. */
+  push(updates: Uint8Array, typed: string[]): Promise<void>;
+  /** The blocks being edited, which other devices see. Backends with no
+   * other devices don't have it. */
+  focus?(blocks: string[]): Promise<void>;
   /** Calls `onUpdates` with what other devices change, for as long as the
    * page lives. Backends with no other devices don't have it. */
   subscribe?(onUpdates: (updates: Uint8Array) => void): Promise<void>;
@@ -48,6 +53,13 @@ export class Graph {
   private listeners = new Set<() => void>();
   private cache = new Map<string, unknown>();
   private pushed: Uint8Array;
+  /** Blocks typed in since the last push, and whether anything else changed. */
+  private typed = new Set<string>();
+  private structural = false;
+  /** The block being edited, as other devices are told. */
+  private focused: string | undefined;
+  /** What the shell was last told, to say nothing twice. */
+  private reported = "";
   private pushing: Promise<void> = Promise.resolve();
   private pushTimer: ReturnType<typeof setTimeout> | undefined;
   private notifyTimer: ReturnType<typeof setTimeout> | undefined;
@@ -124,6 +136,7 @@ export class Graph {
   /** Records an edit. Typing notifies after a pause, so a view of the block
    * being typed in isn't rebuilt per keystroke; structure notifies at once. */
   private edited<T>(result: T, typing = false): T {
+    if (!typing) this.structural = true;
     this.cache.clear();
     this.schedulePush();
     if (typing) {
@@ -136,6 +149,7 @@ export class Graph {
 
   spliceText(id: string, pos: number, len: number, insert: string) {
     this.replica.spliceText(id, pos, len, insert);
+    this.typed.add(id);
     clearTimeout(this.typingTimer);
     this.typingTimer = setTimeout(() => this.replica.endTyping(), TYPING_MS);
     this.edited(undefined, true);
@@ -229,15 +243,52 @@ export class Graph {
     this.pushing = this.pushing.then(async () => {
       const version = this.replica.version();
       if (sameBytes(version, this.pushed)) return;
+      // Only typing can be held back: anything else goes at once.
+      const typed = this.structural ? [] : [...this.typed];
+      const structural = this.structural;
+      this.typed.clear();
+      this.structural = false;
       try {
-        await this.backend.push(this.replica.exportUpdates(this.pushed));
+        await this.backend.push(this.replica.exportUpdates(this.pushed), typed);
         this.pushed = version;
       } catch (error) {
         console.error("Couldn't save to the shell; will retry", error);
+        typed.forEach((id) => this.typed.add(id));
+        this.structural ||= structural;
         this.schedulePush(RETRY_MS);
       }
     });
     return this.pushing;
+  }
+
+  /** `id` is the block being edited. The shell is told after it has what was
+   * typed before, so moving between blocks ends the typing in the last. */
+  focus(id: string) {
+    if (this.focused === id) return;
+    this.focused = id;
+    void this.report();
+  }
+
+  /** `id` is no longer being edited, unless another block has been since. */
+  blur(id: string) {
+    if (this.focused !== id) return;
+    this.focused = undefined;
+    void this.report();
+  }
+
+  /** Tells the shell which block is open, as it is by the time it hears:
+   * a move from one block to another is one report, not two. */
+  private async report() {
+    try {
+      await this.flush();
+      const blocks = this.focused === undefined ? [] : [this.focused];
+      const key = blocks.join(",");
+      if (key === this.reported) return;
+      this.reported = key;
+      await this.backend.focus?.(blocks);
+    } catch (error) {
+      console.error("Couldn't say which block is open", error);
+    }
   }
 }
 

@@ -20,7 +20,11 @@ the current entity in the middle, open secondaries on the right.
   A backend may `subscribe` to what other devices change: the shell sends it
   on a channel and `Graph.receive` imports it and tells views at once, without
   pushing it back. The memory backend plays another device through
-  `window.__quiddityRemote`, for `e2e/remote.spec.ts`.
+  `window.__quiddityRemote`, for `e2e/remote.spec.ts`, and keeps what the
+  shell would have been told (the block being edited, and what each push was
+  typed in) for `e2e/focus.spec.ts`. **`Graph.focus`/`blur` report the block
+  being edited**, flushing first so the shell has the typing before the move;
+  a push says which blocks it was typed in only if nothing but typing changed.
   Outside the app the graph is a made-up one in memory, built through the same
   replica, and reset on reload. **Its IDs differ on every load**, so tests
   can't keep an ID across a reload, and anything remembered by ID (Recents)

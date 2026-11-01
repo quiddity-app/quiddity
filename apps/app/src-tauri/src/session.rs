@@ -114,15 +114,31 @@ impl Session {
     /// Applies updates from the UI, saves, and sends them to the other
     /// devices. Updates that arrive out of order are held until what they
     /// depend on does.
-    pub fn apply(&self, updates: &[u8]) -> Result<(), Error> {
+    ///
+    /// `typed` are the blocks the UI says it was typing in, and nothing else.
+    /// Those edits are sent only to a device that has the block open, or once
+    /// the typing is over (see `Peer::edited`). With none, whatever changed is
+    /// sent at once.
+    pub fn apply(&self, updates: &[u8], typed: &[String]) -> Result<(), Error> {
         let graph = self.peer.graph();
         graph.import(updates)?;
         // The UI made them, so it has them.
         self.ui().merge(&Graph::version_of_updates(updates)?);
         self.peer.tidy()?;
         self.store.save(graph)?;
-        self.peer.changed();
+        if typed.is_empty() {
+            self.peer.changed();
+        }
+        for block in typed {
+            self.peer.edited(block.as_str());
+        }
         Ok(())
+    }
+
+    /// Says which blocks the user has open, to the other devices. Moving off a
+    /// block ends the typing in it.
+    pub fn set_focus(&self, blocks: &[String]) {
+        self.peer.set_focus(blocks.iter().map(String::as_str));
     }
 
     /// Lets the device `device` connect: lists it in the graph, or, if this
@@ -160,7 +176,9 @@ mod tests {
         let before = ui.version();
         let page = ui.create_entity("Typed in the UI", &[]).unwrap();
         ui.commit();
-        session.apply(&ui.updates_since(&before).unwrap()).unwrap();
+        session
+            .apply(&ui.updates_since(&before).unwrap(), &[])
+            .unwrap();
 
         let reopened = Session::open(dir.path()).unwrap();
         let graph = Graph::from_snapshot(&reopened.snapshot().unwrap()).unwrap();
@@ -172,7 +190,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let session = Session::open(dir.path()).unwrap();
         let before = session.snapshot().unwrap();
-        assert!(session.apply(b"not an update").is_err());
+        assert!(session.apply(b"not an update", &[]).is_err());
         assert_eq!(session.snapshot().unwrap(), before);
     }
 
@@ -194,12 +212,11 @@ mod tests {
         (guest, endpoint, addr)
     }
 
-    /// What the UI pushes reaches a device that has been let in, as it
-    /// happens.
-    #[tokio::test]
-    async fn the_uis_edits_reach_other_devices() {
-        let dir = tempfile::tempdir().unwrap();
-        let session = Session::open(dir.path()).unwrap();
+    /// A session on the network, and a second device let in and connected,
+    /// having caught up.
+    async fn joined(
+        session: &Session,
+    ) -> (quiddity_node::Server, Peer, tokio::task::JoinHandle<()>) {
         let server = quiddity_node::serve(session.peer(), session.store().key().unwrap(), local())
             .await
             .unwrap();
@@ -213,17 +230,32 @@ mod tests {
 
         session.allow(&guest_id(&endpoint)).unwrap();
         let (peer, connect_to) = (guest.clone(), endpoint.clone());
-        let connection = tokio::spawn(async move { peer.connect(&connect_to, addr, None).await });
+        let connection = tokio::spawn(async move {
+            let _ = peer.connect(&connect_to, addr, None).await;
+        });
         wait_for("the guest to join", || {
             guest.graph().version() == session.peer().graph().version()
+                && !session.peer().present().is_empty()
         })
         .await;
+        (server, guest, connection)
+    }
+
+    /// What the UI pushes reaches a device that has been let in, as it
+    /// happens.
+    #[tokio::test]
+    async fn the_uis_edits_reach_other_devices() {
+        let dir = tempfile::tempdir().unwrap();
+        let session = Session::open(dir.path()).unwrap();
+        let (server, guest, connection) = joined(&session).await;
 
         let ui = Graph::from_snapshot(&session.snapshot().unwrap()).unwrap();
         let before = ui.version();
         let page = ui.create_entity("Typed in the UI", &[]).unwrap();
         ui.commit();
-        session.apply(&ui.updates_since(&before).unwrap()).unwrap();
+        session
+            .apply(&ui.updates_since(&before).unwrap(), &[])
+            .unwrap();
         wait_for("the edit to arrive", || {
             guest
                 .graph()
@@ -231,6 +263,68 @@ mod tests {
                 .is_ok_and(|n| n == "Typed in the UI")
         })
         .await;
+
+        connection.abort();
+        server.shutdown().await.unwrap();
+    }
+
+    /// An edit pushed as typing in a block nobody else has open waits; it goes
+    /// when the user moves on, or at once if someone has the block open.
+    #[tokio::test]
+    async fn typing_is_held_back_until_it_is_seen_or_over() {
+        let dir = tempfile::tempdir().unwrap();
+        let session = Session::open(dir.path()).unwrap();
+        session.peer().set_edit_idle(Duration::from_secs(60));
+        let (server, guest, connection) = joined(&session).await;
+        let ui = Graph::from_snapshot(&session.snapshot().unwrap()).unwrap();
+
+        let type_in = |name: &str, block: &str| {
+            let before = ui.version();
+            let page = ui.create_entity(name, &[]).unwrap();
+            ui.commit();
+            let updates = ui.updates_since(&before).unwrap();
+            session.apply(&updates, &[block.to_owned()]).unwrap();
+            page
+        };
+        let arrived = |page| guest.graph().entity_name(page).is_ok();
+
+        // Typing in a block the user has open, and nobody else has: held.
+        session.set_focus(&["a".to_owned()]);
+        let first = type_in("Held", "a");
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        assert!(!arrived(first), "held back while typing");
+
+        // Moving to another block ends it.
+        session.set_focus(&["b".to_owned()]);
+        wait_for("the typing to be sent", || arrived(first)).await;
+
+        // A block someone else has open: sent as it is typed.
+        guest.set_focus(["b"]);
+        wait_for("the guest to be seen in the block", || {
+            session.peer().watched("b")
+        })
+        .await;
+        let second = type_in("Seen", "b");
+        wait_for("the watched typing to arrive", || arrived(second)).await;
+
+        connection.abort();
+        server.shutdown().await.unwrap();
+    }
+
+    /// The blocks the user has open are what other devices see.
+    #[tokio::test]
+    async fn the_open_blocks_are_seen_by_other_devices() {
+        let dir = tempfile::tempdir().unwrap();
+        let session = Session::open(dir.path()).unwrap();
+        let (server, guest, connection) = joined(&session).await;
+
+        session.set_focus(&["a".to_owned(), "b".to_owned()]);
+        wait_for("the guest to see them", || {
+            guest.watched("a") && guest.watched("b")
+        })
+        .await;
+        session.set_focus(&[]);
+        wait_for("the guest to see none", || !guest.watched("a")).await;
 
         connection.abort();
         server.shutdown().await.unwrap();
@@ -332,7 +426,9 @@ mod tests {
         let before = ui.version();
         let page = ui.create_entity("Typed in the UI", &[]).unwrap();
         ui.commit();
-        session.apply(&ui.updates_since(&before).unwrap()).unwrap();
+        session
+            .apply(&ui.updates_since(&before).unwrap(), &[])
+            .unwrap();
 
         if let Some(record) = session.ui_updates().unwrap() {
             // The record rests on the edit, so a replica that never saw the

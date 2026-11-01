@@ -14,6 +14,8 @@
 	- A new connection's hello still sends everything, held edits included, so a device that joins is never behind.
 	- Saving is never held back. "The graph changed" (`Peer::subscribe`, which drives saving) and "send the changes" are separate signals.
 	- The timers live in the connection tasks, so `Peer` needs no runtime of its own.
-- Not wired yet
-	- Nothing calls `edited` or `set_focus` from the app. The UI runs `View` in the browser and the shell holds the native graph, so the UI will report edits and focus to the shell with commands. [[Architecture]]
+- The app drives it.
+	- The UI says which block is being edited, and the shell passes that to `Peer::set_focus`. It tells the shell after the typing before it, so moving to another block ends the typing in the last. The UI runs `View` in the browser and only the shell has a peer, so it reports to the shell with commands. [[App sync]] [[Architecture]]
+	- The UI also says which blocks an update was typed in, when typing is all it was. The shell calls `Peer::edited` for those, and `Peer::changed` for anything else, so structure is never held back.
+	- The wait is longer than 2 s in practice: the UI pushes 300 ms after the last edit, and the gate waits its 2 s from then.
 - Tests run real iroh connections on localhost: idle release, a watched block, a block that becomes watched, moving away, and ending the edit. [[Testing]]
