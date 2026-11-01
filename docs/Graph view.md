@@ -7,6 +7,10 @@
 	- Nodes are real links. Click opens the entity and shift-click opens it at the side.
 	- Hovering or focusing a node dims everything that is not its neighbour.
 	- The static site's base path applies to the nodes' links, since they are written by hand. [[Static build]]
+- The view is framed for you.
+	- The first time, with no remembered view, the graph is framed once it has settled, until you pan or zoom. It frames the largest connected group, so loose entities do not shrink it to a speck.
+	- Reset view, or a double-click on the background, frames it again.
+	- Alt-click on a node zooms to it and its neighbours, rather than opening it. A plain click has to open the entity, so a double-click on a node cannot be used.
 - Where things are is remembered.
 	- Positions and the pan and zoom are kept in memory, so leaving the graph and coming back finds it as it was, and in localStorage, so restarting does too.
 	- An entity with no remembered position starts beside one it links to. Entities that already have a place are held still while new ones settle, and let go afterwards, so what was there does not move. With nothing new the layout does not run at all.

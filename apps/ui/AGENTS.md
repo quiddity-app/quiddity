@@ -119,6 +119,14 @@ shift-click opens it at the side) and are labelled by `aria-label`.
   dragged one, and the dragged node on release (nodes aren't pinned).
 - Link strength is d3's default (1 over the fewer links of the two ends), so a
   link between hubs is slack. Don't set a flat strength.
+- **Framing** (`lib/graph-fit.ts`): with no remembered view the graph is framed
+  once at the first draw and again, animated, when the layout settles, until
+  the person pans or zooms (`tracking`). It frames the largest connected group
+  (every entity when nothing is linked), so loose entities don't shrink the
+  view. **Reset view** and a double-click on the background do the same.
+  Alt-click frames a node and its neighbours instead of opening it. The animation is
+  `d3-transition`, imported for its effect on selections; a pan or zoom by the
+  person interrupts it.
 - Labels are hidden when a node's radius on screen is under `LABEL_RADIUS`,
   except for the node hovered or focused. `aria-label` is unaffected.
 

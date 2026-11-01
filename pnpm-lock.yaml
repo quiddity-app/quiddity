@@ -43,6 +43,9 @@ importers:
       d3-selection:
         specifier: 3.0.0
         version: 3.0.0
+      d3-transition:
+        specifier: 3.0.1
+        version: 3.0.1(d3-selection@3.0.0)
       d3-zoom:
         specifier: 3.0.0
         version: 3.0.0
@@ -80,6 +83,9 @@ importers:
       '@types/d3-selection':
         specifier: 3.0.12
         version: 3.0.12
+      '@types/d3-transition':
+        specifier: 3.0.9
+        version: 3.0.9
       '@types/d3-zoom':
         specifier: 3.0.9
         version: 3.0.9
@@ -573,6 +579,9 @@ packages:
 
   '@types/d3-selection@3.0.12':
     resolution: {integrity: sha512-Qe/KWYhEiIIxGs7HrAAjMfShxKldx19SJtr5zu53f3afPsdZNz7HHtdTLXo/kqeiWNXVycI24kSnfzBYkTzpgw==}
+
+  '@types/d3-transition@3.0.9':
+    resolution: {integrity: sha512-uZS5shfxzO3rGlu0cC3bjmMFKsXv+SmZZcgp0KD22ts4uGXp5EVYGzu/0YdwZeKmddhcAccYtREJKkPfXkZuCg==}
 
   '@types/d3-zoom@3.0.9':
     resolution: {integrity: sha512-0sE1406XBYJGiqD3AusTl9ZqC//2mIXix51tbom25gDCA8ri4xnSZg28CaSE8Srl6FClqABUKfsn0qghgdepMA==}
@@ -1839,6 +1848,10 @@ snapshots:
       '@types/d3-color': 3.1.3
 
   '@types/d3-selection@3.0.12': {}
+
+  '@types/d3-transition@3.0.9':
+    dependencies:
+      '@types/d3-selection': 3.0.12
 
   '@types/d3-zoom@3.0.9':
     dependencies:
