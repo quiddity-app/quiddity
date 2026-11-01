@@ -6,4 +6,3 @@ alias:: replica
 - On disk a graph is a directory, made with `quiddity-node init`. The app keeps one in its data directory. [[Storage]] [[quiddity-node]]
 - It is one [[Loro]] document, so an edit that touches many blocks, such as moving a tree, is one change that syncs and undoes as a unit. [[Undo]]
 - Not to be confused with the [[Graph view]], which draws the entities and the links between them.
-- Back to the [[User guide]].

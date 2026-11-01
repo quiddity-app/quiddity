@@ -17,4 +17,3 @@ alias:: [link, qualifier, backlinks, references]
 	- Unlinked references, found on request, are mentions of the entity's name or an alias as a whole word in prose: not inside a link, not in a properties block, and not in a journal's own date. Finding them means reading every block.
 - Property values can be links too: `author:: [[Jane]]`, or bare `type:: person` for a property whose values are references. [[type]]
 - Block references, `((id))`, point at a block rather than an entity. [[Block references]]
-- Back to the [[User guide]].

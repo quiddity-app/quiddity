@@ -37,4 +37,3 @@ alias:: text format
 	- Files in `journals/` named `2026-10-25.md` or `2026_10_25.md` become journals. [[Journal]]
 	- A file with no `title::` is named for the file.
 	- Importing the same export twice makes two of everything except journals and property entities, which merge. Exports leave out copies that have been merged. [[Duplicates]]
-- Back to the [[User guide]].

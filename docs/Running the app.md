@@ -8,4 +8,3 @@
 	- The tasks are defined in `mise.toml`, and are kept in step with CI when either changes.
 - Browser tests need Playwright's Chromium. [[Testing]]
 - `next dev` writes its own agent instructions into `AGENTS.md` when it notices an AI agent. `agentRules: false` in the Next config stops that, because the file is written by hand.
-- Back to [[Quiddity]].

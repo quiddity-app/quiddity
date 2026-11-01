@@ -10,4 +10,3 @@ alias:: merging
 	- Deleting a journal or property entity deletes the copies merged into it, or they would take its place.
 - Other entities may share a name: that is allowed, since an [[Entity]] is identified by its name and properties together. Offering to merge them in the UI is planned, not built.
 - The code is `merge_duplicates` in [[quiddity-core]].
-- Back to the [[Developer guide]].

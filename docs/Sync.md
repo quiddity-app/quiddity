@@ -17,4 +17,3 @@
 - After every sync, duplicate journals and property entities are merged. [[Duplicates]]
 - Using it: `quiddity-node serve` keeps a graph online, and `quiddity-node sync <id>` syncs with one device until neither has anything more to send. [[quiddity-node]]
 - Tested over a simulated network that connects, disconnects and scrambles delivery, and over real iroh connections on localhost. [[Testing]]
-- Back to the [[Developer guide]].

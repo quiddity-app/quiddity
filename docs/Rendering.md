@@ -14,4 +14,3 @@
 	- Raw HTML is shown as text, never run. There is no `rehype-raw` and none should be added.
 	- Only `http(s)` and `mailto` links are links, and they open in the system's browser rather than replacing the app. Anything else is inert text.
 	- Remote images are not fetched, because fetching one is a request to whoever wrote it.
-- Back to [[The UI]].

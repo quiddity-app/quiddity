@@ -21,4 +21,3 @@ alias:: [page, properties block]
 	- Importing Markdown makes one per file. [[Export and import]]
 - Every entity is listed in [[All entities]], where they can be deleted, and drawn in the [[Graph view]].
 - Favourites: an entity with `favourite:: true` is listed on the left. [[favourite]]
-- Back to the [[User guide]].

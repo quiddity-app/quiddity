@@ -14,4 +14,3 @@ alias:: headless node
 	- `mise run node -- --help` runs it from a checkout. [[mise]]
 - Saving records this device and compacts what it writes. [[Compaction]]
 - It also holds the [[Publish gate]], and routes [[Presence]] between connections.
-- Back to the [[Developer guide]].
