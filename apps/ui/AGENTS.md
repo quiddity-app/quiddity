@@ -97,11 +97,32 @@ the current entity in the middle, open secondaries on the right.
 ## Graph view
 
 `/graph/` (an entrypoint) draws `graph.connections()` with d3: `d3-force` lays
-it out, `d3-zoom` pans and zooms, `d3-drag` moves nodes. **d3 owns the SVG
-inside the `<svg>`; React owns only the `<svg>` and calls `draw()` once on
-mount and `update(data)` when the graph changes**, so a node's `<a>` element is
-d3's, not React's. Nodes are real `<a href>` links (click opens the entity,
-shift-click opens it at the side) and are labelled by `aria-label`.
+it out, `d3-zoom` pans and zooms, `d3-drag` moves nodes. **It is drawn on a
+`<canvas>`**: an element per node and edge moved on every tick was slow. **d3
+owns the canvas and a `sr-only` list beside it; React owns the elements and
+calls `draw()` once on mount and `update(data)` when the graph changes.**
+
+- **Painting** is one function, `paint`, reading the nodes, links and view as
+  they are; anything that changes them asks `repaint()`, which coalesces to one
+  paint per animation frame and does nothing while the page is hidden. Colours
+  are the Tailwind ones, written out, and follow `prefers-color-scheme`. The
+  backing store is scaled by `devicePixelRatio`.
+- **Hit-testing is ours** (`nodeAt`): the nearest node within its radius, in
+  the canvas's pixels. The zoom's `filter` refuses a press on a node so the
+  drag gets it, `d3-drag`'s `subject` is `nodeAt`, and hover, click, Alt-click
+  and double-click on the background all use it. **A press starts a drag, but
+  nothing is disturbed until the pointer moves**, or a click would stir the
+  layout.
+  **`d3-drag` reports a drag in the subject's coordinates**, so the subject is
+  where the node is in canvas pixels (not in graph space), or a grabbed node
+  jumps by the view's offset.
+- **The accessible graph is the list of real `<a href>` links** (click opens
+  the entity, shift-click opens it at the side; focus highlights the node on the
+  canvas), and the canvas is `aria-hidden`. They are not positioned, which is
+  what makes them free. They carry `data-x`/`data-y` only when the layout is
+  still, and the canvas carries `data-view` and `data-settled`: tests read
+  those (and `data-grabbed`, where a drag has the node, in canvas pixels), and
+  click the canvas where the node is. Don't rely on them elsewhere.
 
 - **Positions and the view are remembered** (`lib/graph-layout.ts`, in memory
   and in localStorage), so leaving and coming back finds everything where it
@@ -125,10 +146,10 @@ shift-click opens it at the side) and are labelled by `aria-label`.
   (every entity when nothing is linked), so loose entities don't shrink the
   view. **Reset view** and a double-click on the background do the same.
   Alt-click frames a node and its neighbours instead of opening it. The animation is
-  `d3-transition`, imported for its effect on selections; a pan or zoom by the
-  person interrupts it.
-- Labels are hidden when a node's radius on screen is under `LABEL_RADIUS`,
-  except for the node hovered or focused. `aria-label` is unaffected.
+  `d3-transition`, imported for its effect on selections (it works on a canvas
+  selection as on any other); a pan or zoom by the person interrupts it.
+- Labels are not drawn when a node's radius on screen is under `LABEL_RADIUS`,
+  except for the node hovered or focused.
 
 ## Search
 

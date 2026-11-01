@@ -1,56 +1,103 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 
-const svg = (page: Page) => page.getByRole("group", { name: "Graph of entities" });
+// The graph is drawn on a canvas, with a real link for each entity beside it
+// for keyboards and screen readers. The links aren't positioned; they carry
+// `data-x` and `data-y` (in the graph's own space) once the layout is still,
+// and the canvas carries `data-view` (its pan and zoom) and `data-settled`.
+
+const graph = (page: Page) => page.getByRole("group", { name: "Graph of entities" });
+const canvas = (page: Page) => graph(page).locator("canvas");
+const node = (page: Page, name: string) => graph(page).getByRole("link", { name, exact: true });
 
 async function openGraph(page: Page) {
   await page.locator("nav").getByRole("link", { name: "Graph", exact: true }).click();
-  await expect(svg(page)).toBeVisible();
+  await expect(canvas(page)).toBeVisible();
 }
 
-/** Where every node is, by name, as the SVG says. */
-const placements = (page: Page): Promise<Record<string, string | null>> =>
-  svg(page).locator("a").evaluateAll((nodes) =>
-    Object.fromEntries(
-      nodes.map((n) => [n.getAttribute("aria-label") ?? "", n.getAttribute("transform")]),
-    ),
-  );
-
-/** Waits for the layout to stop moving. */
+/** Waits for the layout to stop moving, and any framing to finish. */
 async function settled(page: Page) {
+  await expect(canvas(page)).toHaveAttribute("data-settled", "true", { timeout: 20_000 });
+  await steady(page);
+}
+
+/** Waits for the pan and zoom to stop changing. */
+async function steady(page: Page) {
   await expect
     .poll(
       async () => {
-        const before = JSON.stringify(await placements(page));
-        await page.waitForTimeout(400);
-        return before === JSON.stringify(await placements(page));
+        const before = await canvas(page).getAttribute("data-view");
+        await page.waitForTimeout(150);
+        return before !== null && before === (await canvas(page).getAttribute("data-view"));
       },
-      { timeout: 20_000 },
+      { timeout: 10_000 },
     )
     .toBe(true);
 }
 
-const centre = (transform: string | null | undefined) => {
-  const [x = NaN, y = NaN] = /translate\(([^)]*)\)/.exec(transform ?? "")?.[1]?.split(",").map(Number) ?? [];
-  return { x, y };
+const view = async (page: Page) => {
+  const [x = NaN, y = NaN, k = NaN] = ((await canvas(page).getAttribute("data-view")) ?? "").split(",").map(Number);
+  return { x, y, k };
 };
 
-test("the graph is an entrypoint, and draws entities as links with lines between them", async ({ page }) => {
+/** Where every node is, by name, in the graph's own space. */
+const placements = (page: Page): Promise<Record<string, { x: number; y: number }>> =>
+  graph(page)
+    .locator("a")
+    .evaluateAll((nodes) =>
+      Object.fromEntries(
+        nodes.map((n) => [
+          n.getAttribute("aria-label") ?? "",
+          { x: Number(n.getAttribute("data-x")), y: Number(n.getAttribute("data-y")) },
+        ]),
+      ),
+    );
+
+/** Where a node is within the canvas, as the person sees it. */
+async function onScreen(page: Page, name: string) {
+  const { x, y, k } = await view(page);
+  const at = await node(page, name).evaluate((n) => ({
+    x: Number(n.getAttribute("data-x")),
+    y: Number(n.getAttribute("data-y")),
+  }));
+  return { x: x + at.x * k, y: y + at.y * k };
+}
+
+async function clickNode(page: Page, name: string, modifiers: Parameters<Locator["click"]>[0] = {}) {
+  await canvas(page).click({ ...modifiers, position: await onScreen(page, name) });
+}
+
+async function inView(page: Page, name: string) {
+  const box = (await canvas(page).boundingBox())!;
+  const { x, y } = await onScreen(page, name);
+  return x >= 0 && y >= 0 && x <= box.width && y <= box.height;
+}
+
+test("the graph is an entrypoint, and has a link for each entity", async ({ page }) => {
   await page.goto("/");
   await openGraph(page);
   await expect(page.locator("nav").getByRole("link", { name: "Graph", exact: true })).toHaveClass(/font-medium/);
-  await expect(svg(page).getByRole("link", { name: "Loro", exact: true })).toBeVisible();
-  await expect(svg(page).getByRole("link", { name: "Quiddity", exact: true })).toBeVisible();
-  // Quiddity links to Loro in the made-up graph.
-  expect(await svg(page).locator("line").count()).toBeGreaterThan(0);
+  await expect(node(page, "Loro")).toBeAttached();
+  await expect(node(page, "Quiddity")).toBeAttached();
+  // The canvas is what is seen, so the links add nothing for a screen reader to repeat.
+  await expect(canvas(page)).toHaveAttribute("aria-hidden", "true");
 });
 
 test("a node opens its entity, and shift-click opens it at the side", async ({ page }) => {
   await page.goto("/");
   await openGraph(page);
-  await svg(page).getByRole("link", { name: "iroh", exact: true }).click({ modifiers: ["Shift"] });
+  await settled(page);
+  await clickNode(page, "iroh", { modifiers: ["Shift"] });
   await expect(page.locator("aside article").getByRole("heading", { name: "iroh" })).toBeVisible();
-  await expect(svg(page)).toBeVisible();
+  await expect(canvas(page)).toBeVisible();
+});
+
+test("a keyboard can follow the links", async ({ page }) => {
+  await page.goto("/");
+  await openGraph(page);
+  await node(page, "Loro").focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { name: "Loro", level: 1 })).toBeVisible();
 });
 
 test("going away and back finds every entity where it was", async ({ page }) => {
@@ -59,15 +106,15 @@ test("going away and back finds every entity where it was", async ({ page }) => 
   await settled(page);
   const before = await placements(page);
 
-  await svg(page).getByRole("link", { name: "Loro", exact: true }).click();
+  await clickNode(page, "Loro");
   await expect(page.getByRole("heading", { name: "Loro", level: 1 })).toBeVisible();
   await openGraph(page);
+  await settled(page);
   const after = await placements(page);
 
   expect(Object.keys(after).sort()).toEqual(Object.keys(before).sort());
-  for (const [name, at] of Object.entries(before)) {
-    const was = centre(at);
-    const now = centre(after[name]);
+  for (const [name, was] of Object.entries(before)) {
+    const now = after[name]!;
     // Held still, not merely close.
     expect(Math.hypot(was.x - now.x, was.y - now.y), name).toBeLessThan(1);
   }
@@ -77,14 +124,13 @@ test("the pan and zoom are kept too, and a new entity joins without moving the r
   await page.goto("/");
   await openGraph(page);
   await settled(page);
-  const box = (await svg(page).boundingBox())!;
+  const box = (await canvas(page).boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  const framed = await view(page);
   await page.mouse.wheel(0, -400);
-  await page.waitForTimeout(300);
-  const layer = svg(page).locator("> g");
-  const zoomed = await layer.getAttribute("transform");
-  expect(zoomed).toMatch(/scale\((?!1\))/);
-  await settled(page);
+  await expect.poll(async () => (await view(page)).k).toBeGreaterThan(framed.k);
+  await steady(page);
+  const zoomed = await view(page);
   const before = await placements(page);
 
   // Make an entity, then come back.
@@ -93,72 +139,73 @@ test("the pan and zoom are kept too, and a new entity joins without moving the r
   await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { name: "Brand new", level: 1 })).toBeVisible();
   await openGraph(page);
+  await settled(page);
 
-  expect(await layer.getAttribute("transform")).toBe(zoomed);
-  await expect(svg(page).getByRole("link", { name: "Brand new" })).toBeVisible();
+  expect(await view(page)).toEqual(zoomed);
+  await expect(node(page, "Brand new")).toBeAttached();
   const after = await placements(page);
-  for (const [name, at] of Object.entries(before)) {
-    const was = centre(at);
-    const now = centre(after[name]);
+  for (const [name, was] of Object.entries(before)) {
+    const now = after[name]!;
     expect(Math.hypot(was.x - now.x, was.y - now.y), name).toBeLessThan(1);
   }
 });
 
-const scale = (transform: string | null) => Number(/scale\(([^)]*)\)/.exec(transform ?? "")?.[1] ?? NaN);
-
-/** Every number in a transform, in order: translate x, y, then scale. */
-const numbers = (transform: string | null) => (transform?.match(/-?\d+(?:\.\d+)?(?:e-?\d+)?/gi) ?? []).map(Number);
-
-/** Whether a node is wholly inside the drawing. */
-async function inView(page: Page, name: string) {
-  const box = (await svg(page).boundingBox())!;
-  const at = (await svg(page).getByRole("link", { name, exact: true }).boundingBox())!;
-  return at.x >= box.x && at.y >= box.y && at.x + at.width <= box.x + box.width && at.y + at.height <= box.y + box.height;
-}
+test("dragging a node moves it, and doesn't open it", async ({ page }) => {
+  await page.goto("/");
+  await openGraph(page);
+  await settled(page);
+  const url = page.url();
+  const was = await onScreen(page, "iroh");
+  const box = (await canvas(page).boundingBox())!;
+  await page.mouse.move(box.x + was.x, box.y + was.y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + was.x + 80, box.y + was.y + 60, { steps: 8 });
+  // The node stays where it was grabbed, relative to the pointer: it doesn't
+  // jump on the first move. (`data-grabbed` is where the drag has it.)
+  const [gx = NaN, gy = NaN] = ((await canvas(page).getAttribute("data-grabbed")) ?? "").split(",").map(Number);
+  expect(Math.hypot(gx - (was.x + 80), gy - (was.y + 60))).toBeLessThan(1);
+  await page.mouse.up();
+  await settled(page);
+  expect(page.url()).toBe(url);
+  // The layout settles once let go, so the node is near where it was dropped, not at it.
+  const now = await onScreen(page, "iroh");
+  expect(Math.hypot(now.x - was.x, now.y - was.y)).toBeGreaterThan(10);
+});
 
 test("a first visit frames the linked entities", async ({ page }) => {
   await page.goto("/");
   await openGraph(page);
   await settled(page);
   // Quiddity links to Loro in the made-up graph.
-  await expect.poll(() => inView(page, "Quiddity")).toBe(true);
-  await expect.poll(() => inView(page, "Loro")).toBe(true);
+  expect(await inView(page, "Quiddity")).toBe(true);
+  expect(await inView(page, "Loro")).toBe(true);
 });
 
 test("Reset view frames everything again after panning and zooming", async ({ page }) => {
   await page.goto("/");
   await openGraph(page);
   await settled(page);
-  const layer = svg(page).locator("> g");
-  const framed = await layer.getAttribute("transform");
+  const framed = await view(page);
 
-  const box = (await svg(page).boundingBox())!;
+  const box = (await canvas(page).boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.wheel(0, 1200);
-  await expect.poll(() => layer.getAttribute("transform")).not.toBe(framed);
+  await expect.poll(async () => (await view(page)).k).not.toBe(framed.k);
 
   await page.getByRole("button", { name: "Reset view" }).click();
-  // The framing is computed from float positions, which can differ in the
-  // last few places between runs, so compare to the nearest pixel.
-  const want = numbers(framed);
-  await expect
-    .poll(async () => {
-      const got = numbers(await layer.getAttribute("transform"));
-      return got.length === want.length && got.every((n, i) => Math.abs(n - want[i]!) < 1);
-    })
-    .toBe(true);
+  await expect.poll(() => view(page)).toEqual(framed);
 });
 
 test("Alt-click looks closer at a node and its neighbours, without opening it", async ({ page }) => {
   await page.goto("/");
   await openGraph(page);
   await settled(page);
-  const layer = svg(page).locator("> g");
-  const before = scale(await layer.getAttribute("transform"));
+  const before = (await view(page)).k;
   const url = page.url();
 
-  await svg(page).getByRole("link", { name: "iroh", exact: true }).click({ modifiers: ["Alt"] });
-  await expect.poll(async () => scale(await layer.getAttribute("transform"))).toBeGreaterThan(before);
-  await expect.poll(() => inView(page, "iroh")).toBe(true);
+  await clickNode(page, "iroh", { modifiers: ["Alt"] });
+  await expect.poll(async () => (await view(page)).k).toBeGreaterThan(before);
+  await steady(page);
+  expect(await inView(page, "iroh")).toBe(true);
   expect(page.url()).toBe(url);
 });

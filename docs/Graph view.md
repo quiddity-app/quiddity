@@ -2,11 +2,13 @@
 - The data
 	- `View::connections()` returns every entity, as the list of entities does, and one edge per pair where one links to the other from anywhere in its blocks, however many links there are.
 	- Property values count. An entity's links to itself, and links to nowhere, make no edge. Links from a merged duplicate count for the entity it was merged into.
-- The drawing is d3, with React owning only the `<svg>`.
-	- `d3-force` lays it out, `d3-zoom` pans and zooms and `d3-drag` moves nodes. d3 owns what is inside the `<svg>`.
-	- Nodes are real links. Click opens the entity and shift-click opens it at the side.
+- The drawing is d3 on a canvas, with React owning only the elements.
+	- `d3-force` lays it out, `d3-zoom` pans and zooms and `d3-drag` moves nodes. d3 owns what is drawn.
+	- It is a canvas because an element for every node and line, moved on every step of the layout, was slow. The page finds the node under the pointer itself.
+	- Click opens the entity and shift-click opens it at the side. Dragging a node moves it without opening it.
 	- Hovering or focusing a node dims everything that is not its neighbour.
-	- The static site's base path applies to the nodes' links, since they are written by hand. [[Static build]]
+	- Beside the canvas is a list of real links, one per entity, which is what a keyboard or a screen reader uses: tabbing to one highlights it on the canvas, and Enter opens it. They are not placed on the page, so they cost nothing while the layout runs.
+	- The static site's base path applies to those links, since they are written by hand. [[Static build]]
 - The view is framed for you.
 	- The first time, with no remembered view, the graph is framed once it has settled, until you pan or zoom. It frames the largest connected group, so loose entities do not shrink it to a speck.
 	- Reset view, or a double-click on the background, frames it again.
@@ -19,4 +21,5 @@
 	- Setting the initial zoom ends a zoom, which used to save an empty layout over the remembered one before it could be restored. Nothing is saved before the first nodes are drawn.
 	- Every entity is drawn, journals included. Labels are hidden for small nodes when zoomed out, and always shown for the one hovered or focused. Filtering is still wanted as graphs grow.
 	- Links use d3's default strength, so a link between two well-connected entities is a weak spring and hubs do not collapse into a knot.
-	- Dragging lets every node go first, so the rest can untangle around the dragged one. This follows the layout of a similar graph viewer of Logseq pages, which draws on a canvas; Quiddity keeps SVG so that nodes stay real links.
+	- Dragging lets every node go first, so the rest can untangle around the dragged one, but only once the pointer moves, so a click does not stir the layout.
+	- The canvas, its hit-testing and its repaint once per frame follow a similar graph viewer of Logseq pages. A drawing is seen only by sight, so what a screen reader gets is the list of links, not the drawing.
