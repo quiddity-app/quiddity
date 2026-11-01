@@ -22,4 +22,4 @@ favourite:: true
 - Your data
 	- [[Export and import]]: the graph as Markdown, and importing from [[Logseq]].
 	- Syncing between devices is done by [[quiddity-node]] so far, and is described for developers under [[Sync]].
-- Running it: there is no release yet, so the app is built from source. [[Running the app]]
+- Running it: there is no release yet. Each week's [[Nightly builds]] have the app for Linux, macOS, Windows and Android, or it can be built from source. [[Running the app]]
