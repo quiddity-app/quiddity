@@ -1,0 +1,18 @@
+- Share your graph with another device: a second computer running the app, or a [[quiddity-node]] that keeps a copy always on. Each device ends up with all of it. [[Graph]]
+- Do it from the Devices page, in the sidebar.
+	- **This device** shows an ID, a long string of letters and digits. It is what another device needs to let this one in. Copy puts it on the clipboard.
+	- **Add a device** takes the other device's ID. Paste it and press Add device.
+	- Do both on both devices: each lets the other in. The order does not matter.
+- Then they connect by themselves whenever both are online, and what you write on one appears on the other as you write it. [[App sync]]
+	- They reach each other over the internet, so they need not be on the same network.
+	- **Devices in this graph** lists each device and when it last saved. A device shows up once it has saved, or been let in.
+- Adding a node instead
+	- On the node, run `quiddity-node allow <the app's ID>`, and keep `quiddity-node serve` running.
+	- In the app, add the node's ID, which `quiddity-node id` prints.
+- Things to know
+	- Only a device whose ID you have added can connect. An ID reveals nothing else about the device.
+	- A device you add can add others: letting one in lets it in everywhere the graph is. Take care whose ID you add.
+	- There is no way yet to take a device away again.
+	- Typing is held back from other devices until you move on from the block, unless one of them has the same block open. [[Publish gate]]
+	- The app starts the connection when it opens. Setting `QUIDDITY_NO_SYNC` before starting it keeps it off.
+- How it works is under [[Device list]] and [[App sync]].
