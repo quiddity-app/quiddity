@@ -1,5 +1,6 @@
 use quiddity_syntax::{
-    Property, Value, format_property_line, is_properties_block, normalise_name, parse_block,
+    MetaProperty, Property, Value, format_property_line, is_properties_block, normalise_name,
+    parse_block,
 };
 
 use crate::{BlockId, Error, Graph, Result};
@@ -120,6 +121,14 @@ impl Graph {
     pub fn entity_properties(&self, entity: BlockId) -> Result<Vec<Property>> {
         match self.properties_block(entity)? {
             Some(block) => self.block_properties(block),
+            None => Ok(Vec::new()),
+        }
+    }
+
+    /// The meta-properties in the entity's properties block.
+    pub fn entity_meta(&self, entity: BlockId) -> Result<Vec<MetaProperty>> {
+        match self.properties_block(entity)? {
+            Some(block) => Ok(parse_block(&self.text(block)?).meta),
             None => Ok(Vec::new()),
         }
     }
