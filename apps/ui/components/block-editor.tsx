@@ -55,6 +55,12 @@ function outlinerKeys(id: string, latest: { current: Editing }): KeyBinding[] {
       run: (view) => {
         if (!collapsed(view)) return false;
         const { graph, edit } = latest.current;
+        // Enter in an empty block steps out a level, as in most outliners;
+        // at the top level there is nowhere to go, so it splits as usual.
+        if (view.state.doc.length === 0) {
+          edit(id, 0);
+          if (graph.outdent(id)) return true;
+        }
         edit(graph.split(id, head(view)), "start");
         return true;
       },
