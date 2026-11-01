@@ -5,6 +5,19 @@ export interface EntityRef {
   title: string;
 }
 
+/** How this device stands with the others. */
+export type SyncState =
+  /** No other device is listed, and none is connected. */
+  | "alone"
+  /** Others are listed and none is connected. */
+  | "offline"
+  /** Connected, but something is missing on one side, or typing is held back. */
+  | "behind"
+  /** Connected and up to date. */
+  | "synced"
+  /** Connected and up to date, and another device has a block open. */
+  | "present";
+
 /** A device the graph records: one that holds it, or has been let in to it. */
 export interface Device {
   /** Its endpoint ID, which another device needs to let it in. */

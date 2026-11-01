@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use quiddity_core::{Graph, Version};
 use quiddity_node::store::Store;
-use quiddity_node::{Allowed, Peer};
+use quiddity_node::{Allowed, Peer, SyncState};
 use serde::Serialize;
 
 #[derive(Debug, thiserror::Error)]
@@ -139,6 +139,20 @@ impl Session {
     /// block ends the typing in it.
     pub fn set_focus(&self, blocks: &[String]) {
         self.peer.set_focus(blocks.iter().map(String::as_str));
+    }
+
+    /// How this device stands with the others, as the UI names it: `alone`
+    /// (no other device), `offline` (others, none connected), `behind`
+    /// (connected, and either side is missing something), `synced`, or `present`
+    /// (synced, and another device has a block open).
+    pub fn sync_state(&self) -> &'static str {
+        match self.peer.sync_state() {
+            SyncState::Alone => "alone",
+            SyncState::Offline => "offline",
+            SyncState::Behind => "behind",
+            SyncState::Synced => "synced",
+            SyncState::Present => "present",
+        }
     }
 
     /// Lets the device `device` connect: lists it in the graph, or, if this
@@ -460,5 +474,24 @@ mod tests {
             .import(&session.ui_updates().unwrap().unwrap())
             .unwrap();
         assert_eq!(fresh.entity_name(page).unwrap(), "After");
+    }
+
+    /// The UI's word for how this device stands with the others, from nothing
+    /// to listed to connected to seen.
+    #[tokio::test]
+    async fn the_sync_state_is_named_for_the_ui() {
+        let dir = tempfile::tempdir().unwrap();
+        let session = Session::open(dir.path()).unwrap();
+        assert_eq!(session.sync_state(), "alone");
+
+        let (server, guest, connection) = joined(&session).await;
+        wait_for("them to be up to date", || session.sync_state() == "synced").await;
+
+        guest.set_focus(["a"]);
+        wait_for("the guest to be seen", || session.sync_state() == "present").await;
+
+        connection.abort();
+        server.shutdown().await.unwrap();
+        wait_for("the connection to go", || session.sync_state() == "offline").await;
     }
 }
