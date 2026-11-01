@@ -1,5 +1,6 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import type { Backend } from "./graph";
+import type { SyncState } from "./model";
 
 /** The shell holds the graph on disk; bytes cross as raw IPC bodies. */
 export const tauriBackend: Backend = {
@@ -20,6 +21,12 @@ export const tauriBackend: Backend = {
   },
   async allowDevice(device) {
     await invoke("allow_device", { device });
+  },
+  /** How this device stands with the others arrives as words. */
+  async subscribeStatus(onStatus) {
+    const channel = new Channel<SyncState>();
+    channel.onmessage = onStatus;
+    await invoke("subscribe_status", { channel });
   },
   /** What other devices change arrives on a channel, as raw bytes. */
   async subscribe(onUpdates) {

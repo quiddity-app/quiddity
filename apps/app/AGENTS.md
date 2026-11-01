@@ -16,6 +16,8 @@ holds its own replica and answers its own queries (see `apps/ui` and
   that is all the updates are: the shell calls `Peer::edited` for them and
   `changed` otherwise. `set_focus` takes the block being edited. The UI sends
   the focus after flushing what it typed, so moving on ends the typing.
+  `subscribe_status` takes a `Channel` and sends how this device stands with
+  the others (`Session::sync_state`) each time it changes.
   `subscribe_updates` is below. `device_id` and `allow_device` are for letting
   another device in (see `docs/App sync.md`); the Devices page calls them.
 - **The shell's graph is a `quiddity_node::Peer`, on the network from

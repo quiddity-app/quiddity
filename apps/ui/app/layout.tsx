@@ -11,6 +11,7 @@ import { HistoryKeys } from "@/components/history-keys";
 import { LeftSidebar } from "@/components/left-sidebar";
 import { RightPane } from "@/components/right-pane";
 import { Search } from "@/components/search";
+import { SyncIndicator } from "@/components/sync-indicator";
 import { Shell } from "@/components/shell";
 import { UndoKeys } from "@/components/undo-keys";
 
@@ -38,6 +39,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Shell
           actions={
             <ClientOnly>
+              {/* Each waits alone: search takes Ctrl-K before the graph has loaded. */}
+              <Suspense fallback={null}>
+                <SyncIndicator />
+              </Suspense>
               <Suspense fallback={null}>
                 <Search />
               </Suspense>
