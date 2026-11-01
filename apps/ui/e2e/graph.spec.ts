@@ -103,3 +103,62 @@ test("the pan and zoom are kept too, and a new entity joins without moving the r
     expect(Math.hypot(was.x - now.x, was.y - now.y), name).toBeLessThan(1);
   }
 });
+
+const scale = (transform: string | null) => Number(/scale\(([^)]*)\)/.exec(transform ?? "")?.[1] ?? NaN);
+
+/** Every number in a transform, in order: translate x, y, then scale. */
+const numbers = (transform: string | null) => (transform?.match(/-?\d+(?:\.\d+)?(?:e-?\d+)?/gi) ?? []).map(Number);
+
+/** Whether a node is wholly inside the drawing. */
+async function inView(page: Page, name: string) {
+  const box = (await svg(page).boundingBox())!;
+  const at = (await svg(page).getByRole("link", { name, exact: true }).boundingBox())!;
+  return at.x >= box.x && at.y >= box.y && at.x + at.width <= box.x + box.width && at.y + at.height <= box.y + box.height;
+}
+
+test("a first visit frames the linked entities", async ({ page }) => {
+  await page.goto("/");
+  await openGraph(page);
+  await settled(page);
+  // Quiddity links to Loro in the made-up graph.
+  await expect.poll(() => inView(page, "Quiddity")).toBe(true);
+  await expect.poll(() => inView(page, "Loro")).toBe(true);
+});
+
+test("Reset view frames everything again after panning and zooming", async ({ page }) => {
+  await page.goto("/");
+  await openGraph(page);
+  await settled(page);
+  const layer = svg(page).locator("> g");
+  const framed = await layer.getAttribute("transform");
+
+  const box = (await svg(page).boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.wheel(0, 1200);
+  await expect.poll(() => layer.getAttribute("transform")).not.toBe(framed);
+
+  await page.getByRole("button", { name: "Reset view" }).click();
+  // The framing is computed from float positions, which can differ in the
+  // last few places between runs, so compare to the nearest pixel.
+  const want = numbers(framed);
+  await expect
+    .poll(async () => {
+      const got = numbers(await layer.getAttribute("transform"));
+      return got.length === want.length && got.every((n, i) => Math.abs(n - want[i]!) < 1);
+    })
+    .toBe(true);
+});
+
+test("Alt-click looks closer at a node and its neighbours, without opening it", async ({ page }) => {
+  await page.goto("/");
+  await openGraph(page);
+  await settled(page);
+  const layer = svg(page).locator("> g");
+  const before = scale(await layer.getAttribute("transform"));
+  const url = page.url();
+
+  await svg(page).getByRole("link", { name: "iroh", exact: true }).click({ modifiers: ["Alt"] });
+  await expect.poll(async () => scale(await layer.getAttribute("transform"))).toBeGreaterThan(before);
+  await expect.poll(() => inView(page, "iroh")).toBe(true);
+  expect(page.url()).toBe(url);
+});

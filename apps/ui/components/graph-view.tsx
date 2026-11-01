@@ -13,9 +13,11 @@ import {
   type SimulationNodeDatum,
 } from "d3-force";
 import { select, type Selection } from "d3-selection";
+import "d3-transition";
 import { zoom, zoomIdentity, type ZoomBehavior, type ZoomTransform } from "d3-zoom";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
+import { fitTransform, largestGroup } from "@/lib/graph-fit";
 import { cachedPosition, cachedTransform, remember } from "@/lib/graph-layout";
 import type { Connections } from "@/lib/model";
 import { useRead } from "@/lib/use-graph";
@@ -40,6 +42,8 @@ const LABEL_RADIUS = 4;
 /** How the graph draws itself, kept apart from React: d3 owns the SVG inside. */
 interface Drawing {
   update(data: Connections): void;
+  /** Frames the main body of the graph. */
+  fit(): void;
   stop(): void;
 }
 
@@ -55,6 +59,7 @@ function draw(
 
   let nodes: Node[] = [];
   let links: Link[] = [];
+  let edges: Connections["edges"] = [];
   let view: ZoomTransform = zoomIdentity;
   const simulation: Simulation<Node, Link> = forceSimulation<Node>()
     // d3's default strength, 1 / the fewer links of the two ends: a spring
@@ -84,6 +89,12 @@ function draw(
   simulation.on("end", () => {
     unsettled.clear();
     release();
+    // With no remembered view, frame the layout once it has found its shape,
+    // unless the person has already taken the view into their own hands.
+    if (tracking) {
+      tracking = false;
+      fit(null, true);
+    }
     save();
   });
 
@@ -91,6 +102,10 @@ function draw(
   let nodeSelection: Selection<SVGAElement, Node, SVGGElement, unknown> | undefined;
   let linkSelection: Selection<SVGLineElement, Link, SVGGElement, unknown> | undefined;
   let focused: string | null = null;
+  // True while the view is ours to frame: no remembered view, and no pan or zoom yet.
+  let tracking = cachedTransform() === null;
+  // The frame request of a zoom in progress, so a new one or a touch can stop it.
+  let glide = 0;
   // Set before the first nodes exist: the initial zoom calls this.
   const labels = () => {
     nodeSelection
@@ -102,7 +117,11 @@ function draw(
 
   const behaviour: ZoomBehavior<SVGSVGElement, unknown> = zoom<SVGSVGElement, unknown>()
     .scaleExtent([0.1, 4])
-    .on("zoom", (event: { transform: ZoomTransform }) => {
+    .on("zoom", (event: { transform: ZoomTransform; sourceEvent?: unknown }) => {
+      if (event.sourceEvent) {
+        tracking = false;
+        cancelAnimationFrame(glide);
+      }
       view = event.transform;
       layer.attr("transform", view.toString());
       labels();
@@ -118,6 +137,46 @@ function draw(
       ? zoomIdentity.translate(start.x, start.y).scale(start.k)
       : zoomIdentity.translate(width / 2, height / 2),
   );
+
+  /** Frames these entities (the main body of the graph if none are given). */
+  const fit = (ids: Set<string> | null, animate: boolean) => {
+    const wanted = ids ?? largestGroup(nodes.map((n) => n.id), edges);
+    const { width, height } = svg.getBoundingClientRect();
+    const target = fitTransform(
+      nodes
+        .filter((n) => wanted.has(n.id) && n.x !== undefined && n.y !== undefined)
+        .map((n) => ({ x: n.x!, y: n.y!, r: radius(n) })),
+      width,
+      height,
+      // Zooming in on a few is welcome; blowing the whole graph up isn't.
+      ids ? { pad: 0.3, minScale: 0.1, maxScale: 2.5 } : { pad: 0.08, minScale: 0.1, maxScale: 1 },
+    );
+    if (!target) return;
+    const to = zoomIdentity.translate(target.x, target.y).scale(target.k);
+    cancelAnimationFrame(glide);
+    if (!animate) {
+      root.call(behaviour.transform, to);
+      return;
+    }
+    // d3-transition isn't a dependency, and a straight blend is enough here.
+    const from = view;
+    const began = performance.now();
+    const step = (now: number) => {
+      const t = Math.min(1, (now - began) / 500);
+      const e = t * t * (3 - 2 * t);
+      root.call(
+        behaviour.transform,
+        zoomIdentity
+          .translate(from.x + (to.x - from.x) * e, from.y + (to.y - from.y) * e)
+          .scale(from.k + (to.k - from.k) * e),
+      );
+      if (t < 1) glide = requestAnimationFrame(step);
+    };
+    glide = requestAnimationFrame(step);
+  };
+  root.on("dblclick.fit", (event: MouseEvent) => {
+    if (event.target === svg) fit(null, true);
+  });
 
   const focus = (id: string | null) => {
     focused = id;
@@ -201,6 +260,7 @@ function draw(
         n.y = (friend?.y ?? 0) + Math.sin(angle) * 30;
         unsettled.add(n.id);
       }
+      edges = data.edges;
       links = data.edges.map(({ source, target }) => ({ source, target }));
 
       linkSelection = linkLayer
@@ -217,7 +277,9 @@ function draw(
             .attr("class", "cursor-pointer outline-none [&:focus-visible_circle]:stroke-2")
             .on("click", (event: MouseEvent, n) => {
               event.preventDefault();
-              open(n.id, event.shiftKey);
+              // Alt-click looks closer instead of opening.
+              if (event.altKey) fit(new Set([n.id, ...(neighbours.get(n.id) ?? [])]), true);
+              else open(n.id, event.shiftKey);
             })
             .on("mouseenter focus", (_event, n) => focus(n.id))
             .on("mouseleave blur", () => focus(null))
@@ -243,6 +305,7 @@ function draw(
       simulation.nodes(nodes);
       simulation.force<ReturnType<typeof forceLink<Node, Link>>>("link")?.links(links);
       place();
+      if (tracking) fit(null, false);
       // Whatever already has a place is held there while new entities find
       // theirs, so a link's spring can't pull a settled layout out of shape.
       // The rest let go when it ends. With nothing new there is nothing to
@@ -261,10 +324,13 @@ function draw(
         save();
       }
     },
+    fit: () => fit(null, true),
     stop() {
       simulation.stop();
       save();
+      cancelAnimationFrame(glide);
       root.on(".zoom", null);
+      root.on(".fit", null);
     },
   };
 }
@@ -306,6 +372,13 @@ function Canvas() {
         aria-label="Graph of entities"
         className="absolute inset-0 size-full touch-none"
       />
+      <button
+        type="button"
+        onClick={() => drawing.current?.fit()}
+        className="absolute right-3 top-3 rounded border border-slate-300 bg-white/80 px-2 py-1 text-sm text-slate-700 hover:bg-white dark:border-slate-600 dark:bg-slate-900/80 dark:text-slate-200 dark:hover:bg-slate-900"
+      >
+        Reset view
+      </button>
       {data.nodes.length === 0 && (
         <p className="absolute inset-x-0 top-8 text-center text-slate-500 dark:text-slate-400">
           Nothing to draw yet.
