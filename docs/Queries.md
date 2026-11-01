@@ -1,6 +1,6 @@
 alias:: [query, query language]
 
-- A query picks out entities by their properties: `#type(person) & ~#archived`. The first use is in [[Meta-properties]], to say which entities a property's values may refer to and which may have it. Queries in search and in blocks of their own are for later. **Parsed, but not answered yet.**
+- A query picks out entities by their properties: `#type(person) & ~#archived`. The first use is in [[Meta-properties]], to say which entities a property's values may refer to and which may have it. Queries in search and in blocks of their own are for later. **Answered, but not used in the UI yet.**
 - At a glance
 	- | Written | Finds |
 	  |---|---|
@@ -31,4 +31,4 @@ alias:: [query, query language]
 - In a meta-property, a query is written as it is: `##values(#type(city) | #type(country))`. Its parentheses balance, so nothing needs escaping.
 - Link qualifiers are queries of a sort already: `[[Jane#type(person)]]` is `Jane & #type(person)`. They are to share one evaluator, which would let a qualifier's value be a query too, as in `[[Jane#employer(#type(charity))]]`. [[Links]]
 - Still to come: `all()` and `none()`, functions such as ancestors to a given depth, comparisons, and a query's matches shown in a block.
-- How it works: [[quiddity-syntax]] parses a query into a tree, and writes it back out with no more quotes or parentheses than it needs. Unlike block text, a query can be malformed, and the parser says where. Still to build: [[quiddity-core]] answering it against the index.
+- How it works: [[quiddity-syntax]] parses a query into a tree, and writes it back out with no more quotes or parentheses than it needs. Unlike block text, a query can be malformed, and the parser says where. [[quiddity-core]] answers it against the index's effective properties. A link in a query finds every entity it matches, so `[[Jane]]` finds both Janes; a reference among a property's values counts only if it resolves to one entity.
