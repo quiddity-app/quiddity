@@ -108,6 +108,11 @@ impl Replica {
         js(&self.view.connections()?)
     }
 
+    /// The devices the graph lists, most recently seen first.
+    pub fn devices(&self) -> Result<JsValue, JsError> {
+        js(&self.view.devices())
+    }
+
     pub fn favourites(&self) -> Result<JsValue, JsError> {
         js(&self.view.favourites()?)
     }
