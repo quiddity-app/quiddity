@@ -54,6 +54,19 @@ what it was asked to allow in `window.__quiddityRemote.allowed`, for
 `e2e/devices.spec.ts`. The populated list has no browser test: the made-up
 graph records no devices.
 
+## Sync indicator
+
+A cloud with a coloured dot, left of the search button
+(`components/sync-indicator.tsx`), links to the Devices page. **A backend may
+have `subscribeStatus`**, which tells the page how this device stands (`alone`,
+`offline`, `behind`, `synced` or `present`; `docs/Sync status.md`); the graph
+keeps the latest, and the indicator draws nothing until a backend has said, so
+the published site, which can't say, shows none. The memory backend says
+`alone` and lets a test say any other through
+`window.__quiddityRemote.setStatus`, for `e2e/sync-status.spec.ts`. **Each
+state has a label, which is its accessible name, and a colour**; the tests
+check both, and that the colours differ.
+
 ## Routing and boundaries
 
 - **View state is the URL**: `/entity/?id=<main>&open=<a>,<b>` (`lib/nav.ts`).

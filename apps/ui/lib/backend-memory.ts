@@ -1,5 +1,6 @@
 import { Replica } from "./wasm/quiddity_wasm";
 import type { Backend } from "./graph";
+import type { SyncState } from "./model";
 
 interface Seed {
   text: string;
@@ -85,6 +86,8 @@ interface Remote {
   typed: string[][];
   /** The devices the page asked to let in. */
   allowed: string[];
+  /** Plays the shell telling the page how this device stands. */
+  setStatus(status: SyncState): void;
 }
 
 export const memoryBackend: Backend = {
@@ -111,6 +114,12 @@ export const memoryBackend: Backend = {
     }
     remote().allowed.push(device);
   },
+  // Nothing is shared outside the app: this device is alone, until a test
+  // says otherwise.
+  async subscribeStatus(onStatus) {
+    remote().setStatus = onStatus;
+    onStatus("alone");
+  },
   async subscribe(onUpdates) {
     const other = new Replica(started!);
     Object.assign(remote(), {
@@ -131,6 +140,7 @@ function remote(): Remote {
     focus: [],
     typed: [],
     allowed: [],
+    setStatus() {},
   };
   return w.__quiddityRemote;
 }
