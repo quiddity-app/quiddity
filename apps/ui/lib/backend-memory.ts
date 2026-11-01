@@ -83,6 +83,8 @@ interface Remote {
   focus: string[];
   /** What each push said it was typing in. */
   typed: string[][];
+  /** The devices the page asked to let in. */
+  allowed: string[];
 }
 
 export const memoryBackend: Backend = {
@@ -97,6 +99,17 @@ export const memoryBackend: Backend = {
   },
   async focus(blocks) {
     remote().focus = blocks;
+  },
+  // A made-up device, and the shell's check that an ID is one (a 32-byte key
+  // in hex), so the screen can be tried and tested outside the app.
+  async deviceId() {
+    return "f00d".repeat(16);
+  },
+  async allowDevice(device) {
+    if (!/^[0-9a-f]{64}$/i.test(device)) {
+      throw new Error(`${JSON.stringify(device)} is not a device ID`);
+    }
+    remote().allowed.push(device);
   },
   async subscribe(onUpdates) {
     const other = new Replica(started!);
@@ -117,6 +130,7 @@ function remote(): Remote {
     createEntity() {},
     focus: [],
     typed: [],
+    allowed: [],
   };
   return w.__quiddityRemote;
 }

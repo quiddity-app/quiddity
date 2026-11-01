@@ -59,6 +59,7 @@ const entrypoints = [
   { title: "Journals", href: "/" },
   { title: "All entities", href: "/all/" },
   { title: "Graph", href: "/graph/" },
+  { title: "Devices", href: "/devices/" },
 ];
 
 function Entrypoints() {

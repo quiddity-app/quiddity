@@ -21,5 +21,6 @@ favourite:: true
 	- [[Graph view]]: every entity and the links between them, drawn.
 - Your data
 	- [[Export and import]]: the graph as Markdown, and importing from [[Logseq]].
-	- Syncing between devices is done by [[quiddity-node]] so far, and is described for developers under [[Sync]].
+	- [[Add a device]]: share the graph with another computer, or with a node that keeps a copy.
+	- How syncing works is described for developers under [[Sync]].
 - Running it: there is no release yet, so the app is built from source. [[Running the app]]
