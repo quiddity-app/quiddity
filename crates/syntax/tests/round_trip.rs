@@ -8,8 +8,9 @@ use proptest::collection::vec;
 use proptest::option;
 use proptest::prelude::*;
 use quiddity_syntax::{
-    Link, PropertyStyle, Qualifier, Value, format_inline_property, format_property_line,
-    parse_block, parse_property_line,
+    Link, PropertyStyle, Qualifier, Query, Value, format_inline_property, format_meta_line,
+    format_property_line, format_query, is_properties_block, parse_block, parse_meta_line,
+    parse_property_line, parse_query,
 };
 
 /// Text weighted towards the characters that mean something to the parser.
@@ -169,5 +170,86 @@ proptest! {
             .map(|p| (p.key, p.value, p.style, text[p.span].to_owned()))
             .collect();
         prop_assert_eq!(found, expected, "{}", text);
+    }
+}
+
+/// A query, with names weighted towards the characters that mean something
+/// to the query parser.
+fn query() -> impl Strategy<Value = Query> {
+    let name = prop_oneof![
+        3 => r#"[ a-z&|~()#\[\]"\\]{0,8}"#,
+        1 => any::<String>(),
+    ];
+    let leaf = prop_oneof![
+        4 => name.prop_map(Query::Name),
+        1 => link(any_text().prop_map(Value::Text).boxed()).prop_map(Query::Link),
+        2 => inline_key().prop_map(|key| Query::Has { key, value: None }),
+    ];
+    leaf.prop_recursive(4, 16, 2, |inner| {
+        let pair = (inner.clone(), inner.clone()).prop_map(|(a, b)| (Box::new(a), Box::new(b)));
+        prop_oneof![
+            (inline_key(), inner.clone()).prop_map(|(key, v)| Query::Has {
+                key,
+                value: Some(Box::new(v))
+            }),
+            inner.prop_map(|q| Query::Not(Box::new(q))),
+            pair.clone().prop_map(|(a, b)| Query::And(a, b)),
+            pair.clone().prop_map(|(a, b)| Query::Diff(a, b)),
+            pair.prop_map(|(a, b)| Query::Or(a, b)),
+        ]
+    })
+}
+
+proptest! {
+    #[test]
+    fn queries_round_trip(q in query()) {
+        let written = format_query(&q);
+        prop_assert!(!written.contains(['\n', '\r']), "one line: {:?}", written);
+        prop_assert_eq!(parse_query(&written), Ok(q), "{}", written);
+    }
+
+    /// A query is a meta-property's parameter as it is, in a properties
+    /// block among property lines, with its links counted as the block's.
+    #[test]
+    fn meta_lines_round_trip(
+        key in inline_key(),
+        q in option::of(query()),
+        before in option::of((line_key(), value())),
+    ) {
+        let parameter = q.as_ref().map(format_query);
+        let line = format_meta_line(&key, parameter.as_deref());
+        prop_assert_eq!(parse_meta_line(&line), Some((key.clone(), parameter.clone())), "{}", line);
+
+        let mut text = String::new();
+        if let Some((k, v)) = &before {
+            text = format_property_line(k, Some(v)) + "\n";
+        }
+        let at = text.len();
+        text.push_str(&line);
+        prop_assert!(is_properties_block(&text), "{}", text);
+        let block = parse_block(&text);
+        prop_assert_eq!(block.meta.len(), 1, "{}", text);
+        prop_assert_eq!(&block.meta[0].key, &key);
+        prop_assert_eq!(block.meta[0].span.clone(), at..text.len());
+        let links: Vec<Link> = q.iter().flat_map(|q| q.links()).cloned().collect();
+        prop_assert!(block.links.ends_with(&links), "{}", text);
+    }
+}
+
+proptest! {
+    /// Text the query parser accepts is read whole as a meta-property's
+    /// parameter: the two agree on where a query ends. A trailing backslash
+    /// escapes the `)` after it, so that is the exception; `format_query`
+    /// never ends with one.
+    #[test]
+    fn meta_lines_and_queries_agree(text in r#"[ a-z&|~()#\[\]"\\.]{1,16}"#) {
+        let text = text.trim();
+        if parse_query(text).is_ok() && !text.ends_with('\\') {
+            prop_assert_eq!(
+                parse_meta_line(&format!("##k({text})")),
+                Some(("k".to_owned(), Some(text.to_owned()))),
+                "{}", text
+            );
+        }
     }
 }

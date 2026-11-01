@@ -37,6 +37,19 @@ The reference parser and formatter for block text: `key:: value` lines,
 - `#` starts an inline property only after whitespace, `(`, the start of
   the text, or directly after another inline property (`#a(1)#b(2)`). Code
   spans and fences are skipped; all-digit keys (`#123`) aren't keys.
+- **Meta-property lines and queries must agree on where a query ends.**
+  `parse_meta_line` finds the `)` that closes the parameter by skipping
+  escapes (the query set, with `& | ~`), `#key`s, quoted names at the start
+  of a term, and links, the way `parse_query` reads them, with only space
+  and tab as whitespace. Change one and change the other: the `query` fuzz
+  target and `meta_lines_and_queries_agree` check it.
+- **A trailing backslash escapes what follows.** `format_query` never ends a
+  bare name with one, and `format_meta_line` puts a space before the `)`
+  after a parameter that ends with one.
+- **A meta-property line isn't prose**: it isn't scanned for inline
+  properties. Links in its parameter count if the parameter is a query.
+- **Queries can be malformed**, unlike block text: `parse_query` returns
+  where it went wrong, for whatever holds the query to flag.
 
-Robustness against arbitrary text is the `block` fuzz target's job; the
-proptests check round trips of generated values.
+Robustness against arbitrary text is the `block` and `query` fuzz targets'
+job; the proptests check round trips of generated values.
