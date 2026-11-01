@@ -11,7 +11,7 @@
 	  | `[[Name#type(person)]]` | a link narrowed by its target's properties |
 	  | `#author([[Jane#type(person)]])` | a link as a property's value |
 	  | `((id))` | a reference to the block with that `id::` |
-	  | `##key(parameter)` | a meta-property, in a property's own properties block (planned) |
+	  | `##key(parameter)` | a meta-property, on a line of its own in a property's own properties block |
 	- [[Properties]], [[Links]], [[Block references]] and [[Meta-properties]] have the details, and [[Queries]] has the language a meta-property's parameter is written in.
 - Values
 	- Text, written bare, or `"quoted"` when it contains a delimiter.
@@ -32,5 +32,8 @@
 	- A key starts with a letter, digit or underscore, may contain spaces, and may not contain `:`, `#`, brackets or parentheses.
 	- A line of nothing but `#key` is the same as a property line with no value, and is how one is written.
 	- In a property line a comma means nothing special: `note:: a, b` is the text "a, b".
+- Meta-property lines
+	- `##key` or `##key(parameter)`, alone on a line. The parameter is kept as written and is usually a query ([[Queries]]); its parentheses balance, so it needs no escaping.
+	- A meta-property line is not prose: a `#key(value)` in its parameter is part of the query, not a property of the block.
 - Code spans and fenced code are opaque: nothing in them is a property, a link or a reference.
 - Anything malformed is plain text. Reading never fails. The parser is [[quiddity-syntax]], and the UI gets its answers through [[quiddity-view]], so there is only one.

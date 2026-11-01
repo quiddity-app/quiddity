@@ -1,5 +1,7 @@
 use std::ops::Range;
 
+use crate::query::query_escapable;
+
 /// A property value as written in Markdown.
 ///
 /// Values are untyped at this level: a property's schema decides whether
@@ -49,10 +51,24 @@ pub struct Property {
     pub span: Range<usize>,
 }
 
+/// A `##key` or `##key(parameter)` line: something said about a property
+/// by the entity that defines it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MetaProperty {
+    pub key: String,
+    /// What is between the parentheses, trimmed and as written: escapes
+    /// are left in, for whatever reads it (often [`crate::parse_query`]).
+    pub parameter: Option<String>,
+    /// Byte range of the whole line within the block's text.
+    pub span: Range<usize>,
+}
+
 /// Everything Quiddity cares about in a block's text.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Block {
     pub properties: Vec<Property>,
+    /// Meta-property lines, in order.
+    pub meta: Vec<MetaProperty>,
     /// Links in the text and in property values, in order of appearance.
     pub links: Vec<Link>,
     /// Block references in the text, in order of appearance.
@@ -78,12 +94,13 @@ pub fn parse_block(text: &str) -> Block {
     block
 }
 
-/// Whether a block consists only of `key:: value` lines, like the initial
-/// block of an entity that holds the entity's properties.
+/// Whether a block consists only of `key:: value` lines (and meta-property
+/// lines), like the initial block of an entity that holds the entity's
+/// properties.
 pub fn is_properties_block(text: &str) -> bool {
     let mut any = false;
     for line in text.lines().filter(|l| !l.trim().is_empty()) {
-        if parse_property_line(line).is_none() {
+        if parse_property_line(line).is_none() && parse_meta_line(line).is_none() {
             return false;
         }
         any = true;
@@ -101,6 +118,71 @@ pub fn parse_property_line(line: &str) -> Option<(String, Option<Value>)> {
     split_property_line(line)
         .map(|(key, value)| (key, value.map(parse_line_value)))
         .or_else(|| hash_property_line(line).map(|key| (key, None)))
+}
+
+/// Parses a line that is nothing but `##key` or `##key(parameter)`: a
+/// meta-property. The parameter is kept as written, trimmed, and `()` is no
+/// parameter.
+///
+/// Parentheses in the parameter must balance, except where escaped, inside a
+/// link, or inside a quoted name at the start of a query term, which is where
+/// [`crate::parse_query`] reads quotes. So a query needs no escaping.
+pub fn parse_meta_line(line: &str) -> Option<(String, Option<String>)> {
+    let mut sc = Scanner::new(line.trim().strip_prefix("##")?);
+    let key = parse_key(&mut sc)?;
+    if sc.at_end() {
+        return Some((key, None));
+    }
+    if !sc.eat("(") {
+        return None;
+    }
+    let start = sc.pos;
+    let mut depth = 0usize;
+    // The last character that wasn't whitespace, to tell where a term starts.
+    let mut prev: Option<char> = Some('(');
+    loop {
+        let c = sc.peek()?;
+        // Escapes, keys, quotes and links are skipped as the query parser
+        // reads them, so that the two agree on where the parameter ends.
+        if c == '\\' && sc.rest()[1..].chars().next().is_some_and(query_escapable) {
+            sc.bump();
+            sc.bump();
+            // An escaped operator is part of a name, so no term starts after it.
+            prev = Some('\\');
+            continue;
+        }
+        match c {
+            ')' if depth == 0 => break,
+            '#' => {
+                sc.bump();
+                parse_key(&mut sc);
+            }
+            '"' if prev.is_some_and(|p| matches!(p, '(' | '&' | '|' | '~')) => {
+                parse_quoted(&mut sc)?;
+            }
+            '[' => {
+                if parse_link(&mut sc).is_none() {
+                    sc.bump();
+                }
+            }
+            _ => {
+                match c {
+                    '(' => depth += 1,
+                    ')' => depth -= 1,
+                    _ => {}
+                }
+                sc.bump();
+            }
+        }
+        // Only what the query parser skips between terms is whitespace here.
+        if !matches!(c, ' ' | '\t') {
+            prev = sc.src[..sc.pos].chars().next_back();
+        }
+    }
+    let parameter = sc.src[start..sc.pos].trim();
+    sc.bump();
+    sc.at_end()
+        .then(|| (key, (!parameter.is_empty()).then(|| parameter.to_owned())))
 }
 
 /// The key of a line that is nothing but `#key`.
@@ -179,7 +261,17 @@ pub(crate) fn is_bare_key(key: &str) -> bool {
 }
 
 fn parse_line(line: &str, offset: usize, block: &mut Block) {
-    if let Some((key, value)) = split_property_line(line) {
+    if let Some((key, parameter)) = parse_meta_line(line) {
+        // A parameter that reads as a query links to what it names.
+        if let Some(Ok(query)) = parameter.as_deref().map(crate::parse_query) {
+            block.links.extend(query.links().into_iter().cloned());
+        }
+        block.meta.push(MetaProperty {
+            key,
+            parameter,
+            span: offset..offset + line.len(),
+        });
+    } else if let Some((key, value)) = split_property_line(line) {
         let value = value.map(|v| {
             let (value, refs) = line_value(v);
             refs.add_to(block);
@@ -308,7 +400,7 @@ fn skip_code_span(sc: &mut Scanner) {
     sc.pos += run;
 }
 
-fn is_key_start(c: char) -> bool {
+pub(crate) fn is_key_start(c: char) -> bool {
     c.is_alphanumeric() || c == '_'
 }
 
@@ -316,14 +408,14 @@ fn is_key_char(c: char) -> bool {
     c.is_alphanumeric() || matches!(c, '_' | '-' | '/' | '.')
 }
 
-fn is_escapable(c: char) -> bool {
+pub(crate) fn is_escapable(c: char) -> bool {
     matches!(c, '\\' | '(' | ')' | '[' | ']' | ',' | '"' | '#')
 }
 
 /// Parses a property key after `#`: either bare (`status`, `due-date`,
 /// `area/work`) or bracketed (`[[due date]]`). Trailing full stops belong to
 /// the sentence, not the key, and all-digit keys (`#123`) aren't keys.
-fn parse_key(sc: &mut Scanner) -> Option<String> {
+pub(crate) fn parse_key(sc: &mut Scanner) -> Option<String> {
     let start = sc.pos;
     if let Some(inner) = sc.rest().strip_prefix("[[") {
         let end = inner.find("]]")?;
@@ -458,7 +550,7 @@ fn parse_scalar(sc: &mut Scanner, terms: &[char], refs: &mut Refs) -> Option<Opt
     Some(Some(Value::Text(text.trim().to_owned())))
 }
 
-fn parse_quoted(sc: &mut Scanner) -> Option<String> {
+pub(crate) fn parse_quoted(sc: &mut Scanner) -> Option<String> {
     let start = sc.pos;
     sc.bump();
     let mut s = String::new();
@@ -492,7 +584,7 @@ fn parse_block_ref(sc: &mut Scanner) -> Option<String> {
 
 /// Parses `[[…]]`. If the qualifiers aren't well-formed, everything up to the
 /// first `]]` is taken as the name.
-fn parse_link(sc: &mut Scanner) -> Option<Link> {
+pub(crate) fn parse_link(sc: &mut Scanner) -> Option<Link> {
     let start = sc.pos;
     if let Some(link) = parse_structured_link(sc) {
         return Some(link);
@@ -542,31 +634,31 @@ fn parse_structured_link(sc: &mut Scanner) -> Option<Link> {
     })
 }
 
-struct Scanner<'a> {
-    src: &'a str,
-    pos: usize,
+pub(crate) struct Scanner<'a> {
+    pub(crate) src: &'a str,
+    pub(crate) pos: usize,
 }
 
 impl<'a> Scanner<'a> {
-    fn new(src: &'a str) -> Self {
+    pub(crate) fn new(src: &'a str) -> Self {
         Self { src, pos: 0 }
     }
 
-    fn rest(&self) -> &'a str {
+    pub(crate) fn rest(&self) -> &'a str {
         &self.src[self.pos..]
     }
 
-    fn peek(&self) -> Option<char> {
+    pub(crate) fn peek(&self) -> Option<char> {
         self.rest().chars().next()
     }
 
-    fn bump(&mut self) -> Option<char> {
+    pub(crate) fn bump(&mut self) -> Option<char> {
         let c = self.peek()?;
         self.pos += c.len_utf8();
         Some(c)
     }
 
-    fn eat(&mut self, s: &str) -> bool {
+    pub(crate) fn eat(&mut self, s: &str) -> bool {
         let matched = self.rest().starts_with(s);
         if matched {
             self.pos += s.len();
@@ -574,7 +666,7 @@ impl<'a> Scanner<'a> {
         matched
     }
 
-    fn eat_escape(&mut self) -> Option<char> {
+    pub(crate) fn eat_escape(&mut self) -> Option<char> {
         let mut chars = self.rest().chars();
         if chars.next()? != '\\' {
             return None;
@@ -584,13 +676,13 @@ impl<'a> Scanner<'a> {
         Some(c)
     }
 
-    fn skip_ws(&mut self) {
+    pub(crate) fn skip_ws(&mut self) {
         while matches!(self.peek(), Some(' ' | '\t')) {
             self.pos += 1;
         }
     }
 
-    fn at_end(&self) -> bool {
+    pub(crate) fn at_end(&self) -> bool {
         self.pos >= self.src.len()
     }
 
@@ -880,6 +972,71 @@ mod tests {
         assert!(!is_properties_block("#tag and prose"));
         assert!(!is_properties_block("#tag(1)"));
         assert!(!is_properties_block("#123"));
+        assert!(is_properties_block(
+            "type:: property\n##transitive\n##values(#type(place))"
+        ));
+    }
+
+    #[test]
+    fn meta_lines() {
+        let meta = |s: &str, k: &str, p: Option<&str>| {
+            assert_eq!(
+                parse_meta_line(s),
+                Some((k.to_owned(), p.map(str::to_owned))),
+                "{s:?}"
+            );
+        };
+        meta("##transitive", "transitive", None);
+        meta("  ##inverse( children ) ", "inverse", Some("children"));
+        meta("##values()", "values", None);
+        meta("##[[odd key]](x)", "odd key", Some("x"));
+        meta(
+            "##values(#type(city) | #type(country))",
+            "values",
+            Some("#type(city) | #type(country)"),
+        );
+        meta(r"##values(a \) b)", "values", Some(r"a \) b"));
+        meta(
+            r#"##values("a)" | [[b)]])"#,
+            "values",
+            Some(r#""a)" | [[b)]]"#),
+        );
+        meta(r#"##values(O"Brien)"#, "values", Some(r#"O"Brien"#));
+        // Found by fuzzing: a form feed isn't space between terms, so the
+        // quote is part of the name and doesn't start a quoted one.
+        meta("##values(a ~\u{c}\"b)", "values", Some("a ~\u{c}\"b"));
+        for not in [
+            "## heading",
+            "##",
+            "###x",
+            "##x(a",
+            "##x(a) b",
+            "##x.",
+            "##x((a)",
+            "a ##x",
+            "#x",
+        ] {
+            assert_eq!(parse_meta_line(not), None, "{not:?}");
+        }
+    }
+
+    /// A meta-property line isn't prose: the properties in its parameter
+    /// aren't the block's, but the links in it are.
+    #[test]
+    fn meta_lines_in_blocks() {
+        let text = "type:: property\n##values(#type([[place]]) | x)\n##transitive";
+        let block = parse_block(text);
+        assert_eq!(block.properties.len(), 1);
+        assert_eq!(
+            block
+                .meta
+                .iter()
+                .map(|m| &text[m.span.clone()])
+                .collect::<Vec<_>>(),
+            ["##values(#type([[place]]) | x)", "##transitive"]
+        );
+        assert_eq!(block.links, [link("place")]);
+        assert!(parse_block("##values(#k(a) &)").links.is_empty());
     }
 
     #[test]

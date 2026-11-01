@@ -1,7 +1,9 @@
 # Fuzz targets
 
 `block` (the syntax parser), `outline` (the outline format, to a fixed
-point) and `peer` (a session fed arbitrary messages). The crate is outside
+point), `peer` (a session fed arbitrary messages) and `query` (the query
+parser, to a fixed point, and agreeing with meta-property lines on where a
+query ends). The crate is outside
 the workspace and needs nightly.
 
 ```sh

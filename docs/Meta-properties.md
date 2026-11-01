@@ -1,6 +1,6 @@
 alias:: meta-property
 
-- A meta-property says something about a property itself: which values it takes, what it may be applied to, how many values it may have, and how it relates entities to one another. They are how a graph builds its own taxonomies (parents and children, kinds and subkinds) out of [[Properties]] it defines, with nothing in code. **Designed, not built yet.**
+- A meta-property says something about a property itself: which values it takes, what it may be applied to, how many values it may have, and how it relates entities to one another. They are how a graph builds its own taxonomies (parents and children, kinds and subkinds) out of [[Properties]] it defines, with nothing in code. **Read, but not acted on yet:** the lines are parsed, and nothing uses them.
 - Writing them
 	- `##key` or `##key(parameter)`, on a line of its own in the properties block of a property's entity, the one with `type:: property` that defines the property. [[Entity]]
 		- ```
@@ -56,6 +56,7 @@ alias:: meta-property
 	- A cycle in a transitive property.
 	- A meta-property Quiddity doesn't know, a parameter it can't read, or one outside a property entity's properties block.
 - How it works
-	- [[quiddity-syntax]] reads a `##key(…)` line as a meta-property, keeping the parameter as text: parentheses inside it balance, so a query needs no escaping. Links in a parameter are links like any other, and show in references.
-	- [[quiddity-core]] reads each property's meta-properties into its schema, and, after building the index, works out each entity's effective properties (its own, inherited, transitive and symmetric) by repeating until nothing changes, which copes with cycles. [[Queries]] are answered against the effective properties; the checks look at what is written.
+	- [[quiddity-syntax]] reads a `##key(…)` line as a meta-property, keeping the parameter as text. It finds the closing parenthesis by reading the parameter as the query parser does, so a query needs no escaping, and a line that is a meta-property isn't scanned for `#tags`. Links in a parameter that reads as a query are links like any other, and show in references. A properties block may hold meta-property lines as well as property lines.
+		- A parameter ending in a backslash, `##k(C:\ )`, needs the space: `\)` would be a literal parenthesis.
+	- Still to build: [[quiddity-core]] reads each property's meta-properties into its schema, and, after building the index, works out each entity's effective properties (its own, inherited, transitive and symmetric) by repeating until nothing changes, which copes with cycles. [[Queries]] are answered against the effective properties; the checks look at what is written.
 	- They replace the `value-type::`, `form::` and `cardinality::` lines that a property entity is read for today. `form` goes: a list is always allowed.
