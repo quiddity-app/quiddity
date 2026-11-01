@@ -1,6 +1,6 @@
 "use client";
 
-import { drag } from "d3-drag";
+import { drag, type D3DragEvent } from "d3-drag";
 import {
   forceCollide,
   forceLink,
@@ -12,7 +12,7 @@ import {
   type SimulationLinkDatum,
   type SimulationNodeDatum,
 } from "d3-force";
-import { select, type Selection } from "d3-selection";
+import { pointer, select, type Selection } from "d3-selection";
 import "d3-transition";
 import { zoom, zoomIdentity, type ZoomBehavior, type ZoomTransform } from "d3-zoom";
 import { useRouter } from "next/navigation";
@@ -39,7 +39,14 @@ const radius = (n: Node) => 4 + Math.sqrt(n.degree) * 2;
  * keep their names and the leaves lose them. */
 const LABEL_RADIUS = 4;
 
-/** How the graph draws itself, kept apart from React: d3 owns the SVG inside. */
+/** The Tailwind colours the SVG version used, which a canvas can't take from
+ * classes. */
+const palette = {
+  light: { link: "#cbd5e1", fill: "#0284c7", stroke: "#0c4a6e", text: "#1e293b" },
+  dark: { link: "#475569", fill: "#38bdf8", stroke: "#e0f2fe", text: "#e2e8f0" },
+};
+
+/** How the graph draws itself, kept apart from React. */
 interface Drawing {
   update(data: Connections): void;
   /** Frames the main body of the graph. */
@@ -47,15 +54,21 @@ interface Drawing {
   stop(): void;
 }
 
+/**
+ * Draws on `canvas`, with `list` holding a real link for each entity. The
+ * canvas is what is seen, and is much cheaper than an element per node and
+ * edge to move on every tick; the links are for keyboards and screen readers
+ * and are not positioned, so they cost nothing while the layout runs. Both
+ * are owned here rather than by React.
+ */
 function draw(
-  svg: SVGSVGElement,
+  canvas: HTMLCanvasElement,
+  list: HTMLElement,
   open: (id: string, aside: boolean) => void,
   hrefOf: (id: string) => string,
 ): Drawing {
-  const root = select(svg);
-  const layer = root.append("g");
-  const linkLayer = layer.append("g").attr("class", "stroke-slate-300 dark:stroke-slate-600");
-  const nodeLayer = layer.append("g");
+  const root = select(canvas);
+  const dark = matchMedia("(prefers-color-scheme: dark)");
 
   let nodes: Node[] = [];
   let links: Link[] = [];
@@ -70,6 +83,86 @@ function draw(
     // Loose islands drift towards the middle rather than away for good.
     .force("x", forceX<Node>().strength(0.04))
     .force("y", forceY<Node>().strength(0.04));
+
+  let neighbours = new Map<string, Set<string>>();
+  let focused: string | null = null;
+  let dragged: Node | null = null;
+  let moved = false;
+  let ratio = 1;
+  let frame = 0;
+
+  // Repaints at most once per animation frame, however often it is asked, and
+  // not at all while the page is hidden: the layout carries on, the GPU doesn't.
+  const paint = () => {
+    frame = 0;
+    if (document.hidden) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const colours = dark.matches ? palette.dark : palette.light;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.setTransform(ratio * view.k, 0, 0, ratio * view.k, ratio * view.x, ratio * view.y);
+
+    const near = focused === null ? null : (neighbours.get(focused) ?? new Set<string>());
+    const touches = (l: Link) =>
+      (l.source as Node).id === focused || (l.target as Node).id === focused;
+
+    // Links in one path each, dimmed when something is focused, then those
+    // that touch the focus on top at full strength.
+    const stroke = (wanted: (l: Link) => boolean, alpha: number) => {
+      ctx.beginPath();
+      for (const l of links) {
+        const { source, target } = l as { source: Node; target: Node };
+        if (!wanted(l) || source.x === undefined || target.x === undefined) continue;
+        ctx.moveTo(source.x, source.y ?? 0);
+        ctx.lineTo(target.x, target.y ?? 0);
+      }
+      ctx.globalAlpha = alpha;
+      ctx.stroke();
+    };
+    ctx.strokeStyle = colours.link;
+    ctx.lineWidth = 1;
+    stroke(() => true, focused === null ? 1 : 0.1);
+    if (focused !== null) stroke(touches, 1);
+
+    ctx.fillStyle = colours.fill;
+    ctx.strokeStyle = colours.stroke;
+    for (const n of nodes) {
+      if (n.x === undefined) continue;
+      ctx.globalAlpha = near && n.id !== focused && !near.has(n.id) ? 0.25 : 1;
+      ctx.lineWidth = n.id === focused ? 2 : 1;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y ?? 0, radius(n), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = colours.text;
+    for (const n of nodes) {
+      if (n.x === undefined) continue;
+      if (n.id !== focused && radius(n) * view.k < LABEL_RADIUS) continue;
+      ctx.globalAlpha = near && n.id !== focused && !near.has(n.id) ? 0.25 : 1;
+      ctx.fillText(n.title, n.x + radius(n) + 3, n.y ?? 0);
+    }
+    ctx.globalAlpha = 1;
+  };
+  const repaint = () => {
+    if (frame === 0) frame = requestAnimationFrame(paint);
+  };
+  dark.addEventListener("change", repaint);
+
+  const resize = () => {
+    const { width, height } = canvas.getBoundingClientRect();
+    ratio = window.devicePixelRatio || 1;
+    canvas.width = Math.round(width * ratio);
+    canvas.height = Math.round(height * ratio);
+    repaint();
+  };
+  const observer = new ResizeObserver(resize);
+  observer.observe(canvas);
+  resize();
 
   // Nothing is saved before there is something to save: setting the initial
   // zoom ends a zoom, which would otherwise forget the layout it is about to
@@ -86,6 +179,17 @@ function draw(
       n.fy = null;
     }
   };
+
+  let items: Selection<HTMLAnchorElement, Node, HTMLElement, unknown> | undefined;
+  // The links carry where their entity is, but only once the layout is still:
+  // `settled` says when. Nothing in the page reads them, but tests do.
+  const settle = (still: boolean) => {
+    canvas.dataset.settled = String(still);
+    if (!still) return;
+    items?.attr("data-x", (n) => n.x ?? null).attr("data-y", (n) => n.y ?? null);
+  };
+
+  simulation.on("tick", repaint);
   simulation.on("end", () => {
     unsettled.clear();
     release();
@@ -96,40 +200,49 @@ function draw(
       fit(null, true);
     }
     save();
+    settle(true);
+    repaint();
   });
 
-  let neighbours = new Map<string, Set<string>>();
-  let nodeSelection: Selection<SVGAElement, Node, SVGGElement, unknown> | undefined;
-  let linkSelection: Selection<SVGLineElement, Link, SVGGElement, unknown> | undefined;
-  let focused: string | null = null;
   // True while the view is ours to frame: no remembered view, and no pan or zoom yet.
   let tracking = cachedTransform() === null;
-  // The frame request of a zoom in progress, so a new one or a touch can stop it.
-  let glide = 0;
-  // Set before the first nodes exist: the initial zoom calls this.
-  const labels = () => {
-    nodeSelection
-      ?.select<SVGTextElement>("text")
-      .attr("display", (n) =>
-        n.id === focused || radius(n) * view.k >= LABEL_RADIUS ? null : "none",
-      );
+
+  /** The entity under a point in the canvas's own pixels, if any. */
+  const nodeAt = ([px, py]: [number, number]): Node | undefined => {
+    const x = (px - view.x) / view.k;
+    const y = (py - view.y) / view.k;
+    let best: Node | undefined;
+    let nearest = Infinity;
+    for (const n of nodes) {
+      if (n.x === undefined || n.y === undefined) continue;
+      const away = Math.hypot(n.x - x, n.y - y);
+      if (away < radius(n) + 3 / view.k && away < nearest) {
+        nearest = away;
+        best = n;
+      }
+    }
+    return best;
   };
 
-  const behaviour: ZoomBehavior<SVGSVGElement, unknown> = zoom<SVGSVGElement, unknown>()
+  const behaviour: ZoomBehavior<HTMLCanvasElement, unknown> = zoom<HTMLCanvasElement, unknown>()
     .scaleExtent([0.1, 4])
-    .on("zoom", (event: { transform: ZoomTransform; sourceEvent?: unknown }) => {
-      if (event.sourceEvent) {
-        tracking = false;
-        cancelAnimationFrame(glide);
+    // A press on a node is a drag of the node, not a pan.
+    .filter((event: Event) => {
+      if ((event.type === "mousedown" || event.type === "touchstart") && nodeAt(pointer(event, canvas))) {
+        return false;
       }
+      return (!(event as MouseEvent).ctrlKey || event.type === "wheel") && !(event as MouseEvent).button;
+    })
+    .on("zoom", (event: { transform: ZoomTransform; sourceEvent?: unknown }) => {
+      if (event.sourceEvent) tracking = false;
       view = event.transform;
-      layer.attr("transform", view.toString());
-      labels();
+      canvas.dataset.view = `${view.x},${view.y},${view.k}`;
+      repaint();
     })
     .on("end", save);
   root.call(behaviour);
   root.on("dblclick.zoom", null);
-  const { width, height } = svg.getBoundingClientRect();
+  const { width, height } = canvas.getBoundingClientRect();
   const start = cachedTransform();
   root.call(
     behaviour.transform,
@@ -141,84 +254,92 @@ function draw(
   /** Frames these entities (the main body of the graph if none are given). */
   const fit = (ids: Set<string> | null, animate: boolean) => {
     const wanted = ids ?? largestGroup(nodes.map((n) => n.id), edges);
-    const { width, height } = svg.getBoundingClientRect();
+    const box = canvas.getBoundingClientRect();
     const target = fitTransform(
       nodes
         .filter((n) => wanted.has(n.id) && n.x !== undefined && n.y !== undefined)
         .map((n) => ({ x: n.x!, y: n.y!, r: radius(n) })),
-      width,
-      height,
+      box.width,
+      box.height,
       // Zooming in on a few is welcome; blowing the whole graph up isn't.
       ids ? { pad: 0.3, minScale: 0.1, maxScale: 2.5 } : { pad: 0.08, minScale: 0.1, maxScale: 1 },
     );
     if (!target) return;
     const to = zoomIdentity.translate(target.x, target.y).scale(target.k);
-    cancelAnimationFrame(glide);
-    if (!animate) {
-      root.call(behaviour.transform, to);
-      return;
-    }
-    // d3-transition isn't a dependency, and a straight blend is enough here.
-    const from = view;
-    const began = performance.now();
-    const step = (now: number) => {
-      const t = Math.min(1, (now - began) / 500);
-      const e = t * t * (3 - 2 * t);
-      root.call(
-        behaviour.transform,
-        zoomIdentity
-          .translate(from.x + (to.x - from.x) * e, from.y + (to.y - from.y) * e)
-          .scale(from.k + (to.k - from.k) * e),
-      );
-      if (t < 1) glide = requestAnimationFrame(step);
-    };
-    glide = requestAnimationFrame(step);
+    if (animate) root.transition().duration(600).call(behaviour.transform, to);
+    else root.call(behaviour.transform, to);
   };
   root.on("dblclick.fit", (event: MouseEvent) => {
-    if (event.target === svg) fit(null, true);
+    if (!nodeAt(pointer(event, canvas))) fit(null, true);
   });
 
   const focus = (id: string | null) => {
+    if (focused === id) return;
     focused = id;
-    labels();
-    const near = id === null ? null : (neighbours.get(id) ?? new Set<string>());
-    nodeSelection?.classed(
-      "opacity-25",
-      (n) => near !== null && n.id !== id && !near.has(n.id),
-    );
-    linkSelection?.classed(
-      "opacity-10",
-      (l) => id !== null && (l.source as Node).id !== id && (l.target as Node).id !== id,
-    );
+    repaint();
   };
+  root.on("mousemove.focus", (event: MouseEvent) => {
+    if (dragged) return;
+    const n = nodeAt(pointer(event, canvas));
+    canvas.style.cursor = n ? "pointer" : "";
+    focus(n?.id ?? null);
+  });
+  root.on("mouseleave.focus", () => {
+    if (!dragged) focus(null);
+  });
+  // A drag that doesn't move ends in a click; one that does, doesn't.
+  root.on("click.open", (event: MouseEvent) => {
+    const n = nodeAt(pointer(event, canvas));
+    if (!n) return;
+    // Alt-click looks closer instead of opening.
+    if (event.altKey) fit(new Set([n.id, ...(neighbours.get(n.id) ?? [])]), true);
+    else open(n.id, event.shiftKey);
+  });
 
-  const place = () => {
-    linkSelection
-      ?.attr("x1", (l) => (l.source as Node).x ?? 0)
-      .attr("y1", (l) => (l.source as Node).y ?? 0)
-      .attr("x2", (l) => (l.target as Node).x ?? 0)
-      .attr("y2", (l) => (l.target as Node).y ?? 0);
-    nodeSelection?.attr("transform", (n) => `translate(${n.x ?? 0},${n.y ?? 0})`);
-  };
-  simulation.on("tick", place);
-
-  const dragging = drag<SVGAElement, Node>()
-    .on("start", (event, n) => {
-      if (!event.active) simulation.alphaTarget(0.2).restart();
-      // Let everything go, so the rest can untangle around the dragged node.
-      release();
-      n.fx = n.x;
-      n.fy = n.y;
+  // d3-drag reports a drag in the subject's own coordinates: the subject's
+  // position plus how far the pointer has moved. So the subject is where the
+  // node is in the canvas's pixels, not its place in the graph's space, which
+  // is what makes the node stay under the pointer where it was grabbed.
+  interface Grab {
+    x: number;
+    y: number;
+    node: Node;
+  }
+  type Drag = D3DragEvent<HTMLCanvasElement, unknown, Grab>;
+  const dragging = drag<HTMLCanvasElement, unknown, Grab | undefined>()
+    .container(canvas)
+    .subject((event: D3DragEvent<HTMLCanvasElement, unknown, Grab | undefined>) => {
+      const node = nodeAt([event.x, event.y]);
+      return node && { x: (node.x ?? 0) * view.k + view.x, y: (node.y ?? 0) * view.k + view.y, node };
     })
-    .on("drag", (event, n) => {
-      n.fx = event.x;
-      n.fy = event.y;
+    // Pressing starts a drag, but nothing is disturbed until the pointer
+    // moves: a click that stays on the graph (Alt, or Shift) must not stir it.
+    .on("start", (event: Drag) => {
+      dragged = event.subject.node;
+      moved = false;
+      focus(dragged.id);
     })
-    .on("end", (event, n) => {
-      if (!event.active) simulation.alphaTarget(0);
-      n.fx = null;
-      n.fy = null;
+    .on("drag", (event: Drag) => {
+      const n = event.subject.node;
+      if (!moved) {
+        moved = true;
+        settle(false);
+        simulation.alphaTarget(0.2).restart();
+        // Let everything go, so the rest can untangle around the dragged node.
+        release();
+      }
+      n.fx = (event.x - view.x) / view.k;
+      n.fy = (event.y - view.y) / view.k;
+      canvas.dataset.grabbed = `${event.x},${event.y}`;
+    })
+    .on("end", (event: Drag) => {
+      if (moved) simulation.alphaTarget(0);
+      event.subject.node.fx = null;
+      event.subject.node.fy = null;
+      dragged = null;
+      delete canvas.dataset.grabbed;
     });
+  root.call(dragging);
 
   return {
     update(data) {
@@ -231,7 +352,6 @@ function draw(
         (neighbours.get(source) ?? neighbours.set(source, new Set()).get(source)!).add(target);
         (neighbours.get(target) ?? neighbours.set(target, new Set()).get(target)!).add(source);
       }
-      let fresh = 0;
       nodes = data.nodes.map(({ id, title }) => {
         const node: Node = known.get(id) ?? { id, title, degree: 0 };
         node.title = title;
@@ -241,8 +361,6 @@ function draw(
           if (remembered) {
             node.x = remembered.x;
             node.y = remembered.y;
-          } else {
-            fresh++;
           }
         }
         return node;
@@ -263,49 +381,27 @@ function draw(
       edges = data.edges;
       links = data.edges.map(({ source, target }) => ({ source, target }));
 
-      linkSelection = linkLayer
-        .selectAll<SVGLineElement, Link>("line")
-        .data(links)
-        .join("line")
-        .attr("stroke-width", 1);
-      nodeSelection = nodeLayer
-        .selectAll<SVGAElement, Node>("a")
+      items = select(list)
+        .selectAll<HTMLAnchorElement, Node>("a")
         .data(nodes, (n) => n.id)
-        .join((enter) => {
-          const a = enter
-            .append<SVGAElement>("a")
-            .attr("class", "cursor-pointer outline-none [&:focus-visible_circle]:stroke-2")
+        .join((enter) =>
+          enter
+            .append("a")
             .on("click", (event: MouseEvent, n) => {
               event.preventDefault();
-              // Alt-click looks closer instead of opening.
-              if (event.altKey) fit(new Set([n.id, ...(neighbours.get(n.id) ?? [])]), true);
-              else open(n.id, event.shiftKey);
+              open(n.id, event.shiftKey);
             })
-            .on("mouseenter focus", (_event, n) => focus(n.id))
-            .on("mouseleave blur", () => focus(null))
-            .call(dragging);
-          a.append("circle").attr(
-            "class",
-            "fill-sky-600 stroke-sky-900 dark:fill-sky-400 dark:stroke-sky-100",
-          );
-          a.append("text")
-            .attr("dy", "0.32em")
-            .attr("class", "fill-slate-800 dark:fill-slate-200 text-[10px] select-none");
-          return a;
-        })
+            .on("focus", (_event, n) => focus(n.id))
+            .on("blur", () => focus(null)),
+        )
         .attr("href", (n) => hrefOf(n.id))
-        .attr("aria-label", (n) => n.title);
-      nodeSelection.select<SVGCircleElement>("circle").attr("r", radius);
-      labels();
-      nodeSelection
-        .select<SVGTextElement>("text")
-        .attr("x", (n) => radius(n) + 3)
+        .attr("aria-label", (n) => n.title)
         .text((n) => n.title);
 
       simulation.nodes(nodes);
       simulation.force<ReturnType<typeof forceLink<Node, Link>>>("link")?.links(links);
-      place();
       if (tracking) fit(null, false);
+      repaint();
       // Whatever already has a place is held there while new entities find
       // theirs, so a link's spring can't pull a settled layout out of shape.
       // The rest let go when it ends. With nothing new there is nothing to
@@ -316,21 +412,22 @@ function draw(
           n.fx = n.x;
           n.fy = n.y;
         }
+        settle(false);
         simulation.alpha(1).restart();
       } else {
-        // A simulation starts running as it's made, at full heat: stop it, or
-        // it jostles the layout we've just restored.
-        simulation.stop();
         save();
+        settle(true);
       }
     },
     fit: () => fit(null, true),
     stop() {
       simulation.stop();
       save();
-      cancelAnimationFrame(glide);
-      root.on(".zoom", null);
-      root.on(".fit", null);
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      dark.removeEventListener("change", repaint);
+      root.interrupt();
+      root.on(".zoom", null).on(".fit", null).on(".focus", null).on(".open", null).on(".drag", null);
     },
   };
 }
@@ -339,16 +436,18 @@ function Canvas() {
   const data = useRead((g) => g.connections());
   const view = useView();
   const router = useRouter();
-  const svgRef = useRef<SVGSVGElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const drawing = useRef<Drawing | null>(null);
   // d3 outlives renders, so it is given the latest of these when it needs them.
   const latest = useRef({ view, router });
   latest.current = { view, router };
 
   useEffect(() => {
-    const svg = svgRef.current!;
+    const list = listRef.current!;
     drawing.current = draw(
-      svg,
+      canvasRef.current!,
+      list,
       (id, aside) => {
         const { view, router } = latest.current;
         router.push(aside ? view.toSide(id) : view.toMain(id));
@@ -358,20 +457,21 @@ function Canvas() {
     return () => {
       drawing.current?.stop();
       drawing.current = null;
-      svg.replaceChildren();
+      list.replaceChildren();
     };
   }, []);
 
   useEffect(() => drawing.current?.update(data), [data]);
 
   return (
-    <div className="relative h-full min-h-80">
-      <svg
-        ref={svgRef}
-        role="group"
-        aria-label="Graph of entities"
-        className="absolute inset-0 size-full touch-none"
-      />
+    <div
+      role="group"
+      aria-label="Graph of entities"
+      className="relative h-full min-h-80"
+    >
+      <canvas ref={canvasRef} aria-hidden className="absolute inset-0 size-full touch-none" />
+      {/* The same entities as links, for keyboards and screen readers. */}
+      <div ref={listRef} className="sr-only" />
       <button
         type="button"
         onClick={() => drawing.current?.fit()}
