@@ -15,6 +15,12 @@ export const tauriBackend: Backend = {
   async focus(blocks) {
     await invoke("set_focus", { blocks });
   },
+  async deviceId() {
+    return await invoke<string>("device_id");
+  },
+  async allowDevice(device) {
+    await invoke("allow_device", { device });
+  },
   /** What other devices change arrives on a channel, as raw bytes. */
   async subscribe(onUpdates) {
     const channel = new Channel<ArrayBuffer>();
