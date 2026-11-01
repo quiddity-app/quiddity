@@ -17,6 +17,7 @@ pub mod store;
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
@@ -26,7 +27,7 @@ use iroh::endpoint::{
 use iroh::protocol::{AcceptError, ProtocolHandler, Router};
 use iroh::{Endpoint, EndpointAddr, EndpointId, RelayMode, SecretKey};
 use jiff::Timestamp;
-use quiddity_core::{Graph, Index, merge_duplicates};
+use quiddity_core::{Graph, Index, Version, merge_duplicates};
 use quiddity_sync::{
     DecodeError, FrameError, FrameReader, Message, Presence, Record, Session, State, write_frame,
 };
@@ -152,6 +153,12 @@ struct Inner {
     presence: Mutex<PresenceState>,
     /// Bumped whenever presence changes, so every connection announces it.
     presence_changes: watch::Sender<u64>,
+    /// What each connected peer is known to have, by connection, for
+    /// [`Peer::sync_state`].
+    syncs: Mutex<BTreeMap<u64, Version>>,
+    next_link: AtomicU64,
+    /// Bumped whenever [`Peer::sync_state`] may have changed.
+    status_changes: watch::Sender<u64>,
 }
 
 /// Edits held back because nobody else has their block open.
@@ -185,14 +192,18 @@ struct PresenceState {
 /// and is withdrawn when the connection ends, however it ends.
 struct Link<'a> {
     peer: &'a Peer,
+    /// Tells this connection from the others, for `Peer::syncs`.
+    id: u64,
     device: Option<String>,
 }
 
 impl Drop for Link<'_> {
     fn drop(&mut self) {
+        self.peer.syncs().remove(&self.id);
         if let Some(device) = &self.device {
             self.peer.disconnected(device);
         }
+        bump(&self.peer.inner.status_changes);
     }
 }
 
@@ -211,6 +222,9 @@ impl Peer {
                     links: BTreeMap::new(),
                 }),
                 presence_changes: watch::Sender::new(0),
+                syncs: Mutex::new(BTreeMap::new()),
+                next_link: AtomicU64::new(0),
+                status_changes: watch::Sender::new(0),
                 gate: Mutex::new(Gate {
                     pending: BTreeSet::new(),
                     deadline: None,
@@ -402,6 +416,8 @@ impl Peer {
             self.publish_now();
         } else {
             bump(&self.inner.gate_changes);
+            // Held back, so peers are behind.
+            bump(&self.inner.status_changes);
         }
     }
 
@@ -441,6 +457,7 @@ impl Peer {
         }
         bump(&self.inner.gate_changes);
         bump(&self.inner.publish);
+        bump(&self.inner.status_changes);
     }
 
     /// The deadline has passed, unless more edits have moved it.
@@ -479,6 +496,40 @@ impl Peer {
         state.presence.present().into_iter().cloned().collect()
     }
 
+    /// How this device stands with the others, for showing the user. It is
+    /// about the devices this one is connected to, which may be relaying for
+    /// others.
+    pub fn sync_state(&self) -> SyncState {
+        let others_listed = self
+            .graph()
+            .devices()
+            .iter()
+            .any(|d| d.id != self.inner.device);
+        let ours = self.graph().version();
+        let theirs: Vec<Version> = self.syncs().values().cloned().collect();
+        let held = !self.gate().pending.is_empty();
+        let watched = self.present().iter().any(|r| !r.focus.is_empty());
+        classify(others_listed, &theirs, &ours, held, watched)
+    }
+
+    /// Watches for changes that may change [`Peer::sync_state`].
+    pub fn subscribe_status(&self) -> watch::Receiver<u64> {
+        self.inner.status_changes.subscribe()
+    }
+
+    fn syncs(&self) -> MutexGuard<'_, BTreeMap<u64, Version>> {
+        self.inner
+            .syncs
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Records what a connection's peer is now known to have.
+    fn note_sync(&self, link: u64, session: &Session) {
+        self.syncs().insert(link, session.theirs().clone());
+        bump(&self.inner.status_changes);
+    }
+
     /// Watches for changes to who is here and what they have open.
     pub fn subscribe_presence(&self) -> watch::Receiver<u64> {
         self.inner.presence_changes.subscribe()
@@ -495,6 +546,7 @@ impl Peer {
     /// held edits, they are sent.
     fn presence_changed(&self) {
         bump(&self.inner.presence_changes);
+        bump(&self.inner.status_changes);
         if self.pending_watched() {
             self.publish_now();
         }
@@ -574,6 +626,7 @@ impl Peer {
         let mut presence_changes = self.subscribe_presence();
         let mut link = Link {
             peer: self,
+            id: self.inner.next_link.fetch_add(1, Ordering::Relaxed),
             device: None,
         };
         let mut reader = FrameReader::new();
@@ -631,6 +684,9 @@ impl Peer {
                             self.connected(device);
                             link.device = Some(device.to_owned());
                         }
+                        if link.device.is_some() {
+                            self.note_sync(link.id, &session);
+                        }
                         if is_updates {
                             self.changed();
                         }
@@ -654,6 +710,9 @@ impl Peer {
                     if let Some(message) = session.flush(graph)? {
                         write(&mut send, &message).await?;
                     }
+                    if link.device.is_some() {
+                        self.note_sync(link.id, &session);
+                    }
                 }
                 changed = gate_changes.changed() => {
                     // Only the deadline moved: loop to read it again.
@@ -664,6 +723,52 @@ impl Peer {
                 () = due => self.publish_if_due(),
             }
         }
+    }
+}
+
+/// How this device stands with the others.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SyncState {
+    /// No other device is listed, and none is connected.
+    Alone,
+    /// Other devices are listed, and none is connected.
+    Offline,
+    /// Connected, but this device lacks something a peer has, or has typing
+    /// held back that its peers don't have yet.
+    Behind,
+    /// Connected, and nothing is outstanding.
+    Synced,
+    /// As `Synced`, and another device has a block open.
+    Present,
+}
+
+/// [`SyncState`] from what is known: whether the graph lists other devices,
+/// what each connected peer is known to have, what this device has, whether
+/// typing is held back, and whether another device has a block open.
+///
+/// Out of date is about what this device is missing or has not sent on
+/// purpose. It is not "the versions differ": saving records this device in
+/// the graph without sending it, so they would differ for ever.
+fn classify(
+    others_listed: bool,
+    theirs: &[Version],
+    ours: &Version,
+    held: bool,
+    watched: bool,
+) -> SyncState {
+    if theirs.is_empty() {
+        return if others_listed {
+            SyncState::Offline
+        } else {
+            SyncState::Alone
+        };
+    }
+    if held || theirs.iter().any(|v| !ours.includes(v)) {
+        SyncState::Behind
+    } else if watched {
+        SyncState::Present
+    } else {
+        SyncState::Synced
     }
 }
 
@@ -806,6 +911,66 @@ mod tests {
     use std::sync::atomic::{AtomicBool, Ordering};
 
     use super::*;
+
+    /// A version `graph` has, and the other doesn't.
+    fn version_of(text: &str) -> Version {
+        let graph = Graph::new();
+        graph.create_block(None, None, text).unwrap();
+        graph.version()
+    }
+
+    #[test]
+    fn the_state_follows_who_is_listed_connected_and_missing() {
+        let ours = version_of("ours");
+        let theirs = version_of("theirs");
+        let state = |others_listed, links: &[Version], held, watched| {
+            classify(others_listed, links, &ours, held, watched)
+        };
+
+        // Nobody connected: whether anyone is listed is all there is to say.
+        assert_eq!(state(false, &[], false, false), SyncState::Alone);
+        assert_eq!(state(true, &[], false, false), SyncState::Offline);
+        assert_eq!(state(true, &[], true, true), SyncState::Offline);
+
+        // Connected, with nothing outstanding. Who is listed no longer matters.
+        assert_eq!(
+            state(false, std::slice::from_ref(&ours), false, false),
+            SyncState::Synced
+        );
+        // A peer with less than we have isn't out of date: the rest is on its
+        // way, or is only our record of having saved.
+        assert_eq!(
+            state(true, &[Version::default()], false, false),
+            SyncState::Synced
+        );
+
+        // A peer with something we lack: we are behind, whichever else.
+        assert_eq!(
+            state(true, std::slice::from_ref(&theirs), false, false),
+            SyncState::Behind
+        );
+        assert_eq!(
+            state(true, &[ours.clone(), theirs.clone()], false, false),
+            SyncState::Behind,
+            "one is enough"
+        );
+        // Typing held back is behind as well.
+        assert_eq!(
+            state(true, std::slice::from_ref(&ours), true, false),
+            SyncState::Behind
+        );
+
+        // Someone else is here, if nothing is outstanding.
+        assert_eq!(
+            state(true, std::slice::from_ref(&ours), false, true),
+            SyncState::Present
+        );
+        assert_eq!(state(true, &[theirs], false, true), SyncState::Behind);
+        assert_eq!(
+            state(true, std::slice::from_ref(&ours), true, true),
+            SyncState::Behind
+        );
+    }
 
     /// Sets a flag when dropped, as a task's state is when it is aborted.
     struct Flag(Arc<AtomicBool>);
