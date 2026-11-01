@@ -11,7 +11,7 @@ use iroh::protocol::Router;
 use iroh::protocol::{AcceptError, ProtocolHandler};
 use iroh::{Endpoint, EndpointAddr, RelayMode};
 use quiddity_core::{BlockId, Graph, Index, ensure_journal};
-use quiddity_node::{ALPN, Allowed, Peer};
+use quiddity_node::{ALPN, Allowed, Peer, SyncState};
 
 /// A peer listening on localhost only: no relays, no address lookup.
 async fn listen(peer: &Peer) -> (Router, EndpointAddr) {
@@ -821,4 +821,46 @@ async fn admitting_a_device_lists_it_or_trusts_it() {
     ));
     home_router.shutdown().await.unwrap();
     blank_router.shutdown().await.unwrap();
+}
+
+/// The state a peer is in, once it gets there.
+async fn becomes(peer: &Peer, state: SyncState) {
+    eventually(&format!("{state:?}"), || peer.sync_state() == state).await;
+}
+
+#[tokio::test]
+async fn the_sync_state_follows_connections_typing_and_presence() {
+    // On its own, then with a device listed that isn't connected.
+    let alone = Peer::new(Graph::new(), Allowed::Only(HashSet::new()), "me");
+    assert_eq!(alone.sync_state(), SyncState::Alone);
+    alone.allow("someone").unwrap();
+    assert_eq!(alone.sync_state(), SyncState::Offline);
+
+    let (laptop, phone, routers, task) = connected_pair(Duration::from_secs(60)).await;
+    let mut changes = phone.subscribe_status();
+    laptop.allow("somebody").unwrap();
+    eventually("the list to arrive", || phone.graph().devices().len() == 1).await;
+    becomes(&phone, SyncState::Synced).await;
+    becomes(&laptop, SyncState::Synced).await;
+
+    // Another device opens a block.
+    changes.mark_unchanged();
+    laptop.set_focus(["x"]);
+    becomes(&phone, SyncState::Present).await;
+    assert!(changes.has_changed().unwrap(), "the change is announced");
+
+    // Typing the other can't see is held, so the typist is behind until it
+    // goes.
+    type_into(&phone, "elsewhere", "private");
+    becomes(&phone, SyncState::Behind).await;
+    phone.end_edit();
+    becomes(&phone, SyncState::Present).await;
+    laptop.set_focus(Vec::<String>::new());
+    becomes(&phone, SyncState::Synced).await;
+
+    // The other goes away, and the listed device is still there to dial.
+    routers[0].shutdown().await.unwrap();
+    becomes(&phone, SyncState::Offline).await;
+
+    shut_down(routers, task).await;
 }

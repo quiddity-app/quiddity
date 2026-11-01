@@ -1,0 +1,14 @@
+- How a device stands with the others, in five words: alone, offline, behind, synced and present. The app shows it as a cloud with a coloured dot. [[App sync]]
+- The states, in the order they are decided.
+	- **Alone**: no other device is listed in the graph, and none is connected. There is nobody to sync with. (grey)
+	- **Offline**: others are listed and none is connected. (red)
+	- **Behind**: connected, but this device is missing something a peer is known to have, or has typing held back that its peers do not have yet. (yellow)
+	- **Present**: connected and nothing outstanding, and another device has a block open. (blue)
+	- **Synced**: connected and nothing outstanding. (green)
+- Behind comes before present, so a device never claims company while it is out of date.
+- What "up to date" means is narrower than "the versions are equal".
+	- Saving records this device in the graph and does not send it, so the versions of two devices would differ for ever after the first save. Behind is only about what this device lacks or is holding back on purpose.
+	- Each connection remembers what its peer is known to have: what it said at the start, plus what has been sent or received since. Sending is counted as delivered, so a change in flight is not behind.
+	- The connected devices are those this device has a connection to, which may be relaying for others. It says nothing of devices further away.
+- `Peer::sync_state` works it out when asked, and `Peer::subscribe_status` says when to ask again: a connection comes or goes, a peer's version moves, presence changes, or typing is held back or sent. [[quiddity-node]]
+- Not yet: it cannot say which device, or how far behind. Behind can show for a moment whenever typing is held back, before the [[Publish gate]] lets it go.
