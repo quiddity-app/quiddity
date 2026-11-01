@@ -23,5 +23,6 @@ favourite:: true
 - Your data
 	- [[Export and import]]: the graph as Markdown, and importing from [[Logseq]].
 	- [[Graph settings]]: where the app opens, set by a `quiddity.toml`.
-	- Syncing between devices is done by [[quiddity-node]] so far, and is described for developers under [[Sync]].
+	- [[Add a device]]: share the graph with another computer, or with a node that keeps a copy.
+	- How syncing works is described for developers under [[Sync]].
 - Running it: there is no release yet. Each week's [[Nightly builds]] have the app for Linux, macOS, Windows and Android, or it can be built from source. [[Running the app]]
