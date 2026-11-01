@@ -11,7 +11,7 @@
 	- Each simulation caught a real design flaw before it shipped: compacting before catching up, a creator missing from the device list, gossip that forgot records.
 - Fuzzing covers arbitrary input: nothing panics, and formatting reaches a fixed point.
 	- Targets are `block`, `outline` and `peer`. A crash becomes a seed and a regression test in the crate it is about.
-	- CI fuzzes for a minute per target on pull requests and on `main`. mbx can't cache cargo-fuzz's builds, so `main` saves `fuzz/target` with `actions/cache` for pull requests to restore.
+	- CI fuzzes for a minute per target on pull requests and on `main`. mbx can't cache cargo-fuzz's builds, so `main` saves the dependencies' build with `rust-cache` for pull requests to restore.
 - The UI is tested in a browser.
 	- Playwright runs against the static export, and a few tests against `next dev`, which renders on a server as development does and shows React warnings that a production build hides. [[The UI]]
 	- Each test starts from the same made-up graph, and fails if the page logs an error.
