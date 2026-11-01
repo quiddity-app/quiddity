@@ -82,6 +82,23 @@ test("Tab and Shift-Tab indent and outdent, without losing the caret", async ({ 
   expect(await mainBlocks(page)).toEqual([DDIA, `${NOTES}12`]);
 });
 
+test("Enter in an empty block outdents it, unless it is top level", async ({ page }) => {
+  await editBlock(page, NOTES);
+  await page.keyboard.press("End");
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Enter");
+  const nested = page.locator("main article > ul > li > div > div > ul > li");
+  await expect(nested).toHaveCount(2);
+  await page.keyboard.press("Enter");
+  await expect(nested).toHaveCount(1);
+  await expect(editor(page)).toBeFocused();
+  // At the top level an empty block has nowhere to go, so Enter adds another.
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("x");
+  await page.keyboard.press("Escape");
+  expect(await mainBlocks(page)).toEqual([DDIA, NOTES, "", "x"]);
+});
+
 test("Alt-Up and Alt-Down move a block among its siblings", async ({ page }) => {
   await editBlock(page, NOTES);
   await page.keyboard.press("Alt+ArrowUp");

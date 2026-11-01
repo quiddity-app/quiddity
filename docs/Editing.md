@@ -6,6 +6,7 @@
 	- The editor reconciles against the graph's text, never against props, which can be a keystroke behind.
 - Keys
 	- Enter splits the block at the caret. The tail becomes the next sibling, or the first child if there are children.
+	- Enter in an empty block outdents it instead, unless it is already at the top level, where it splits as usual.
 	- Shift-Enter inserts a newline.
 	- Tab and Shift-Tab indent and outdent, Backspace at the start joins the block to the one before, and Alt-Up and Alt-Down move it among its siblings.
 	- The arrows move between blocks at the edges, and Escape leaves the editor.
