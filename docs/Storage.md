@@ -10,4 +10,3 @@
 	- A snapshot plus an append-only log of updates, compacted now and then, so that a save doesn't rewrite everything. The shell's `AGENTS.md` says when that will be needed.
 	- The derived indexes and full-text search in SQLite tables, which can be rebuilt from the document at any time and are never synced.
 	- Blobs in their own store. [[Binaries]]
-- Back to the [[Developer guide]].

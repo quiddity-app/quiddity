@@ -5,4 +5,3 @@
 - An `asset` block type holds a blob with its captions, dimensions and so on, so embedding one is a [[block reference]].
 - Garbage collection: a blob nothing refers to is deleted after a grace period, and only once every device's stored version is past the point where the last reference went. [[Compaction]]
 - An export writes blobs to `assets/`, named `<blake3>.<ext>`. [[Export and import]]
-- Back to the [[Developer guide]].

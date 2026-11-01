@@ -21,4 +21,3 @@
 	- Memory: a made-up graph, built through the same replica, for development and tests. Its ids differ on every load, so anything remembered by id has to cope with the entity no longer existing. Recents do.
 - Looks: Tailwind's slate palette (light 50/800, dark 900/200, following the system), and IBM Plex Sans.
 - Running it: [[Running the app]].
-- Back to [[Quiddity]].

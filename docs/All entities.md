@@ -28,4 +28,3 @@
 	- They are shown only where two entities have the same title, ignoring case. For each such entity the fewest tags are picked, greedily, that every other entity with the title lacks at least one of. Entities that cannot be told apart show none.
 - Where it comes from
 	- The view crate's `summaries()` answers the whole table in one query, in the order of `entities()`, so it is a whole-graph cost paid once per revision. The UI reads it as `graph.summaries()`.
-- Back to [[The UI]].

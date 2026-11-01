@@ -5,4 +5,3 @@
 - Without `QUIDDITY_STATIC_GRAPH` the build is the one the desktop app embeds, unchanged.
 - To build it yourself, run `mise run docs`; the site lands in `apps/ui/out`.
 - Adding to this site is a matter of adding Markdown to `docs/`: a page per topic, and a journal entry in `docs/journals/` for each day's work.
-- Back to [[Quiddity]].

@@ -6,4 +6,3 @@ alias:: block reference
 - Planned
 	- Adding the `id::` line when a block is first referred to, as [[Logseq]] does.
 	- Showing the block referred to in place, which is also how binaries will be embedded. [[Binaries]]
-- Back to the [[User guide]].

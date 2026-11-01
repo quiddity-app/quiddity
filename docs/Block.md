@@ -11,4 +11,3 @@
 - A block's property lines are its own. An entity's own properties are in its first child, the properties block. [[Entity]]
 - Undoing a deletion brings the block back as a new block, with a new ID. [[Undo]]
 - The full syntax is in [[Syntax]].
-- Back to the [[User guide]].

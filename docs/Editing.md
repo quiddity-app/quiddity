@@ -24,4 +24,3 @@
 	- The outline remembers each block's text from when editing began, and when editing moves on it tells the graph. That is when a new `[[link]]` gets an entity. [[Links to nowhere]]
 - The edits live in `crates/view`, so they are tested natively, in Rust, with the same code the browser runs.
 	- Edits that cannot apply change nothing. A split checks the offset is between characters before touching the text, and a merge says so when there is nothing to merge into.
-- Back to [[The UI]].

@@ -4,4 +4,3 @@ type:: crate
 - `crates/syntax`. Everything else that reads block text goes through it, the UI included, by way of [[quiddity-view]] in WASM.
 - Parsing never fails: anything malformed is plain text. The formatter checks itself by reading back what it wrote.
 - Property-tested for round trips, and fuzzed (the `block` target) for arbitrary text. [[Testing]]
-- Back to the [[Developer guide]].

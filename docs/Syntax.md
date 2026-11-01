@@ -33,4 +33,3 @@
 	- In a property line a comma means nothing special: `note:: a, b` is the text "a, b".
 - Code spans and fenced code are opaque: nothing in them is a property, a link or a reference.
 - Anything malformed is plain text. Reading never fails. The parser is [[quiddity-syntax]], and the UI gets its answers through [[quiddity-view]], so there is only one.
-- Back to the [[User guide]].

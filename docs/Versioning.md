@@ -9,4 +9,3 @@
 	- When a migration must change stored data (rarely, such as restructuring the meta-schema), it is a deterministic, idempotent transform keyed by a migration ID and recorded in the document, so a second run does nothing.
 	- **Old versions don't read new data.** A device that is behind keeps working on its own data, and is read-only for synced data until it is upgraded.
 	- Unknown value tags are kept, so that within one schema version new value types can arrive without breaking anything. [[Properties]]
-- Back to the [[Developer guide]].

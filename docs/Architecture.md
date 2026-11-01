@@ -21,4 +21,3 @@
 	- Which blocks each device has open travels beside the updates. [[Presence]] [[Publish gate]]
 	- What each device keeps of the history is agreed through the graph. [[Compaction]]
 - Not wired yet: changes from other devices reach the shell but aren't pushed on to the UI, which shows them after a restart. [[App sync]]
-- Back to the [[Developer guide]].

@@ -11,4 +11,3 @@
 	- The links either side of the edit are set aside and the ones in between are paired in order, so adding a link in front of the others is a new link and not a rename.
 - Deleting an entity leaves the links to it in the text, and they go nowhere again. [[All entities]]
 - Saving is one step of undo, apart from the typing before it. [[Undo]]
-- Back to [[The UI]].
