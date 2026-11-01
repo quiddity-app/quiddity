@@ -1425,3 +1425,38 @@ mod deleting_entities {
         );
     }
 }
+
+#[test]
+fn devices_are_listed_most_recently_seen_first() {
+    let v = view_with(|_| {});
+    assert!(v.devices().is_empty(), "a new graph has recorded no device");
+
+    let graph = v.graph();
+    graph
+        .record_stored("old", "2026-10-01T00:00:00Z".parse().unwrap())
+        .unwrap();
+    graph
+        .record_stored("new", "2026-10-03T12:30:00Z".parse().unwrap())
+        .unwrap();
+    graph
+        .vouch_for(
+            "also-old",
+            &Default::default(),
+            "2026-10-01T00:00:00Z".parse().unwrap(),
+        )
+        .unwrap();
+    // Devices are metadata beside the blocks, not entities.
+    v.changed();
+    assert_eq!(v.entities().unwrap().len(), 0);
+
+    let listed: Vec<(String, String)> = v.devices().into_iter().map(|d| (d.id, d.seen)).collect();
+    assert_eq!(
+        listed,
+        [
+            ("new".to_owned(), "2026-10-03T12:30:00Z".to_owned()),
+            ("also-old".to_owned(), "2026-10-01T00:00:00Z".to_owned()),
+            ("old".to_owned(), "2026-10-01T00:00:00Z".to_owned()),
+        ],
+        "newest first, ties by ID"
+    );
+}
