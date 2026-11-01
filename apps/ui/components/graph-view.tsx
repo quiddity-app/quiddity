@@ -32,6 +32,11 @@ type Link = SimulationLinkDatum<Node>;
 
 const radius = (n: Node) => 4 + Math.sqrt(n.degree) * 2;
 
+/** A label is drawn once its node's circle is this many pixels across the
+ * radius on screen. At normal zoom that is every node; zoomed out, the hubs
+ * keep their names and the leaves lose them. */
+const LABEL_RADIUS = 4;
+
 /** How the graph draws itself, kept apart from React: d3 owns the SVG inside. */
 interface Drawing {
   update(data: Connections): void;
@@ -52,7 +57,9 @@ function draw(
   let links: Link[] = [];
   let view: ZoomTransform = zoomIdentity;
   const simulation: Simulation<Node, Link> = forceSimulation<Node>()
-    .force("link", forceLink<Node, Link>().id((n) => n.id).distance(50).strength(0.4))
+    // d3's default strength, 1 / the fewer links of the two ends: a spring
+    // between two hubs is slack, so hubs don't drag each other into a knot.
+    .force("link", forceLink<Node, Link>().id((n) => n.id).distance(50))
     .force("charge", forceManyBody<Node>().strength(-90).distanceMax(400))
     .force("collide", forceCollide<Node>().radius((n) => radius(n) + 2))
     // Loose islands drift towards the middle rather than away for good.
@@ -65,13 +72,40 @@ function draw(
   const save = () => {
     if (nodes.length > 0) remember(nodes, view);
   };
-  simulation.on("end", save);
+  // Entities placed by this layout run and not yet settled: they are the only
+  // ones free to move.
+  const unsettled = new Set<string>();
+  const release = () => {
+    for (const n of nodes) {
+      n.fx = null;
+      n.fy = null;
+    }
+  };
+  simulation.on("end", () => {
+    unsettled.clear();
+    release();
+    save();
+  });
+
+  let neighbours = new Map<string, Set<string>>();
+  let nodeSelection: Selection<SVGAElement, Node, SVGGElement, unknown> | undefined;
+  let linkSelection: Selection<SVGLineElement, Link, SVGGElement, unknown> | undefined;
+  let focused: string | null = null;
+  // Set before the first nodes exist: the initial zoom calls this.
+  const labels = () => {
+    nodeSelection
+      ?.select<SVGTextElement>("text")
+      .attr("display", (n) =>
+        n.id === focused || radius(n) * view.k >= LABEL_RADIUS ? null : "none",
+      );
+  };
 
   const behaviour: ZoomBehavior<SVGSVGElement, unknown> = zoom<SVGSVGElement, unknown>()
     .scaleExtent([0.1, 4])
     .on("zoom", (event: { transform: ZoomTransform }) => {
       view = event.transform;
       layer.attr("transform", view.toString());
+      labels();
     })
     .on("end", save);
   root.call(behaviour);
@@ -85,17 +119,15 @@ function draw(
       : zoomIdentity.translate(width / 2, height / 2),
   );
 
-  let neighbours = new Map<string, Set<string>>();
-  let nodeSelection: Selection<SVGAElement, Node, SVGGElement, unknown>;
-  let linkSelection: Selection<SVGLineElement, Link, SVGGElement, unknown>;
-
   const focus = (id: string | null) => {
+    focused = id;
+    labels();
     const near = id === null ? null : (neighbours.get(id) ?? new Set<string>());
-    nodeSelection.classed(
+    nodeSelection?.classed(
       "opacity-25",
       (n) => near !== null && n.id !== id && !near.has(n.id),
     );
-    linkSelection.classed(
+    linkSelection?.classed(
       "opacity-10",
       (l) => id !== null && (l.source as Node).id !== id && (l.target as Node).id !== id,
     );
@@ -103,17 +135,19 @@ function draw(
 
   const place = () => {
     linkSelection
-      .attr("x1", (l) => (l.source as Node).x ?? 0)
+      ?.attr("x1", (l) => (l.source as Node).x ?? 0)
       .attr("y1", (l) => (l.source as Node).y ?? 0)
       .attr("x2", (l) => (l.target as Node).x ?? 0)
       .attr("y2", (l) => (l.target as Node).y ?? 0);
-    nodeSelection.attr("transform", (n) => `translate(${n.x ?? 0},${n.y ?? 0})`);
+    nodeSelection?.attr("transform", (n) => `translate(${n.x ?? 0},${n.y ?? 0})`);
   };
   simulation.on("tick", place);
 
   const dragging = drag<SVGAElement, Node>()
     .on("start", (event, n) => {
       if (!event.active) simulation.alphaTarget(0.2).restart();
+      // Let everything go, so the rest can untangle around the dragged node.
+      release();
       n.fx = n.x;
       n.fy = n.y;
     })
@@ -138,7 +172,6 @@ function draw(
         (neighbours.get(source) ?? neighbours.set(source, new Set()).get(source)!).add(target);
         (neighbours.get(target) ?? neighbours.set(target, new Set()).get(target)!).add(source);
       }
-      let placed = 0;
       let fresh = 0;
       nodes = data.nodes.map(({ id, title }) => {
         const node: Node = known.get(id) ?? { id, title, degree: 0 };
@@ -149,7 +182,6 @@ function draw(
           if (remembered) {
             node.x = remembered.x;
             node.y = remembered.y;
-            placed++;
           } else {
             fresh++;
           }
@@ -167,6 +199,7 @@ function draw(
         const angle = Math.random() * Math.PI * 2;
         n.x = (friend?.x ?? 0) + Math.cos(angle) * 30;
         n.y = (friend?.y ?? 0) + Math.sin(angle) * 30;
+        unsettled.add(n.id);
       }
       links = data.edges.map(({ source, target }) => ({ source, target }));
 
@@ -201,6 +234,7 @@ function draw(
         .attr("href", (n) => hrefOf(n.id))
         .attr("aria-label", (n) => n.title);
       nodeSelection.select<SVGCircleElement>("circle").attr("r", radius);
+      labels();
       nodeSelection
         .select<SVGTextElement>("text")
         .attr("x", (n) => radius(n) + 3)
@@ -209,8 +243,23 @@ function draw(
       simulation.nodes(nodes);
       simulation.force<ReturnType<typeof forceLink<Node, Link>>>("link")?.links(links);
       place();
-      // Mostly where they were: a gentle settle. New entities need more.
-      simulation.alpha(fresh > 0 ? Math.min(1, 0.3 + fresh / Math.max(1, placed + fresh)) : 0.05).restart();
+      // Whatever already has a place is held there while new entities find
+      // theirs, so a link's spring can't pull a settled layout out of shape.
+      // The rest let go when it ends. With nothing new there is nothing to
+      // settle, and nothing moves.
+      if (unsettled.size > 0) {
+        for (const n of nodes) {
+          if (unsettled.has(n.id)) continue;
+          n.fx = n.x;
+          n.fy = n.y;
+        }
+        simulation.alpha(1).restart();
+      } else {
+        // A simulation starts running as it's made, at full heat: stop it, or
+        // it jostles the layout we've just restored.
+        simulation.stop();
+        save();
+      }
     },
     stop() {
       simulation.stop();

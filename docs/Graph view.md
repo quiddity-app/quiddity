@@ -9,8 +9,10 @@
 	- The static site's base path applies to the nodes' links, since they are written by hand. [[Static build]]
 - Where things are is remembered.
 	- Positions and the pan and zoom are kept in memory, so leaving the graph and coming back finds it as it was, and in localStorage, so restarting does too.
-	- An entity with no remembered position starts beside one it links to, and the layout only settles gently, so what was there does not move.
+	- An entity with no remembered position starts beside one it links to. Entities that already have a place are held still while new ones settle, and let go afterwards, so what was there does not move. With nothing new the layout does not run at all.
 	- Positions of entities that have gone are dropped when next saved.
 - Things worth knowing
 	- Setting the initial zoom ends a zoom, which used to save an empty layout over the remembered one before it could be restored. Nothing is saved before the first nodes are drawn.
-	- Every entity is drawn, journals included, with every label. It will want filtering and level of detail as graphs grow.
+	- Every entity is drawn, journals included. Labels are hidden for small nodes when zoomed out, and always shown for the one hovered or focused. Filtering is still wanted as graphs grow.
+	- Links use d3's default strength, so a link between two well-connected entities is a weak spring and hubs do not collapse into a knot.
+	- Dragging lets every node go first, so the rest can untangle around the dragged one. This follows the layout of a similar graph viewer of Logseq pages, which draws on a canvas; Quiddity keeps SVG so that nodes stay real links.
