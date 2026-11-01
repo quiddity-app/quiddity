@@ -9,7 +9,9 @@
 
 use std::collections::HashSet;
 use std::path::Path;
+use std::sync::{Arc, Mutex, PoisonError};
 
+use quiddity_core::{Graph, Version};
 use quiddity_node::store::Store;
 use quiddity_node::{Allowed, Peer};
 use serde::Serialize;
@@ -34,10 +36,15 @@ impl Serialize for Error {
     }
 }
 
-#[derive(Debug)]
+/// The open graph. Cloning shares it.
+#[derive(Debug, Clone)]
 pub struct Session {
     store: Store,
     peer: Peer,
+    /// What the UI is known to have: the snapshot it started from, what it
+    /// has pushed, and what has been sent it since. What the graph has beyond
+    /// this is what the UI lacks.
+    ui: Arc<Mutex<Version>>,
 }
 
 impl Session {
@@ -56,7 +63,11 @@ impl Session {
         };
         let device = store.key()?.public().to_string();
         let peer = Peer::new(graph, Allowed::Only(HashSet::new()), device);
-        Ok(Self { store, peer })
+        Ok(Self {
+            store,
+            peer,
+            ui: Arc::default(),
+        })
     }
 
     /// This device's ID, which another device needs to let it in.
@@ -73,9 +84,31 @@ impl Session {
         &self.store
     }
 
-    /// The whole graph, for the UI to start its replica from.
+    fn ui(&self) -> std::sync::MutexGuard<'_, Version> {
+        self.ui.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// The whole graph, for the UI to start its replica from. A UI that asks
+    /// again has started over, so what it has is this and nothing else.
     pub fn snapshot(&self) -> Result<Vec<u8>, Error> {
-        Ok(self.peer.graph().snapshot()?)
+        let snapshot = self.peer.graph().snapshot()?;
+        *self.ui() = Graph::version_of_updates(&snapshot)?;
+        Ok(snapshot)
+    }
+
+    /// What the graph has changed to that the UI has not been told of: edits
+    /// from other devices, and the shell's own (merging duplicates, say).
+    /// None if there is nothing. What it returns, the UI is taken to have.
+    pub fn ui_updates(&self) -> Result<Option<Vec<u8>>, Error> {
+        let graph = self.peer.graph();
+        let mut ui = self.ui();
+        let now = graph.version();
+        if ui.includes(&now) {
+            return Ok(None);
+        }
+        let updates = graph.updates_since(&ui)?;
+        ui.merge(&now);
+        Ok(Some(updates))
     }
 
     /// Applies updates from the UI, saves, and sends them to the other
@@ -84,6 +117,8 @@ impl Session {
     pub fn apply(&self, updates: &[u8]) -> Result<(), Error> {
         let graph = self.peer.graph();
         graph.import(updates)?;
+        // The UI made them, so it has them.
+        self.ui().merge(&Graph::version_of_updates(updates)?);
         self.peer.tidy()?;
         self.store.save(graph)?;
         self.peer.changed();
@@ -247,5 +282,87 @@ mod tests {
         // The same on the next start: the key is kept.
         let again = Session::open(dir.path()).unwrap();
         assert_eq!(again.device_id().unwrap(), session.device_id().unwrap());
+    }
+
+    /// Starts a UI replica from the session, as the app does.
+    fn ui_replica(session: &Session) -> Graph {
+        Graph::from_snapshot(&session.snapshot().unwrap()).unwrap()
+    }
+
+    /// Another device's edit, as it arrives at the session's graph.
+    fn from_elsewhere(session: &Session, name: &str) -> quiddity_core::BlockId {
+        let other = Graph::from_snapshot(&session.snapshot().unwrap()).unwrap();
+        let before = other.version();
+        let page = other.create_entity(name, &[]).unwrap();
+        other.commit();
+        session
+            .peer()
+            .graph()
+            .import(&other.updates_since(&before).unwrap())
+            .unwrap();
+        page
+    }
+
+    /// Changes that come from other devices are sent to the UI once, and
+    /// leave it with the same graph.
+    #[test]
+    fn other_devices_changes_reach_the_ui_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let session = Session::open(dir.path()).unwrap();
+        let ui = ui_replica(&session);
+        assert_eq!(session.ui_updates().unwrap(), None, "nothing yet");
+
+        let page = from_elsewhere(&session, "From another device");
+        let updates = session.ui_updates().unwrap().expect("something to send");
+        ui.import(&updates).unwrap();
+        assert_eq!(ui.entity_name(page).unwrap(), "From another device");
+        assert_eq!(ui.version(), session.peer().graph().version());
+        assert_eq!(session.ui_updates().unwrap(), None, "and only once");
+    }
+
+    /// What the UI pushed is not sent back to it. Saving records the device
+    /// in the graph, which the UI has not seen, so something small may follow
+    /// a push; once the UI has it, there is nothing.
+    #[test]
+    fn the_uis_own_edits_do_not_come_back() {
+        let dir = tempfile::tempdir().unwrap();
+        let session = Session::open(dir.path()).unwrap();
+        let ui = ui_replica(&session);
+        let untouched = ui_replica(&session);
+        let before = ui.version();
+        let page = ui.create_entity("Typed in the UI", &[]).unwrap();
+        ui.commit();
+        session.apply(&ui.updates_since(&before).unwrap()).unwrap();
+
+        if let Some(record) = session.ui_updates().unwrap() {
+            // The record rests on the edit, so a replica that never saw the
+            // edit can't take it: the edit is not in it.
+            assert!(untouched.import(&record).is_err(), "the edit came back");
+            ui.import(&record).unwrap();
+        }
+        assert_eq!(ui.version(), session.peer().graph().version());
+        assert_eq!(session.ui_updates().unwrap(), None);
+        assert_eq!(ui.entity_name(page).unwrap(), "Typed in the UI");
+
+        // Nor does it hide what came from elsewhere in between.
+        from_elsewhere(&session, "Meanwhile");
+        assert!(session.ui_updates().unwrap().is_some());
+    }
+
+    /// A UI that starts over is given everything again, and told only what
+    /// is newer than that.
+    #[test]
+    fn a_ui_that_starts_over_is_not_sent_what_it_has() {
+        let dir = tempfile::tempdir().unwrap();
+        let session = Session::open(dir.path()).unwrap();
+        from_elsewhere(&session, "Before the reload");
+        let fresh = ui_replica(&session);
+        assert_eq!(session.ui_updates().unwrap(), None);
+
+        let page = from_elsewhere(&session, "After");
+        fresh
+            .import(&session.ui_updates().unwrap().unwrap())
+            .unwrap();
+        assert_eq!(fresh.entity_name(page).unwrap(), "After");
     }
 }
