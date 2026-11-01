@@ -33,6 +33,32 @@ export interface Property {
   end: number;
   /** The entity that defines the property, if anyone has. */
   definition: EntityId | null;
+  /** A `##key(parameter)` line, whose parameter is its value, as text. */
+  meta: boolean;
+  /** What doesn't fit the property's schema here, in words. */
+  flags: string[];
+}
+
+/** A value an entity has from another, through `##inherits` or `##transitive`. */
+export interface Inherited {
+  key: string;
+  value: PropertyValue | null;
+  /** The entity it is written on. */
+  from: EntityRef;
+}
+
+/** An entity in an inverse tree, with those related to it in turn. */
+export interface InverseNode {
+  entity: EntityRef;
+  children: InverseNode[];
+  /** Children not shown because the tree reached its limit. */
+  hidden: number;
+}
+
+/** The entities related to one the other way round, under an `##inverse` label. */
+export interface Inverse {
+  label: string;
+  tree: InverseNode[];
 }
 
 /** Where a `[[link]]` goes. */
@@ -76,8 +102,12 @@ export interface Entity extends EntityRef {
    * identifies them. */
   renamable: boolean;
   blocks: Block[];
-  /** Keyed by the text between a link's brackets. */
+  /** Keyed by the text between a link's brackets, inherited values' included. */
   links: Record<string, ResolvedLink>;
+  inherited: Inherited[];
+  inverses: Inverse[];
+  /** What doesn't fit a schema and has no chip to show on, in words. */
+  flags: string[];
 }
 
 /** What typing Backspace at the start of a block did: joined it to another. */

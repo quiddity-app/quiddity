@@ -90,6 +90,10 @@ the current entity in the middle, open secondaries on the right.
   makes the entity (`graph.defineProperty`), as a link to nowhere does. A block
   of nothing but properties is drawn as chips with its bullet hidden, not
   removed, so the chips line up with the text around them.
+- **Meta-properties** (`meta-sections.tsx`): flags with no chip go under the
+  title, and Inherited and the inverse trees go below the body. A chip with
+  `flags` is ringed and carries `data-flagged`, with the reasons as its
+  title. All the words come from Rust.
 - The main pane's title (`EditableTitle`) renames in place when the entity
   is `renamable`: Enter or leaving the field keeps it, Escape drops it. Side
   cards and the journals feed show plain titles.
@@ -213,6 +217,10 @@ if the page logs an error. Pitfalls:
 - On the in-memory graph a page reload starts over, so a test that has changed
   something must move by clicking (the sidebar), not `page.goto`.
 - A block's rendered text is `[data-block-text]` and an editor is `.cm-content`.
+- **Playwright's full Chromium asks for `/favicon.ico`**, which the export
+  doesn't have, and the 404 fails every test. CI's headless shell doesn't
+  ask. Where only full Chromium is installed, put an empty `favicon.ico` in
+  `out/` and `public/` for the run, and don't commit it.
 - Typing `\n` presses Enter, which splits the block; use Shift-Enter for a
   newline. Press `Control+Shift+Z`, not `Control+Shift+z`: Playwright otherwise
   sends a lowercase `z` that no keyboard does.

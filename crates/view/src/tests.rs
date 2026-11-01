@@ -1425,3 +1425,199 @@ mod deleting_entities {
         );
     }
 }
+
+mod meta {
+    use super::*;
+    use crate::{INVERSE_LIMIT, InverseNode, PropertyValue};
+
+    /// Makes an entity whose properties block is `props`.
+    fn entity(graph: &Graph, name: &str, props: &str) -> BlockId {
+        let id = graph.create_block(None, None, name).unwrap();
+        if !props.is_empty() {
+            note(graph, id, props);
+        }
+        id
+    }
+
+    #[test]
+    fn meta_properties_are_chips_in_order() {
+        let v = view_with(|g| {
+            entity(
+                g,
+                "parent",
+                "type:: property\n##inverse(children)\n##transitive",
+            );
+        });
+        let e = v.entity(&id_of(&v, "parent")).unwrap();
+        let chips: Vec<_> = e.blocks[0]
+            .properties
+            .iter()
+            .map(|p| (p.key.as_str(), p.meta, p.flags.len()))
+            .collect();
+        assert_eq!(
+            chips,
+            [
+                ("type", false, 0),
+                ("inverse", true, 0),
+                ("transitive", true, 0)
+            ]
+        );
+        assert_eq!(
+            e.blocks[0].properties[1].value,
+            Some(PropertyValue::Text {
+                text: "children".into()
+            }),
+            "a parameter is its value, as text"
+        );
+        assert_eq!(e.blocks[0].properties[2].value, None);
+        assert_eq!(e.blocks[0].properties[1].start, "type:: property\n".len());
+    }
+
+    #[test]
+    fn flags_go_on_their_chips() {
+        let v = view_with(|g| {
+            entity(
+                g,
+                "rating",
+                "type:: property\n##value-type(number)\n##colour(red)",
+            );
+            entity(
+                g,
+                "born in",
+                "type:: property\n##applies-to(#type(person))\n##cardinality(1)",
+            );
+            entity(g, "Film", "rating:: lots\ntype:: person\n##transitive");
+            let page = entity(g, "Notes", "");
+            note(g, page, "Prose first, so the next isn't a properties block");
+            note(g, page, "##transitive");
+        });
+        let film = v.entity(&id_of(&v, "Film")).unwrap();
+        let flags: Vec<_> = film.blocks[0]
+            .properties
+            .iter()
+            .map(|p| (p.key.as_str(), p.flags.clone()))
+            .collect();
+        assert_eq!(flags[0], ("rating", vec!["Not a number".to_owned()]));
+        assert_eq!(flags[1].1, Vec::<String>::new());
+        assert_eq!(
+            film.flags,
+            [
+                "Should have born in: 1".to_owned(),
+                "Meta-properties mean something only on a property's entity, with type:: property"
+                    .to_owned()
+            ],
+            "flags with no chip of their own"
+        );
+
+        let rating = v.entity(&id_of(&v, "rating")).unwrap();
+        let colour = rating.blocks[0]
+            .properties
+            .iter()
+            .find(|p| p.key == "colour")
+            .unwrap();
+        assert_eq!(colour.flags, ["Not a meta-property Quiddity knows"]);
+
+        let notes = v.entity(&id_of(&v, "Notes")).unwrap();
+        assert_eq!(
+            notes.blocks[1].properties[0].flags,
+            ["Has no effect outside a property's properties block"]
+        );
+    }
+
+    #[test]
+    fn inherited_values_say_where_they_are_from() {
+        let v = view_with(|g| {
+            entity(g, "Kind Of", "type:: property\n##inherits\n##transitive");
+            entity(g, "living thing", "#alive\nhabitat:: [[Earth]]");
+            entity(g, "plant", "kind of:: living thing");
+            entity(g, "tree", "kind of:: plant");
+            entity(g, "Earth", "");
+        });
+        let tree = v.entity(&id_of(&v, "tree")).unwrap();
+        let inherited: Vec<_> = tree
+            .inherited
+            .iter()
+            .map(|i| (i.key.as_str(), i.value.is_some(), i.from.title.as_str()))
+            .collect();
+        assert_eq!(
+            inherited,
+            [
+                ("alive", false, "living thing"),
+                ("habitat", true, "living thing"),
+                ("Kind Of", true, "plant"),
+            ]
+        );
+        assert!(
+            matches!(tree.links["Earth"].target, LinkTarget::Entity { .. }),
+            "inherited links resolve"
+        );
+    }
+
+    fn titles_of(nodes: &[InverseNode]) -> Vec<String> {
+        nodes
+            .iter()
+            .map(|n| {
+                let children = titles_of(&n.children);
+                if children.is_empty() {
+                    n.entity.title.clone()
+                } else {
+                    format!("{} [{}]", n.entity.title, children.join(", "))
+                }
+            })
+            .collect()
+    }
+
+    #[test]
+    fn inverses_are_trees() {
+        let v = view_with(|g| {
+            entity(
+                g,
+                "parent",
+                "type:: property\n##transitive\n##inverse(Children)",
+            );
+            entity(g, "UK", "parent:: Edinburgh");
+            entity(g, "Scotland", "parent:: UK");
+            entity(g, "Edinburgh", "parent:: Scotland");
+            entity(g, "Wales", "parent:: UK");
+        });
+        let uk = v.entity(&id_of(&v, "UK")).unwrap();
+        assert_eq!(uk.inverses.len(), 1);
+        assert_eq!(uk.inverses[0].label, "Children");
+        assert_eq!(
+            titles_of(&uk.inverses[0].tree),
+            ["Scotland [Edinburgh]", "Wales"],
+            "direct relations only, and none repeated beneath itself"
+        );
+        assert!(v.entity(&id_of(&v, "Wales")).unwrap().inverses.is_empty());
+    }
+
+    #[test]
+    fn inverse_trees_stop_at_the_limit() {
+        let v = view_with(|g| {
+            entity(g, "parent", "type:: property\n##inverse(children)");
+            entity(g, "Root", "");
+            entity(g, "Big", "parent:: Root");
+            for i in 0..INVERSE_LIMIT {
+                entity(g, &format!("k{i}"), "parent:: Big");
+            }
+            entity(g, "Small", "parent:: Root");
+            entity(g, "Leaf", "parent:: Small");
+        });
+        let root = v.entity(&id_of(&v, "Root")).unwrap();
+        let tree = &root.inverses[0].tree;
+        let count = |nodes: &[InverseNode]| -> usize {
+            fn walk(nodes: &[InverseNode]) -> usize {
+                nodes.iter().map(|n| 1 + walk(&n.children)).sum()
+            }
+            walk(nodes)
+        };
+        assert_eq!(count(tree), INVERSE_LIMIT, "no more than the limit");
+        let titles: Vec<_> = tree.iter().map(|n| n.entity.title.as_str()).collect();
+        assert_eq!(titles, ["Big", "Small"], "the first level comes first");
+        assert_eq!(
+            (tree[0].children.len() + tree[0].hidden, tree[1].hidden),
+            (INVERSE_LIMIT, 1),
+            "what isn't shown is counted"
+        );
+    }
+}
