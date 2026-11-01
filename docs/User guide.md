@@ -9,7 +9,7 @@ favourite:: true
 	- [[Editing]]: the outliner, and its keys.
 	- [[Rendering]]: how a block looks when you aren't editing it.
 	- [[Properties]]: `key:: value` and `#key(value)`, with [[tags]] and the built-in properties.
-	- [[Meta-properties]]: `##values(…)`, `##transitive`, `##inverse(…)` and the rest, to give properties types and build taxonomies, written in [[Queries]]. Planned.
+	- [[Meta-properties]]: `##values(…)`, `##transitive`, `##inverse(…)` and the rest, to give properties types and build taxonomies, written in [[Queries]]. Not shown in the app yet.
 	- [[Links]]: `[[Name]]`, with qualifiers to pick between entities with one name, and the references at the foot of each page.
 	- [[Links to nowhere]]: how a link makes the entity it names.
 	- [[Block references]]: `((id))`.
