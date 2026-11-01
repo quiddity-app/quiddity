@@ -10,7 +10,7 @@ pinact = "5.0.2"
 emsdk = "6.0.13"
 # What CI and the testing in AGENTS.md run. cargo-binstall makes mise fetch
 # these prebuilt rather than compile them.
-cargo-binstall = "1.26.1"
+cargo-binstall = "1.26.2"
 "cargo:cargo-nextest" = "0.9.150"
 "cargo:cargo-mutants" = "27.1.0"
 "cargo:cargo-fuzz" = "0.13.2"
