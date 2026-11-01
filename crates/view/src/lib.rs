@@ -21,8 +21,8 @@ use quiddity_core::{BlockId, Graph, Index, Version};
 pub use edit::Merged;
 pub use fts::BlockHit;
 pub use query::{
-    Block, Connections, Edge, Entity, EntityRef, LinkTarget, Property, PropertyValue, Reference,
-    ResolvedLink, Summary,
+    Block, Connections, DeviceInfo, Edge, Entity, EntityRef, LinkTarget, Property, PropertyValue,
+    Reference, ResolvedLink, Summary,
 };
 pub use search::{HitProperty, Match, TitleHit, fuzzy_match};
 

@@ -21,6 +21,17 @@ pub struct EntityRef {
     pub title: String,
 }
 
+/// A device that has recorded itself in the graph: one that holds it, or is
+/// let in to.
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceInfo {
+    /// Its endpoint ID, which another device needs to let it in.
+    pub id: String,
+    /// When it last recorded itself, as an RFC 3339 timestamp in UTC.
+    pub seen: String,
+}
+
 /// The entities, and which of them link to which, for drawing as a graph.
 #[derive(Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -326,6 +337,20 @@ impl View {
             nodes: self.entities()?,
             edges: edges.into_iter().collect(),
         })
+    }
+
+    /// The devices the graph lists, most recently seen first. They are sync
+    /// metadata, not entities: the graph keeps them beside the blocks.
+    pub fn devices(&self) -> Vec<DeviceInfo> {
+        let mut devices = self.graph.devices();
+        devices.sort_by(|a, b| b.seen.cmp(&a.seen).then_with(|| a.id.cmp(&b.id)));
+        devices
+            .into_iter()
+            .map(|d| DeviceInfo {
+                id: d.id,
+                seen: d.seen.to_string(),
+            })
+            .collect()
     }
 
     /// Entities whose `favourite` property is true.
