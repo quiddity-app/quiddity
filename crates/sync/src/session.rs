@@ -61,6 +61,12 @@ impl Session {
         &self.state
     }
 
+    /// Everything the peer is known to have: what it said it had, plus
+    /// everything sent to it or received from it since.
+    pub fn theirs(&self) -> &Version {
+        &self.theirs
+    }
+
     /// The peer's device ID, once its hello has arrived.
     pub fn peer(&self) -> Option<&str> {
         self.peer.as_deref()
@@ -239,6 +245,27 @@ mod tests {
             now(),
         )?;
         assert_eq!(session.state(), &State::Syncing);
+        Ok(())
+    }
+
+    #[test]
+    fn what_the_peer_has_grows_with_what_is_exchanged() -> Result<(), Error> {
+        let (graph, mut session) = (Graph::blank(), Session::new("me"));
+        assert_eq!(session.theirs(), &Version::default());
+        let other = Graph::new();
+        other.create_block(None, None, "theirs")?;
+        let mut hello = hello(None, &graph);
+        if let Message::Hello { version, .. } = &mut hello {
+            *version = other.version();
+        }
+        session.receive(&graph, hello, now())?;
+        assert_eq!(session.theirs(), &other.version(), "what its hello said");
+
+        // Sending them what we have adds to it.
+        graph.create_block(None, None, "ours")?;
+        assert!(session.flush(&graph)?.is_some());
+        assert!(session.theirs().includes(&graph.version()));
+        assert!(session.theirs().includes(&other.version()));
         Ok(())
     }
 
