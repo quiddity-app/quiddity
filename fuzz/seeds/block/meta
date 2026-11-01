@@ -1,0 +1,4 @@
+type:: property
+##values(#type(place) | [[Earth]])
+##cardinality(0..1)
+##transitive
