@@ -108,10 +108,19 @@ shift-click opens it at the side) and are labelled by `aria-label`.
   was. They are saved when the layout settles, after a zoom and on leaving, and
   **nothing is saved before the first nodes are drawn**: setting the initial
   zoom ends a zoom, which would otherwise wipe the layout about to be
-  restored. Entities with no position are placed beside one they link to and
-  the layout only settles gently, so what was there doesn't move. Positions of
-  entities that have gone are dropped when next saved.
-- Dragging lets go on release (nodes aren't pinned).
+  restored. Entities with no position are placed beside one they link to.
+  **Entities that have a position are held (`fx`/`fy`) while the new ones find
+  theirs, then let go when the layout ends**: otherwise the link force pulls a
+  settled layout towards its rest length on every load. With nothing new the
+  simulation is stopped (d3 starts one running, at full heat, as it's made). Entities placed by an unfinished run stay free
+  across a second `update`. Positions of entities that have gone are dropped
+  when next saved.
+- Dragging lets every node go at the start, so the rest untangles around the
+  dragged one, and the dragged node on release (nodes aren't pinned).
+- Link strength is d3's default (1 over the fewer links of the two ends), so a
+  link between hubs is slack. Don't set a flat strength.
+- Labels are hidden when a node's radius on screen is under `LABEL_RADIUS`,
+  except for the node hovered or focused. `aria-label` is unaffected.
 
 ## Search
 

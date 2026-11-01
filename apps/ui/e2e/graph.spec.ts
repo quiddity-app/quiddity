@@ -68,7 +68,8 @@ test("going away and back finds every entity where it was", async ({ page }) => 
   for (const [name, at] of Object.entries(before)) {
     const was = centre(at);
     const now = centre(after[name]);
-    expect(Math.hypot(was.x - now.x, was.y - now.y), name).toBeLessThan(25);
+    // Held still, not merely close.
+    expect(Math.hypot(was.x - now.x, was.y - now.y), name).toBeLessThan(1);
   }
 });
 
@@ -99,6 +100,6 @@ test("the pan and zoom are kept too, and a new entity joins without moving the r
   for (const [name, at] of Object.entries(before)) {
     const was = centre(at);
     const now = centre(after[name]);
-    expect(Math.hypot(was.x - now.x, was.y - now.y), name).toBeLessThan(60);
+    expect(Math.hypot(was.x - now.x, was.y - now.y), name).toBeLessThan(1);
   }
 });
