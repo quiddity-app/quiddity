@@ -87,6 +87,29 @@ async fn subscribe_updates(
     Ok(())
 }
 
+/// Tells the UI how this device stands with the others, now and each time it
+/// changes, as the words `Session::sync_state` uses.
+#[tauri::command]
+async fn subscribe_status(state: Shared<'_>, channel: Channel<String>) -> Result<(), Error> {
+    let session = state.lock().expect("session lock poisoned").clone();
+    tauri::async_runtime::spawn(async move {
+        let mut changes = session.peer().subscribe_status();
+        let mut told = "";
+        loop {
+            let now = session.sync_state();
+            // The UI has gone, such as when it reloaded: stop.
+            if now != told && channel.send(now.to_owned()).is_err() {
+                return;
+            }
+            told = now;
+            if changes.changed().await.is_err() {
+                return;
+            }
+        }
+    });
+    Ok(())
+}
+
 /// This device's ID, for letting it in from another device.
 #[tauri::command]
 async fn device_id(state: Shared<'_>) -> Result<String, Error> {
@@ -156,6 +179,7 @@ pub fn run() {
             push_updates,
             set_focus,
             subscribe_updates,
+            subscribe_status,
             device_id,
             allow_device
         ])

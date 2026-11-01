@@ -6,6 +6,10 @@
 - Then they connect by themselves whenever both are online, and what you write on one appears on the other as you write it. [[App sync]]
 	- They reach each other over the internet, so they need not be on the same network.
 	- **Devices in this graph** lists each device and when it last saved. A device shows up once it has saved, or been let in.
+- The cloud beside the search button says how you are doing.
+    - Grey: there are no other devices to sync with. Red: other devices are added and none is connected.
+    - Yellow: connected but out of date, so either this device is catching up or what you have just typed has not gone yet. Green: connected and up to date.
+    - Blue: connected and up to date, and another device has a block open. Pressing it opens the Devices page.
 - Adding a node instead
 	- On the node, run `quiddity-node allow <the app's ID>`, and keep `quiddity-node serve` running.
 	- In the app, add the node's ID, which `quiddity-node id` prints.

@@ -2,6 +2,7 @@ alias:: [shell, apps/app]
 
 - The [[Tauri]] 2 app that hosts [[The UI]]: `apps/app`. It holds the graph on disk and hands it to the UI, which keeps its own replica, so there is little here by design. [[Architecture]]
 - Two commands carry the graph, both raw bytes: `load_graph` returns a snapshot, and `push_updates` imports [[Loro]] updates from the UI, saves and sends them on.
+- `subscribe_status` takes a channel and sends the UI how this device stands with the others, each time it changes. [[Sync status]]
 - `subscribe_updates` takes a channel and sends the UI, as raw bytes, whatever other devices have changed since it was last told. The UI imports it. [[App sync]]
 - It holds a `Peer` from [[quiddity-node]] and puts it on the network when the app starts. `device_id` and `allow_device` let devices meet, and the Devices page calls them. [[Add a device]] [[App sync]]
 - `set_focus` takes the block being edited, and `push_updates` may name the blocks its updates were typed in (an `x-typed` header). The shell passes both to the peer, which holds typing back from devices that can't see it. [[Publish gate]]

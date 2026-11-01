@@ -11,6 +11,8 @@
 	- It also makes this device visible to the others, who can know it is in a block. [[Presence]]
 - Not yet
 	- Presence is not shown. Other devices' open blocks are known to the shell and not drawn. [[Presence]]
+- The cloud beside the search button shows how this device stands with the others. [[Sync status]]
+    - The shell works out the state and sends it on a channel (`subscribe_status`) each time it changes. The UI keeps the latest and draws it. A build with nothing to sync with, such as the published site, draws nothing.
 - Letting two devices meet is done from the Devices page, which calls these.
 	- The page shows this device's ID with a copy button, lists the devices the graph records, and takes another device's ID to add. It lists them from the UI's own replica, so a device appears as soon as the shell's graph has it. [[Add a device]]
 	- Each device has an ID, which is its endpoint ID. The app gives it with `device_id`, and `quiddity-node id` prints a node's.
