@@ -33,6 +33,12 @@ depends = ["setup", "doctor"]
 # Tauri shell and opens the window. The first run compiles a lot.
 run = "pnpm app dev"
 
+[tasks.android]
+description = "Run the app on a connected Android device or emulator (needs the Android SDK and NDK: see docs/Nightly builds.md)"
+depends = ["setup", "doctor"]
+# `android init` generates apps/app/src-tauri/gen/android, which is not committed.
+run = "pnpm app tauri android init && pnpm app tauri android dev"
+
 [tasks.ui]
 description = "Run the UI alone in a browser, on a made-up graph in memory"
 depends = ["setup", "doctor"]

@@ -1,0 +1,28 @@
+- A build of everything, every Monday at 03:00 UTC, kept as GitHub Actions artifacts. It is not a release: nothing is published, and GitHub deletes the artifacts after 90 days. `.github/workflows/nightly.yml`, which can also be started by hand from the Actions tab. [[Publishing]]
+- What you get
+	- The desktop app ([[The shell]]) for Linux, macOS and Windows, each on x64 and arm64.
+		- Linux: `.deb`, `.rpm` and `.AppImage`. macOS: `.dmg`. Windows: an `.msi` and a `-setup.exe`.
+	- `quiddity-node`, the command line and headless sync node ([[quiddity-node]]), for the same six platforms. A `.tar.gz` on Linux and macOS, so that it stays executable, and an `.exe` on Windows.
+	- An Android APK, for every Android ABI in one file.
+	- Nothing for iOS yet.
+- Names and versions
+	- Artifacts are named for the day: `quiddity-2026-11-01-nightly-linux-x64`, `quiddity-node-2026-11-01-nightly-macos-arm64`, `quiddity-2026-11-01-nightly-android`.
+	- Inside the apps the version is `2026.11.1`. Tauri needs a semantic version, the Windows installers need numbers, and Android turns the version into its integer version code (major × 1,000,000 + minor × 1,000 + patch), which fits until 2099. `2026-11-01-nightly` is none of those.
+	- It is passed to the build with `--config`, so `tauri.conf.json` still says `0.1.0`.
+- Not signed
+	- macOS and Windows will warn about the installers, because nothing is signed or notarised.
+	- The Android APK is signed, because Android won't install an unsigned one. With the repository secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD` and `ANDROID_KEY_ALIAS` it uses that key, and each nightly installs over the last. Without them it signs with a key made for the run, and the previous nightly has to be uninstalled first.
+- How it is built
+	- The UI is built once, in the first job, and every app embeds it; the platform jobs skip `beforeBuildCommand`.
+	- Each desktop platform is a matrix entry that builds the node and then the app. The Linux and Windows arm64 builds run natively on GitHub's arm64 runners (free for public repositories only). Both macOS builds run on one Apple silicon runner, and x64 is cross-compiled.
+	- The Android job runs `tauri android init`, builds a release APK and signs it. The project in `apps/app/src-tauri/gen/android` is generated each time, because it holds nothing of ours. Commit it if that changes.
+	- The jobs use the plain setup actions that [[GitHub Pages]] does, not mise and [[mbx]], so they don't depend on either supporting every runner.
+- Building Android yourself
+	- Needs the Android SDK and NDK (`NDK_HOME`), Java 17 and the four Android Rust targets: `aarch64-linux-android`, `armv7-linux-androideabi`, `i686-linux-android` and `x86_64-linux-android`.
+	- `mise run android` generates the project and runs the app on a connected device or an emulator.
+- iOS: a stub
+	- Planned, not built. The `ios` option of the workflow only checks that the shell compiles for `aarch64-apple-ios` and its simulator, which needs no signing.
+	- An IPA needs `tauri ios init` and `tauri ios build` on macOS with an Apple developer team (`APPLE_DEVELOPMENT_TEAM`) and certificates, none of which the repository has. Add them as secrets, then turn the stub into a build job.
+- Untested
+	- The workflow has not been run yet. The first run is the test: the likeliest trouble is the Windows arm64 installers and the Android signing step.
+	- Scheduled workflows only run from the default branch, and GitHub turns them off after 60 days without repository activity.
