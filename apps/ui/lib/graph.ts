@@ -3,6 +3,7 @@ import type {
   BlockHit,
   Connections,
   Device,
+  SyncState,
   Entity,
   EntityId,
   EntityRef,
@@ -24,6 +25,9 @@ export interface Backend {
   /** Calls `onUpdates` with what other devices change, for as long as the
    * page lives. Backends with no other devices don't have it. */
   subscribe?(onUpdates: (updates: Uint8Array) => void): Promise<void>;
+  /** Calls `onStatus` with how this device stands with the others, now and
+   * each time that changes. Backends with nothing to sync with don't have it. */
+  subscribeStatus?(onStatus: (status: SyncState) => void): Promise<void>;
   /** This device's ID, for letting it in from another device. Only the app
    * is a device that others can reach. */
   deviceId?(): Promise<string>;
@@ -127,6 +131,24 @@ export class Graph {
   /** Blocks whose text matches `query`, best first. Not kept, as above. */
   searchText = (query: string, limit: number) =>
     this.replica.searchText(query, limit) as BlockHit[];
+
+  private statusListeners = new Set<() => void>();
+  private status: SyncState | undefined;
+
+  /** For `useSyncExternalStore`: how this device stands with the others. */
+  subscribeToStatus = (listener: () => void) => {
+    this.statusListeners.add(listener);
+    return () => void this.statusListeners.delete(listener);
+  };
+
+  /** How this device stands with the others, once the backend has said. */
+  getStatus = () => this.status;
+
+  setStatus(status: SyncState) {
+    if (this.status === status) return;
+    this.status = status;
+    this.statusListeners.forEach((l) => l());
+  }
 
   /** The devices the graph records, most recently seen first. */
   devices = () => this.read<Device[]>("devices", () => this.replica.devices());
@@ -336,6 +358,9 @@ export function bootGraph(): Promise<Graph> {
     backend
       .subscribe?.((updates) => graph.receive(updates))
       .catch((error) => console.error("Couldn't listen for other devices", error));
+    backend
+      .subscribeStatus?.((status) => graph.setStatus(status))
+      .catch((error) => console.error("Couldn't listen for the sync status", error));
     graph.ensureToday();
     // Making today's page isn't the user's doing, so it isn't theirs to undo.
     graph.clearUndo();

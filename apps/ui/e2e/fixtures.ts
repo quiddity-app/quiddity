@@ -22,6 +22,8 @@ declare global {
       typed: string[][];
       /** The devices the page asked to let in. */
       allowed: string[];
+      /** Plays the shell telling the page how this device stands. */
+      setStatus(status: string): void;
     };
   }
 }
