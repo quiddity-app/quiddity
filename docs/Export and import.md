@@ -9,6 +9,7 @@ alias:: text format
 	- ```
 	  export/
 	    quiddity.json        marks a Quiddity export, with its format version
+	    quiddity.toml        the graph's settings, if any are set
 	    entities/
 	      Jane.md
 	      Jane 2.md          same name, different entity: only the file name differs
@@ -34,6 +35,7 @@ alias:: text format
 - Importing
 	- With `quiddity.json` present, indentation is read strictly, and the round trip is exact. It is tested that way.
 	- Without it, as for a Logseq graph or these pages, indentation is judged by width, fenced code is respected, and `logseq/` and hidden directories are skipped.
+	- A `quiddity.toml` at the top sets the graph's settings, with or without `quiddity.json`. [[Graph settings]]
 	- Files in `journals/` named `2026-10-25.md` or `2026_10_25.md` become journals. [[Journal]]
 	- A file with no `title::` is named for the file.
 	- Importing the same export twice makes two of everything except journals and property entities, which merge. Exports leave out copies that have been merged. [[Duplicates]]

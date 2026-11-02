@@ -56,7 +56,7 @@ function Favourites() {
 
 /** Fixed places in the app, as opposed to entities in the graph. */
 const entrypoints = [
-  { title: "Journals", href: "/" },
+  { title: "Journals", href: "/journals/" },
   { title: "All entities", href: "/all/" },
   { title: "Graph", href: "/graph/" },
 ];
@@ -67,7 +67,7 @@ function Entrypoints() {
   return (
     <ul>
       {entrypoints.map(({ title, href }) => {
-        const here = !main && (href === "/" ? pathname === "/" : pathname.startsWith(href));
+        const here = !main && pathname.startsWith(href.slice(0, -1));
         return (
           <li key={href}>
             <Link

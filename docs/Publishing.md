@@ -1,5 +1,5 @@
 - This site is built by CI from the Markdown in `docs/`.
-	- `quiddity-node` creates a graph and imports `docs/` into it.
+	- `quiddity-node` creates a graph and imports `docs/` into it. `docs/quiddity.toml` makes the site open on [[Quiddity]] rather than the journals. [[Graph settings]]
 	- The UI is built with `QUIDDITY_STATIC_GRAPH` pointing at that graph, which makes it load the graph's snapshot instead of talking to the Tauri shell. [[Static build]] has the details.
 	- `QUIDDITY_BASE_PATH` is where the site is served from.
 - Without `QUIDDITY_STATIC_GRAPH` the build is the one the desktop app embeds, unchanged.

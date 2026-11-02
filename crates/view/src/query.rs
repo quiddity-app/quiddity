@@ -9,7 +9,7 @@ use quiddity_core::syntax::{
     Link, Property as Prop, PropertyStyle, Value, format_link, is_properties_block, normalise_name,
     parse_block,
 };
-use quiddity_core::{BlockId, Identity, Index, Resolution, ensure_journal};
+use quiddity_core::{BlockId, Home, Identity, Index, Resolution, ensure_journal};
 use serde::Serialize;
 
 use crate::{Error, Result, View};
@@ -48,6 +48,16 @@ pub struct Summary {
     pub created: Option<i64>,
     /// When a block of it was last added, moved or edited, in the same units.
     pub modified: Option<i64>,
+}
+
+/// Where the UI opens: the graph's `home` setting, with an entity found.
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum Start {
+    Journals,
+    All,
+    Graph,
+    Entity { id: String },
 }
 
 /// One entity linking to another, from anywhere in its blocks. However many
@@ -343,6 +353,26 @@ impl View {
         }
         favourites.sort_by_cached_key(|e| (e.title.to_lowercase(), e.id.clone()));
         Ok(favourites)
+    }
+
+    /// Where the UI opens, as the graph's settings say. A link that finds no
+    /// entity, or several, opens the journals instead: there is nowhere
+    /// better to go, and the journals are always there.
+    pub fn start(&self) -> Result<Start> {
+        Ok(match self.graph.settings().home.unwrap_or(Home::Journals) {
+            Home::Journals => Start::Journals,
+            Home::All => Start::All,
+            Home::Graph => Start::Graph,
+            Home::Entity(link) => {
+                let index = self.index()?;
+                match index.resolve(&link) {
+                    Resolution::Unique(id) => Start::Entity {
+                        id: index.canonical(id).to_string(),
+                    },
+                    _ => Start::Journals,
+                }
+            }
+        })
     }
 
     /// Journal pages from `today` back, newest first.

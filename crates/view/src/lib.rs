@@ -22,7 +22,7 @@ pub use edit::Merged;
 pub use fts::BlockHit;
 pub use query::{
     Block, Connections, Edge, Entity, EntityRef, LinkTarget, Property, PropertyValue, Reference,
-    ResolvedLink, Summary,
+    ResolvedLink, Start, Summary,
 };
 pub use search::{HitProperty, Match, TitleHit, fuzzy_match};
 

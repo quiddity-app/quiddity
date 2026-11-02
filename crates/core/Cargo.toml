@@ -11,7 +11,9 @@ rust-version.workspace = true
 jiff.workspace = true
 loro.workspace = true
 quiddity-syntax.workspace = true
+serde.workspace = true
 thiserror.workspace = true
+toml.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]

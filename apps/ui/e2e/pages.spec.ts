@@ -1,5 +1,12 @@
 import { expect, test, openEntity } from "./fixtures";
 
+test("home is the journals unless the graph says otherwise", async ({ page }) => {
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/journals\/$/);
+  await expect(page.getByRole("heading", { name: "Journals", level: 1 })).toBeVisible();
+  await expect(page.locator("nav").getByRole("link", { name: "Journals" })).toHaveClass(/font-medium/);
+});
+
 test("the journals feed starts at today, adds days as you scroll, and ends", async ({ page }) => {
   await page.goto("/");
   const days = page.locator("main section h2");

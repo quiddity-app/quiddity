@@ -1425,3 +1425,53 @@ mod deleting_entities {
         );
     }
 }
+
+mod start {
+    use quiddity_core::{Home, Settings};
+
+    use super::*;
+
+    fn starting_at(home: Option<&str>) -> View {
+        view_with(|g| {
+            g.create_entity("Quiddity", &[("type", text("project"))])
+                .unwrap();
+            g.create_entity("Twin", &[]).unwrap();
+            g.create_entity("Twin", &[]).unwrap();
+            g.apply_settings(&Settings {
+                home: home.map(|h| h.parse::<Home>().unwrap()),
+            })
+            .unwrap();
+        })
+    }
+
+    #[test]
+    fn views_are_as_set() {
+        assert_eq!(starting_at(None).start().unwrap(), Start::Journals);
+        assert_eq!(
+            starting_at(Some("journals")).start().unwrap(),
+            Start::Journals
+        );
+        assert_eq!(starting_at(Some("all")).start().unwrap(), Start::All);
+        assert_eq!(starting_at(Some("graph")).start().unwrap(), Start::Graph);
+    }
+
+    #[test]
+    fn a_link_opens_its_entity() {
+        for link in ["[[Quiddity]]", "[[quiddity#type(project)]]"] {
+            let v = starting_at(Some(link));
+            let id = id_of(&v, "Quiddity");
+            assert_eq!(v.start().unwrap(), Start::Entity { id }, "{link}");
+        }
+    }
+
+    #[test]
+    fn a_link_to_no_one_entity_opens_the_journals() {
+        for link in ["[[Nobody]]", "[[Twin]]", "[[Quiddity#type(person)]]"] {
+            assert_eq!(
+                starting_at(Some(link)).start().unwrap(),
+                Start::Journals,
+                "{link}"
+            );
+        }
+    }
+}

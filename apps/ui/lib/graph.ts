@@ -7,6 +7,7 @@ import type {
   EntityRef,
   Merged,
   Reference,
+  Start,
   Summary,
   TitleHit,
 } from "./model";
@@ -90,6 +91,7 @@ export class Graph {
   connections = () =>
     this.read<Connections>("connections", () => this.replica.connections());
   favourites = () => this.read<EntityRef[]>("favourites", () => this.replica.favourites());
+  start = () => this.read<Start>("start", () => this.replica.start());
   journals = () =>
     this.read<EntityRef[]>("journals", () => this.replica.journals(today()));
   references = (id: EntityId) =>

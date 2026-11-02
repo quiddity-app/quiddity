@@ -17,8 +17,11 @@ quiddity-syntax = { path = "crates/syntax" }
 jiff = { version = "0.2", default-features = false, features = ["std"] }
 loro = "1.17"
 proptest = "1"
+serde = { version = "1", features = ["derive"] }
 tempfile = "3"
 thiserror = "2"
+# Only to read and write quiddity.toml.
+toml = { version = "1", default-features = false, features = ["std", "serde", "parse", "display"] }
 uuid = { version = "1", features = ["v7"] }
 
 [workspace.lints.rust]

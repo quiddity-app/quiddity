@@ -4,6 +4,7 @@
 //! ```text
 //! export/
 //!   quiddity.json        marks the directory as a Quiddity export
+//!   quiddity.toml        the graph's settings, if any are set
 //!   entities/Jane.md
 //!   entities/Jane 2.md   same name, different entity
 //!   journals/2026-10-25.md
@@ -19,10 +20,12 @@ use quiddity_syntax::{Value, format_property_line};
 
 use crate::merge::is_spent_duplicate;
 use crate::outline::{Indent, export_entity, import_outline, parse_outline};
-use crate::{BlockId, Graph, Identity, Index, Result};
+use crate::{BlockId, Graph, Identity, Index, Result, Settings};
 
 pub const MANIFEST: &str = "quiddity.json";
 const MANIFEST_BODY: &str = "{\"format\": \"quiddity\", \"version\": 1}\n";
+/// The graph's settings: see [`Settings`].
+pub const SETTINGS: &str = "quiddity.toml";
 
 /// Writes every entity to `dir`, which must be empty or not yet exist.
 /// Returns the number of files written.
@@ -37,6 +40,10 @@ pub fn export_dir(graph: &Graph, dir: &Path) -> Result<usize> {
     fs::create_dir_all(dir.join("entities"))?;
     fs::create_dir_all(dir.join("journals"))?;
     fs::write(dir.join(MANIFEST), MANIFEST_BODY)?;
+    let settings = graph.settings();
+    if !settings.is_empty() {
+        fs::write(dir.join(SETTINGS), settings.to_toml())?;
+    }
 
     let index = Index::build(graph)?;
     let mut used = HashSet::new();
@@ -59,8 +66,16 @@ pub fn export_dir(graph: &Graph, dir: &Path) -> Result<usize> {
 
 /// Imports every Markdown file under `dir` as an entity. Files in a
 /// `journals` directory named for a date (`2026-10-25.md`, or Logseq's
-/// `2026_10_25.md`) become journal pages.
+/// `2026_10_25.md`) become journal pages. A `quiddity.toml` sets the graph's
+/// settings; those it doesn't mention are left as they were.
 pub fn import_dir(graph: &Graph, dir: &Path) -> Result<Vec<BlockId>> {
+    // Read first, so that a mistake in it stops the import before anything
+    // has been added.
+    let settings = match fs::read_to_string(dir.join(SETTINGS)) {
+        Ok(text) => Some(Settings::from_toml(&text)?),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => None,
+        Err(e) => return Err(e.into()),
+    };
     let indent = if dir.join(MANIFEST).is_file() {
         Indent::Tabs
     } else {
@@ -100,6 +115,9 @@ pub fn import_dir(graph: &Graph, dir: &Path) -> Result<Vec<BlockId>> {
             }
         }
         ids.push(import_outline(graph, &outline, &stem)?);
+    }
+    if let Some(settings) = settings {
+        graph.apply_settings(&settings)?;
     }
     Ok(ids)
 }
