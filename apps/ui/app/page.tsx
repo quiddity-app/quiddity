@@ -1,5 +1,5 @@
-import { JournalFeed } from "@/components/journal-feed";
+import { Home } from "@/components/home";
 
-export default function Home() {
-  return <JournalFeed />;
+export default function HomePage() {
+  return <Home />;
 }

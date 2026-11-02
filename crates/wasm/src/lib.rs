@@ -112,6 +112,11 @@ impl Replica {
         js(&self.view.favourites()?)
     }
 
+    /// Where the UI opens, from the graph's settings.
+    pub fn start(&self) -> Result<JsValue, JsError> {
+        js(&self.view.start()?)
+    }
+
     /// Journal pages from `today` (`YYYY-MM-DD`) back, newest first.
     pub fn journals(&self, today: &str) -> Result<JsValue, JsError> {
         js(&self.view.journals(date(today)?)?)

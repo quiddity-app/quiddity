@@ -1,5 +1,12 @@
 export type EntityId = string;
 
+/** Where the app opens: the graph's `home` setting, with its entity found. */
+export type Start =
+  | { kind: "journals" }
+  | { kind: "all" }
+  | { kind: "graph" }
+  | { kind: "entity"; id: EntityId };
+
 export interface EntityRef {
   id: EntityId;
   title: string;

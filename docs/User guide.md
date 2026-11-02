@@ -4,7 +4,7 @@ favourite:: true
 - The ideas
 	- Your [[Graph]] is everything you keep, and every device has all of it.
 	- An [[Entity]] is a page. Its body is an outline, and each bullet is a [[Block]].
-	- Each day has a [[Journal]] page, and the journals are where the app opens.
+	- Each day has a [[Journal]] page, and the journals are where the app opens, unless the graph's [[Graph settings]] say otherwise.
 - Writing
 	- [[Editing]]: the outliner, and its keys.
 	- [[Rendering]]: how a block looks when you aren't editing it.
@@ -21,5 +21,6 @@ favourite:: true
 	- [[Graph view]]: every entity and the links between them, drawn.
 - Your data
 	- [[Export and import]]: the graph as Markdown, and importing from [[Logseq]].
+	- [[Graph settings]]: where the app opens, set by a `quiddity.toml`.
 	- Syncing between devices is done by [[quiddity-node]] so far, and is described for developers under [[Sync]].
 - Running it: there is no release yet. Each week's [[Nightly builds]] have the app for Linux, macOS, Windows and Android, or it can be built from source. [[Running the app]]

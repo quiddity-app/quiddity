@@ -22,6 +22,8 @@ pub enum Error {
     BeforeHistory,
     #[error("those updates can't be applied here: this replica lacks what they were made on")]
     NotApplied,
+    #[error("in quiddity.toml: {0}")]
+    Settings(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

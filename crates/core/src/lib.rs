@@ -20,6 +20,7 @@ mod journal;
 mod merge;
 pub mod outline;
 pub mod schema;
+mod settings;
 
 pub use devices::Device;
 pub use error::{Error, Result};
@@ -28,3 +29,4 @@ pub use index::{Backlink, EntityInfo, Identity, Index, Resolution, canonical_val
 pub use journal::ensure_journal;
 pub use merge::merge_duplicates;
 pub use quiddity_syntax as syntax;
+pub use settings::{Home, Settings};
