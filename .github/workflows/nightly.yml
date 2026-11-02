@@ -35,16 +35,21 @@ jobs:
     outputs:
       # What names the artifacts: 2026-11-01-nightly.
       label: ${{ steps.version.outputs.label }}
-      # What goes inside the apps. Tauri wants semantic versions, and the
-      # Windows installers and Android's version code want numbers, so the
-      # date is written as 2026.11.1. Android derives its version code from it
+      # What goes inside the apps. Tauri wants semantic versions, so the date
+      # is written as 2026.11.1. Android derives its version code from it
       # (major * 1,000,000 + minor * 1,000 + patch), which fits until 2099.
       semver: ${{ steps.version.outputs.semver }}
+      # An MSI's major and minor versions stop at 255, so the installer gets
+      # the two-digit year instead: 26.11.1. It still increases day by day.
+      msi: ${{ steps.version.outputs.msi }}
     steps:
     - id: version
       run: |
-        echo "label=$(date -u +%F)-nightly" >> "$GITHUB_OUTPUT"
-        echo "semver=$(date -u +%Y.%-m.%-d)" >> "$GITHUB_OUTPUT"
+        {
+          echo "label=$(date -u +%F)-nightly"
+          echo "semver=$(date -u +%Y.%-m.%-d)"
+          echo "msi=$(date -u +%y.%-m.%-d)"
+        } >> "$GITHUB_OUTPUT"
 
   ui:
     # Every app embeds the same UI, so it is built once.
@@ -92,6 +97,7 @@ jobs:
     env:
       LABEL: ${{ needs.version.outputs.label }}
       SEMVER: ${{ needs.version.outputs.semver }}
+      MSI_VERSION: ${{ needs.version.outputs.msi }}
       OS: ${{ matrix.os }}
       NAME: ${{ matrix.os }}-${{ matrix.arch }}
       TARGET: ${{ matrix.target }}
@@ -148,7 +154,7 @@ jobs:
     - name: Build the app
       working-directory: apps/app
       run: >-
-        pnpm tauri build --target "$TARGET" --config "{\"version\":\"$SEMVER\",\"build\":{\"beforeBuildCommand\":null}}"
+        pnpm tauri build --target "$TARGET" --config "{\"version\":\"$SEMVER\",\"build\":{\"beforeBuildCommand\":null},\"bundle\":{\"windows\":{\"wix\":{\"version\":\"$MSI_VERSION\"}}}}"
     - name: Collect the app
       run: |
         # The shell is outside the workspace, so it has its own target directory.
