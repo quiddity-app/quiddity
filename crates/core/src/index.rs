@@ -1,9 +1,14 @@
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use jiff::civil::Date;
-use quiddity_syntax::{Link, Property, Qualifier, Value, normalise_name, parse_block};
+use quiddity_syntax::{
+    Link, MetaProperty, Property, Qualifier, Value, normalise_name, parse_block,
+};
 
-use crate::{BlockId, Graph, Result};
+use crate::effective::Effective;
+use crate::schema::PropertySchema;
+use crate::{BlockId, Flag, Graph, Result};
 
 /// What the index knows about one entity.
 #[derive(Debug, Clone)]
@@ -11,6 +16,9 @@ pub struct EntityInfo {
     pub id: BlockId,
     pub name: String,
     pub properties: Vec<Property>,
+    /// Meta-property lines in its properties block. They mean something
+    /// only on a property entity.
+    pub meta: Vec<MetaProperty>,
 }
 
 impl EntityInfo {
@@ -103,6 +111,15 @@ pub struct Index {
     canonical: HashMap<BlockId, BlockId>,
     by_ref_id: HashMap<String, BlockId>,
     backlinks: HashMap<BlockId, Vec<Backlink>>,
+    /// Schemas of built-in properties and of those with a property entity,
+    /// by normalised key.
+    pub(crate) schemas: HashMap<String, PropertySchema>,
+    /// What couldn't be read of each property entity's meta-properties.
+    pub(crate) meta_flags: HashMap<BlockId, Vec<Flag>>,
+    pub(crate) effective: HashMap<BlockId, Effective>,
+    /// For each inverse label and entity, the entities whose property
+    /// refers to it, and whether directly (as written).
+    pub(crate) inverse: HashMap<(String, BlockId), Vec<(BlockId, bool)>>,
 }
 
 impl Index {
@@ -113,6 +130,7 @@ impl Index {
                 id,
                 name: graph.entity_name(id)?,
                 properties: graph.entity_properties(id)?,
+                meta: graph.entity_meta(id)?,
             };
             if let Some(identity) = info.identity() {
                 index.by_identity.entry(identity).or_default().push(id);
@@ -168,7 +186,37 @@ impl Index {
                     .push(Backlink { source, ambiguous });
             }
         }
+        index.read_schemas();
+        index.compute_effective();
         Ok(index)
+    }
+
+    /// Reads each property entity's meta-properties over the built-in
+    /// schemas.
+    fn read_schemas(&mut self) {
+        let mut schemas = HashMap::new();
+        let mut flags = HashMap::new();
+        for (identity, ids) in &self.by_identity {
+            let Identity::Property(key) = identity else {
+                continue;
+            };
+            let id = ids[0];
+            let base = PropertySchema::builtin(key).unwrap_or_default();
+            let (schema, problems) = base.with_meta(&self.entities[&id].meta);
+            schemas.insert(key.clone(), schema);
+            flags.insert(id, problems);
+        }
+        self.schemas = schemas;
+        self.meta_flags = flags;
+    }
+
+    /// The schema for the property `key`.
+    pub fn schema(&self, key: &str) -> Cow<'_, PropertySchema> {
+        let key = normalise_name(key);
+        match self.schemas.get(&key) {
+            Some(schema) => Cow::Borrowed(schema),
+            None => Cow::Owned(PropertySchema::builtin(&key).unwrap_or_default()),
+        }
     }
 
     pub fn entity(&self, id: BlockId) -> Option<&EntityInfo> {

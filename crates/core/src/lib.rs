@@ -10,7 +10,9 @@
 //! Everything derived from the text (names, properties, links, backlinks) is
 //! computed by an [`Index`], which can always be rebuilt from the graph.
 
+mod check;
 mod devices;
+mod effective;
 mod entity;
 mod error;
 pub mod files;
@@ -19,9 +21,12 @@ mod index;
 mod journal;
 mod merge;
 pub mod outline;
+mod query;
 pub mod schema;
 
+pub use check::Flag;
 pub use devices::Device;
+pub use effective::Item;
 pub use error::{Error, Result};
 pub use graph::{BlockId, Graph, SCHEMA_VERSION, Version};
 pub use index::{Backlink, EntityInfo, Identity, Index, Resolution, canonical_value};

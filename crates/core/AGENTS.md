@@ -125,6 +125,23 @@ so the caller must know there is nothing.
   whether it moved anything. Spent duplicates are hidden and left out of
   exports.
 
+## Schemas and effective properties
+
+- **A schema is the built-in one with the property entity's `##` lines over
+  it** (`PropertySchema::with_meta`). What can't be read is kept as flags
+  for that entity and otherwise ignored. `Index::schema` borrows where it
+  can: it is called in the inner loops.
+- **Effective properties are worked out at build** (`effective.rs`), by
+  repeating until no new value appears, so chains and cycles need no
+  special case. Values are deduplicated by the entity they refer to, or by
+  their text compared as names are. `from` is the entity a value is
+  written on rather than the one it came through, which would depend on
+  the order it was found in.
+- **Only own properties identify an entity**, and only own properties are
+  checked (`check.rs`); queries see effective ones, inverse labels included.
+- A reference refers to an entity only if it resolves uniquely. Bare text
+  refers only in a `ref` property.
+
 ## The outline format
 
 - **`Indent::Tabs` is Quiddity's own format and is lossless.** It splits

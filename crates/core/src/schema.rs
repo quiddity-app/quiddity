@@ -1,15 +1,18 @@
-//! Property schemas: how a property's values should be read.
+//! Property schemas: how a property's values should be read, and how it
+//! relates entities.
 //!
-//! A property's schema comes from its property entity (an entity of type
-//! `property` with the property's name), falling back to a built-in schema
-//! for Quiddity's own properties. Schemas are advisory: values that don't
-//! match are kept and reported, never discarded.
+//! A property's schema comes from the meta-properties (`##value-type(date)`,
+//! `##transitive` and so on) in its property entity's properties block, over
+//! a built-in schema for Quiddity's own properties. Schemas are advisory:
+//! values that don't match are kept and flagged, never discarded.
+
+use std::fmt;
 
 use jiff::Timestamp;
 use jiff::civil::Date;
-use quiddity_syntax::{Link, Value, format_link, normalise_name};
+use quiddity_syntax::{Link, MetaProperty, Query, Value, format_link, normalise_name, parse_query};
 
-use crate::Index;
+use crate::Flag;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ValueType {
@@ -22,69 +25,224 @@ pub enum ValueType {
     Ref,
 }
 
-/// Whether each instance of a property holds one value or an ordered list.
+/// How many values an entity may have of a property, counting each item of
+/// a list and each instance: UML's multiplicity, `0..1` or `1..*`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Form {
-    Scalar,
-    List,
+pub struct Cardinality {
+    pub min: usize,
+    /// `None` for no limit.
+    pub max: Option<usize>,
 }
 
-/// Whether a block may have more than one instance of a property.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Cardinality {
-    One,
-    Many,
+impl Cardinality {
+    /// Any number, `*`.
+    pub const ANY: Self = Self { min: 0, max: None };
+    /// At most one, `0..1`.
+    pub const OPTIONAL: Self = Self {
+        min: 0,
+        max: Some(1),
+    };
+
+    pub fn allows(self, count: usize) -> bool {
+        count >= self.min && self.max.is_none_or(|max| count <= max)
+    }
+
+    /// Reads `*`, `2`, `0..1`, `1..*` or `2..5`.
+    pub fn parse(s: &str) -> Option<Self> {
+        let bound = |b: &str| match b.trim() {
+            "*" => Some(None),
+            n => n.parse().ok().map(Some),
+        };
+        let (min, max) = match s.split_once("..") {
+            Some((min, max)) => (min.trim().parse().ok()?, bound(max)?),
+            None => match bound(s)? {
+                None => (0, None),
+                Some(n) => (n, Some(n)),
+            },
+        };
+        max.is_none_or(|max| min <= max)
+            .then_some(Self { min, max })
+    }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+impl fmt::Display for Cardinality {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match (self.min, self.max) {
+            (0, None) => write!(f, "*"),
+            (min, Some(max)) if min == max => write!(f, "{min}"),
+            (min, Some(max)) => write!(f, "{min}..{max}"),
+            (min, None) => write!(f, "{min}..*"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PropertySchema {
     pub value_type: ValueType,
-    pub form: Form,
+    /// `##values`: which entities a reference may refer to.
+    pub values: Option<Query>,
+    /// `##applies-to`: which entities may have the property.
+    pub applies_to: Option<Query>,
     pub cardinality: Cardinality,
+    /// An entity has its values' values of the property too.
+    pub transitive: bool,
+    /// An entity has the other properties of the entities it refers to.
+    pub inherits: bool,
+    /// The name of the relation the other way round.
+    pub inverse: Option<String>,
+    /// The relation holds both ways.
+    pub symmetric: bool,
 }
 
 impl Default for PropertySchema {
     /// The schema for a property nobody has described: anything goes.
     fn default() -> Self {
-        Self::new(ValueType::Text, Form::Scalar, Cardinality::Many)
+        Self::DEFAULT
     }
 }
 
 impl PropertySchema {
-    pub const fn new(value_type: ValueType, form: Form, cardinality: Cardinality) -> Self {
+    pub const DEFAULT: Self = Self::of(ValueType::Text, Cardinality::ANY);
+
+    /// A schema that only says how values are read and how many there are.
+    pub const fn of(value_type: ValueType, cardinality: Cardinality) -> Self {
         Self {
             value_type,
-            form,
+            values: None,
+            applies_to: None,
             cardinality,
+            transitive: false,
+            inherits: false,
+            inverse: None,
+            symmetric: false,
         }
     }
 
     /// Schemas for the properties Quiddity itself relies on.
     pub fn builtin(key: &str) -> Option<Self> {
-        lookup(&normalise_name(key), BUILTIN)
+        let key = normalise_name(key);
+        BUILTIN
+            .iter()
+            .find(|(k, _)| *k == key)
+            .map(|(_, schema)| schema.clone())
+    }
+
+    /// The schema `meta` makes of `base`, with what couldn't be read. Each
+    /// meta-property written overrides what `base` says.
+    pub fn with_meta(mut self, meta: &[MetaProperty]) -> (Self, Vec<Flag>) {
+        let mut flags = Vec::new();
+        let mut typed = false;
+        for m in meta {
+            let Some(which) = lookup(&normalise_name(&m.key), META) else {
+                flags.push(Flag::UnknownMeta { key: m.key.clone() });
+                continue;
+            };
+            let parameter = m.parameter.as_deref();
+            let problem = match (which, parameter) {
+                (Meta::Transitive | Meta::Inherits | Meta::Symmetric, Some(_)) => {
+                    Some("takes no parameter".to_owned())
+                }
+                (Meta::Transitive, None) => {
+                    self.transitive = true;
+                    None
+                }
+                (Meta::Inherits, None) => {
+                    self.inherits = true;
+                    None
+                }
+                (Meta::Symmetric, None) => {
+                    self.symmetric = true;
+                    None
+                }
+                (_, None) => Some("needs a parameter".to_owned()),
+                (Meta::ValueType, Some(p)) => match lookup(&normalise_name(p), VALUE_TYPES) {
+                    Some(t) => {
+                        self.value_type = t;
+                        typed = true;
+                        None
+                    }
+                    None => {
+                        Some("expected text, number, boolean, date, datetime or ref".to_owned())
+                    }
+                },
+                (Meta::Values | Meta::AppliesTo, Some(p)) => match parse_query(p) {
+                    Ok(q) => {
+                        let slot = if which == Meta::Values {
+                            &mut self.values
+                        } else {
+                            &mut self.applies_to
+                        };
+                        *slot = Some(q);
+                        None
+                    }
+                    Err(e) => Some(e.to_string()),
+                },
+                (Meta::Cardinality, Some(p)) => match Cardinality::parse(p) {
+                    Some(c) => {
+                        self.cardinality = c;
+                        None
+                    }
+                    None => Some("expected a multiplicity such as 1, 0..1 or 1..*".to_owned()),
+                },
+                (Meta::Inverse, Some(p)) => {
+                    self.inverse = Some(p.to_owned());
+                    None
+                }
+            };
+            flags.extend(problem.map(|message| Flag::BadMeta {
+                key: m.key.clone(),
+                message,
+            }));
+        }
+        let relates = self.values.is_some()
+            || self.transitive
+            || self.inherits
+            || self.inverse.is_some()
+            || self.symmetric;
+        if relates && !typed {
+            self.value_type = ValueType::Ref;
+        }
+        (self, flags)
     }
 }
 
 const BUILTIN: &[(&str, PropertySchema)] = {
-    use {Cardinality::*, Form::*, ValueType::*};
-    const fn s(t: ValueType, c: Cardinality) -> PropertySchema {
-        PropertySchema::new(t, Scalar, c)
-    }
+    use {Cardinality as C, ValueType::*};
     &[
-        ("type", s(Ref, Many)),
-        ("alias", s(Text, Many)),
-        ("date", s(Date, One)),
-        ("favourite", s(Boolean, One)),
-        ("id", s(Text, One)),
-        ("title", s(Text, One)),
-        ("value-type", s(Text, One)),
-        ("form", s(Text, One)),
-        ("cardinality", s(Text, One)),
+        ("type", PropertySchema::of(Ref, C::ANY)),
+        ("alias", PropertySchema::of(Text, C::ANY)),
+        ("date", PropertySchema::of(Date, C::OPTIONAL)),
+        ("favourite", PropertySchema::of(Boolean, C::OPTIONAL)),
+        ("id", PropertySchema::of(Text, C::OPTIONAL)),
+        ("title", PropertySchema::of(Text, C::OPTIONAL)),
     ]
 };
 
-/// How a property entity's `value-type::`, `form::` and `cardinality::` are
-/// spelt.
+/// The meta-properties, by name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Meta {
+    ValueType,
+    Values,
+    AppliesTo,
+    Cardinality,
+    Transitive,
+    Inherits,
+    Inverse,
+    Symmetric,
+}
+
+const META: &[(&str, Meta)] = &[
+    ("value-type", Meta::ValueType),
+    ("values", Meta::Values),
+    ("applies-to", Meta::AppliesTo),
+    ("cardinality", Meta::Cardinality),
+    ("transitive", Meta::Transitive),
+    ("inherits", Meta::Inherits),
+    ("inverse", Meta::Inverse),
+    ("symmetric", Meta::Symmetric),
+];
+
+/// How `##value-type` is spelt.
 const VALUE_TYPES: &[(&str, ValueType)] = &[
     ("text", ValueType::Text),
     ("number", ValueType::Number),
@@ -93,34 +251,9 @@ const VALUE_TYPES: &[(&str, ValueType)] = &[
     ("datetime", ValueType::DateTime),
     ("ref", ValueType::Ref),
 ];
-const FORMS: &[(&str, Form)] = &[("scalar", Form::Scalar), ("list", Form::List)];
-const CARDINALITIES: &[(&str, Cardinality)] =
-    &[("one", Cardinality::One), ("many", Cardinality::Many)];
 
 fn lookup<T: Copy>(name: &str, table: &[(&str, T)]) -> Option<T> {
     table.iter().find(|(n, _)| *n == name).map(|&(_, v)| v)
-}
-
-impl Index {
-    /// The schema for the property `key`.
-    pub fn schema(&self, key: &str) -> PropertySchema {
-        let mut schema = PropertySchema::builtin(key).unwrap_or_default();
-        let Some(info) = self.property_entity(key).and_then(|id| self.entity(id)) else {
-            return schema;
-        };
-        let setting = |name| info.values(name).find_map(text).map(|s| normalise_name(&s));
-        if let Some(t) = setting("value-type") {
-            // An unknown type is read as text: nothing is lost that way.
-            schema.value_type = lookup(&t, VALUE_TYPES).unwrap_or(ValueType::Text);
-        }
-        if let Some(form) = setting("form").and_then(|f| lookup(&f, FORMS)) {
-            schema.form = form;
-        }
-        if let Some(c) = setting("cardinality").and_then(|c| lookup(&c, CARDINALITIES)) {
-            schema.cardinality = c;
-        }
-        schema
-    }
 }
 
 /// A value read according to its schema.
@@ -144,17 +277,16 @@ pub struct Mismatch {
     pub found: Value,
 }
 
-/// Reads a value according to a schema.
+/// Reads a value according to a schema. A list is always allowed, and is
+/// read item by item.
 pub fn coerce(value: &Value, schema: &PropertySchema) -> Result<Typed, Mismatch> {
-    match (schema.form, value) {
-        (Form::List, Value::List(items)) => items
+    match value {
+        Value::List(items) => items
             .iter()
             .map(|v| coerce_scalar(v, schema.value_type))
             .collect::<Result<_, _>>()
             .map(Typed::List),
-        (Form::List, _) => Err(mismatch("a list", value)),
-        (Form::Scalar, Value::List(_)) => Err(mismatch("a single value", value)),
-        (Form::Scalar, _) => coerce_scalar(value, schema.value_type),
+        _ => coerce_scalar(value, schema.value_type),
     }
 }
 
@@ -195,96 +327,93 @@ fn mismatch(expected: &str, found: &Value) -> Mismatch {
     }
 }
 
-fn text(value: &Value) -> Option<String> {
-    match value {
-        Value::Text(s) => Some(s.clone()),
-        Value::Link(link) => Some(link.name.clone()),
-        _ => None,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Graph, Result};
+    use quiddity_syntax::parse_block;
 
     fn t(s: &str) -> Value {
         Value::Text(s.to_owned())
     }
 
-    #[test]
-    fn schema_from_property_entity() -> Result<()> {
-        let graph = Graph::new();
-        graph.create_entity(
-            "Rating",
-            &[
-                ("type", Some(t("property"))),
-                ("value-type", Some(t("number"))),
-                ("cardinality", Some(t("one"))),
-            ],
-        )?;
-        graph.create_entity(
-            "Steps",
-            &[("type", Some(t("property"))), ("form", Some(t("list")))],
-        )?;
-        let index = Index::build(&graph)?;
-
-        let rating = index.schema("rating");
-        assert_eq!(
-            rating,
-            PropertySchema::new(ValueType::Number, Form::Scalar, Cardinality::One)
-        );
-        assert_eq!(coerce(&t("4.5"), &rating), Ok(Typed::Number(4.5)));
-        assert!(coerce(&t("lots"), &rating).is_err());
-        assert!(coerce(&t("NaN"), &rating).is_err());
-
-        let steps = index.schema("Steps");
-        assert_eq!(steps.form, Form::List);
-        assert_eq!(
-            coerce(&Value::List(vec![t("a"), t("b")]), &steps),
-            Ok(Typed::List(vec![
-                Typed::Text("a".into()),
-                Typed::Text("b".into())
-            ]))
-        );
-        assert!(coerce(&t("a"), &steps).is_err());
-
-        assert_eq!(index.schema("unknown"), PropertySchema::default());
-        Ok(())
+    /// The schema the meta-property lines in `text` make of the default.
+    fn read(text: &str) -> (PropertySchema, Vec<Flag>) {
+        PropertySchema::default().with_meta(&parse_block(text).meta)
     }
 
-    /// Every setting is read, whether written as text or as a link, and
-    /// overrides a built-in schema.
     #[test]
-    fn every_setting_is_read() -> Result<()> {
-        let link = |name: &str| {
-            Value::Link(Link {
-                name: name.to_owned(),
-                qualifiers: Vec::new(),
-            })
-        };
-        for &(spelt, value_type) in VALUE_TYPES {
-            for (form, cardinality) in [(FORMS[0], CARDINALITIES[1]), (FORMS[1], CARDINALITIES[0])]
-            {
-                let graph = Graph::new();
-                // `date` is built in as a single date.
-                graph.create_entity(
-                    "Date",
-                    &[
-                        ("type", Some(t("property"))),
-                        ("value-type", Some(link(&spelt.to_uppercase()))),
-                        ("form", Some(t(form.0))),
-                        ("cardinality", Some(t(cardinality.0))),
-                    ],
-                )?;
-                assert_eq!(
-                    Index::build(&graph)?.schema("date"),
-                    PropertySchema::new(value_type, form.1, cardinality.1),
-                    "{spelt} {form:?} {cardinality:?}"
-                );
-            }
+    fn meta_properties_are_read() {
+        let (schema, flags) = read(
+            "##value-type(Number)\n##applies-to(#type(film))\n##cardinality(0..1)\n##inverse(rated)",
+        );
+        assert_eq!(flags, []);
+        assert_eq!(
+            schema.value_type,
+            ValueType::Number,
+            "an explicit type wins"
+        );
+        assert_eq!(schema.applies_to, parse_query("#type(film)").ok());
+        assert_eq!(schema.cardinality, Cardinality::OPTIONAL);
+        assert_eq!(schema.inverse.as_deref(), Some("rated"));
+
+        let (schema, flags) = read("##values(#type(place))\n##transitive\n##inherits\n##symmetric");
+        assert_eq!(flags, []);
+        assert_eq!(
+            (schema.transitive, schema.inherits, schema.symmetric),
+            (true, true, true)
+        );
+        assert_eq!(schema.values, parse_query("#type(place)").ok());
+    }
+
+    /// A property that relates entities is a reference unless it says
+    /// otherwise.
+    #[test]
+    fn relating_implies_ref() {
+        for meta in [
+            "##values(x)",
+            "##transitive",
+            "##inherits",
+            "##inverse(x)",
+            "##symmetric",
+        ] {
+            assert_eq!(read(meta).0.value_type, ValueType::Ref, "{meta}");
+            let typed = format!("{meta}\n##value-type(text)");
+            assert_eq!(read(&typed).0.value_type, ValueType::Text, "{typed}");
         }
-        Ok(())
+        for meta in ["##applies-to(x)", "##cardinality(1)", "##nonsense"] {
+            assert_eq!(read(meta).0.value_type, ValueType::Text, "{meta}");
+        }
+    }
+
+    #[test]
+    fn unreadable_meta_properties_are_flagged() {
+        let (schema, flags) = read(
+            "##nonsense\n##transitive(yes)\n##values\n##values(a &)\n##value-type(colour)\n##cardinality(5..2)",
+        );
+        assert_eq!(
+            schema,
+            PropertySchema::default(),
+            "nothing unreadable is used"
+        );
+        let keys: Vec<_> = flags
+            .iter()
+            .map(|f| match f {
+                Flag::UnknownMeta { key } => format!("unknown {key}"),
+                Flag::BadMeta { key, .. } => format!("bad {key}"),
+                other => format!("{other:?}"),
+            })
+            .collect();
+        assert_eq!(
+            keys,
+            [
+                "unknown nonsense",
+                "bad transitive",
+                "bad values",
+                "bad values",
+                "bad value-type",
+                "bad cardinality"
+            ]
+        );
     }
 
     #[test]
@@ -296,7 +425,7 @@ mod tests {
         );
         assert!(coerce(&t("2026-02-30"), &date).is_err());
 
-        let at = PropertySchema::new(ValueType::DateTime, Form::Scalar, Cardinality::One);
+        let at = PropertySchema::of(ValueType::DateTime, Cardinality::OPTIONAL);
         assert!(coerce(&t("2026-10-25T21:04:00+01:00"), &at).is_ok());
         assert!(
             coerce(&t("2026-10-25T21:04:00"), &at).is_err(),
@@ -306,16 +435,54 @@ mod tests {
         let ty = PropertySchema::builtin("type").unwrap();
         assert!(matches!(coerce(&t("person"), &ty), Ok(Typed::Link(l)) if l.name == "person"));
 
-        let flag = PropertySchema::new(ValueType::Boolean, Form::Scalar, Cardinality::One);
+        let flag = PropertySchema::of(ValueType::Boolean, Cardinality::OPTIONAL);
         assert_eq!(coerce(&t("Yes"), &flag), Ok(Typed::Boolean(true)));
         assert_eq!(PropertySchema::builtin("Favourite"), Some(flag));
 
-        for (key, cardinality) in [("id", Cardinality::One), ("alias", Cardinality::Many)] {
+        for (key, cardinality) in [("id", Cardinality::OPTIONAL), ("alias", Cardinality::ANY)] {
             assert_eq!(
                 PropertySchema::builtin(key).unwrap().cardinality,
                 cardinality
             );
         }
+    }
+
+    #[test]
+    fn cardinalities() {
+        for (written, min, max) in [
+            ("*", 0, None),
+            ("1", 1, Some(1)),
+            ("0..1", 0, Some(1)),
+            (" 1 .. * ", 1, None),
+            ("2..5", 2, Some(5)),
+            ("3..3", 3, Some(3)),
+        ] {
+            assert_eq!(
+                Cardinality::parse(written),
+                Some(Cardinality { min, max }),
+                "{written}"
+            );
+        }
+        for bad in ["", "x", "*..1", "5..2", "-1", "1..2..3", "1.."] {
+            assert_eq!(Cardinality::parse(bad), None, "{bad}");
+        }
+        let written: Vec<_> = [(0, None), (1, Some(1)), (0, Some(1)), (1, None)]
+            .map(|(min, max)| Cardinality { min, max }.to_string())
+            .into();
+        assert_eq!(
+            written,
+            ["*", "1", "0..1", "1..*"],
+            "as briefly as it can be"
+        );
+        let c = Cardinality {
+            min: 1,
+            max: Some(2),
+        };
+        assert_eq!(
+            (0..4).map(|n| c.allows(n)).collect::<Vec<_>>(),
+            [false, true, true, false]
+        );
+        assert!(Cardinality::ANY.allows(usize::MAX));
     }
 
     use proptest::prelude::*;
@@ -373,15 +540,21 @@ mod tests {
         #[test]
         fn coerce_reads_what_was_written(cases in proptest::collection::vec(typed(), 1..4)) {
             let (value_type, expected, written) = cases[0].clone();
-            let scalar = PropertySchema::new(value_type, Form::Scalar, Cardinality::Many);
-            prop_assert_eq!(coerce(&written, &scalar), Ok(expected));
+            let schema = PropertySchema::of(value_type, Cardinality::ANY);
+            prop_assert_eq!(coerce(&written, &schema), Ok(expected));
 
             let same: Vec<_> = cases.iter().filter(|c| c.0 == value_type).collect();
-            let list = PropertySchema { form: Form::List, ..scalar };
             prop_assert_eq!(
-                coerce(&Value::List(same.iter().map(|c| c.2.clone()).collect()), &list),
+                coerce(&Value::List(same.iter().map(|c| c.2.clone()).collect()), &schema),
                 Ok(Typed::List(same.iter().map(|c| c.1.clone()).collect()))
             );
+        }
+
+        /// A cardinality is written as it is read.
+        #[test]
+        fn cardinalities_round_trip(min in 0usize..4, extra in proptest::option::of(0usize..4)) {
+            let c = Cardinality { min, max: extra.map(|e| min + e) };
+            prop_assert_eq!(Cardinality::parse(&c.to_string()), Some(c), "{}", c);
         }
     }
 }
