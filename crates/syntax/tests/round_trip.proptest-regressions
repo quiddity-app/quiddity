@@ -12,3 +12,8 @@ cc 8107badef876bbb6ef8e6fd142092e89a3d864cadbc3510deb2c20c8acd0df54 # shrinks to
 cc d4e24d804bd024d3830cbadb24f89f18564920f9ff3971d7e6ff92f363b06e9d # shrinks to lines = [Property("ꚠ", Some(Text(" ")))], tight = false
 cc 892bd706f8ce31a6d2496230c05c037cbc7cbb4d7dc7203d2171412a77ed0a45 # shrinks to key = "𞹂", value = Some(Link(Link { name: "_", qualifiers: [Qualifier { key: "¡\r^", value: None }] }))
 cc a8cd53bf75aecdb2364deb973c89bd7a28c37f399b941326253c05254c93dd06 # shrinks to key = "𐠿\r;", value = None
+cc 7b97b44b6e889b117ccfe070700ecd0381b7ebf0444ef6a67f99155921c54d8f # shrinks to key = "0", q = Some(Or(Diff(Name(""), Link(Link { name: "[", qualifiers: [Qualifier { key: "¡", value: Some(List([List([])])) }] })), Name(""))), before = None
+cc e64d0e338916135b2c2eb3a2d4e3d0f35b2a9c0965bc4d85b3c9fff8d0f13e1a # shrinks to q = Diff(Name(""), Diff(Diff(Has { key: "A", value: Some(Name("a\\")) }, Name("")), Name("")))
+cc 8ce0f1481074681f81133af9b7d9c7b956ab563d2e1ef7623de6e45cb285c1fe # shrinks to key = "\\", q = Some(Not(Has { key: "0\\", value: Some(Name("]]")) })), before = None
+cc e91892f6967cacbb61af814afc00a4811d261ec53bba85678e565b95f1cbce2e # shrinks to text = "\\"
+cc cdd93d6dbfd18aeb2afb65ceaa6f3d36686bc74baecfae8e184048db79a52407 # shrinks to text = "\\&\""

@@ -42,6 +42,18 @@ pub fn format_property_line(key: &str, value: Option<&Value>) -> String {
     }
 }
 
+/// Formats a `##key` or `##key(parameter)` line. The parameter is written
+/// as it is, so it must balance as [`crate::parse_meta_line`] expects, which
+/// anything [`crate::format_query`] writes does. One ending in a backslash
+/// gets a space before the `)`, which the backslash would otherwise escape.
+pub fn format_meta_line(key: &str, parameter: Option<&str>) -> String {
+    match parameter {
+        Some(p) if p.ends_with('\\') => format!("##{}({p} )", format_key(key)),
+        Some(p) => format!("##{}({p})", format_key(key)),
+        None => format!("##{}", format_key(key)),
+    }
+}
+
 /// Formats a link, escaping its name only where necessary.
 pub fn format_link(link: &Link) -> String {
     let qualifiers: String = link
@@ -185,6 +197,26 @@ mod tests {
             }),
             "[[C# notes]]"
         );
+    }
+
+    #[test]
+    fn meta_lines_are_written_plainly() {
+        assert_eq!(format_meta_line("transitive", None), "##transitive");
+        assert_eq!(
+            format_meta_line("values", Some("#type(a)")),
+            "##values(#type(a))"
+        );
+        assert_eq!(format_meta_line("due date", Some("x")), "##[[due date]](x)");
+    }
+
+    /// Found by fuzzing: a parameter can end in a backslash if a space came
+    /// before the `)`, and must be written with it.
+    #[test]
+    fn meta_parameter_ending_in_backslash() {
+        let read = crate::parse_meta_line(r"##k(a\ )");
+        assert_eq!(read, Some(("k".to_owned(), Some(r"a\".to_owned()))));
+        let written = format_meta_line("k", Some(r"a\"));
+        assert_eq!(crate::parse_meta_line(&written), read, "{written}");
     }
 
     /// Text that reads back alone can still pair with brackets after it:
