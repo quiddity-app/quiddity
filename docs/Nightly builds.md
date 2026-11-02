@@ -7,8 +7,13 @@
 	- Nothing for iOS yet.
 - Names and versions
 	- Artifacts are named for the day: `quiddity-2026-11-01-nightly-linux-x64`, `quiddity-node-2026-11-01-nightly-macos-arm64`, `quiddity-2026-11-01-nightly-android`.
-	- Inside the apps the version is `2026.11.1`. Tauri needs a semantic version, the Windows installers need numbers, and Android turns the version into its integer version code (major × 1,000,000 + minor × 1,000 + patch), which fits until 2099. `2026-11-01-nightly` is none of those.
+	- Inside the apps the version is `2026.11.1`. Tauri needs a semantic version, and Android turns it into its integer version code (major × 1,000,000 + minor × 1,000 + patch), which fits until 2099. `2026-11-01-nightly` is neither.
+	- The Windows `.msi` is `26.11.1` instead, because WiX stops the major and minor versions at 255. It is set as `bundle.windows.wix.version`, and still goes up day by day. The `-setup.exe` carries `2026.11.1`.
 	- It is passed to the build with `--config`, so `tauri.conf.json` still says `0.1.0`.
+- Getting them
+	- Open the run in the Actions tab; the artifacts are listed at the foot of its page. Downloading needs a GitHub login, even for a public repository, and each comes as a zip around the file.
+	- From a terminal, `gh run download <run id> --pattern 'quiddity-*'` fetches the apps, and `-n quiddity-2026-11-02-nightly-android` just the APK.
+	- Installing the APK: unzip it and `adb install quiddity-2026-11-02-nightly-android.apk` with USB debugging on, or open it on the phone after allowing installs from that app (the browser or file manager). Play Protect may complain that it doesn't know the signer.
 - Not signed
 	- macOS and Windows will warn about the installers, because nothing is signed or notarised.
 	- The Android APK is signed, because Android won't install an unsigned one. With the repository secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD` and `ANDROID_KEY_ALIAS` it uses that key, and each nightly installs over the last. Without them it signs with a key made for the run, and the previous nightly has to be uninstalled first.
@@ -24,5 +29,5 @@
 	- Planned, not built. The `ios` option of the workflow only checks that the shell compiles for `aarch64-apple-ios` and its simulator, which needs no signing.
 	- An IPA needs `tauri ios init` and `tauri ios build` on macOS with an Apple developer team (`APPLE_DEVELOPMENT_TEAM`) and certificates, none of which the repository has. Add them as secrets, then turn the stub into a build job.
 - Untested
-	- The workflow has not been run yet. The first run is the test: the likeliest trouble is the Windows arm64 installers and the Android signing step.
+	- The first run (2026-11-02) built everything but the Windows installers, which failed on the MSI version. That is fixed, but the fix has not been run yet. Nothing has been launched on a real device: a build that succeeds is not an app that works.
 	- Scheduled workflows only run from the default branch, and GitHub turns them off after 60 days without repository activity.
