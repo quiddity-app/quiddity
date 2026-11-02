@@ -9,6 +9,7 @@
 mod edit;
 mod fts;
 mod links;
+mod meta;
 mod query;
 mod search;
 
@@ -20,6 +21,7 @@ use quiddity_core::{BlockId, Graph, Index, Version};
 
 pub use edit::Merged;
 pub use fts::BlockHit;
+pub use meta::{INVERSE_LIMIT, Inherited, Inverse, InverseNode};
 pub use query::{
     Block, Connections, Edge, Entity, EntityRef, LinkTarget, Property, PropertyValue, Reference,
     ResolvedLink, Summary,

@@ -6,12 +6,13 @@ use jiff::Timestamp;
 use jiff::civil::Date;
 use quiddity_core::schema::{Typed, coerce};
 use quiddity_core::syntax::{
-    Link, Property as Prop, PropertyStyle, Value, format_link, is_properties_block, normalise_name,
-    parse_block,
+    Link, MetaProperty, Property as Prop, PropertyStyle, Value, format_link, is_properties_block,
+    normalise_name, parse_block,
 };
 use quiddity_core::{BlockId, Identity, Index, Resolution, ensure_journal};
 use serde::Serialize;
 
+use crate::meta::{Inherited, Inverse};
 use crate::{Error, Result, View};
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
@@ -83,6 +84,12 @@ pub struct Property {
     pub end: usize,
     /// The entity that defines the property, if there is one.
     pub definition: Option<String>,
+    /// A `##key(parameter)` line, whose parameter is its value as text.
+    pub meta: bool,
+    /// What doesn't fit the property's schema here, in words. Only the
+    /// properties an entity writes for itself, and its meta-properties, are
+    /// checked.
+    pub flags: Vec<String>,
 }
 
 /// A property's value, as written.
@@ -106,6 +113,27 @@ pub enum PropertyValue {
     },
 }
 
+/// Records where a link goes, under its [`link_key`].
+pub(crate) fn add_link(index: &Index, link: &Link, links: &mut BTreeMap<String, ResolvedLink>) {
+    let target = match index.resolve(link) {
+        Resolution::Unique(id) => LinkTarget::Entity {
+            id: index.canonical(id).to_string(),
+        },
+        Resolution::Ambiguous(ids) => LinkTarget::Ambiguous {
+            ids: ids.iter().map(ToString::to_string).collect(),
+        },
+        Resolution::Missing => LinkTarget::Missing,
+    };
+    links.insert(
+        link_key(link),
+        ResolvedLink {
+            name: link.name.clone(),
+            qualifiers: link_qualifiers(link),
+            target,
+        },
+    );
+}
+
 /// A link as written between its brackets: the key of [`Entity::links`].
 pub(crate) fn link_key(link: &Link) -> String {
     let written = format_link(link);
@@ -125,7 +153,7 @@ pub(crate) fn link_qualifiers(link: &Link) -> String {
     link_key(link)[link_key(&bare).len()..].to_owned()
 }
 
-fn property_value(value: &Value) -> PropertyValue {
+pub(crate) fn property_value(value: &Value) -> PropertyValue {
     match value {
         Value::Text(text) => PropertyValue::Text { text: text.clone() },
         Value::Link(link) => PropertyValue::Link {
@@ -154,6 +182,24 @@ fn property(text: &str, p: &Prop, index: &Index) -> Property {
         inline: p.style == PropertyStyle::Inline,
         start: utf16_at(text, p.span.start),
         end: utf16_at(text, p.span.end),
+        meta: false,
+        flags: Vec::new(),
+    }
+}
+
+fn meta_property(text: &str, m: &MetaProperty) -> Property {
+    Property {
+        definition: None,
+        key: m.key.clone(),
+        value: m
+            .parameter
+            .as_ref()
+            .map(|p| PropertyValue::Text { text: p.clone() }),
+        inline: false,
+        start: utf16_at(text, m.span.start),
+        end: utf16_at(text, m.span.end),
+        meta: true,
+        flags: Vec::new(),
     }
 }
 
@@ -188,10 +234,20 @@ pub struct Entity {
     /// their date or name.
     pub renamable: bool,
     pub blocks: Vec<Block>,
-    /// Every link in the entity's blocks, keyed by the text between the
-    /// brackets as the syntax crate writes it. Links written some other way
-    /// are not found here and render as unresolved.
+    /// Every link in the entity's blocks, and in its inherited values,
+    /// keyed by the text between the brackets as the syntax crate writes it.
+    /// Links written some other way are not found here and render as
+    /// unresolved.
     pub links: BTreeMap<String, ResolvedLink>,
+    /// Values it has from other entities, through a property with
+    /// `##inherits` or `##transitive`.
+    pub inherited: Vec<Inherited>,
+    /// For each inverse label that has any, the entities related to it the
+    /// other way round, as a tree.
+    pub inverses: Vec<Inverse>,
+    /// What doesn't fit a schema and has no chip of its own to show on, in
+    /// words.
+    pub flags: Vec<String>,
 }
 
 /// The blocks of one entity that mention another.
@@ -387,16 +443,28 @@ impl View {
             .into_iter()
             .map(|child| self.block(child, &mut links))
             .collect::<Result<_>>()?;
+        let mut blocks: Vec<Block> = blocks;
         let renamable = self
             .index()?
             .entity(id)
             .is_some_and(|e| e.identity().is_none());
+        let props_block = self.graph.properties_block(id)?.map(|b| b.to_string());
+        let chips = blocks
+            .first_mut()
+            .filter(|b| Some(&b.id) == props_block.as_ref())
+            .map(|b| &mut b.properties);
+        let flags = self.flag(id, chips)?;
+        let inherited = self.inherited(id, &mut links)?;
+        let inverses = self.inverses(id)?;
         Ok(Entity {
             id: id.to_string(),
             title: self.graph.entity_name(id)?,
             renamable,
             blocks,
             links,
+            inherited,
+            inverses,
+            flags,
         })
     }
 
@@ -404,32 +472,28 @@ impl View {
         let text = self.graph.text(id)?;
         let index = self.index()?;
         let parsed = parse_block(&text);
-        for link in parsed.links {
-            let key = link_key(&link);
-            let target = match index.resolve(&link) {
-                Resolution::Unique(id) => LinkTarget::Entity {
-                    id: index.canonical(id).to_string(),
-                },
-                Resolution::Ambiguous(ids) => LinkTarget::Ambiguous {
-                    ids: ids.iter().map(ToString::to_string).collect(),
-                },
-                Resolution::Missing => LinkTarget::Missing,
-            };
-            links.insert(
-                key,
-                ResolvedLink {
-                    name: link.name.clone(),
-                    qualifiers: link_qualifiers(&link),
-                    target,
-                },
-            );
+        for link in &parsed.links {
+            add_link(&index, link, links);
         }
-        let properties = parsed
+        let mut properties: Vec<Property> = parsed
             .properties
             .iter()
             .map(|p| property(&text, p, &index))
             .collect();
         drop(index);
+        if !parsed.meta.is_empty() {
+            let entity = self.graph.entity_of(id);
+            let here = self.graph.properties_block(entity)? == Some(id);
+            properties.extend(parsed.meta.iter().map(|m| {
+                let mut chip = meta_property(&text, m);
+                if !here {
+                    chip.flags
+                        .push("Has no effect outside a property's properties block".into());
+                }
+                chip
+            }));
+            properties.sort_by_key(|p| p.start);
+        }
         let children = self
             .graph
             .children(id)

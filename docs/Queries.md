@@ -1,6 +1,6 @@
 alias:: [query, query language]
 
-- A query picks out entities by their properties: `#type(person) & ~#archived`. The first use is in [[Meta-properties]], to say which entities a property's values may refer to and which may have it. Queries in search and in blocks of their own are for later. **Answered, but not used in the UI yet.**
+- A query picks out entities by their properties: `#type(person) & ~#archived`. The first use is in [[Meta-properties]], to say which entities a property's values may refer to and which may have it. Queries in search and in blocks of their own are for later. Queries can't yet be written anywhere but a meta-property.
 - At a glance
 	- | Written | Finds |
 	  |---|---|
