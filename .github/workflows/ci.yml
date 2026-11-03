@@ -127,6 +127,8 @@ jobs:
     - uses: $/.github/actions/setup
       with:
         tools: cargo-binstall rust cargo:cargo-nextest cargo:cargo-mutants
+        # The same test builds as the rust job's, so the same cache.
+        cache: rust
     - run: git diff "origin/${GITHUB_BASE_REF}..." > pr.diff
     - run: cargo mutants --in-place --in-diff pr.diff --timeout-multiplier 3
       env:
