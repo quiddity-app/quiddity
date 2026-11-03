@@ -4,6 +4,10 @@
 	- Entrypoints, favourites and recents on the left. Entrypoints are fixed: the journals, [[All entities]] and the [[Graph view]].
 	- The current entity in the middle. Opening another entity with a click replaces it; shift-click opens it at the side.
 	- Open secondaries on the right, each its own card.
+- Back and forward
+	- Alt-Left and Alt-Right, or Cmd/Ctrl-`[` and Cmd/Ctrl-`]`, step back and forward through what the main pane has shown. All four work wherever the focus is, including in an editor.
+	- Only the main pane moves. The side panel stays as it is, and opening, closing or reordering its cards is never a step.
+	- The app keeps this history itself (`lib/history.ts`) rather than using the webview's, which would replay the side panel too, since it is in the URL. Going somewhere new forgets what was forward, as in a browser. The history is in memory, so a reload starts it afresh.
 - The UI holds its own replica of the graph.
 	- The core is compiled to WASM (`crates/wasm`, over `crates/view`) and loaded from a snapshot at startup. Every query is answered locally and every edit applies locally, so nothing typed waits on IPC. [[Editing]]
 	- The shell is sent the updates a moment later, 300 ms after the last edit.
