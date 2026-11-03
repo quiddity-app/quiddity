@@ -125,7 +125,9 @@ async fn allow_device(state: Shared<'_>, device: String) -> Result<(), Error> {
 /// Puts the session on the network, and keeps it saved as other devices
 /// change it. `QUIDDITY_NO_SYNC` leaves it off, and `QUIDDITY_LOCAL` (an
 /// address) keeps it to that address, with no relays or lookup: for trying
-/// it between two devices on a network, or on one machine.
+/// it between two devices on a network, or on one machine. With no lookup a
+/// device can only be dialled where it is told to be: `QUIDDITY_PEERS` is
+/// `ID=ADDRESS`, comma separated.
 fn start_network(session: &Session) {
     if std::env::var_os("QUIDDITY_NO_SYNC").is_some() {
         return;
@@ -133,10 +135,18 @@ fn start_network(session: &Session) {
     let local = std::env::var("QUIDDITY_LOCAL")
         .ok()
         .and_then(|address| address.parse().ok());
+    // Where some devices are, for where there is no lookup to find them.
+    let known = match std::env::var("QUIDDITY_PEERS") {
+        Ok(text) => quiddity_node::known_addresses(&text).unwrap_or_else(|e| {
+            eprintln!("quiddity: ignoring QUIDDITY_PEERS: {e}");
+            Default::default()
+        }),
+        Err(_) => Default::default(),
+    };
     let (peer, store) = (session.peer().clone(), session.store().clone());
     tauri::async_runtime::spawn(async move {
         let started = match store.key() {
-            Ok(key) => quiddity_node::serve(&peer, key, local)
+            Ok(key) => quiddity_node::serve_at(&peer, key, local, known)
                 .await
                 .map_err(|e| e.to_string()),
             Err(e) => Err(e.to_string()),

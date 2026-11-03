@@ -1,6 +1,6 @@
 //! Peers syncing over real iroh connections on localhost.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -863,4 +863,49 @@ async fn the_sync_state_follows_connections_typing_and_presence() {
     becomes(&phone, SyncState::Offline).await;
 
     shut_down(routers, task).await;
+}
+
+/// Where there is no lookup (local), a listed device is dialled at the address
+/// it is known at, and not otherwise.
+#[tokio::test]
+async fn serve_at_dials_listed_devices_where_they_are_known() {
+    let home_key = iroh::SecretKey::generate();
+    let home = Peer::new(Graph::new(), Allowed::Any, home_key.public().to_string());
+    edit(&home, "at home");
+    let (guest_key, local) = (
+        iroh::SecretKey::generate(),
+        Some(SocketAddr::from((Ipv4Addr::LOCALHOST, 0))),
+    );
+    let guest = Peer::new(
+        Graph::blank(),
+        Allowed::Only(HashSet::from([home_key.public()])),
+        guest_key.public().to_string(),
+    );
+    let (guest_endpoint, guest_addr) = bind(&guest_key).await;
+    let guest_router = Router::builder(guest_endpoint)
+        .accept(ALPN, guest.clone())
+        .spawn();
+    home.allow(&guest_key.public().to_string()).unwrap();
+    home.set_redial(Duration::from_millis(50), Duration::from_millis(200));
+
+    // Told nothing, a local peer dials nobody.
+    let lone = quiddity_node::serve(&home, home_key.clone(), local)
+        .await
+        .unwrap();
+    tokio::time::sleep(SETTLE).await;
+    assert!(guest.graph().roots().is_empty());
+    lone.shutdown().await.unwrap();
+
+    // Told where the guest is, it does.
+    let known = HashMap::from([(
+        guest_key.public(),
+        guest_addr.ip_addrs().next().copied().unwrap(),
+    )]);
+    let served = quiddity_node::serve_at(&home, home_key, local, known)
+        .await
+        .unwrap();
+    converged(&[&home, &guest]).await;
+
+    served.shutdown().await.unwrap();
+    guest_router.shutdown().await.unwrap();
 }

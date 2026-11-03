@@ -50,6 +50,11 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
   for ever. It is *this device lacks something a peer has*, or *typing is held
   back*. `subscribe_status` is bumped when a link comes or goes, a peer's
   version moves, presence changes, and typing is held or sent.
+- **`serve_at` is `serve` told where some devices are** (`known_addresses`
+  reads `ID=ADDRESS,…`). With `local` there is no lookup, so a device can only
+  be dialled where it is told; with any known address the listed devices are
+  dialled even in local mode. The app's `QUIDDITY_PEERS` feeds it. It is how
+  two instances on one machine find each other.
 - **A device behind its peer's history** gets `Error::Behind`. The side
   that finds its peer behind closes with code `BEHIND`, so the other can say
   why even if the close arrives before the peer's hello is read.
