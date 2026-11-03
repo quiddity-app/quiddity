@@ -1,4 +1,4 @@
-import init, { Replica } from "./wasm/quiddity_wasm";
+import init, { Replica, mergeVersions } from "./wasm/quiddity_wasm";
 import type {
   BlockHit,
   Connections,
@@ -179,9 +179,26 @@ export class Graph {
    * Views are told at once, as for any change that isn't typing. They are not
    * pushed back: the shell has them. */
   receive(updates: Uint8Array) {
-    this.replica.import(updates);
+    const brought = this.replica.import(updates);
+    // The shell has these: sending from before them would send them back,
+    // and a replica that joined a compacted graph has no history to send.
+    this.pushed = mergeVersions(this.pushed, brought);
+    this.begin();
     this.cache.clear();
     this.notify();
+  }
+
+  private begun = false;
+
+  /** Makes today's page, once there is a graph to make it in. A replica that
+   * has joined nothing stays untouched: an edit there would rest on history the
+   * graph it joins won't have. Making the page isn't the user's doing, so it
+   * isn't theirs to undo. */
+  begin() {
+    if (this.begun || this.replica.isBlank()) return;
+    this.begun = true;
+    this.ensureToday();
+    this.replica.clearUndo();
   }
 
   /** Records an edit. Typing notifies after a pause, so a view of the block
@@ -368,9 +385,7 @@ export function bootGraph(): Promise<Graph> {
     backend
       .subscribeStatus?.((status) => graph.setStatus(status))
       .catch((error) => console.error("Couldn't listen for the sync status", error));
-    graph.ensureToday();
-    // Making today's page isn't the user's doing, so it isn't theirs to undo.
-    graph.clearUndo();
+    graph.begin();
     const save = () => void graph.flush();
     window.addEventListener("pagehide", save);
     document.addEventListener("visibilitychange", () => document.hidden && save());

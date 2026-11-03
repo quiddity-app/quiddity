@@ -82,6 +82,13 @@ impl View {
         })
     }
 
+    /// Whether the graph has no history at all: a replica that has not yet
+    /// joined a graph. Nothing should be made in one, since an edit there
+    /// rests on history the graph it joins won't have.
+    pub fn is_blank(&self) -> bool {
+        self.graph.version() == quiddity_core::Version::default()
+    }
+
     /// The graph, for syncing. Edits made to it directly must be followed by
     /// [`View::changed`].
     pub fn graph(&self) -> &Graph {

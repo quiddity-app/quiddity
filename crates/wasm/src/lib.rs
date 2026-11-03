@@ -31,6 +31,14 @@ pub struct Replica {
     view: View,
 }
 
+/// The version that has everything either has seen.
+#[wasm_bindgen(js_name = mergeVersions)]
+pub fn merge_versions(a: &[u8], b: &[u8]) -> Result<Vec<u8>, JsError> {
+    let mut a = Version::decode(a).map_err(Error::from)?;
+    a.merge(&Version::decode(b).map_err(Error::from)?);
+    Ok(a.encode())
+}
+
 #[wasm_bindgen]
 impl Replica {
     /// A replica of the graph in `snapshot`.
@@ -48,6 +56,22 @@ impl Replica {
         let view = View::new(Graph::new())?;
         view.graph().enable_undo();
         Ok(Self { view })
+    }
+
+    /// A replica that has joined no graph: nothing is in it, and nothing
+    /// should be made in it until something is. For trying the app's start
+    /// before it has joined another device, outside the app.
+    pub fn blank() -> Result<Replica, JsError> {
+        console_error_panic_hook::set_once();
+        let view = View::new(Graph::blank())?;
+        view.graph().enable_undo();
+        Ok(Self { view })
+    }
+
+    /// Whether this replica has joined no graph yet.
+    #[wasm_bindgen(js_name = isBlank)]
+    pub fn is_blank(&self) -> bool {
+        self.view.is_blank()
     }
 
     /// The whole graph, to start another replica from.
@@ -74,12 +98,16 @@ impl Replica {
             .map_err(Error::from)?)
     }
 
-    /// Applies updates or a snapshot from another replica.
+    /// Applies updates or a snapshot from another replica, and says what they
+    /// brought (a version), so a caller that must not send them back knows
+    /// where to send from.
     #[wasm_bindgen(js_name = import)]
-    pub fn import(&self, bytes: &[u8]) -> Result<(), JsError> {
+    pub fn import(&self, bytes: &[u8]) -> Result<Vec<u8>, JsError> {
         self.view.graph().import(bytes).map_err(Error::from)?;
         self.view.changed();
-        Ok(())
+        Ok(Graph::version_of_updates(bytes)
+            .map_err(Error::from)?
+            .encode())
     }
 
     pub fn entities(&self) -> Result<JsValue, JsError> {
@@ -314,6 +342,29 @@ mod tests {
         let made = replica.commit_block(&id, "").unwrap();
         assert_eq!(made.len(), 1);
         assert_ne!(made[0], followed);
+    }
+
+    /// A replica that joined a compacted graph can't send its whole history:
+    /// it has to send from what it was given.
+    #[test]
+    fn what_was_imported_is_where_sending_starts() {
+        let source = Graph::new();
+        let page = source.create_entity("Page", &[]).unwrap();
+        let block = source.create_block(Some(page), None, "hi").unwrap();
+        source.commit();
+        let at = source.version();
+        source.create_block(Some(page), None, "later").unwrap();
+        let compacted = Graph::from_snapshot(&source.shallow_snapshot(&at).unwrap()).unwrap();
+
+        let replica = Replica::blank().unwrap();
+        let given = replica.import(&compacted.snapshot().unwrap()).unwrap();
+        replica.splice_text(&block.to_string(), 2, 0, "!").unwrap();
+        // (Not through `export_updates`: its error is a JavaScript one.)
+        let all = replica.view.graph().updates_since(&Version::default());
+        assert!(all.is_err(), "history was dropped");
+        let updates = replica.export_updates(Some(given)).unwrap();
+        compacted.import(&updates).unwrap();
+        assert_eq!(compacted.text(block).unwrap(), "hi!");
     }
 
     #[test]

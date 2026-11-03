@@ -19,7 +19,10 @@ the current entity in the middle, open secondaries on the right.
 - **Backends** (`backend-tauri.ts`, `backend-memory.ts`) are chosen at runtime.
   A backend may `subscribe` to what other devices change: the shell sends it
   on a channel and `Graph.receive` imports it and tells views at once, without
-  pushing it back. The memory backend plays another device through
+  pushing it back: `Replica.import` says what it brought, and `receive` moves
+  the pushed version past it. A replica that joined a compacted graph has no
+  history to send, so sending from before what it was given would fail for
+  ever. The memory backend plays another device through
   `window.__quiddityRemote`, for `e2e/remote.spec.ts`, and keeps what the
   shell would have been told (the block being edited, and what each push was
   typed in) for `e2e/focus.spec.ts`. **`Graph.focus`/`blur` report the block
@@ -66,6 +69,14 @@ the published site, which can't say, shows none. The memory backend says
 `window.__quiddityRemote.setStatus`, for `e2e/sync-status.spec.ts`. **Each
 state has a label, which is its accessible name, and a colour**; the tests
 check both, and that the colours differ.
+
+## Joining
+
+**A replica with no history is left alone** (`Replica.isBlank`): `Graph.begin()`
+makes today's page, and forgets that edit for undo, only once there is a graph,
+on load or when the first updates arrive. An edit made in a blank replica
+rests on history the graph it joins cannot have, and a compacted device then
+refuses it. The memory backend plays such a device with `?blank`.
 
 ## Routing and boundaries
 

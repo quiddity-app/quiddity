@@ -105,7 +105,10 @@ interface Remote {
 
 export const memoryBackend: Backend = {
   async load() {
-    started = seeded().snapshot();
+    // `?blank` is a device that has joined nothing yet.
+    started = new URLSearchParams(window.location.search).has("blank")
+      ? Replica.blank().snapshot()
+      : seeded().snapshot();
     return started;
   },
   // Nothing outlives the page: this is for looking at the UI. What the
@@ -134,12 +137,16 @@ export const memoryBackend: Backend = {
     onStatus("alone");
   },
   async subscribe(onUpdates) {
-    const other = new Replica(started!);
+    // A blank page's other device is the one with the graph, which it sends
+    // whole with the first thing it makes.
+    const blank = Replica.blank().snapshot().length === started!.length;
+    const other = blank ? seeded() : new Replica(started!);
+    let before = blank ? undefined : other.version();
     Object.assign(remote(), {
       createEntity(name: string) {
-        const before = other.version();
         other.createEntity(name);
-        onUpdates(other.exportUpdates(before));
+        onUpdates(before ? other.exportUpdates(before) : other.snapshot());
+        before = other.version();
       },
     });
   },

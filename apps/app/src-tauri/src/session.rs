@@ -106,7 +106,13 @@ impl Session {
         if ui.includes(&now) {
             return Ok(None);
         }
-        let updates = graph.updates_since(&ui)?;
+        // A graph that has been compacted past what the UI has can't update
+        // it, and the UI is blank then: it is given the graph whole.
+        let updates = if graph.can_update(&ui) {
+            graph.updates_since(&ui)?
+        } else {
+            graph.snapshot()?
+        };
         ui.merge(&now);
         Ok(Some(updates))
     }
@@ -426,6 +432,35 @@ mod tests {
         assert_eq!(ui.entity_name(page).unwrap(), "From another device");
         assert_eq!(ui.version(), session.peer().graph().version());
         assert_eq!(session.ui_updates().unwrap(), None, "and only once");
+    }
+
+    /// A device that joins a compacted graph holds it from a snapshot, which
+    /// the UI, still blank, must be given whole: updates from nothing would
+    /// never apply.
+    #[test]
+    fn a_blank_ui_is_given_a_compacted_graph_whole() {
+        let dir = tempfile::tempdir().unwrap();
+        Store::new(dir.path()).init(true).unwrap();
+        let session = Session::open(dir.path()).unwrap();
+        let ui = ui_replica(&session);
+        assert_eq!(ui.version(), Version::default());
+
+        let source = Graph::new();
+        source.create_block(None, None, "before").unwrap();
+        source.commit();
+        let at = source.version();
+        source.create_block(None, None, "after").unwrap();
+        source.commit();
+        let compacted = Graph::from_snapshot(&source.shallow_snapshot(&at).unwrap()).unwrap();
+        session
+            .peer()
+            .graph()
+            .import(&compacted.snapshot().unwrap())
+            .unwrap();
+
+        ui.import(&session.ui_updates().unwrap().unwrap()).unwrap();
+        assert_eq!(ui.version(), session.peer().graph().version());
+        assert_eq!(session.ui_updates().unwrap(), None);
     }
 
     /// What the UI pushed is not sent back to it. Saving records the device

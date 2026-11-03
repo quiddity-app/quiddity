@@ -6,7 +6,7 @@
 	- `quiddity-node allow <id>`, or `Peer::allow`, lists the device. The entry syncs like any edit.
 	- A device that has never met the new one lets it connect once it has the list, so a third device can join through whichever device it can reach.
 	- The entry records nothing stored for the device, which also stops anyone compacting past what it might lack until it has synced and recorded itself.
-	- A blank replica cannot authorise anyone, because an edit with nothing beneath it could not be applied by a compacted device. It has to join first.
+	- A blank replica cannot authorise anyone, because an edit with nothing beneath it could not be applied by a compacted device. It has to join first, and the UI makes nothing in one (not even today's journal) until a graph has arrived.
 - The first device is let in some other way.
 	- `serve --allow <id>` admits a device that nothing lists yet. A device that connects is listed, so one flag is enough to start.
 	- `serve` needs no `--allow` once the graph lists a device other than this one.

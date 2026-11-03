@@ -767,6 +767,31 @@ async fn a_trusted_device_may_connect_and_is_listed_by_it() {
     guest_router.shutdown().await.unwrap();
 }
 
+/// A graph that arrives whole, as a snapshot to a blank device, is a change
+/// like any other: it has to be saved and shown.
+#[tokio::test]
+async fn a_snapshot_is_a_change() {
+    let source = Graph::new();
+    source.create_block(None, None, "before").unwrap();
+    source.commit();
+    let at = source.version();
+    source.create_block(None, None, "after").unwrap();
+    source.commit();
+    let compacted = Graph::from_snapshot(&source.shallow_snapshot(&at).unwrap()).unwrap();
+
+    let (home, home_router, _) = member(compacted).await;
+    let (guest, guest_router, guest_addr) = member(Graph::blank()).await;
+    guest.trust(home_router.endpoint().id());
+    let changes = guest.subscribe();
+
+    dial(&home, &home_router, &guest_addr).await.unwrap();
+    assert_eq!(guest.graph().version(), home.graph().version());
+    assert!(changes.has_changed().unwrap(), "nothing was told of it");
+
+    home_router.shutdown().await.unwrap();
+    guest_router.shutdown().await.unwrap();
+}
+
 /// `serve` puts a peer on the network: others can reach it by the address of
 /// its endpoint, and shutting it down closes the endpoint.
 #[tokio::test]
