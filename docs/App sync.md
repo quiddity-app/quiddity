@@ -21,6 +21,7 @@
 - Settings, as environment variables
 	- `QUIDDITY_NO_SYNC` leaves the network off.
 	- `QUIDDITY_LOCAL` is an address to listen on and nothing else, with no relays or lookup, for two devices on a network or one machine.
+	- `QUIDDITY_PEERS` says where devices are, as `ID=ADDRESS` separated by commas. With no lookup a device can only be dialled where it is told to be, so this is what lets two instances on one machine find each other.
 - Things worth knowing
 	- Saving and sync do not wait for each other. The shell saves when the UI pushes and again a moment after any change, whoever made it.
 	- The UI replica starts a new Loro peer ID each session, so each launch adds an entry to the graph's version. A stable ID per device would avoid that, and must differ from the shell's own.

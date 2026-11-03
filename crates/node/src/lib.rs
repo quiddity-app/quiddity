@@ -15,7 +15,7 @@
 pub mod blobs;
 pub mod store;
 
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -859,14 +859,57 @@ pub async fn serve(
     key: SecretKey,
     local: Option<SocketAddr>,
 ) -> Result<Server, NetError> {
+    serve_at(peer, key, local, HashMap::new()).await
+}
+
+/// [`serve`], told where some devices are. Where there is no address lookup
+/// (`local`) that is the only way to dial one, so with any `known` the
+/// listed devices are dialled even then; the rest, if there is a lookup,
+/// are found from their IDs as usual.
+pub async fn serve_at(
+    peer: &Peer,
+    key: SecretKey,
+    local: Option<SocketAddr>,
+    known: HashMap<EndpointId, SocketAddr>,
+) -> Result<Server, NetError> {
     let router = Router::builder(bind(key, local).await?)
         .accept(ALPN, peer.clone())
         .spawn();
-    let dialler = local.is_none().then(|| {
+    let dialler = (local.is_none() || !known.is_empty()).then(|| {
         let (peer, endpoint) = (peer.clone(), router.endpoint().clone());
-        tokio::spawn(async move { peer.dial_listed(&endpoint, EndpointAddr::new).await })
+        tokio::spawn(async move {
+            peer.dial_listed(&endpoint, move |id| {
+                let addr = EndpointAddr::new(id);
+                match known.get(&id) {
+                    Some(at) => addr.with_ip_addr(*at),
+                    None => addr,
+                }
+            })
+            .await;
+        })
     });
     Ok(Server { router, dialler })
+}
+
+/// Reads where devices are, written `ID=ADDRESS` and separated by commas,
+/// such as `3f2a…=127.0.0.1:7701,9c1d…=192.168.1.20:7701`.
+pub fn known_addresses(text: &str) -> Result<HashMap<EndpointId, SocketAddr>, String> {
+    let mut known = HashMap::new();
+    for entry in text.split(',').map(str::trim).filter(|e| !e.is_empty()) {
+        let (id, at) = entry
+            .split_once('=')
+            .ok_or_else(|| format!("{entry:?} is not ID=ADDRESS"))?;
+        let id: EndpointId = id
+            .trim()
+            .parse()
+            .map_err(|_| format!("{id:?} is not a device ID"))?;
+        let at: SocketAddr = at
+            .trim()
+            .parse()
+            .map_err(|_| format!("{at:?} is not an address"))?;
+        known.insert(id, at);
+    }
+    Ok(known)
 }
 
 /// Saves the graph shortly after it changes, batching bursts of changes.
@@ -912,6 +955,34 @@ mod tests {
     use std::sync::atomic::{AtomicBool, Ordering};
 
     use super::*;
+
+    #[test]
+    fn known_addresses_are_read_from_id_equals_address() {
+        let one = SecretKey::generate().public();
+        let two = SecretKey::generate().public();
+        let known = known_addresses(&format!(" {one}=127.0.0.1:7701 , {two}=[::1]:9 ,")).unwrap();
+        assert_eq!(known.len(), 2);
+        assert_eq!(known[&one], "127.0.0.1:7701".parse().unwrap());
+        assert_eq!(known[&two], "[::1]:9".parse().unwrap());
+        assert!(known_addresses("").unwrap().is_empty());
+
+        // Each way it can be wrong says which part.
+        assert!(
+            known_addresses("127.0.0.1:7701")
+                .unwrap_err()
+                .contains("ID=ADDRESS")
+        );
+        assert!(
+            known_addresses("nobody=127.0.0.1:1")
+                .unwrap_err()
+                .contains("device ID")
+        );
+        assert!(
+            known_addresses(&format!("{one}=here"))
+                .unwrap_err()
+                .contains("address")
+        );
+    }
 
     /// A version `graph` has, and the other doesn't.
     fn version_of(text: &str) -> Version {
