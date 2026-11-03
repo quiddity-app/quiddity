@@ -1721,3 +1721,14 @@ fn devices_are_listed_most_recently_seen_first() {
         "newest first, ties by ID"
     );
 }
+
+#[test]
+fn a_replica_that_has_joined_nothing_is_blank() {
+    let blank = View::new(Graph::blank()).unwrap();
+    assert!(blank.is_blank());
+    // Anything in it, from a new graph or from another device, is not.
+    assert!(!view_with(|_| {}).is_blank());
+    let source = Graph::new();
+    blank.graph().import(&source.snapshot().unwrap()).unwrap();
+    assert!(!blank.is_blank());
+}

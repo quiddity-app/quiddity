@@ -668,7 +668,7 @@ impl Peer {
                             }
                             continue;
                         }
-                        let is_updates = matches!(message, Message::Updates(_));
+                        let carries_graph = matches!(message, Message::Updates(_) | Message::Snapshot(_));
                         for reply in session.receive(graph, message, Timestamp::now())? {
                             write(&mut send, &reply).await?;
                         }
@@ -688,7 +688,7 @@ impl Peer {
                         if link.device.is_some() {
                             self.note_sync(link.id, &session);
                         }
-                        if is_updates {
+                        if carries_graph {
                             self.changed();
                         }
                     }

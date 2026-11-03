@@ -3,7 +3,7 @@
 	- [[The UI]] holds its own, in WASM, so typing never waits on IPC. The shell holds the other, which is the device as the network sees it.
 	- The UI pushes its edits to the shell a few hundred milliseconds after typing stops. The shell imports them, saves, and sends them on to connected devices.
 - Changes from other devices reach the UI as they happen.
-	- The shell remembers what the UI is known to have: the snapshot it started from, what it has pushed and what it has been sent. Whatever the graph has beyond that is sent as one update, on a channel as raw bytes, whenever the graph changes.
+	- The shell remembers what the UI is known to have: the snapshot it started from, what it has pushed and what it has been sent. Whatever the graph has beyond that is sent as one update, on a channel as raw bytes, whenever the graph changes. A graph compacted past what the UI has (a device that has just joined one) can't be sent as an update, so the UI is given it whole, as a snapshot.
 	- The UI imports it and tells its views at once, as for any change that is not typing. It does not push it back, since the shell has it.
 	- Saving records the device in the graph, so a push is followed by a small update that is only that record. It does no harm, but it is wasteful, and a record that is only made when something changed would stop it.
 - The UI tells the shell which block is open, and which blocks a push was typed in.

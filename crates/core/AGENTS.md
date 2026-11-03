@@ -33,6 +33,9 @@ gives a replica that:
   snapshot**, silently. So `from_snapshot` of a blank graph imports nothing,
   and `import` checks that what it imported shows in the version
   (`Error::NotApplied` if not), so nothing goes missing without a word.
+  **Exporting a snapshot counts too**, so `snapshot` of a blank replica is
+  exported from a throwaway document: the shell snapshots its graph for the UI
+  before anything has synced.
 
 `compaction_point` applies that rule using the device list
 (`devices.rs`), which holds what each device has stored. It only works if

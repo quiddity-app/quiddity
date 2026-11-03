@@ -199,6 +199,12 @@ impl Graph {
 
     /// Exports the whole graph, history included.
     pub fn snapshot(&self) -> Result<Vec<u8>> {
+        // Exporting a snapshot spoils a blank document: afterwards it ignores
+        // a compacted snapshot, which is how a blank replica joins one. So a
+        // blank replica's is exported from a document of no consequence.
+        if self.version() == Version::default() {
+            return Ok(LoroDoc::new().export(ExportMode::Snapshot)?);
+        }
         Ok(self.doc.export(ExportMode::Snapshot)?)
     }
 
@@ -716,6 +722,28 @@ mod tests {
             assert!(within(graph.created_at(page)));
             assert!(within(graph.created_at(b)));
             assert!(within(graph.placed_at(b)), "a move is stamped");
+            Ok(())
+        }
+
+        /// The shell hands its snapshot to the UI before anything has been
+        /// synced; that must not stop the replica joining a compacted graph.
+        #[test]
+        fn a_blank_replica_can_be_snapshotted_and_still_join_a_compacted_graph() -> Result<()> {
+            let source = Graph::new();
+            source.create_block(None, None, "a")?;
+            source.commit();
+            let at = source.version();
+            source.create_block(None, None, "b")?;
+            source.commit();
+            let compacted = Graph::from_snapshot(&source.shallow_snapshot(&at)?)?;
+
+            let blank = Graph::blank();
+            assert_eq!(
+                Graph::version_of_updates(&blank.snapshot()?)?,
+                Version::default()
+            );
+            blank.import(&compacted.snapshot()?)?;
+            assert_eq!(blank.version(), compacted.version());
             Ok(())
         }
 
