@@ -7,6 +7,7 @@ import "@fontsource/ibm-plex-sans/latin-600.css";
 import "./globals.css";
 import { Skeleton } from "@/components/boundary";
 import { ClientOnly } from "@/components/client-only";
+import { HistoryKeys } from "@/components/history-keys";
 import { LeftSidebar } from "@/components/left-sidebar";
 import { RightPane } from "@/components/right-pane";
 import { Search } from "@/components/search";
@@ -31,6 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ClientOnly>
           <Suspense fallback={null}>
             <UndoKeys />
+            <HistoryKeys />
           </Suspense>
         </ClientOnly>
         <Shell
