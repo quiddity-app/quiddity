@@ -7,6 +7,7 @@ import { useRead } from "@/lib/use-graph";
 import { Region, Skeleton } from "./boundary";
 import { EditableTitle } from "./entity-title";
 import { EntityBody } from "./entity-view";
+import { EntityFlags, MetaSections } from "./meta-sections";
 import { References } from "./references";
 
 function Visit({ id }: { id: EntityId }) {
@@ -39,7 +40,9 @@ export function MainEntity({ id }: { id: EntityId }) {
         <h1 className="mb-4 text-2xl font-semibold">
           <EditableTitle id={id} />
         </h1>
+        <EntityFlags id={id} />
         <EntityBody id={id} />
+        <MetaSections id={id} />
       </Region>
       <References id={id} />
     </article>

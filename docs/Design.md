@@ -34,6 +34,5 @@
 	- Migrations by version lenses. [[Versioning]]
 	- Pairing by QR code, and revoking a device. [[Device list]]
 	- A disambiguation page for links that match several entities, and an offer to merge entities with the same name. [[Links]] [[Duplicates]]
-	- Showing [[Meta-properties]] in the UI: inverse lists, inherited values and flags. Their meaning, and the [[Queries]] they are written in, are built.
 	- Editing aids driven by the schema, such as a date picker and autocomplete for references, which write Markdown into the text. [[Properties]]
-	- Mobile builds, cursors in [[Presence]], queries over properties, table and board views by type, and a plugin API.
+	- Mobile builds, cursors in [[Presence]], [[Queries]] anywhere but meta-properties, table and board views by type, and a plugin API.

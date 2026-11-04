@@ -78,7 +78,7 @@ function NewEntityLink({
   );
 }
 
-function Value({
+export function Value({
   value,
   links,
 }: {
@@ -142,7 +142,13 @@ function PropertyKey({
   );
 }
 
-/** A property, as a pill: the key, then its value if it has one. */
+const flaggedChip = "ring-1 ring-amber-500 dark:ring-amber-400";
+
+/**
+ * A property, as a pill: the key, then its value if it has one. A
+ * meta-property shows `##key` and its parameter as written. A chip whose
+ * property doesn't fit its schema is ringed, and says why on hover.
+ */
 export function PropertyChip({
   property,
   links,
@@ -150,9 +156,19 @@ export function PropertyChip({
   property: Property;
   links: Record<string, ResolvedLink>;
 }) {
+  const flagged = property.flags.length > 0;
   return (
-    <span className="inline-flex items-baseline gap-1 rounded-full bg-slate-200 px-2 py-0.5 text-xs leading-5 dark:bg-slate-700">
-      {property.value === null ? (
+    <span
+      className={`inline-flex items-baseline gap-1 rounded-full bg-slate-200 px-2 py-0.5 text-xs leading-5 dark:bg-slate-700 ${flagged ? flaggedChip : ""}`}
+      title={flagged ? property.flags.join("\n") : undefined}
+      data-flagged={flagged || undefined}
+    >
+      {property.meta ? (
+        <>
+          <span className="text-slate-500 dark:text-slate-400">##{property.key}</span>
+          {property.value?.kind === "text" && <code>{property.value.text}</code>}
+        </>
+      ) : property.value === null ? (
         <PropertyKey property={property} className="">
           #{property.key}
         </PropertyKey>
