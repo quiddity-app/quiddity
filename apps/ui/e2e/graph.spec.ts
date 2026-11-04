@@ -211,3 +211,37 @@ test("Alt-click looks closer at a node and its neighbours, without opening it", 
   expect(await inView(page, "iroh")).toBe(true);
   expect(page.url()).toBe(url);
 });
+
+test("labels are dropped as the graph is zoomed out, and come back when it is zoomed in", async ({ page }) => {
+  await page.goto("/");
+  await openGraph(page);
+  await settled(page);
+  const labels = async () => Number(await canvas(page).getAttribute("data-labels"));
+  const box = (await canvas(page).boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+
+  const framed = await labels();
+  for (let i = 0; i < 12; i++) await page.mouse.wheel(0, 400);
+  await expect.poll(labels).toBeLessThan(framed);
+
+  for (let i = 0; i < 40; i++) await page.mouse.wheel(0, -400);
+  await expect.poll(labels).toBeGreaterThanOrEqual(framed);
+});
+
+test.describe("on a dense display", () => {
+  test.use({ deviceScaleFactor: 2 });
+
+  test("the canvas has twice the pixels, but the view is in CSS pixels", async ({ page }) => {
+    await page.goto("/");
+    await openGraph(page);
+    await settled(page);
+    const size = await canvas(page).evaluate((c: HTMLCanvasElement) => ({
+      backing: c.width,
+      css: c.getBoundingClientRect().width,
+    }));
+    expect(size.backing).toBe(Math.round(size.css * 2));
+    // Framing uses the CSS size, so the graph fits the same as on any display.
+    const { x } = await view(page);
+    expect(x).toBeLessThan(size.css);
+  });
+});

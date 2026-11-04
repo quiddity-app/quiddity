@@ -118,7 +118,16 @@ calls `draw()` once on mount and `update(data)` when the graph changes.**
   they are; anything that changes them asks `repaint()`, which coalesces to one
   paint per animation frame and does nothing while the page is hidden. Colours
   are the Tailwind ones, written out, and follow `prefers-color-scheme`. The
-  backing store is scaled by `devicePixelRatio`.
+  backing store is scaled by `devicePixelRatio`, and **everything is sized in
+  CSS pixels**: the canvas transform is `ratio·k`, so a retina display gets
+  sharper output, not bigger nodes. The ratio is re-read when the canvas
+  resizes and when a `(resolution: …dppx)` query stops matching (moving
+  between screens, browser zoom).
+- **Sizes live in `lib/graph-style.ts`.** Node radii are in graph space and
+  scale with the zoom (`max(3, 3·ln(degree+1))`); **text and line widths are
+  held at a size on screen** by dividing the zoom out (`1 / view.k`), so a
+  label is 10px whatever the zoom. Don't put a font size or line width in
+  graph units.
 - **Hit-testing is ours** (`nodeAt`): the nearest node within its radius, in
   the canvas's pixels. The zoom's `filter` refuses a press on a node so the
   drag gets it, `d3-drag`'s `subject` is `nodeAt`, and hover, click, Alt-click
@@ -160,8 +169,9 @@ calls `draw()` once on mount and `update(data)` when the graph changes.**
   Alt-click frames a node and its neighbours instead of opening it. The animation is
   `d3-transition`, imported for its effect on selections (it works on a canvas
   selection as on any other); a pan or zoom by the person interrupts it.
-- Labels are not drawn when a node's radius on screen is under `LABEL_RADIUS`,
-  except for the node hovered or focused.
+- Labels are not drawn when a node is under `LABEL_DIAMETER` (5px) across
+  on screen, except for the node hovered or focused. The canvas carries
+  `data-labels`, how many the last paint drew, for tests.
 
 ## Search
 

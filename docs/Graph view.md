@@ -13,13 +13,16 @@
 	- The first time, with no remembered view, the graph is framed once it has settled, until you pan or zoom. It frames the largest connected group, so loose entities do not shrink it to a speck.
 	- Reset view, or a double-click on the background, frames it again.
 	- Alt-click on a node zooms to it and its neighbours, rather than opening it. A plain click has to open the entity, so a double-click on a node cannot be used.
+- Sizes
+	- Nodes are sized by how many links they have, from a floor of 3 up, and grow and shrink as you zoom. Names and line widths stay the same size on screen at any zoom, so a name is always readable or absent, never tiny.
+	- Everything is measured in CSS pixels. A high-density display (a retina screen) draws the same picture with more detail, not a bigger one, and the canvas follows the display if the window moves to another or the page is zoomed.
 - Where things are is remembered.
 	- Positions and the pan and zoom are kept in memory, so leaving the graph and coming back finds it as it was, and in localStorage, so restarting does too.
 	- An entity with no remembered position starts beside one it links to. Entities that already have a place are held still while new ones settle, and let go afterwards, so what was there does not move. With nothing new the layout does not run at all.
 	- Positions of entities that have gone are dropped when next saved.
 - Things worth knowing
 	- Setting the initial zoom ends a zoom, which used to save an empty layout over the remembered one before it could be restored. Nothing is saved before the first nodes are drawn.
-	- Every entity is drawn, journals included. Labels are hidden for small nodes when zoomed out, and always shown for the one hovered or focused. Filtering is still wanted as graphs grow.
+	- Every entity is drawn, journals included. Labels are hidden once a node is under 5 pixels across on screen, so zoomed out the hubs keep their names and the leaves lose them, and always shown for the one hovered or focused. Filtering is still wanted as graphs grow.
 	- Links use d3's default strength, so a link between two well-connected entities is a weak spring and hubs do not collapse into a knot.
 	- Dragging lets every node go first, so the rest can untangle around the dragged one, but only once the pointer moves, so a click does not stir the layout.
 	- The canvas, its hit-testing and its repaint once per frame follow a similar graph viewer of Logseq pages. A drawing is seen only by sight, so what a screen reader gets is the list of links, not the drawing.

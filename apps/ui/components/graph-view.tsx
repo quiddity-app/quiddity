@@ -18,6 +18,7 @@ import { zoom, zoomIdentity, type ZoomBehavior, type ZoomTransform } from "d3-zo
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { fitTransform, largestGroup } from "@/lib/graph-fit";
+import { LABEL_PX, labelFits, radius as nodeRadius } from "@/lib/graph-style";
 import { cachedPosition, cachedTransform, remember } from "@/lib/graph-layout";
 import type { Connections } from "@/lib/model";
 import { useRead } from "@/lib/use-graph";
@@ -32,12 +33,7 @@ interface Node extends SimulationNodeDatum {
 
 type Link = SimulationLinkDatum<Node>;
 
-const radius = (n: Node) => 4 + Math.sqrt(n.degree) * 2;
-
-/** A label is drawn once its node's circle is this many pixels across the
- * radius on screen. At normal zoom that is every node; zoomed out, the hubs
- * keep their names and the leaves lose them. */
-const LABEL_RADIUS = 4;
+const radius = (n: Node) => nodeRadius(n.degree);
 
 /** The Tailwind colours the SVG version used, which a canvas can't take from
  * classes. */
@@ -120,8 +116,10 @@ function draw(
       ctx.globalAlpha = alpha;
       ctx.stroke();
     };
+    // Lines and text are a fixed size on screen, so the zoom is divided out.
+    const px = 1 / view.k;
     ctx.strokeStyle = colours.link;
-    ctx.lineWidth = 1;
+    ctx.lineWidth = px;
     stroke(() => true, focused === null ? 1 : 0.1);
     if (focused !== null) stroke(touches, 1);
 
@@ -130,23 +128,26 @@ function draw(
     for (const n of nodes) {
       if (n.x === undefined) continue;
       ctx.globalAlpha = near && n.id !== focused && !near.has(n.id) ? 0.25 : 1;
-      ctx.lineWidth = n.id === focused ? 2 : 1;
+      ctx.lineWidth = (n.id === focused ? 2 : 1) * px;
       ctx.beginPath();
       ctx.arc(n.x, n.y ?? 0, radius(n), 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
     }
 
-    ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
+    ctx.font = `${LABEL_PX * px}px ui-sans-serif, system-ui, sans-serif`;
     ctx.textBaseline = "middle";
     ctx.fillStyle = colours.text;
+    let labels = 0;
     for (const n of nodes) {
       if (n.x === undefined) continue;
-      if (n.id !== focused && radius(n) * view.k < LABEL_RADIUS) continue;
+      if (n.id !== focused && !labelFits(radius(n), view.k)) continue;
+      labels++;
       ctx.globalAlpha = near && n.id !== focused && !near.has(n.id) ? 0.25 : 1;
-      ctx.fillText(n.title, n.x + radius(n) + 3, n.y ?? 0);
+      ctx.fillText(n.title, n.x + radius(n) + 3 * px, n.y ?? 0);
     }
     ctx.globalAlpha = 1;
+    canvas.dataset.labels = String(labels);
   };
   const repaint = () => {
     if (frame === 0) frame = requestAnimationFrame(paint);
@@ -163,6 +164,20 @@ function draw(
   const observer = new ResizeObserver(resize);
   observer.observe(canvas);
   resize();
+  // Moving to a screen of another density, or zooming the page, changes the
+  // ratio without resizing the canvas, so nothing else would notice. A
+  // resolution query matches only the ratio it was made for, so it fires once
+  // and is made again for the new one.
+  let density: MediaQueryList | undefined;
+  const watchDensity = () => {
+    density = matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
+    density.addEventListener("change", densityChanged, { once: true });
+  };
+  const densityChanged = () => {
+    resize();
+    watchDensity();
+  };
+  watchDensity();
 
   // Nothing is saved before there is something to save: setting the initial
   // zoom ends a zoom, which would otherwise forget the layout it is about to
@@ -425,6 +440,7 @@ function draw(
       save();
       cancelAnimationFrame(frame);
       observer.disconnect();
+      density?.removeEventListener("change", densityChanged);
       dark.removeEventListener("change", repaint);
       root.interrupt();
       root.on(".zoom", null).on(".fit", null).on(".focus", null).on(".open", null).on(".drag", null);
