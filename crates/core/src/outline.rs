@@ -258,11 +258,15 @@ pub fn parse_outline(src: &str, indent: Indent) -> Outline {
         // Line endings were dealt with above; a `\r` left is the text's own.
         let lines: Vec<&str> = first.text.split('\n').collect();
         let (title, rest) = take_title(&lines);
-        outline.title = title;
-        if rest.is_empty() && first.children.is_empty() {
-            outline.blocks.remove(0);
-        } else {
-            first.text = rest;
+        // Without a title there is nothing to lift, and `take_title` trims
+        // blank lines that are the block's own text.
+        if title.is_some() {
+            outline.title = title;
+            if rest.is_empty() && first.children.is_empty() {
+                outline.blocks.remove(0);
+            } else {
+                first.text = rest;
+            }
         }
     }
     outline
@@ -431,6 +435,15 @@ mod tests {
         // A `\r` in Quiddity's own format is part of the text, even there.
         let kept = parse_outline("- a:: x\r\n  b:: y\n", Indent::Tabs);
         assert_eq!(kept.blocks, vec![block("a:: x\r\nb:: y", vec![])]);
+    }
+
+    #[test]
+    fn a_first_bullet_of_properties_without_a_title_is_left_alone() {
+        // Blank lines in its text are the block's own, not padding to trim.
+        let src = "- \n  \rc::\n";
+        let outline = parse_outline(src, Indent::Tabs);
+        assert_eq!(outline.title, None);
+        assert_eq!(outline.blocks, vec![block("\n\rc::", vec![])]);
     }
 
     #[test]
