@@ -12,7 +12,9 @@ const node = (page: Page, name: string) => graph(page).getByRole("link", { name,
 
 async function openGraph(page: Page) {
   await page.locator("nav").getByRole("link", { name: "Graph", exact: true }).click();
-  await expect(canvas(page)).toBeVisible();
+  // The canvas isn't mounted until the replica has loaded (the page suspends
+  // reading it), which can take a while on a busy runner.
+  await expect(canvas(page)).toBeVisible({ timeout: 20_000 });
 }
 
 /** Waits for the layout to stop moving, and any framing to finish. */
