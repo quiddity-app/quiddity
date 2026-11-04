@@ -41,8 +41,21 @@ const pages: [string, Seed[]][] = [
   ],
   [
     "Loro",
-    [b("favourite:: true"), b("A CRDT library. Documents are movable trees of text.")],
+    [
+      b("favourite:: true\nkind of:: CRDT"),
+      b("A CRDT library. Documents are movable trees of text."),
+    ],
   ],
+  // A small taxonomy, for the meta-properties.
+  [
+    "kind of",
+    [
+      b("type:: property\n##transitive\n##inherits\n##inverse(kinds)"),
+      b("What something is a kind of. It has that thing's properties too."),
+    ],
+  ],
+  ["CRDT", [b("kind of:: data structure\nmerges:: without coordination")]],
+  ["data structure", [b("#structure")]],
   ["iroh", [b("QUIC with hole punching, addressed by public key.")]],
   [
     "Reading list",

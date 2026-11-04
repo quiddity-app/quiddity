@@ -126,6 +126,22 @@ that entity's id (found by name as `Index::property_entity` does) or `None`, and
 `define_property(key)` makes one, a property entity with an empty block, when
 there is none. Like a link to nowhere, the UI makes it on following.
 
+## Meta-properties
+
+`meta.rs` turns what `quiddity-core` works out into what a page shows:
+
+- **`##` lines are `Property`s with `meta: true`**, the parameter as text.
+  Outside an entity's properties block, each is flagged as having no effect.
+- **Flags go on their chips** (`Property::flags`), matched by normalised key
+  and by whether the chip is a meta-property; only the properties block's
+  chips are candidates. What has no chip goes in `Entity::flags`. The words
+  are here, not in the UI.
+- `Entity::inherited` is every effective value with a `from`; its links are
+  added to `Entity::links`.
+- **Inverse trees stop at `INVERSE_LIMIT` entities**, taking an entity's
+  children before any of theirs, and each node counts the children it
+  leaves out (`hidden`). An entity isn't repeated beneath itself.
+
 ## Search
 
 `fuzzy_match(query, name)` is the one matcher: characters in order, ignoring
