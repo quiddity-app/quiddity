@@ -42,9 +42,9 @@ const styled = (tag: string, className: string) =>
 function components(links: Record<string, ResolvedLink>, inline: Property[]): Components {
   const map = {
     p: styled("p", "whitespace-pre-line break-words"),
-    h1: styled("h1", "text-xl font-semibold"),
-    h2: styled("h2", "text-lg font-semibold"),
-    h3: styled("h3", "text-base font-semibold"),
+    h1: styled("h1", "text-[1.25em] font-semibold"),
+    h2: styled("h2", "text-[1.125em] font-semibold"),
+    h3: styled("h3", "text-[1em] font-semibold"),
     h4: styled("h4", "font-semibold"),
     h5: styled("h5", "font-semibold"),
     h6: styled("h6", "font-semibold"),
