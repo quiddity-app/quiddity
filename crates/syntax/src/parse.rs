@@ -121,8 +121,8 @@ pub fn parse_property_line(line: &str) -> Option<(String, Option<Value>)> {
 }
 
 /// Parses a line that is nothing but `##key` or `##key(parameter)`: a
-/// meta-property. The parameter is kept as written, trimmed, and `()` is no
-/// parameter.
+/// meta-property. The parameter is kept as written, trimmed of spaces and
+/// tabs, and `()` is no parameter.
 ///
 /// Parentheses in the parameter must balance, except where escaped, inside a
 /// link, or inside a quoted name at the start of a query term, which is where
@@ -179,7 +179,10 @@ pub fn parse_meta_line(line: &str) -> Option<(String, Option<String>)> {
             prev = sc.src[..sc.pos].chars().next_back();
         }
     }
-    let parameter = sc.src[start..sc.pos].trim();
+    // Only space and tab, the whitespace the scan above allows between terms:
+    // trimming a form feed would leave a quote at the start that the scan
+    // had read as part of a name, and the parameter would not read back.
+    let parameter = sc.src[start..sc.pos].trim_matches([' ', '\t']);
     sc.bump();
     sc.at_end()
         .then(|| (key, (!parameter.is_empty()).then(|| parameter.to_owned())))
@@ -1005,6 +1008,14 @@ mod tests {
         // Found by fuzzing: a form feed isn't space between terms, so the
         // quote is part of the name and doesn't start a quoted one.
         meta("##values(a ~\u{c}\"b)", "values", Some("a ~\u{c}\"b"));
+        // Found by fuzzing: the same at the start of the parameter. Trimming
+        // the form feeds would leave a quote there, which reads as an
+        // unterminated quoted name once the line is formatted and read again.
+        meta(
+            "##values(\u{c}\"\0 (place) | [[Earth]])",
+            "values",
+            Some("\u{c}\"\0 (place) | [[Earth]]"),
+        );
         for not in [
             "## heading",
             "##",
