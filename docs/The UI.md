@@ -16,6 +16,7 @@
 	- Typing notifies the views after a pause and structure changes notify at once, so a block is not rebuilt per keystroke.
 - View state is the URL: `/entity/?id=<main>&open=<a>,<b>`.
 	- `/` is home: it goes on to wherever the graph's `home` setting says, `/journals/` by default. [[Graph settings]]
+		- A link followed before it has gone on (the sidebar works as soon as the graph loads) is where the person is going, so the redirect leaves it alone.
 	- A static export cannot enumerate entities for path segments, and the right pane is a list, not a route.
 - Nothing blocks anything else.
 	- Reading the URL suspends, so each pane, and each secondary within the right pane, has its own `Suspense` and error boundary. A card's header sits outside its content's boundary so it can always be closed.
