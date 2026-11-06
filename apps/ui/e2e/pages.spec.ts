@@ -7,6 +7,30 @@ test("home is the journals unless the graph says otherwise", async ({ page }) =>
   await expect(page.locator("nav").getByRole("link", { name: "Journals" })).toHaveClass(/font-medium/);
 });
 
+test("a link followed as / is about to redirect is not overwritten by it", async ({ page }) => {
+  // Follow the link the moment the sidebar draws it, which is before the
+  // redirect has run, and make the page it leads to slow, so that the
+  // navigation is still under way when the redirect fires. Otherwise the race
+  // is there, but too narrow to hit.
+  await page.route("**/graph/**", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await route.continue();
+  });
+  await page.addInitScript(() => {
+    const watch = new MutationObserver(() => {
+      const link = document.querySelector<HTMLAnchorElement>('nav a[href="/graph/"]');
+      if (link) {
+        watch.disconnect();
+        link.click();
+      }
+    });
+    watch.observe(document, { childList: true, subtree: true });
+  });
+  await page.goto("/");
+  await expect(page.getByRole("group", { name: "Graph of entities" })).toBeVisible();
+  await expect(page).toHaveURL(/\/graph\/$/);
+});
+
 test("the journals feed starts at today, adds days as you scroll, and ends", async ({ page }) => {
   await page.goto("/");
   const days = page.locator("main section h2");
