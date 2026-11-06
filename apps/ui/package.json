@@ -21,7 +21,7 @@
     "@tauri-apps/api": "^2.12.0",
     "@tauri-apps/plugin-opener": "^2.7.2",
     "d3-drag": "3.0.1",
-    "d3-force": "3.0.0",
+    "d3-force": "3.0.1",
     "d3-selection": "3.0.0",
     "d3-transition": "3.0.1",
     "d3-zoom": "3.0.0",
