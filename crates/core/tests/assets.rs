@@ -164,3 +164,41 @@ fn other_meta_properties_are_still_flagged_beside_an_asset_line() -> Result<()> 
     assert_eq!(index.assets().count(), 1);
     Ok(())
 }
+
+proptest! {
+    /// Building an asset from its parts gives the one its line reads back as.
+    #[test]
+    fn an_asset_built_from_parts_is_the_one_its_line_reads_as(asset in asset()) {
+        let built = Asset::new(&asset.hash, &asset.mime, asset.size, asset.name.as_deref());
+        prop_assert_eq!(built, Ok(asset));
+    }
+}
+
+#[test]
+fn building_an_asset_checks_its_parts_and_tidies_the_name() {
+    let new = |h: &str, m: &str, n: Option<&str>| Asset::new(h, m, 1, n);
+    assert_eq!(new("nope", "image/png", None), Err(AssetError::Hash));
+    assert_eq!(new(HASH, "png", None), Err(AssetError::Mime));
+    let a = new(&HASH.to_uppercase(), "Image/PNG", Some("  two\nlines\r\n ")).unwrap();
+    assert_eq!((a.hash.as_str(), a.mime.as_str()), (HASH, "image/png"));
+    assert_eq!(a.name.as_deref(), Some("two lines"));
+    // A name with nothing in it is no name, and the line still reads back.
+    let blank = new(HASH, "image/png", Some(" \n ")).unwrap();
+    assert_eq!(blank.name, None);
+    assert_eq!(Asset::parse(&blank.parameter()), Ok(blank));
+}
+
+#[test]
+fn creating_an_asset_makes_an_entity_named_for_its_file() -> Result<()> {
+    let graph = Graph::new();
+    let named = graph.create_asset(&Asset::new(HASH, "image/png", 12, Some("cat.png")).unwrap())?;
+    let unnamed = graph.create_asset(&Asset::new(HASH, "image/png", 12, None).unwrap())?;
+    graph.commit();
+    let index = Index::build(&graph)?;
+    assert_eq!(graph.entity_name(named)?, "cat.png");
+    assert_eq!(graph.entity_name(unnamed)?, &HASH[..12]);
+    assert_eq!(index.assets().count(), 2);
+    assert_eq!(index.flags(named), []);
+    assert_eq!(index.flags(unnamed), []);
+    Ok(())
+}

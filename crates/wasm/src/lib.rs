@@ -202,6 +202,19 @@ impl Replica {
         Ok(self.view.create_entity(name)?)
     }
 
+    /// Creates an entity for a file the shell has kept: `hash` is the shell's
+    /// answer for its bytes, and `size` a `BigInt`. Returns the entity's ID.
+    #[wasm_bindgen(js_name = createAsset)]
+    pub fn create_asset(
+        &self,
+        hash: &str,
+        mime: &str,
+        size: u64,
+        name: Option<String>,
+    ) -> Result<String, JsError> {
+        Ok(self.view.create_asset(hash, mime, size, name.as_deref())?)
+    }
+
     /// Renames an entity, keeping the old name as an alias. False if the name
     /// is the same.
     #[wasm_bindgen(js_name = renameEntity)]
@@ -291,6 +304,22 @@ mod tests {
         replica.clear_undo();
         assert!(!replica.undo().unwrap(), "cleared");
         assert_eq!(replica.block_text(&id).unwrap(), "hi!");
+    }
+
+    /// A file the shell kept becomes an entity whose page says what it is,
+    /// in an edit the UI can undo.
+    #[test]
+    fn a_kept_file_becomes_an_entity_that_can_be_undone() {
+        let replica = Replica::empty().unwrap();
+        let hash = "ea8f163db38682925e4491c5e58d4bb3506ef8c14eb78a86e908c5624a67200f";
+        let before = replica.view.entities().unwrap().len();
+        let id = replica
+            .create_asset(hash, "image/png", 12, Some("cat.png".into()))
+            .unwrap();
+        assert!(replica.view.entities().unwrap().len() > before);
+        assert_eq!(replica.view.entity(&id).unwrap().asset.unwrap().hash, hash);
+        assert!(replica.undo().unwrap());
+        assert_eq!(replica.view.entities().unwrap().len(), before);
     }
 
     #[test]
