@@ -32,7 +32,7 @@ function Items({ items }: { items: EntityRef[] }) {
         <li key={item.id}>
           <EntityLink
             id={item.id}
-            className={`block truncate rounded px-2 py-1 text-sm hover:bg-surface-hover ${
+            className={`block truncate rounded px-2 py-1 text-sm coarse:py-3 hover:bg-surface-hover ${
               item.id === main ? "bg-surface-hover font-medium" : ""
             }`}
           >
@@ -74,7 +74,7 @@ function Entrypoints() {
           <li key={href}>
             <Link
               href={href}
-              className={`block truncate rounded px-2 py-1 text-sm hover:bg-surface-hover ${
+              className={`block truncate rounded px-2 py-1 text-sm coarse:py-3 hover:bg-surface-hover ${
                 here ? "bg-surface-hover font-medium" : ""
               }`}
             >

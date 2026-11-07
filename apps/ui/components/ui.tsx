@@ -25,7 +25,7 @@ export const paneHeading = "text-xs font-medium uppercase tracking-wide text-ink
 
 /** A button of one glyph, or a few words, in a toolbar or a card's header. */
 export const iconButtonClass =
-  "rounded px-1.5 py-0.5 text-sm text-ink-secondary hover:bg-surface-hover hover:text-ink";
+  "inline-flex min-h-8 min-w-8 items-center justify-center rounded px-1.5 text-sm text-ink-secondary hover:bg-surface-hover hover:text-ink coarse:min-h-11 coarse:min-w-11";
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   /**
@@ -55,7 +55,7 @@ export function Button({
   return (
     <button
       type={type}
-      className={`rounded border ${size} ${buttonVariant[variant]} disabled:text-ink-muted disabled:hover:bg-transparent ${className}`}
+      className={`min-h-8 rounded border coarse:min-h-11 ${size} ${buttonVariant[variant]} disabled:text-ink-muted disabled:hover:bg-transparent ${className}`}
       {...rest}
     />
   );
@@ -65,7 +65,7 @@ export function Button({
 export function Input({ className = "", ...rest }: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
-      className={`rounded border border-control bg-transparent px-2 py-1 ${className}`}
+      className={`min-h-8 rounded border border-control bg-transparent px-2 py-1 coarse:min-h-11 ${className}`}
       {...rest}
     />
   );
@@ -83,4 +83,36 @@ export function ErrorLine({ children, className = "" }: { children: ReactNode; c
 /** The key or chord that triggers an action. */
 export function Kbd({ children }: { children: ReactNode }) {
   return <kbd className="rounded bg-surface-hover px-1 text-xs">{children}</kbd>;
+}
+
+/**
+ * The row under a list that adds to it. With a mouse it stays out of the way
+ * until the pointer or the keyboard reaches it, because it is wide and the
+ * pointer crosses it all the time; a hover only outlines it, where a filled
+ * button would flash across the page. Where there is no hover it is simply
+ * there. When the list is empty it is the page's only content and is always
+ * shown.
+ */
+export function AddRow({
+  empty,
+  emptyLabel,
+  label,
+  onAdd,
+}: {
+  empty: boolean;
+  emptyLabel: string;
+  label: string;
+  onAdd: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`mt-1 block min-h-8 w-full rounded border border-transparent px-2 py-1 text-left text-sm text-ink-muted hover:border-border motion-safe:transition-[opacity,border-color] motion-safe:duration-150 coarse:min-h-11 ${
+        empty ? "" : "opacity-0 hover:opacity-100 focus:opacity-100 no-hover:opacity-100"
+      }`}
+      onClick={onAdd}
+    >
+      {empty ? emptyLabel : label}
+    </button>
+  );
 }

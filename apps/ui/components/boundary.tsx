@@ -39,7 +39,7 @@ export function Skeleton({ className = "" }: { className?: string }) {
   return (
     <div
       aria-hidden
-      className={`animate-pulse rounded bg-surface-hover ${className}`}
+      className={`motion-safe:animate-pulse rounded bg-surface-hover ${className}`}
     />
   );
 }

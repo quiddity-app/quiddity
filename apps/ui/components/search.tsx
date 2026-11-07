@@ -160,7 +160,7 @@ function Panel({ onClose }: { onClose: () => void }) {
                       onMouseDown={(e) => e.preventDefault()}
                       onMouseMove={() => setActive(flat.findIndex((f) => f.hit === hit))}
                       onClick={(e) => choose(hit, e.shiftKey)}
-                      className={`cursor-pointer truncate rounded px-2 py-1 text-sm ${
+                      className={`cursor-pointer truncate rounded px-2 py-1 text-sm coarse:py-3 ${
                         selected ? "bg-surface-hover" : ""
                       }`}
                     >
