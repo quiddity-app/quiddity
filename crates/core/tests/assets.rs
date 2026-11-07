@@ -202,3 +202,68 @@ fn creating_an_asset_makes_an_entity_named_for_its_file() -> Result<()> {
     assert_eq!(index.flags(unnamed), []);
     Ok(())
 }
+
+proptest! {
+    /// Whatever the name and type say, an export's file name is the hash and
+    /// a short plain extension, so it is safe as a path.
+    #[test]
+    fn an_exports_file_name_is_always_safe(
+        name in proptest::option::of("[ -~é/\\\\.]{0,24}"),
+        mime in "[a-z]{1,6}/[a-z+.-]{1,12}",
+    ) {
+        let asset = Asset {
+            hash: HASH.into(),
+            mime,
+            size: 1,
+            name,
+        };
+        let file = asset.file_name();
+        let (stem, extension) = file.split_once('.').unwrap();
+        prop_assert_eq!(stem, HASH);
+        prop_assert!((1..=8).contains(&extension.len()), "{file}");
+        prop_assert!(
+            extension.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit()),
+            "{file}"
+        );
+    }
+}
+
+#[test]
+fn an_export_names_a_file_for_what_it_is() {
+    let file = |name: Option<&str>, mime: &str| {
+        Asset::new(HASH, mime, 1, name).unwrap().file_name()[65..].to_owned()
+    };
+    // The name's own extension, lower-cased, wins; the last of several.
+    assert_eq!(file(Some("Photo.JPEG"), "image/png"), "jpeg");
+    assert_eq!(file(Some("a.tar.gz"), "application/gzip"), "gz");
+    // Without one, or with one that isn't short and plain, the type's.
+    assert_eq!(file(Some("README"), "text/markdown"), "md");
+    assert_eq!(file(Some(".hidden"), "image/png"), "png");
+    assert_eq!(file(Some("x.some-long-ext"), "application/pdf"), "pdf");
+    assert_eq!(file(Some("x.wh y"), "image/jpeg"), "jpg");
+    assert_eq!(file(Some("a/b.c/d"), "text/plain"), "txt");
+    assert_eq!(file(None, "image/svg+xml"), "svg");
+    // And, knowing neither, bin.
+    assert_eq!(file(None, "application/x-odd"), "bin");
+}
+
+/// Every type the export knows, by the extension it gives it. Written out in
+/// full, not read back from the code, so that forgetting one is noticed.
+#[test]
+fn an_export_knows_these_types() {
+    for (mime, extension) in [
+        ("image/png", "png"),
+        ("image/jpeg", "jpg"),
+        ("image/gif", "gif"),
+        ("image/webp", "webp"),
+        ("image/avif", "avif"),
+        ("image/svg+xml", "svg"),
+        ("application/pdf", "pdf"),
+        ("application/json", "json"),
+        ("text/plain", "txt"),
+        ("text/markdown", "md"),
+    ] {
+        let asset = Asset::new(HASH, mime, 1, Some("no extension")).unwrap();
+        assert_eq!(asset.file_name(), format!("{HASH}.{extension}"), "{mime}");
+    }
+}
