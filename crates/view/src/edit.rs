@@ -6,6 +6,7 @@
 use std::collections::BTreeSet;
 
 use quiddity_core::BlockId;
+use quiddity_core::syntax::{Link, format_link};
 use serde::Serialize;
 
 use crate::{Error, Result, View};
@@ -119,6 +120,32 @@ impl View {
         self.structural();
         let made = self.graph.create_asset(&asset);
         self.edited(made.map(|e| e.to_string()).map_err(Error::from))
+    }
+
+    /// Adds a file the shell has kept to `page`: makes its entity (see
+    /// [`View::create_asset`]) and ends the page with a link to it. One undo
+    /// step. Returns the new entity's ID. The parts are checked first.
+    pub fn attach_asset(
+        &self,
+        page: &str,
+        hash: &str,
+        mime: &str,
+        size: u64,
+        name: Option<&str>,
+    ) -> Result<String> {
+        let asset = quiddity_core::Asset::new(hash, mime, size, name)?;
+        self.structural();
+        let page = self.entity_id(page)?;
+        let attached = self.graph.create_asset(&asset).and_then(|entity| {
+            let link = Link {
+                name: self.graph.entity_name(entity)?,
+                qualifiers: Vec::new(),
+            };
+            self.graph
+                .create_block(Some(page), None, &format_link(&link))?;
+            Ok(entity)
+        });
+        self.edited(attached.map(|e| e.to_string()).map_err(Error::from))
     }
 
     /// Renames an entity, keeping the old name as an alias so that links to it

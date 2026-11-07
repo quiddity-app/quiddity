@@ -54,6 +54,31 @@ what it was asked to allow in `window.__quiddityRemote.allowed`, for
 `e2e/devices.spec.ts`. The populated list has no browser test: the made-up
 graph records no devices.
 
+## Files
+
+Dropping or pasting a file on the main pane keeps it and links it from the page.
+**A backend may have `putBlob` and `getBlob`**, which only the app does
+(`Graph.canKeepFiles()`): `Graph.addFile` hands the bytes to the shell, gets
+their hash back, and then `attachAsset` makes the entity and the link as one
+edit. The UI never writes the `##asset` line or the link: Rust does.
+
+- **`useFileDrop` puts its handlers on the `<article>` itself**, not a wrapper:
+  the specs, and the outline's styling, find the blocks as `article > ul`. They
+  are capture-phase and stop the event, because CodeMirror would otherwise read
+  a dropped file as text and put it in the block. Text has no files, so it is
+  left alone. The graph is fetched when a file arrives (`bootGraph()`), so the
+  article doesn't suspend on it.
+- **`AssetFile` draws an asset's file** from an object URL, made when the bytes
+  are read and revoked when the page moves on. `getBlob` rejects if this device
+  doesn't have the bytes yet, and the page says so with a Try again; they
+  arrive from other devices by themselves, but nothing tells the page.
+- **The memory backend keeps files in a map by SHA-256**, not the BLAKE3 the
+  app uses: nothing outside the page checks, and the browser has no BLAKE3.
+  `__quiddityRemote.createAsset` plays another device that has a file this one
+  doesn't, and `kept` lists the hashes kept, for `e2e/files.spec.ts`.
+- Playwright's `dispatchEvent("paste", …)` doesn't make a `ClipboardEvent`:
+  make one in the page. A `drop` works as it is.
+
 ## Routing and boundaries
 
 - **View state is the URL**: `/entity/?id=<main>&open=<a>,<b>` (`lib/nav.ts`).
