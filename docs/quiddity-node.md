@@ -7,6 +7,7 @@ alias:: headless node
 - Commands
 	- `init` makes a graph, or with `--blank` an empty replica to sync an existing one into. `id` prints this device's ID.
 	- `import` and `export` read and write Markdown, and the files in `assets/` beside it. [[Export and import]]
+	- `gc` deletes the files nothing refers to any more, once it is safe to, and `gc --dry-run` says what it would do. The node must not be serving. [[Binaries]]
 	- `allow` lists a device in the graph, so it may connect, and `devices` lists the devices holding the graph with when each last saved. [[Device list]]
 	- `serve` keeps the graph online until interrupted, and `sync` syncs with one device until neither has anything more to send.
 - The library starts a peer on the network in one call, for the command line and [[The shell]] alike: `serve` binds an endpoint, serves the peer and dials the listed devices, and `save_on_change` saves a few hundred milliseconds after changes.

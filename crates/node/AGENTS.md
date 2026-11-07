@@ -81,7 +81,8 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
   first so that an absent blob is `Missing`, not a store error. Call
   `shutdown` before dropping the last clone if something will reopen the
   directory at once: the store's database is locked until its tasks stop.
-  Anything `put` is tagged and so kept; nothing deletes yet.
+  Anything `put` is tagged, but tags are not how anything is kept: `sweep`
+  drops them all.
 - **Export and import of files are `Blobs::export_assets` and `import_assets`**,
   called by the CLI after the Markdown's. Core does the Markdown and knows
   nothing of the store, and names the file (`Asset::file_name`). Import keeps a
@@ -90,6 +91,18 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
   isn't kept under a hash it doesn't have. The CLI opens the store only if
   there is something to do, so an export of a graph with no files doesn't leave
   an empty `blobs/` behind, and shuts it down so the next run can open it.
+- **`gc` deletes only what the rule in `gc.rs` allows, and deleting is
+  `blobs::sweep`.** iroh-blobs deletes by its own collector, which removes
+  *everything not marked live*, so `sweep` opens the store with a collector
+  whose callback marks every stored blob except the doomed ones, drops the
+  tags first (they would keep a doomed blob alive), waits, and checks that what
+  it meant to keep is still there. It runs only on a store nothing else has
+  open. The empty file is built in: `has` is always true for it and `stored`
+  never lists it, so don't read "still there" as "not collected". A file goes
+  only when unreferenced now, unreferenced for the grace, *and* first seen
+  unreferenced at a version `compaction_point` includes; no compaction point,
+  no deletion. Versions are per-peer counts, so only versions of the same graph
+  compare: a test that builds each in a fresh graph tests nothing.
 - **Blobs travel on iroh-blobs' own ALPN, gated by `Peer::permits`**, the
   rule `accept` uses for sync (`Blobs::provider` asks it on every
   connection, in intercept mode, before anything is read; pushes stay

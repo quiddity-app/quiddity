@@ -3369,6 +3369,7 @@ dependencies = [
  "iroh",
  "iroh-blobs",
  "jiff",
+ "proptest",
  "quiddity-core",
  "quiddity-sync",
  "tempfile",
