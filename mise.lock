@@ -102,43 +102,36 @@ specifiers = ["0.47.1"]
 
 [tools.jj."platforms.linux-arm64"]
 checksum = "sha256:0f300e1576de8dabe0a9dedf0b87ae44f8accea5cf54d9a342a51061c1fb1bcd"
-checksum_source = "mise-versions"
 url = "https://github.com/jj-vcs/jj/releases/download/v0.47.1/jj-v0.47.1-aarch64-unknown-linux-musl.tar.gz"
 url_api = "https://api.github.com/repos/jj-vcs/jj/releases/assets/711486709"
 
 [tools.jj."platforms.linux-arm64-musl"]
 checksum = "sha256:0f300e1576de8dabe0a9dedf0b87ae44f8accea5cf54d9a342a51061c1fb1bcd"
-checksum_source = "mise-versions"
 url = "https://github.com/jj-vcs/jj/releases/download/v0.47.1/jj-v0.47.1-aarch64-unknown-linux-musl.tar.gz"
 url_api = "https://api.github.com/repos/jj-vcs/jj/releases/assets/711486709"
 
 [tools.jj."platforms.linux-x64"]
 checksum = "sha256:d4b657f622ee50929c8916466dfa3d6a6c17a0a32b50e7b2c793707ec9ebcad7"
-checksum_source = "mise-versions"
 url = "https://github.com/jj-vcs/jj/releases/download/v0.47.1/jj-v0.47.1-x86_64-unknown-linux-musl.tar.gz"
 url_api = "https://api.github.com/repos/jj-vcs/jj/releases/assets/711489795"
 
 [tools.jj."platforms.linux-x64-musl"]
 checksum = "sha256:d4b657f622ee50929c8916466dfa3d6a6c17a0a32b50e7b2c793707ec9ebcad7"
-checksum_source = "mise-versions"
 url = "https://github.com/jj-vcs/jj/releases/download/v0.47.1/jj-v0.47.1-x86_64-unknown-linux-musl.tar.gz"
 url_api = "https://api.github.com/repos/jj-vcs/jj/releases/assets/711489795"
 
 [tools.jj."platforms.macos-arm64"]
 checksum = "sha256:50129b527f7cd6aef82aebd4bb2b670bb56766adc509ef3279c4327aa3592255"
-checksum_source = "mise-versions"
 url = "https://github.com/jj-vcs/jj/releases/download/v0.47.1/jj-v0.47.1-aarch64-apple-darwin.tar.gz"
 url_api = "https://api.github.com/repos/jj-vcs/jj/releases/assets/711488052"
 
 [tools.jj."platforms.macos-x64"]
 checksum = "sha256:ce7ac70c3b7cf90f2273b4fa62d24576727c5fd55c60dc3820221c05320c7589"
-checksum_source = "mise-versions"
 url = "https://github.com/jj-vcs/jj/releases/download/v0.47.1/jj-v0.47.1-x86_64-apple-darwin.tar.gz"
 url_api = "https://api.github.com/repos/jj-vcs/jj/releases/assets/711496117"
 
 [tools.jj."platforms.windows-x64"]
 checksum = "sha256:72f9f80bc99d07a7f48d5f219cf5bab91f7e906e4b53f6c827948e646cd1152f"
-checksum_source = "mise-versions"
 url = "https://github.com/jj-vcs/jj/releases/download/v0.47.1/jj-v0.47.1-x86_64-pc-windows-msvc.zip"
 url_api = "https://api.github.com/repos/jj-vcs/jj/releases/assets/711497973"
 
@@ -223,44 +216,51 @@ url_api = "https://api.github.com/repos/suzuki-shunsuke/pinact/releases/assets/6
 provenance = "github-attestations"
 
 [[tools.pnpm]]
-version = "10.34.9"
+version = "12.17.0"
 backend = "aqua:pnpm/pnpm"
-specifiers = ["10.34.9"]
+specifiers = ["12.17.0"]
 
 [tools.pnpm."platforms.linux-arm64"]
-checksum = "sha256:85abd31b96964e6510cecb3b366ba024287191e0ee5978e5a9e2d3beb4a377d1"
-url = "https://github.com/pnpm/pnpm/releases/download/v10.34.9/pnpm-linux-arm64"
-url_api = "https://api.github.com/repos/pnpm/pnpm/releases/assets/675654767"
+checksum = "sha256:ce5a5b95a9974a0bbd713a5ef74416dbcd0e3fdf11f69ea92c5995b9c18ccb47"
+url = "https://github.com/pnpm/pnpm/releases/download/v12.17.0/pnpm-linux-arm64.tar.gz"
+url_api = "https://api.github.com/repos/pnpm/pnpm/releases/assets/692316703"
+provenance = "github-attestations"
 
 [tools.pnpm."platforms.linux-arm64-musl"]
-checksum = "sha256:85abd31b96964e6510cecb3b366ba024287191e0ee5978e5a9e2d3beb4a377d1"
-url = "https://github.com/pnpm/pnpm/releases/download/v10.34.9/pnpm-linux-arm64"
-url_api = "https://api.github.com/repos/pnpm/pnpm/releases/assets/675654767"
+checksum = "sha256:57f5f13647270dd55f4c463b5ad8e6e9157fc0463bb1ac62216da7c18531cb5b"
+url = "https://github.com/pnpm/pnpm/releases/download/v12.17.0/pnpm-linux-arm64-musl.tar.gz"
+url_api = "https://api.github.com/repos/pnpm/pnpm/releases/assets/692316701"
+provenance = "github-attestations"
 
 [tools.pnpm."platforms.linux-x64"]
-checksum = "sha256:3ec79240658f0ee4e8977f21ee2c598c7a8b8d06b86dc564f2ec6cb099fd8ac2"
-url = "https://github.com/pnpm/pnpm/releases/download/v10.34.9/pnpm-linux-x64"
-url_api = "https://api.github.com/repos/pnpm/pnpm/releases/assets/675654765"
+checksum = "sha256:2c58959fd5df5cb9f4e72784c08a60ffc7ee558fed9b04b22254e29112203a51"
+url = "https://github.com/pnpm/pnpm/releases/download/v12.17.0/pnpm-linux-x64.tar.gz"
+url_api = "https://api.github.com/repos/pnpm/pnpm/releases/assets/692316705"
+provenance = "github-attestations"
 
 [tools.pnpm."platforms.linux-x64-musl"]
-checksum = "sha256:3ec79240658f0ee4e8977f21ee2c598c7a8b8d06b86dc564f2ec6cb099fd8ac2"
-url = "https://github.com/pnpm/pnpm/releases/download/v10.34.9/pnpm-linux-x64"
-url_api = "https://api.github.com/repos/pnpm/pnpm/releases/assets/675654765"
+checksum = "sha256:0a3f8f12f4d894ba5013c7d445136eec5260dcffb63477247ca9b1c23d4fe27f"
+url = "https://github.com/pnpm/pnpm/releases/download/v12.17.0/pnpm-linux-x64-musl.tar.gz"
+url_api = "https://api.github.com/repos/pnpm/pnpm/releases/assets/692316708"
+provenance = "github-attestations"
 
 [tools.pnpm."platforms.macos-arm64"]
-checksum = "sha256:984b2f4316de371dc314243649e5f9ea392195d541dedbfdb990dc24d6c6e1a2"
-url = "https://github.com/pnpm/pnpm/releases/download/v10.34.9/pnpm-macos-arm64"
-url_api = "https://api.github.com/repos/pnpm/pnpm/releases/assets/675654768"
+checksum = "sha256:446c334d493bdfc6cc2db693764d1812fca06456f6a4be7996a13d7008780239"
+url = "https://github.com/pnpm/pnpm/releases/download/v12.17.0/pnpm-darwin-arm64.tar.gz"
+url_api = "https://api.github.com/repos/pnpm/pnpm/releases/assets/692316720"
+provenance = "github-attestations"
 
 [tools.pnpm."platforms.macos-x64"]
-checksum = "sha256:58b35a997d2d5167ef60e24b6ac0d71b76a5e1a4b3346cb1075b1dface50bd32"
-url = "https://github.com/pnpm/pnpm/releases/download/v10.34.9/pnpm-macos-x64"
-url_api = "https://api.github.com/repos/pnpm/pnpm/releases/assets/675654760"
+checksum = "sha256:b8e754a23d19d5f567dd169681b15627de9ab12997248b6c23506c6e27bdce92"
+url = "https://github.com/pnpm/pnpm/releases/download/v12.17.0/pnpm-darwin-x64.tar.gz"
+url_api = "https://api.github.com/repos/pnpm/pnpm/releases/assets/692316706"
+provenance = "github-attestations"
 
 [tools.pnpm."platforms.windows-x64"]
-checksum = "sha256:e0af8d34dd5319f7e9a6c9838779e7e85caf9cfdedf99a7a4106aa1fdcf16d5c"
-url = "https://github.com/pnpm/pnpm/releases/download/v10.34.9/pnpm-win-x64.exe"
-url_api = "https://api.github.com/repos/pnpm/pnpm/releases/assets/675654769"
+checksum = "sha256:f160b053dac663c5931975d244920836ec26e6bc3516a42518db44c9d5c2ffc2"
+url = "https://github.com/pnpm/pnpm/releases/download/v12.17.0/pnpm-win32-x64.zip"
+url_api = "https://api.github.com/repos/pnpm/pnpm/releases/assets/692316721"
+provenance = "github-attestations"
 
 [[tools.rust]]
 version = "1.99.1"
