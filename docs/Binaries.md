@@ -1,7 +1,17 @@
-- Files kept in a graph: images, PDFs and the like. Planned, not built. [[Design]]
-- A binary is referred to from text by its content hash, in a property whose value type is `blob` (a value type still to come). The value is a BLAKE3 hash, with the MIME type, size and an optional file name beside it. [[Properties]]
-- The bytes live in an iroh-blobs store, not in the [[Loro]] document, and travel on iroh-blobs' own protocol. [[iroh]]
-- Portable devices fetch a blob when it is opened, and may evict it later. The headless node keeps them all. [[quiddity-node]]
-- An `asset` block type holds a blob with its captions, dimensions and so on, so embedding one is a [[block reference]].
-- Garbage collection: a blob nothing refers to is deleted after a grace period, and only once every device's stored version is past the point where the last reference went. [[Compaction]]
-- An export writes blobs to `assets/`, named `<blake3>.<ext>`. [[Export and import]]
+- Files kept in a graph: images, PDFs and the like. Only the store is built so far; the rest is planned. [[Design]]
+- Decided
+	- A binary is a block in the graph, an asset, and its text describes it with `##` lines: the BLAKE3 hash, MIME type, size and optional file name. Nothing about it is stored outside its text, as for everything else. [[Meta-properties]] [[Design]]
+	- The bytes live in an [[iroh-blobs]] store, not in the [[Loro]] document, and travel on iroh-blobs' own protocol. [[iroh]]
+	- Every device keeps every blob. Options per device, to fetch on demand or to cap the cache on a phone, can come later.
+	- The UI gets bytes through a [[Tauri]] command and shows them from object URLs. The published site has no store, so it shows a placeholder.
+	- An export writes blobs to `assets/`, named `<blake3>.<ext>`, and the Markdown refers to them by that path. [[Export and import]]
+	- Garbage collection: a blob nothing refers to is deleted after a grace period, and only once every device's stored version is past the point where the last reference went. [[Compaction]]
+- Built
+	- `Blobs` in [[quiddity-node]] keeps bytes by hash in `blobs/` beside the graph's snapshot: `put`, `get` and `has`. `get` says a blob is missing rather than failing in the store, and the store checks bytes against their hash as it reads them. Nothing calls it yet. [[Storage]]
+- To build, in this order
+	- The `##` lines for an asset block, read by [[quiddity-syntax]] and given their meaning in [[quiddity-core]].
+	- Fetching blobs from other devices over iroh-blobs, and a headless node that keeps them all.
+	- A shell command to put a file in the graph and one to read it back, and the UI: paste or drop a file, show images, link the rest.
+	- Export and import.
+	- Garbage collection.
+- A block that refers to an asset is a block reference. [[Block references]]

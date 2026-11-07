@@ -68,6 +68,12 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
   publish sends everything up to that point, not just the watched block. A
   connection's hello still sends everything, held edits included. The
   timers live in the connection tasks, so there is nothing to spawn.
+- **`Blobs` is the bytes of the graph's binaries**, an iroh-blobs `FsStore`
+  in `blobs/` beside the snapshot. Hashes are BLAKE3. `get` checks `has`
+  first so that an absent blob is `Missing`, not a store error. Call
+  `shutdown` before dropping the last clone if something will reopen the
+  directory at once: the store's database is locked until its tasks stop.
+  Anything `put` is tagged and so kept; nothing deletes yet.
 - **`--local ADDR`** binds to that address only, with no relays or address
   lookup. The tests use it on `127.0.0.1:0`, and iroh tests use
   `presets::Minimal` with relays disabled, so nothing leaves the machine.

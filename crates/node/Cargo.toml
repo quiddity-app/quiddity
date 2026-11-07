@@ -11,6 +11,8 @@ rust-version = "1.91"
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 iroh = "1.4"
+iroh-blobs = { version = "0.104", default-features = false, features = ["fs-store"] }
+bytes = "1"
 jiff.workspace = true
 quiddity-core.workspace = true
 quiddity-sync = { path = "../sync" }

@@ -12,6 +12,7 @@
 //! Typing is not sent keystroke by keystroke to devices that can't see it:
 //! see [`Peer::edited`].
 
+pub mod blobs;
 pub mod store;
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
