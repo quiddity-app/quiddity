@@ -15,3 +15,4 @@ alias:: headless node
 - Saving records this device and compacts what it writes. [[Compaction]]
 - It also holds the [[Publish gate]], and routes [[Presence]] between connections.
 - It says how the device stands with the others (`Peer::sync_state`), for [[The shell]] to tell the UI: alone, offline, behind, synced or present. [[Sync status]]
+- A peer given a blob store offers its blobs to the devices that may connect, and fetches the ones the graph names that it lacks. [[Blob transfer]]

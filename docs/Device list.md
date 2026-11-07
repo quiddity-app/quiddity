@@ -26,3 +26,4 @@
 - Planned, not built: pairing with a QR code and a one-time token, where an existing device shows its endpoint ID and a token and the new one presents it, and revoking a device. [[Design]]
 - Devices that connect also tell each other which blocks they have open. [[Presence]]
 - The desktop app does this too. [[App sync]]
+- The same list decides who may fetch [[Binaries]]: the blobs protocol asks it on each connection. [[Blob transfer]]

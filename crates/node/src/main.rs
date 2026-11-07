@@ -157,6 +157,7 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
                 Allowed::Only(allow.into_iter().collect::<HashSet<_>>())
             };
             let peer = Peer::new(store.load()?, allowed, store.key()?.public().to_string());
+            peer.set_blobs(quiddity_node::blobs::Blobs::open(store.dir()).await?);
             let server = self::net(quiddity_node::serve(&peer, store.key()?, net.local).await)?;
             let endpoint = server.endpoint();
             match net.local {

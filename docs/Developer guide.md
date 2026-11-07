@@ -16,12 +16,13 @@ favourite:: true
 	- [[Presence]]: who is here, and which blocks they have open.
 	- [[Sync status]]: how a device stands with the others, as the app's cloud shows it.
 	- [[Publish gate]]: holding back typing nobody can see.
+	- [[Blob transfer]]: fetching the bytes of binaries from another device.
 	- [[Compaction]]: what history each device keeps.
 	- [[Duplicates]]: merging what two devices made at once.
 - On disk
 	- [[Storage]]: the graph's directory, and what is derived.
 	- [[Versioning]]: changing the format without breaking stored graphs.
-	- [[Binaries]]: files in the graph, still to come.
+	- [[Binaries]]: files in the graph, partly built.
 - This site
 	- [[Publishing]]: how CI builds it, and [[Static build]], what that asks of the UI.
 	- Each day's work has a [[Journal]] entry.
