@@ -19,7 +19,7 @@ function AddBlock({ empty }: { empty: boolean }) {
   return (
     <button
       type="button"
-      className={`mt-1 block w-full rounded px-2 py-1 text-left text-sm text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-700 ${
+      className={`mt-1 block w-full rounded border border-transparent px-2 py-1 text-left text-sm text-slate-500 hover:border-slate-200 dark:text-slate-400 dark:hover:border-slate-700 ${
         empty ? "" : "opacity-0 focus:opacity-100 hover:opacity-100"
       }`}
       onClick={() => {
