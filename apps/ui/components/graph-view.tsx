@@ -491,12 +491,12 @@ function Canvas() {
       <button
         type="button"
         onClick={() => drawing.current?.fit()}
-        className="absolute right-3 top-3 rounded border border-slate-300 bg-white/80 px-2 py-1 text-sm text-slate-700 hover:bg-white dark:border-slate-600 dark:bg-slate-900/80 dark:text-slate-200 dark:hover:bg-slate-900"
+        className="absolute right-3 top-3 rounded border border-control bg-surface/80 px-2 py-1 text-sm text-ink hover:bg-surface"
       >
         Reset view
       </button>
       {data.nodes.length === 0 && (
-        <p className="absolute inset-x-0 top-8 text-center text-slate-500 dark:text-slate-400">
+        <p className="absolute inset-x-0 top-8 text-center text-ink-muted">
           Nothing to draw yet.
         </p>
       )}

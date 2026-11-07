@@ -12,7 +12,7 @@ import { useView } from "./use-view";
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="px-2 py-2">
-      <h2 className="px-2 pb-1 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+      <h2 className="px-2 pb-1 text-xs font-medium uppercase tracking-wide text-ink-muted">
         {title}
       </h2>
       {children}
@@ -23,7 +23,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Items({ items }: { items: EntityRef[] }) {
   const { main } = useView();
   if (items.length === 0) {
-    return <p className="px-2 text-sm text-slate-500 dark:text-slate-400">Nothing yet.</p>;
+    return <p className="px-2 text-sm text-ink-muted">Nothing yet.</p>;
   }
   return (
     <ul>
@@ -31,8 +31,8 @@ function Items({ items }: { items: EntityRef[] }) {
         <li key={item.id}>
           <EntityLink
             id={item.id}
-            className={`block truncate rounded px-2 py-1 text-sm hover:bg-slate-200 dark:hover:bg-slate-700 ${
-              item.id === main ? "bg-slate-200 font-medium dark:bg-slate-700" : ""
+            className={`block truncate rounded px-2 py-1 text-sm hover:bg-surface-hover ${
+              item.id === main ? "bg-surface-hover font-medium" : ""
             }`}
           >
             {item.title}
@@ -73,8 +73,8 @@ function Entrypoints() {
           <li key={href}>
             <Link
               href={href}
-              className={`block truncate rounded px-2 py-1 text-sm hover:bg-slate-200 dark:hover:bg-slate-700 ${
-                here ? "bg-slate-200 font-medium dark:bg-slate-700" : ""
+              className={`block truncate rounded px-2 py-1 text-sm hover:bg-surface-hover ${
+                here ? "bg-surface-hover font-medium" : ""
               }`}
             >
               {title}
@@ -101,7 +101,7 @@ function Recents() {
 
 export function LeftSidebar() {
   const failed = () => (
-    <p className="px-2 text-sm text-slate-500 dark:text-slate-400">Couldn't load.</p>
+    <p className="px-2 text-sm text-ink-muted">Couldn't load.</p>
   );
   return (
     <nav aria-label="Navigation" className="overflow-y-auto">

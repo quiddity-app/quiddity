@@ -27,5 +27,5 @@
 	- Tauri: the shell holds the graph and the UI asks it for a snapshot. `QUIDDITY_GRAPH` names the graph the shell opens.
 	- Static: the snapshot is published beside the pages. [[Static build]]
 	- Memory: a made-up graph, built through the same replica, for development and tests. Its ids differ on every load, so anything remembered by id has to cope with the entity no longer existing. Recents do.
-- Looks: Tailwind's slate palette (light 50/800, dark 900/200, following the system), and IBM Plex Sans.
+- Looks: named colours over Tailwind's slate palette (light and dark, following the system), and IBM Plex Sans. [[Design language]]
 - Running it: [[Running the app]].

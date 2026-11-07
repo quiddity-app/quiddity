@@ -22,7 +22,7 @@ function BlockRow({ block, links }: { block: Block; links: Record<string, Resolv
       <span
         aria-hidden
         data-bullet
-        className={`mt-2.5 size-1.5 shrink-0 rounded-full bg-slate-400 ${chipsOnly ? "invisible" : ""}`}
+        className={`mt-2.5 size-1.5 shrink-0 rounded-full bg-bullet ${chipsOnly ? "invisible" : ""}`}
       />
       <div className="min-w-0 flex-1 py-0.5">
         {isEditing ? (

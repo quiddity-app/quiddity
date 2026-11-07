@@ -8,7 +8,7 @@ import { EntityBody, EntityTitle } from "./entity-view";
 import { useView } from "./use-view";
 
 const iconButton =
-  "rounded px-1.5 py-0.5 text-sm text-slate-500 hover:bg-slate-200 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200";
+  "rounded px-1.5 py-0.5 text-sm text-ink-muted hover:bg-surface-hover hover:text-ink";
 
 /**
  * The header is outside the region that suspends, so a card can always be
@@ -18,12 +18,12 @@ function Secondary({ id }: { id: EntityId }) {
   const view = useView();
   const [collapsed, setCollapsed] = useState(false);
   return (
-    <article className="rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900">
+    <article className="rounded-lg border border-border bg-surface">
       <header className="flex items-center gap-1 px-3 py-1.5">
         <h3 className="min-w-0 flex-1 truncate text-sm font-medium">
           <Region
             pending={<Skeleton className="h-4 w-24" />}
-            failed={() => <span className="text-slate-500">{id}</span>}
+            failed={() => <span className="text-ink-muted">{id}</span>}
           >
             <Link href={view.toMainFromSide(id)} className="hover:underline">
               <EntityTitle id={id} />
@@ -44,7 +44,7 @@ function Secondary({ id }: { id: EntityId }) {
         </Link>
       </header>
       {!collapsed && (
-        <div className="border-t border-slate-200 px-3 py-2 text-sm dark:border-slate-700">
+        <div className="border-t border-border px-3 py-2 text-sm">
           <Region
             pending={
               <div className="space-y-2" role="status" aria-label="Loading">
@@ -53,7 +53,7 @@ function Secondary({ id }: { id: EntityId }) {
               </div>
             }
             failed={(error) => (
-              <p role="alert" className="text-red-700 dark:text-red-300">
+              <p role="alert" className="text-danger">
                 {error.message}
               </p>
             )}
@@ -72,7 +72,7 @@ export function RightPane() {
   return (
     <>
       <div className="flex items-center justify-between px-3 py-2">
-        <h2 className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        <h2 className="text-xs font-medium uppercase tracking-wide text-ink-muted">
           Open
         </h2>
         <Link href={toAllClosed()} className={iconButton}>

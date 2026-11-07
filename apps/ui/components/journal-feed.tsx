@@ -22,7 +22,7 @@ function Day({ day }: { day: EntityRef }) {
       <Region
         pending={<Skeleton className="h-4 w-1/2" />}
         failed={(error) => (
-          <p role="alert" className="text-red-700 dark:text-red-300">
+          <p role="alert" className="text-danger">
             {error.message}
           </p>
         )}
@@ -61,7 +61,7 @@ function Days() {
           <Skeleton className="h-4 w-1/3" />
         </div>
       ) : (
-        <p className="py-8 text-sm text-slate-500 dark:text-slate-400">That's the lot.</p>
+        <p className="py-8 text-sm text-ink-muted">That's the lot.</p>
       )}
     </>
   );
@@ -75,7 +75,7 @@ export function JournalFeed() {
       <Region
         pending={<Skeleton className="h-8 w-1/3" />}
         failed={(error) => (
-          <p role="alert" className="text-red-700 dark:text-red-300">
+          <p role="alert" className="text-danger">
             {error.message}
           </p>
         )}

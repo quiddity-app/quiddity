@@ -1,2 +1,2 @@
 - What Quiddity is built on. Each page says what it is and what Quiddity uses it for, and the references below list them all: they are the entities with `type:: library`.
-- [[Loro]], [[iroh]], [[iroh-blobs]], [[Tauri]], [[Next.js]], [[CodeMirror]], [[d3]], [[react-markdown]] and [[toml]].
+- [[Loro]], [[iroh]], [[iroh-blobs]], [[Tauri]], [[Next.js]], [[Tailwind CSS]], [[CodeMirror]], [[d3]], [[react-markdown]] and [[toml]].

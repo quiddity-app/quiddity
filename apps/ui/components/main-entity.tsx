@@ -35,7 +35,7 @@ export function MainEntity({ id }: { id: EntityId }) {
           failed={(error) => (
             <div role="alert">
               <h1 className="text-2xl font-semibold">Couldn't open this</h1>
-              <p className="mt-2 text-red-700 dark:text-red-300">
+              <p className="mt-2 text-danger">
                 {error.message}
               </p>
             </div>

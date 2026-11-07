@@ -6,15 +6,15 @@ import { EntityLink } from "./entity-link";
 import { Value } from "./property-chip";
 
 const heading =
-  "text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400";
-const link = "text-sky-700 underline-offset-2 hover:underline dark:text-sky-300";
+  "text-xs font-medium uppercase tracking-wide text-ink-muted";
+const link = "text-link underline-offset-2 hover:underline";
 
 /** What doesn't fit a schema and has no chip of its own to show on. */
 export function EntityFlags({ id }: { id: EntityId }) {
   const { flags } = useRead((g) => g.entity(id));
   if (flags.length === 0) return null;
   return (
-    <ul aria-label="Flags" className="mb-4 space-y-1 text-sm text-amber-700 dark:text-amber-300">
+    <ul aria-label="Flags" className="mb-4 space-y-1 text-sm text-flag-text">
       {flags.map((flag, i) => (
         <li key={i}>{flag}</li>
       ))}
@@ -32,13 +32,13 @@ function InheritedValues({ entity }: { entity: Entity }) {
         {entity.inherited.map((item, i) => (
           <li
             key={i}
-            className="inline-flex items-baseline gap-1 rounded-full border border-dashed border-slate-300 px-2 py-0.5 text-xs leading-5 dark:border-slate-600"
+            className="inline-flex items-baseline gap-1 rounded-full border border-dashed border-control px-2 py-0.5 text-xs leading-5"
           >
-            <span className="text-slate-500 dark:text-slate-400">
+            <span className="text-ink-muted">
               {item.value === null ? `#${item.key}` : item.key}
             </span>
             {item.value !== null && <Value value={item.value} links={entity.links} />}
-            <span className="text-slate-400 dark:text-slate-500">
+            <span className="text-ink-muted">
               from{" "}
               <EntityLink id={item.from.id} className={link}>
                 {item.from.title}
@@ -82,7 +82,7 @@ function Tree({ nodes }: { nodes: InverseNode[] }) {
 
 function More({ count }: { count: number }) {
   return (
-    <p className="pl-4 text-xs text-slate-500 dark:text-slate-400">
+    <p className="pl-4 text-xs text-ink-muted">
       and {count} more, on its own page
     </p>
   );
