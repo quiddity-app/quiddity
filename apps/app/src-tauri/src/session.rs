@@ -28,6 +28,12 @@ pub enum Error {
     Io(#[from] std::io::Error),
     #[error("expected the updates as raw bytes")]
     NotBytes,
+    #[error("{0}")]
+    Blob(#[from] quiddity_node::blobs::BlobError),
+    #[error("this device keeps no binaries")]
+    NoBlobs,
+    #[error("{0:?} is not a hash")]
+    NotAHash(String),
 }
 
 impl Serialize for Error {
@@ -68,6 +74,33 @@ impl Session {
             peer,
             ui: Arc::default(),
         })
+    }
+
+    /// Opens the store for the bytes of the graph's binaries and has the peer
+    /// keep them: it gives them to the devices that may connect, and fetches
+    /// those the graph names that it lacks, once it is on the network. Call it
+    /// before putting the peer on the network.
+    pub async fn keep_blobs(&self) -> Result<(), Error> {
+        let blobs = quiddity_node::blobs::Blobs::open(self.store.dir()).await?;
+        self.peer.set_blobs(blobs);
+        Ok(())
+    }
+
+    fn blobs(&self) -> Result<quiddity_node::blobs::Blobs, Error> {
+        self.peer.blobs().ok_or(Error::NoBlobs)
+    }
+
+    /// Keeps the bytes of a file and returns their hash, in hex, which is
+    /// what the graph refers to them by. The UI then says in the graph what
+    /// the file is, as an edit like any other.
+    pub async fn put_blob(&self, bytes: Vec<u8>) -> Result<String, Error> {
+        Ok(self.blobs()?.put(bytes).await?.to_string())
+    }
+
+    /// The bytes with this hash, if this device has them (yet).
+    pub async fn blob(&self, hash: &str) -> Result<Vec<u8>, Error> {
+        let hash = hash.parse().map_err(|_| Error::NotAHash(hash.to_owned()))?;
+        Ok(self.blobs()?.get(hash).await?.to_vec())
     }
 
     /// This device's ID, which another device needs to let it in.
@@ -460,5 +493,107 @@ mod tests {
             .import(&session.ui_updates().unwrap().unwrap())
             .unwrap();
         assert_eq!(fresh.entity_name(page).unwrap(), "After");
+    }
+
+    /// A file put in comes back out under the hash of its bytes, and what
+    /// isn't there, or isn't a hash, is refused rather than made up.
+    #[tokio::test]
+    async fn a_file_is_kept_by_its_hash() {
+        let dir = tempfile::tempdir().unwrap();
+        let session = Session::open(dir.path()).unwrap();
+        session.keep_blobs().await.unwrap();
+        let bytes: Vec<u8> = (0..300_000u32).map(|i| (i % 253) as u8).collect();
+
+        let hash = session.put_blob(bytes.clone()).await.unwrap();
+        assert_eq!(hash, quiddity_node::blobs::Hash::new(&bytes).to_string());
+        assert_eq!(session.put_blob(bytes.clone()).await.unwrap(), hash);
+        assert_eq!(session.blob(&hash).await.unwrap(), bytes);
+
+        let absent = quiddity_node::blobs::Hash::new(b"absent").to_string();
+        assert!(matches!(session.blob(&absent).await, Err(Error::Blob(_))));
+        assert!(matches!(
+            session.blob("not a hash").await,
+            Err(Error::NotAHash(_))
+        ));
+    }
+
+    /// A device whose store couldn't be opened still runs, and says so.
+    #[tokio::test]
+    async fn without_a_store_files_are_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let session = Session::open(dir.path()).unwrap();
+        assert!(matches!(
+            session.put_blob(b"x".to_vec()).await,
+            Err(Error::NoBlobs)
+        ));
+        let hash = quiddity_node::blobs::Hash::new(b"x").to_string();
+        assert!(matches!(session.blob(&hash).await, Err(Error::NoBlobs)));
+    }
+
+    /// The whole of it: a file put in the shell and named by the UI's edit
+    /// reaches another device that keeps blobs, with the graph that names it.
+    #[tokio::test]
+    async fn a_file_the_ui_names_reaches_other_devices() {
+        use quiddity_node::blobs::Blobs;
+
+        let (home_dir, guest_dir) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        let home = Session::open(home_dir.path()).unwrap();
+        home.keep_blobs().await.unwrap();
+        let bytes: Vec<u8> = (0..200_000u32).map(|i| (i % 249) as u8).collect();
+        let hash = home.put_blob(bytes.clone()).await.unwrap();
+
+        // The UI says in the graph what the file is, as an edit like any other.
+        let ui = Graph::from_snapshot(&home.snapshot().unwrap()).unwrap();
+        let before = ui.version();
+        let file = ui.create_block(None, None, "data.bin").unwrap();
+        let asset = quiddity_core::Asset {
+            hash: hash.clone(),
+            mime: "application/octet-stream".into(),
+            size: bytes.len() as u64,
+            name: Some("data.bin".into()),
+        };
+        ui.create_block(Some(file), None, &asset.line()).unwrap();
+        ui.commit();
+        home.apply(&ui.updates_since(&before).unwrap(), &[])
+            .unwrap();
+
+        let server = quiddity_node::serve(home.peer(), home.store().key().unwrap(), local())
+            .await
+            .unwrap();
+        let key = iroh::SecretKey::generate();
+        let guest = Peer::new(
+            Graph::blank(),
+            Allowed::Only(HashSet::new()),
+            key.public().to_string(),
+        );
+        let guest_blobs = Blobs::open(guest_dir.path()).await.unwrap();
+        guest.set_blobs(guest_blobs.clone());
+        let guest_server = quiddity_node::serve(&guest, key, local()).await.unwrap();
+
+        // Each device lists the other, as when pairing.
+        home.allow(&guest_server.endpoint().id().to_string())
+            .unwrap();
+        guest.admit(&server.endpoint().id().to_string()).unwrap();
+        let to = EndpointAddr::new(server.endpoint().id())
+            .with_ip_addr(server.endpoint().bound_sockets()[0]);
+        let (peer, endpoint) = (guest.clone(), guest_server.endpoint().clone());
+        let connection = tokio::spawn(async move {
+            let _ = peer.connect(&endpoint, to, None).await;
+        });
+
+        let hash: quiddity_node::blobs::Hash = hash.parse().unwrap();
+        let arrives = async {
+            while !guest_blobs.has(hash).await.unwrap() {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        };
+        tokio::time::timeout(Duration::from_secs(10), arrives)
+            .await
+            .expect("the file reaches the other device");
+        assert_eq!(guest_blobs.get(hash).await.unwrap().to_vec(), bytes);
+
+        connection.abort();
+        server.shutdown().await.unwrap();
+        guest_server.shutdown().await.unwrap();
     }
 }

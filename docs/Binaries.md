@@ -16,8 +16,9 @@
 	  ```
 	- An `##asset` line that can't be read, or a second one on the same entity, is flagged on its chip and the entity is not counted as an asset. The hash is not checked against the store: whether the bytes are here is a separate question. Nothing else is stored about an asset, so a graph written before this existed is unchanged.
 	- A device that is told of an `##asset` it lacks fetches the bytes from a connected device, and the headless node keeps them all. [[Blob transfer]]
+	- The app's shell keeps a store, and has `put_blob` and `get_blob` for the UI, so it gives and fetches blobs like the headless node does. [[The shell]]
 - To build, in this order
-	- A shell command to put a file in the graph and one to read it back, and the UI: paste or drop a file, show images, link the rest.
+	- The UI's side: formatting and reading an `##asset` line through [[quiddity-view]], then paste or drop a file, show images from object URLs, and link the rest.
 	- Export and import.
 	- Garbage collection.
 - A block that refers to an asset is a block reference. [[Block references]]
