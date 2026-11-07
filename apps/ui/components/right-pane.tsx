@@ -17,7 +17,7 @@ function Secondary({ id }: { id: EntityId }) {
   const [collapsed, setCollapsed] = useState(false);
   return (
     <article className="rounded-lg border border-border bg-surface">
-      <header className="flex items-center gap-1 px-3 py-1.5">
+      <header className="flex items-center gap-1 px-3 py-0.5">
         <h3 className="min-w-0 flex-1 truncate text-sm font-medium">
           <Region
             pending={<Skeleton className="h-4 w-24" />}

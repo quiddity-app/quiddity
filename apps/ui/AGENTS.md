@@ -71,6 +71,7 @@ check both, and that the colours differ.
 
 - **Colours are named for their job** (`bg-surface`, `text-ink-muted`, `border-border`, `text-link`, `text-danger`), declared once in `app/globals.css` with a light and a dark value. **Don't write a palette colour (`slate-500`) or a `dark:` pair in a component**: add or change a token. `ink-muted` is for hints on the page's own ground only; on a sidebar use `ink-secondary`.
 - **The repeated pieces are in `components/ui.tsx`**: `Button`, `Input`, `ErrorLine`, `Kbd`, and the class strings for links, section headings and small header buttons. Use them rather than retyping the classes. `docs/Design language.md` has the reasoning.
+- **Focus, touch and motion.** A base rule draws the focus ring, so don't remove an outline without drawing one. Use the `coarse:` variant to make a target 44px on a touch screen and `no-hover:` for anything that would otherwise be revealed only by hovering. Use `motion-safe:` for any animation.
 
 ## Routing and boundaries
 

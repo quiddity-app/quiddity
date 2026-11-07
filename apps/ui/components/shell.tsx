@@ -29,7 +29,7 @@ export function Shell({
   return (
     <div className="flex h-dvh overflow-hidden">
       <aside
-        className={`${pane} fixed inset-y-0 left-0 z-30 flex w-64 shrink-0 flex-col border-r border-border transition-transform md:static md:translate-x-0 ${
+        className={`${pane} fixed inset-y-0 left-0 z-30 flex w-64 shrink-0 flex-col border-r border-border motion-safe:transition-transform md:static md:translate-x-0 ${
           drawer ? "translate-x-0" : "-translate-x-full"
         }`}
         onClick={() => setDrawer(false)}

@@ -5,6 +5,7 @@ import { useGraph } from "@/lib/use-graph";
 import type { Block, EntityId, ResolvedLink } from "@/lib/model";
 import { EditingContext, useEditing, type Editing } from "./editing-context";
 import { Outline } from "./entity-view";
+import { AddRow } from "./ui";
 
 function flatten(blocks: Block[], out: string[] = []): string[] {
   for (const block of blocks) {
@@ -17,18 +18,15 @@ function flatten(blocks: Block[], out: string[] = []): string[] {
 function AddBlock({ empty }: { empty: boolean }) {
   const editing = useEditing()!;
   return (
-    <button
-      type="button"
-      className={`mt-1 block w-full rounded border border-transparent px-2 py-1 text-left text-sm text-ink-muted hover:border-border ${
-        empty ? "" : "opacity-0 focus:opacity-100 hover:opacity-100"
-      }`}
-      onClick={() => {
+    <AddRow
+      empty={empty}
+      emptyLabel="Empty. Click to add a block."
+      label="+ Add a block"
+      onAdd={() => {
         const id = editing.graph.createBlock(editing.entityId, undefined, "");
         editing.edit(id, "start");
       }}
-    >
-      {empty ? "Empty. Click to add a block." : "+ Add a block"}
-    </button>
+    />
   );
 }
 

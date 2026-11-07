@@ -17,4 +17,9 @@
 	- A screen uses these rather than typing the classes again, so a change to how a button looks is made once.
 - Two kinds of hover
 	- A control (a button, a row, a table row) is small and sought out, so hovering it fills it. The "+ Add a block" row is wide and usually invisible, so the pointer crosses it all the time without meaning to use it; it only gets an outline, which says it is there without a heavy block flashing across the page.
-- Planned, in the same design and not built yet: a visible focus ring, touch-sized targets, a type scale and page widths, JetBrains Mono for code, and one treatment for floating layers.
+- Focus, touch and motion
+	- Every control shows where the keyboard is with one 2px ring in the link colour (`focus-ring`), drawn by a base rule in `globals.css`. A field that draws its own focus, such as the search box and the editor, says so with its own outline.
+	- On a touch screen (`coarse`, a Tailwind variant for `pointer: coarse`) buttons, fields, sidebar rows and search hits are at least 44px tall; with a mouse, controls are at least 32px.
+	- Nothing is only there on hover. `no-hover` is the variant for a device that can't hover, and it is why the "+ Add a block" row is simply shown on a touch screen. [[Editing]]
+	- A person who has asked for less motion gets none: the drawer doesn't slide, the placeholders don't pulse and the graph doesn't glide to its frame.
+- Planned, in the same design and not built yet: a type scale and page widths, JetBrains Mono for code, and one treatment for floating layers.
