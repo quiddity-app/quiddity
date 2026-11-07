@@ -6,9 +6,8 @@ import { useRead } from "@/lib/use-graph";
 import { Region, Skeleton } from "./boundary";
 import { EntityLink } from "./entity-link";
 import { Outline } from "./entity-view";
+import { ErrorLine, linkClass, sectionHeading } from "./ui";
 
-const heading =
-  "text-xs font-medium uppercase tracking-wide text-ink-muted";
 
 function Groups({ references }: { references: Reference[] }) {
   return (
@@ -18,7 +17,7 @@ function Groups({ references }: { references: Reference[] }) {
           <h3 className="mb-1 font-medium">
             <EntityLink
               id={source.id}
-              className="text-link underline-offset-2 hover:underline"
+              className={linkClass}
             >
               {source.title}
             </EntityLink>
@@ -38,7 +37,7 @@ function Linked({ id }: { id: EntityId }) {
   if (references.length === 0) return null;
   return (
     <section aria-label="Linked references">
-      <h2 className={`${heading} mb-3`}>Linked references ({count(references)})</h2>
+      <h2 className={`${sectionHeading} mb-3`}>Linked references ({count(references)})</h2>
       <Groups references={references} />
     </section>
   );
@@ -57,15 +56,13 @@ function Unlinked({ id }: { id: EntityId }) {
   const [shown, setShown] = useState(false);
   return (
     <details onToggle={(e) => setShown(e.currentTarget.open)}>
-      <summary className={`${heading} cursor-pointer select-none`}>Unlinked references</summary>
+      <summary className={`${sectionHeading} cursor-pointer select-none`}>Unlinked references</summary>
       {shown && (
         <div className="mt-3">
           <Region
             pending={<Skeleton className="h-4 w-1/2" />}
             failed={(error) => (
-              <p role="alert" className="text-sm text-danger">
-                {error.message}
-              </p>
+              <ErrorLine className="text-sm">{error.message}</ErrorLine>
             )}
           >
             <UnlinkedList id={id} />
@@ -84,9 +81,7 @@ export function References({ id }: { id: EntityId }) {
         key={`linked:${id}`}
         pending={<Skeleton className="h-4 w-1/3" />}
         failed={(error) => (
-          <p role="alert" className="text-sm text-danger">
-            {error.message}
-          </p>
+          <ErrorLine className="text-sm">{error.message}</ErrorLine>
         )}
       >
         <Linked id={id} />

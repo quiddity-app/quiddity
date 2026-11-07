@@ -3,11 +3,9 @@
 import { use, useState } from "react";
 import { useGraph, useRead } from "@/lib/use-graph";
 import { Region, Skeleton } from "./boundary";
+import { Button, ErrorLine, Input } from "./ui";
 
 const when = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
-
-const button =
-  "rounded border border-control px-3 py-1 hover:bg-surface-hover";
 
 /** An ID, drawn to be read and copied: long, and no use cut short. */
 function Id({ id }: { id: string }) {
@@ -29,9 +27,7 @@ function ThisDevice() {
       </p>
       <p className="mb-2 flex flex-wrap items-center gap-3">
         <Id id={id} />
-        <button
-          type="button"
-          className={button}
+        <Button
           onClick={() => {
             void navigator.clipboard
               .writeText(id)
@@ -40,7 +36,7 @@ function ThisDevice() {
           }}
         >
           {copied ? "Copied" : "Copy"}
-        </button>
+        </Button>
       </p>
     </section>
   );
@@ -112,18 +108,18 @@ function Add() {
       >
         <label className="flex flex-1 flex-wrap items-center gap-3">
           <span>Device ID</span>
-          <input
+          <Input
             type="text"
             value={id}
             onChange={(event) => setId(event.target.value)}
             spellCheck={false}
             autoComplete="off"
-            className="min-w-64 flex-1 rounded border border-control bg-transparent px-2 py-1 font-mono text-sm"
+            className="min-w-64 flex-1 font-mono text-sm"
           />
         </label>
-        <button type="submit" className={button} disabled={busy || id.trim() === ""}>
+        <Button type="submit" disabled={busy || id.trim() === ""}>
           Add device
-        </button>
+        </Button>
       </form>
       <div aria-live="polite" className="mt-2">
         {outcome?.kind === "added" ? (
@@ -132,9 +128,7 @@ function Add() {
           </p>
         ) : null}
         {outcome?.kind === "failed" ? (
-          <p role="alert" className="text-danger">
-            {outcome.message}
-          </p>
+          <ErrorLine>{outcome.message}</ErrorLine>
         ) : null}
       </div>
     </section>
@@ -161,9 +155,7 @@ export function Devices() {
       <Region
         pending={<Skeleton className="h-4 w-1/2" />}
         failed={(error) => (
-          <p role="alert" className="text-danger">
-            {error.message}
-          </p>
+          <ErrorLine>{error.message}</ErrorLine>
         )}
       >
         <Pairing />

@@ -24,6 +24,7 @@ import type { Connections } from "@/lib/model";
 import { useRead } from "@/lib/use-graph";
 import { Region, Skeleton } from "./boundary";
 import { useView } from "./use-view";
+import { Button } from "./ui";
 
 interface Node extends SimulationNodeDatum {
   id: string;
@@ -488,13 +489,14 @@ function Canvas() {
       <canvas ref={canvasRef} aria-hidden className="absolute inset-0 size-full touch-none" />
       {/* The same entities as links, for keyboards and screen readers. */}
       <div ref={listRef} className="sr-only" />
-      <button
-        type="button"
+      <Button
+        compact
+        variant="overlay"
         onClick={() => drawing.current?.fit()}
-        className="absolute right-3 top-3 rounded border border-control bg-surface/80 px-2 py-1 text-sm text-ink hover:bg-surface"
+        className="absolute right-3 top-3"
       >
         Reset view
-      </button>
+      </Button>
       {data.nodes.length === 0 && (
         <p className="absolute inset-x-0 top-8 text-center text-ink-muted">
           Nothing to draw yet.
