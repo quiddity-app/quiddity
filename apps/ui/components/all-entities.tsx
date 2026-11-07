@@ -7,6 +7,7 @@ import { useGraph, useRead } from "@/lib/use-graph";
 import { Region, Skeleton } from "./boundary";
 import { EntityLink } from "./entity-link";
 import { useView } from "./use-view";
+import { Button, ErrorLine, Input, linkClass } from "./ui";
 
 type Column = "title" | "tags" | "words" | "incoming" | "created" | "modified";
 
@@ -86,8 +87,6 @@ function List() {
       descending: s.column === column && !s.descending,
     }));
   const numeric = "px-3 py-1 text-right tabular-nums";
-  const button =
-    "rounded border border-control px-3 py-1 hover:bg-surface-hover";
   return (
     <>
       <div className="mb-3 flex min-h-8 items-center gap-3" role="toolbar" aria-label="Selected entities">
@@ -97,26 +96,23 @@ function List() {
               Delete {selected.length === 1 ? `“${selected[0]?.title}”` : `${selected.length} entities`} and
               everything in {them}? Links to {them} will point nowhere. Undo brings {them} back.
             </p>
-            <button
-              type="button"
-              className={`${button} border-danger text-danger`}
+            <Button
+              variant="danger"
               onClick={() => {
                 graph.deleteEntities(selected.map((r) => r.id));
                 choose([]);
               }}
             >
               Delete
-            </button>
-            <button type="button" className={button} autoFocus onClick={() => setConfirming(false)}>
+            </Button>
+            <Button autoFocus onClick={() => setConfirming(false)}>
               Cancel
-            </button>
+            </Button>
           </div>
         ) : (
           <>
             <span>{selected.length} selected</span>
-            <button type="button" className={button} onClick={() => setConfirming(true)}>
-              Delete…
-            </button>
+            <Button onClick={() => setConfirming(true)}>Delete…</Button>
           </>
         )}
       </div>
@@ -168,7 +164,7 @@ function List() {
               <th scope="row" className="px-3 py-1 font-normal">
                 <EntityLink
                   id={e.id}
-                  className="text-link underline-offset-2 hover:underline"
+                  className={linkClass}
                 >
                   {e.title}
                 </EntityLink>
@@ -207,19 +203,14 @@ function NewEntity() {
         router.push(view.toMain(graph.createEntity(trimmed)));
       }}
     >
-      <input
+      <Input
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="New entity"
         aria-label="Name of a new entity"
-        className="min-w-0 flex-1 rounded border border-control bg-transparent px-2 py-1"
+        className="min-w-0 flex-1"
       />
-      <button
-        type="submit"
-        className="rounded border border-control px-3 py-1 hover:bg-surface-hover"
-      >
-        Create
-      </button>
+      <Button type="submit">Create</Button>
     </form>
   );
 }
@@ -231,9 +222,7 @@ export function AllEntities() {
       <Region
         pending={<Skeleton className="h-4 w-1/2" />}
         failed={(error) => (
-          <p role="alert" className="text-danger">
-            {error.message}
-          </p>
+          <ErrorLine>{error.message}</ErrorLine>
         )}
       >
         <NewEntity />

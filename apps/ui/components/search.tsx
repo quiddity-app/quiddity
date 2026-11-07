@@ -7,6 +7,7 @@ import { text } from "@/lib/search/text";
 import { titles } from "@/lib/search/titles";
 import { useSearch } from "@/lib/search/use-search";
 import { useView } from "./use-view";
+import { Button, Kbd, sectionHeading } from "./ui";
 
 /** The sections of the panel, in order. New kinds of search are added here. */
 const facets: Facet[] = [limited(8, titles), limited(8, text)];
@@ -29,17 +30,15 @@ export function Search() {
   }, []);
   return (
     <>
-      <button
-        type="button"
+      <Button
+        compact
         aria-haspopup="dialog"
-        className="flex items-center gap-2 rounded border border-control px-2 py-1 text-sm text-ink-secondary hover:bg-surface-hover"
+        className="flex items-center gap-2 text-ink-secondary"
         onClick={() => setOpen(true)}
       >
         Search
-        <kbd className="rounded bg-surface-hover px-1 text-xs">
-          {isMac() ? "⌘K" : "Ctrl K"}
-        </kbd>
-      </button>
+        <Kbd>{isMac() ? "⌘K" : "Ctrl K"}</Kbd>
+      </Button>
       {open && <Panel onClose={() => setOpen(false)} />}
     </>
   );
@@ -146,7 +145,7 @@ function Panel({ onClose }: { onClose: () => void }) {
           {sections.map(({ facet, hits }) =>
             hits.length === 0 ? null : (
               <section key={facet.id} role="group" aria-label={facet.title} className="px-2 py-2">
-                <h2 className="px-2 pb-1 text-xs font-medium uppercase tracking-wide text-ink-muted">
+                <h2 className={`px-2 pb-1 ${sectionHeading}`}>
                   {facet.title}
                 </h2>
                 {hits.map((hit) => {

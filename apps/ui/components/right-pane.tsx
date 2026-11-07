@@ -6,9 +6,7 @@ import type { EntityId } from "@/lib/model";
 import { Region, Skeleton } from "./boundary";
 import { EntityBody, EntityTitle } from "./entity-view";
 import { useView } from "./use-view";
-
-const iconButton =
-  "rounded px-1.5 py-0.5 text-sm text-ink-muted hover:bg-surface-hover hover:text-ink";
+import { ErrorLine, iconButtonClass, paneHeading } from "./ui";
 
 /**
  * The header is outside the region that suspends, so a card can always be
@@ -32,14 +30,14 @@ function Secondary({ id }: { id: EntityId }) {
         </h3>
         <button
           type="button"
-          className={iconButton}
+          className={iconButtonClass}
           aria-expanded={!collapsed}
           aria-label={collapsed ? "Expand" : "Collapse"}
           onClick={() => setCollapsed((c) => !c)}
         >
           {collapsed ? "▸" : "▾"}
         </button>
-        <Link href={view.toClosed(id)} className={iconButton} aria-label="Close">
+        <Link href={view.toClosed(id)} className={iconButtonClass} aria-label="Close">
           ✕
         </Link>
       </header>
@@ -53,9 +51,7 @@ function Secondary({ id }: { id: EntityId }) {
               </div>
             }
             failed={(error) => (
-              <p role="alert" className="text-danger">
-                {error.message}
-              </p>
+              <ErrorLine>{error.message}</ErrorLine>
             )}
           >
             <EntityBody id={id} />
@@ -72,10 +68,8 @@ export function RightPane() {
   return (
     <>
       <div className="flex items-center justify-between px-3 py-2">
-        <h2 className="text-xs font-medium uppercase tracking-wide text-ink-muted">
-          Open
-        </h2>
-        <Link href={toAllClosed()} className={iconButton}>
+        <h2 className={paneHeading}>Open</h2>
+        <Link href={toAllClosed()} className={iconButtonClass}>
           Close all
         </Link>
       </div>
