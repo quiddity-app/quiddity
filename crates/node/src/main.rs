@@ -8,13 +8,16 @@ use std::process::ExitCode;
 use std::time::Duration;
 
 use clap::{Parser, Subcommand};
+use clap_verbosity_flag::{Verbosity, WarnLevel};
 use iroh::{Endpoint, EndpointAddr, EndpointId};
+use tracing::{error, info, instrument};
+use tracing_subscriber::fmt::format::FmtSpan;
 use quiddity_core::files::{export_dir, import_dir};
 use quiddity_core::{Index, merge_duplicates};
 use quiddity_node::store::Store;
 use quiddity_node::{Allowed, NetError, Peer, allow_device};
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 #[command(version, about)]
 struct Cli {
     /// The graph's directory.
@@ -22,9 +25,11 @@ struct Cli {
     graph: PathBuf,
     #[command(subcommand)]
     command: Command,
+    #[command(flatten)]
+    verbosity: Verbosity<WarnLevel>,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Debug)]
 enum Command {
     /// Create a graph. With --blank, an empty replica to sync an existing
     /// graph into.
@@ -66,7 +71,7 @@ enum Command {
     },
 }
 
-#[derive(clap::Args)]
+#[derive(clap::Args, Debug)]
 struct Net {
     /// Listen on this address only, without relays or address lookup:
     /// for a local network, or testing.
@@ -87,15 +92,22 @@ impl Net {
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    match run(Cli::parse()).await {
+    let args = Cli::parse();
+    tracing_subscriber::fmt()
+        .with_max_level(args.verbosity)
+        .with_span_events(FmtSpan::FULL)
+        .init();
+    info!("Logging level set to {:?}", args.verbosity);
+    match run(args).await {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
-            eprintln!("quiddity-node: {e:#}");
+            error!("quiddity-node: {e:#}");
             ExitCode::FAILURE
         }
     }
 }
 
+#[instrument(skip_all, err(level = "error"))]
 async fn run(cli: Cli) -> anyhow::Result<()> {
     let store = Store::new(cli.graph);
     match cli.command {
@@ -113,17 +125,17 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
             let imported = import_dir(&graph, &dir)?;
             merge_duplicates(&graph, &Index::build(&graph)?)?;
             store.save(&graph)?;
-            println!("imported {} entities", imported.len());
+            info!("imported {} entities", imported.len());
         }
         Command::Export { dir } => {
             let written = export_dir(&store.load()?, &dir)?;
-            println!("exported {written} entities");
+            info!("exported {written} entities");
         }
         Command::Allow { device } => {
             let graph = store.load()?;
             allow_device(&graph, &device.to_string(), jiff::Timestamp::now())?;
             store.save(&graph)?;
-            println!("{device} may connect");
+            info!("{device} may connect");
         }
         Command::Id => println!("{}", store.key()?.public()),
         Command::Devices => {
@@ -193,7 +205,7 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
             peer.tidy()?;
             store.save(graph)?;
             endpoint.close().await;
-            println!("synced");
+            info!("synced");
         }
     }
     Ok(())

@@ -34,6 +34,7 @@ use quiddity_sync::{
 };
 use tokio::sync::watch;
 use tokio::task::JoinSet;
+use tracing::{error, instrument};
 
 /// The protocol's name, negotiated when connecting.
 pub const ALPN: &[u8] = b"quiddity/sync/2";
@@ -927,13 +928,14 @@ pub fn save_on_change(peer: Peer, store: store::Store) {
                 Ok(())
             })();
             if let Err(e) = saved {
-                eprintln!("quiddity: saving failed: {e}");
+                error!("quiddity: saving failed: {e}");
             }
         }
     });
 }
 
 impl ProtocolHandler for Peer {
+    #[instrument(err(level = "error"))]
     async fn accept(&self, connection: Connection) -> Result<(), AcceptError> {
         if let Allowed::Only(ids) = &self.inner.allowed
             && !ids.contains(&connection.remote_id())

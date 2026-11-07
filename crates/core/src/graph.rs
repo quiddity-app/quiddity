@@ -9,7 +9,7 @@ use loro::{
     Container, ContainerID, ContainerTrait, ExportMode, ID, LoroDoc, LoroText, LoroTree, LoroValue,
     TreeID, TreeParentId, UndoManager, UpdateOptions, ValueOrContainer, VersionVector,
 };
-
+use tracing::instrument;
 use crate::{Error, Result};
 
 const BLOCKS: &str = "blocks";
@@ -461,6 +461,7 @@ impl Graph {
 
     /// Creates a block under `parent` (or as a new root), at `index` among its
     /// siblings or at the end.
+    #[instrument(level = "debug")]
     pub fn create_block(
         &self,
         parent: Option<BlockId>,
@@ -486,6 +487,7 @@ impl Graph {
     /// `index` among its new siblings or at the end. The index is the block's
     /// final position, so when moving within the same parent it counts the
     /// siblings other than the block itself.
+    #[instrument(level = "debug")]
     pub fn move_block(
         &self,
         id: BlockId,
@@ -503,6 +505,7 @@ impl Graph {
     }
 
     /// Deletes a block and its children.
+    #[instrument(level = "debug")]
     pub fn delete_block(&self, id: BlockId) -> Result<()> {
         self.check(id)?;
         self.tree().delete(id.0)?;

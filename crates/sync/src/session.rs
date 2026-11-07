@@ -1,4 +1,5 @@
 use jiff::Timestamp;
+use tracing::instrument;
 use quiddity_core::{Graph, SCHEMA_VERSION, Version};
 
 use crate::Message;
@@ -48,7 +49,8 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn new(device: impl Into<String>) -> Self {
+    #[instrument]
+    pub fn new(device: impl Into<String> + std::fmt::Debug) -> Self {
         Self {
             device: device.into(),
             peer: None,
@@ -89,6 +91,7 @@ impl Session {
     /// A replica with anything to give vouches for a peer it hasn't heard
     /// of (see `Graph::vouch_for`), at `now`, so no device compacts past
     /// what the peer has.
+    #[instrument(err(level = "error"))]
     pub fn receive(
         &mut self,
         graph: &Graph,

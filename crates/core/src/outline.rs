@@ -14,6 +14,7 @@
 //! properties. Bullets are indented with tabs, and continuation lines with
 //! the bullet's tabs plus two spaces.
 
+use tracing::instrument;
 use quiddity_syntax::{
     Value, format_property_line, is_properties_block, normalise_name, parse_property_line,
 };
@@ -174,6 +175,7 @@ impl Pending {
     }
 }
 
+#[instrument(level = "debug")]
 pub fn parse_outline(src: &str, indent: Indent) -> Outline {
     // Quiddity's own files keep a `\r` that is part of a block's text;
     // anything else may have Windows line endings.

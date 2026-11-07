@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 
 use iroh::SecretKey;
 use jiff::{SignedDuration, Timestamp};
+use tracing::instrument;
 use quiddity_core::{Graph, Version};
 
 const SNAPSHOT: &str = "graph.loro";
@@ -22,7 +23,8 @@ pub struct Store {
 }
 
 impl Store {
-    pub fn new(dir: impl Into<PathBuf>) -> Self {
+    #[instrument(level = "debug")]
+    pub fn new(dir: impl Into<PathBuf> + std::fmt::Debug) -> Self {
         Self { dir: dir.into() }
     }
 
@@ -32,6 +34,7 @@ impl Store {
 
     /// Creates the directory with an empty graph (or, with `blank`, an empty
     /// replica for a device that will sync an existing graph).
+    #[instrument(err(level = "error"))]
     pub fn init(&self, blank: bool) -> Result<Graph, crate::StoreError> {
         if self.dir.join(SNAPSHOT).exists() {
             return Err(crate::StoreError::Exists(self.dir.clone()));
@@ -42,6 +45,7 @@ impl Store {
         Ok(graph)
     }
 
+    #[instrument(err(level = "error"))]
     pub fn load(&self) -> Result<Graph, crate::StoreError> {
         let bytes = fs::read(self.dir.join(SNAPSHOT))?;
         Ok(Graph::from_snapshot(&bytes)?)
@@ -52,6 +56,7 @@ impl Store {
     /// The saved graph records that this device has stored it, and keeps
     /// only the history some device might still need. A blank replica
     /// records nothing: it has yet to join.
+    #[instrument(err(level = "error"))]
     pub fn save(&self, graph: &Graph) -> Result<(), crate::StoreError> {
         let snapshot = if graph.version() == Version::default() {
             graph.snapshot()?
@@ -71,6 +76,7 @@ impl Store {
 
     /// The device's key, created on first use. Its public half is the
     /// device's ID.
+    #[instrument(err(level = "error"))]
     pub fn key(&self) -> io::Result<SecretKey> {
         let path = self.dir.join(KEY);
         match fs::read(&path) {

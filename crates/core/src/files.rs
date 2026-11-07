@@ -16,6 +16,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use jiff::civil::Date;
+use tracing::instrument;
 use quiddity_syntax::{Value, format_property_line};
 
 use crate::merge::is_spent_duplicate;
@@ -29,6 +30,7 @@ pub const SETTINGS: &str = "quiddity.toml";
 
 /// Writes every entity to `dir`, which must be empty or not yet exist.
 /// Returns the number of files written.
+#[instrument(level = "debug")]
 pub fn export_dir(graph: &Graph, dir: &Path) -> Result<usize> {
     if dir.exists() && fs::read_dir(dir)?.next().is_some() {
         return Err(io::Error::new(
@@ -68,6 +70,7 @@ pub fn export_dir(graph: &Graph, dir: &Path) -> Result<usize> {
 /// `journals` directory named for a date (`2026-10-25.md`, or Logseq's
 /// `2026_10_25.md`) become journal pages. A `quiddity.toml` sets the graph's
 /// settings; those it doesn't mention are left as they were.
+#[instrument]
 pub fn import_dir(graph: &Graph, dir: &Path) -> Result<Vec<BlockId>> {
     // Read first, so that a mistake in it stops the import before anything
     // has been added.
@@ -122,6 +125,7 @@ pub fn import_dir(graph: &Graph, dir: &Path) -> Result<Vec<BlockId>> {
     Ok(ids)
 }
 
+#[instrument(level = "debug")]
 fn collect_markdown(dir: &Path, out: &mut Vec<PathBuf>) -> io::Result<()> {
     for entry in fs::read_dir(dir)? {
         let entry = entry?;

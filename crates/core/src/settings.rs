@@ -15,7 +15,7 @@ use std::str::FromStr;
 use loro::{LoroValue, ValueOrContainer};
 use quiddity_syntax::{Link, format_link, parse_block};
 use serde::{Deserialize, Serialize};
-
+use tracing::instrument;
 use crate::{Error, Graph, Result};
 
 const SETTINGS: &str = "settings";
@@ -85,6 +85,7 @@ struct File {
 impl Settings {
     /// Reads `quiddity.toml`. An unknown key is an error rather than ignored,
     /// so that a misspelt setting doesn't silently do nothing.
+    #[instrument(level = "debug")]
     pub fn from_toml(text: &str) -> Result<Self> {
         let file: File = toml::from_str(text).map_err(|e| Error::Settings(e.to_string()))?;
         Ok(Self {
@@ -93,6 +94,7 @@ impl Settings {
     }
 
     /// Writes `quiddity.toml`: only the settings that are set.
+    #[instrument(level = "debug")]
     pub fn to_toml(&self) -> String {
         let file = File {
             home: self.home.as_ref().map(Home::to_string),
@@ -123,6 +125,7 @@ impl Graph {
     /// Sets each setting that `settings` has, and leaves the others as they
     /// are. Each is its own key, so devices setting different ones don't
     /// conflict.
+    #[instrument(level = "debug")]
     pub fn apply_settings(&self, settings: &Settings) -> Result<()> {
         let map = self.doc().get_map(SETTINGS);
         if let Some(home) = &settings.home {
