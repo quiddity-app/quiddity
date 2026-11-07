@@ -118,8 +118,16 @@ impl Index {
         }
 
         let defines = matches!(info.identity(), Some(Identity::Property(_)));
-        if !info.meta.is_empty() && !defines {
-            flags.push(Flag::MetaOutsideProperty);
+        if !defines {
+            if info.meta.iter().any(|m| !crate::asset::is_asset(m)) {
+                flags.push(Flag::MetaOutsideProperty);
+            }
+            if let Some(Err(e)) = info.asset() {
+                flags.push(Flag::BadMeta {
+                    key: crate::asset::KEY.to_owned(),
+                    message: e.to_string(),
+                });
+            }
         }
         if defines {
             flags.extend(self.meta_flags.get(&id).into_iter().flatten().cloned());
