@@ -4,10 +4,8 @@ import type { Entity, EntityId, InverseNode } from "@/lib/model";
 import { useRead } from "@/lib/use-graph";
 import { EntityLink } from "./entity-link";
 import { Value } from "./property-chip";
+import { linkClass, sectionHeading } from "./ui";
 
-const heading =
-  "text-xs font-medium uppercase tracking-wide text-ink-muted";
-const link = "text-link underline-offset-2 hover:underline";
 
 /** What doesn't fit a schema and has no chip of its own to show on. */
 export function EntityFlags({ id }: { id: EntityId }) {
@@ -27,7 +25,7 @@ function InheritedValues({ entity }: { entity: Entity }) {
   if (entity.inherited.length === 0) return null;
   return (
     <section aria-label="Inherited" className="mt-6">
-      <h2 className={`${heading} mb-2`}>Inherited</h2>
+      <h2 className={`${sectionHeading} mb-2`}>Inherited</h2>
       <ul className="flex flex-wrap gap-1.5">
         {entity.inherited.map((item, i) => (
           <li
@@ -40,7 +38,7 @@ function InheritedValues({ entity }: { entity: Entity }) {
             {item.value !== null && <Value value={item.value} links={entity.links} />}
             <span className="text-ink-muted">
               from{" "}
-              <EntityLink id={item.from.id} className={link}>
+              <EntityLink id={item.from.id} className={linkClass}>
                 {item.from.title}
               </EntityLink>
             </span>
@@ -59,7 +57,7 @@ function Tree({ nodes }: { nodes: InverseNode[] }) {
           {node.children.length > 0 ? (
             <details open>
               <summary className="cursor-pointer">
-                <EntityLink id={node.entity.id} className={link}>
+                <EntityLink id={node.entity.id} className={linkClass}>
                   {node.entity.title}
                 </EntityLink>
               </summary>
@@ -68,7 +66,7 @@ function Tree({ nodes }: { nodes: InverseNode[] }) {
             </details>
           ) : (
             <>
-              <EntityLink id={node.entity.id} className={link}>
+              <EntityLink id={node.entity.id} className={linkClass}>
                 {node.entity.title}
               </EntityLink>
               {node.hidden > 0 && <More count={node.hidden} />}
@@ -94,7 +92,7 @@ function Inverses({ entity }: { entity: Entity }) {
     <>
       {entity.inverses.map(({ label, tree }) => (
         <section key={label} aria-label={label} className="mt-6">
-          <h2 className={`${heading} mb-2`}>{label}</h2>
+          <h2 className={`${sectionHeading} mb-2`}>{label}</h2>
           <div className="-ml-4">
             <Tree nodes={tree} />
           </div>

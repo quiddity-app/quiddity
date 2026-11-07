@@ -9,6 +9,7 @@ import { appPage } from "@/lib/nav";
 import { isExternal, openExternal } from "@/lib/open-external";
 import { PROP_CLOSE, PROP_OPEN, remarkQuiddity } from "@/lib/remark-quiddity";
 import { BlockRefLink, LinkOrNot, PropertyChip } from "./property-chip";
+import { linkClass } from "./ui";
 
 /**
  * A block's text split for display: line properties come out, to be drawn as
@@ -76,7 +77,7 @@ function components(links: Record<string, ResolvedLink>, inline: Property[]): Co
         <a
           href={href}
           rel="noopener noreferrer"
-          className="text-link underline-offset-2 hover:underline"
+          className={linkClass}
           onClick={(e) => {
             e.preventDefault();
             void openExternal(href);
@@ -85,7 +86,7 @@ function components(links: Record<string, ResolvedLink>, inline: Property[]): Co
           {children}
         </a>
       ) : appPage(href) ? (
-        <Link href={appPage(href)!} className="text-link underline-offset-2 hover:underline">
+        <Link href={appPage(href)!} className={linkClass}>
           {children}
         </Link>
       ) : (

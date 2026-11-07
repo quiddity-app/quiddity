@@ -11,4 +11,10 @@
 	- `link`, `danger`, `flag-text` and `flag-ring`, and the five `sync-*` dots, which are always paired with a label so that colour is never the only signal. [[Sync status]]
 - Borders, not shadows
 	- `border` is the hairline between panes, cards and rows. `border-control` is the edge of a control that needs one.
-- Planned, in the same design and not built yet: a shared button, field and error line, a visible focus ring, touch-sized targets, a type scale and page widths, JetBrains Mono for code, and one treatment for floating layers.
+- The shared pieces are in `apps/ui/components/ui.tsx`
+	- `Button` is outlined and never filled; `danger` is for what is asked about first, and `overlay` floats over the graph. `Input` is the one text field, `ErrorLine` the one way to say what went wrong, `Kbd` a key hint, and `iconButtonClass` the small button in a card's header or a toolbar.
+	- `sectionHeading` is the small-capitals caption, and `paneHeading` the same on a sidebar's ground, where the muted colour is too faint. `linkClass` is a link, and `unresolvedLinkClass` one to somewhere that doesn't exist yet.
+	- A screen uses these rather than typing the classes again, so a change to how a button looks is made once.
+- Two kinds of hover
+	- A control (a button, a row, a table row) is small and sought out, so hovering it fills it. The "+ Add a block" row is wide and usually invisible, so the pointer crosses it all the time without meaning to use it; it only gets an outline, which says it is there without a heavy block flashing across the page.
+- Planned, in the same design and not built yet: a visible focus ring, touch-sized targets, a type scale and page widths, JetBrains Mono for code, and one treatment for floating layers.

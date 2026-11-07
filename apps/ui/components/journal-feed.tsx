@@ -6,6 +6,7 @@ import { useRead } from "@/lib/use-graph";
 import { Region, Skeleton } from "./boundary";
 import { EntityLink } from "./entity-link";
 import { EntityBody } from "./entity-view";
+import { ErrorLine } from "./ui";
 
 const PAGE = 5;
 
@@ -22,9 +23,7 @@ function Day({ day }: { day: EntityRef }) {
       <Region
         pending={<Skeleton className="h-4 w-1/2" />}
         failed={(error) => (
-          <p role="alert" className="text-danger">
-            {error.message}
-          </p>
+          <ErrorLine>{error.message}</ErrorLine>
         )}
       >
         <EntityBody id={day.id} />
@@ -75,9 +74,7 @@ export function JournalFeed() {
       <Region
         pending={<Skeleton className="h-8 w-1/3" />}
         failed={(error) => (
-          <p role="alert" className="text-danger">
-            {error.message}
-          </p>
+          <ErrorLine>{error.message}</ErrorLine>
         )}
       >
         <Days />
