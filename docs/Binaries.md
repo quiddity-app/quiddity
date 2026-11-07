@@ -19,8 +19,8 @@
 	- The app's shell keeps a store, and has `put_blob` and `get_blob` for the UI, so it gives and fetches blobs like the headless node does. [[The shell]]
 	- [[quiddity-view]] says what file an entity page describes, and makes the entity for a file the shell has kept, so the UI never reads or writes the `##asset` line. It is exposed to the UI by [[quiddity-wasm]].
 	- The UI: drop or paste a file on a page and it is kept, given an entity and linked; an asset's page shows an image from an object URL, or a download link, or says the bytes aren't here yet. [[Add a file]] [[The UI]]
+	- Export writes the files to `assets/` and import keeps those named for their own hash. [[Export and import]]
 - To build, in this order
 	- Showing a file inline where it is linked, and the app's download link, which has been tried in a browser and not in the app's webview.
-	- Export and import.
 	- Garbage collection.
 - A block that refers to an asset is a block reference. [[Block references]]

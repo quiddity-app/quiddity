@@ -11,6 +11,7 @@ use clap::{Parser, Subcommand};
 use iroh::{Endpoint, EndpointAddr, EndpointId};
 use quiddity_core::files::{export_dir, import_dir};
 use quiddity_core::{Index, merge_duplicates};
+use quiddity_node::blobs::Blobs;
 use quiddity_node::store::Store;
 use quiddity_node::{Allowed, NetError, Peer, allow_device};
 
@@ -114,10 +115,31 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
             merge_duplicates(&graph, &Index::build(&graph)?)?;
             store.save(&graph)?;
             println!("imported {} entities", imported.len());
+            if dir.join("assets").is_dir() {
+                let blobs = Blobs::open(store.dir()).await?;
+                let files = blobs.import_assets(&dir).await?;
+                blobs.shutdown().await?;
+                print!("imported {} files", files.stored);
+                if files.skipped > 0 {
+                    print!(", left {} that are not named for their hash", files.skipped);
+                }
+                println!();
+            }
         }
         Command::Export { dir } => {
-            let written = export_dir(&store.load()?, &dir)?;
+            let graph = store.load()?;
+            let written = export_dir(&graph, &dir)?;
             println!("exported {written} entities");
+            if Index::build(&graph)?.assets().next().is_some() {
+                let blobs = Blobs::open(store.dir()).await?;
+                let files = blobs.export_assets(&graph, &dir).await?;
+                blobs.shutdown().await?;
+                print!("exported {} files", files.written);
+                if files.missing > 0 {
+                    print!(", {} not on this device yet", files.missing);
+                }
+                println!();
+            }
         }
         Command::Allow { device } => {
             let graph = store.load()?;
