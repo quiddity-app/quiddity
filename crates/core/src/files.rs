@@ -16,11 +16,11 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use jiff::civil::Date;
-use quiddity_syntax::{Value, format_property_line};
+use quiddity_syntax::{Link, Value, format_property_line, normalise_name, parse_property_line};
 use tracing::{debug, instrument, trace, warn};
 
 use crate::merge::is_spent_duplicate;
-use crate::outline::{Indent, export_entity, import_outline, parse_outline};
+use crate::outline::{Indent, Outline, export_entity, import_outline, parse_outline};
 use crate::{BlockId, Graph, Identity, Index, Result, Settings};
 
 pub const MANIFEST: &str = "quiddity.json";
@@ -72,6 +72,13 @@ pub fn export_dir(graph: &Graph, dir: &Path) -> Result<usize> {
 /// `journals` directory named for a date (`2026-10-25.md`, or Logseq's
 /// `2026_10_25.md`) become journal pages. A `quiddity.toml` sets the graph's
 /// settings; those it doesn't mention are left as they were.
+///
+/// In a Logseq graph (no `quiddity.json`), a page name with a `/` in it is a
+/// namespace: `Places/Scotland` is a child of `Places`. Logseq writes the
+/// slash as `___` in file names, so that is read back as `/` when the file has
+/// no `title::`. Each namespaced page gets a `parent` property naming the page
+/// above it, ancestors that have no page of their own are made, and `parent`
+/// is defined, with `children` as its inverse, unless the graph has it already.
 #[instrument(level = "debug", skip(graph), fields(dir = %dir.display()))]
 pub fn import_dir(graph: &Graph, dir: &Path) -> Result<Vec<BlockId>> {
     // Name the directory: the error from reading it doesn't.
@@ -89,11 +96,8 @@ pub fn import_dir(graph: &Graph, dir: &Path) -> Result<Vec<BlockId>> {
         Err(e) if e.kind() == io::ErrorKind::NotFound => None,
         Err(e) => return Err(e.into()),
     };
-    let indent = if dir.join(MANIFEST).is_file() {
-        Indent::Tabs
-    } else {
-        Indent::Auto
-    };
+    let logseq = !dir.join(MANIFEST).is_file();
+    let indent = if logseq { Indent::Auto } else { Indent::Tabs };
     let mut files = Vec::new();
     collect_markdown(dir, &mut files)?;
     files.sort();
@@ -101,6 +105,7 @@ pub fn import_dir(graph: &Graph, dir: &Path) -> Result<Vec<BlockId>> {
         warn!("no Markdown files to import");
     }
     let mut ids = Vec::new();
+    let mut ancestors = Vec::new();
     for path in files {
         trace!(path = %path.display(), "importing");
         let mut outline = parse_outline(&fs::read_to_string(&path)?, indent);
@@ -114,13 +119,7 @@ pub fn import_dir(graph: &Graph, dir: &Path) -> Result<Vec<BlockId>> {
             .and_then(Path::file_name)
             .is_some_and(|n| n == "journals");
         if in_journals && let Ok(date) = stem.replace('_', "-").parse::<Date>() {
-            let has_type = outline.properties.as_deref().is_some_and(|p| {
-                p.lines().any(|l| {
-                    quiddity_syntax::parse_property_line(l)
-                        .is_some_and(|(k, _)| k.eq_ignore_ascii_case("type"))
-                })
-            });
-            if !has_type {
+            if !has_property(&outline, "type") {
                 let date = date.to_string();
                 let mut lines = vec![
                     format_property_line("type", Some(&Value::Text("journal".into()))),
@@ -130,14 +129,89 @@ pub fn import_dir(graph: &Graph, dir: &Path) -> Result<Vec<BlockId>> {
                 outline.properties = Some(lines.join("\n"));
                 outline.title.get_or_insert(date);
             }
+        } else if logseq {
+            let name = (outline.title.clone()).unwrap_or_else(|| stem.replace("___", "/"));
+            if let Some(parent) = namespace_parent(&name) {
+                add_parent(&mut outline, &parent);
+                ancestors.push(parent);
+            }
+            outline.title = Some(name);
         }
         ids.push(import_outline(graph, &outline, &stem)?);
+    }
+    if !ancestors.is_empty() {
+        ids.extend(import_namespaces(graph, ancestors)?);
     }
     if let Some(settings) = settings {
         debug!("applying the settings");
         graph.apply_settings(&settings)?;
     }
     debug!(entities = ids.len(), "imported");
+    Ok(ids)
+}
+
+/// Whether the outline's properties block has a line for `key`.
+fn has_property(outline: &Outline, key: &str) -> bool {
+    outline.properties.as_deref().is_some_and(|p| {
+        p.lines()
+            .any(|l| parse_property_line(l).is_some_and(|(k, _)| k.eq_ignore_ascii_case(key)))
+    })
+}
+
+/// The namespace above a page name: `Places/Scotland` is under `Places`.
+fn namespace_parent(name: &str) -> Option<String> {
+    let (parent, child) = name.rsplit_once('/')?;
+    let parent = parent.trim();
+    (!parent.is_empty() && !child.trim().is_empty()).then(|| parent.to_owned())
+}
+
+/// Adds `parent:: [[parent]]` to the outline, unless it says its own.
+fn add_parent(outline: &mut Outline, parent: &str) {
+    if has_property(outline, "parent") {
+        return;
+    }
+    let line = format_property_line(
+        "parent",
+        Some(&Value::Link(Link {
+            name: parent.to_owned(),
+            qualifiers: vec![],
+        })),
+    );
+    outline.properties = Some(match outline.properties.take() {
+        Some(p) => format!("{p}\n{line}"),
+        None => line,
+    });
+}
+
+/// Makes the namespaces that were named as parents but have no page, and the
+/// `parent` property if the graph doesn't define it.
+fn import_namespaces(graph: &Graph, mut pending: Vec<String>) -> Result<Vec<BlockId>> {
+    let index = Index::build(graph)?;
+    let mut ids = Vec::new();
+    let mut seen = HashSet::new();
+    while let Some(name) = pending.pop() {
+        if !seen.insert(normalise_name(&name)) || !index.named(&name).is_empty() {
+            continue;
+        }
+        let mut outline = Outline {
+            title: Some(name.clone()),
+            properties: None,
+            blocks: Vec::new(),
+        };
+        if let Some(parent) = namespace_parent(&name) {
+            add_parent(&mut outline, &parent);
+            pending.push(parent);
+        }
+        ids.push(import_outline(graph, &outline, &name)?);
+    }
+    if index.property_entity("parent").is_none() {
+        let outline = Outline {
+            title: Some("parent".into()),
+            properties: Some("type:: property\n##inverse(children)".into()),
+            blocks: Vec::new(),
+        };
+        ids.push(import_outline(graph, &outline, "parent")?);
+    }
     Ok(ids)
 }
 
@@ -252,6 +326,15 @@ mod tests {
         assert_eq!(file_stem("..."), "untitled");
         assert_eq!(file_stem(".hidden"), "hidden");
         assert_eq!(file_stem("con"), "con_");
+    }
+
+    #[test]
+    fn namespace_parents() {
+        assert_eq!(namespace_parent("a/b/c").as_deref(), Some("a/b"));
+        assert_eq!(namespace_parent("a / b").as_deref(), Some("a"));
+        assert_eq!(namespace_parent("a"), None);
+        assert_eq!(namespace_parent("/a"), None);
+        assert_eq!(namespace_parent("a/"), None);
     }
 
     #[test]

@@ -73,3 +73,49 @@ fn imports_a_logseq_graph() -> Result<()> {
     assert_eq!(index.backlinks(jane).len(), 1);
     Ok(())
 }
+
+#[test]
+fn logseq_namespaces_become_parents() -> Result<()> {
+    let tmp = tempfile::tempdir()?;
+    let dir = tmp.path();
+    fs::create_dir_all(dir.join("pages"))?;
+    // `___` is Logseq's file name for `/`; a title says the name itself.
+    fs::write(
+        dir.join("pages/Places___Scotland___Edinburgh.md"),
+        "- A city\n",
+    )?;
+    fs::write(
+        dir.join("pages/Places___Wales.md"),
+        "title:: Places/Wales\n\n- Hills\n",
+    )?;
+    fs::write(
+        dir.join("pages/Places___Ireland.md"),
+        "parent:: [[Europe]]\n\n- Green\n",
+    )?;
+
+    let graph = Graph::new();
+    import_dir(&graph, dir)?;
+    let index = Index::build(&graph)?;
+    let find = |name: &str| match index.resolve(&Link {
+        name: name.into(),
+        qualifiers: vec![],
+    }) {
+        Resolution::Unique(id) => id,
+        other => panic!("{name}: {other:?}"),
+    };
+    let places = find("Places");
+    let scotland = find("Places/Scotland");
+    let edinburgh = find("Places/Scotland/Edinburgh");
+    assert_eq!(graph.entity_name(edinburgh)?, "Places/Scotland/Edinburgh");
+    // No order is promised.
+    let mut children = index.inverse("children", places, true);
+    children.sort();
+    let mut expected = vec![scotland, find("Places/Wales")];
+    expected.sort();
+    assert_eq!(children, expected);
+    assert_eq!(index.inverse("children", scotland, true), vec![edinburgh]);
+    // A parent the page names itself is left alone.
+    assert!(!children.contains(&find("Places/Ireland")));
+    assert!(index.property_entity("parent").is_some());
+    Ok(())
+}
