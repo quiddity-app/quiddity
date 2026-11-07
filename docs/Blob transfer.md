@@ -1,0 +1,22 @@
+- How a device gets the bytes of a binary ([[Binaries]]) the graph names, from another device that has them. Built in [[quiddity-node]], over [[iroh-blobs]].
+- The idea
+	- The graph says what binaries exist: an entity with an `##asset` line names the hash of its bytes. The bytes themselves are not in the graph, so a device can know of a file before it has it. [[Binaries]]
+	- Every device keeps every blob, so a device that sees a hash it lacks asks a device it is connected to. Nothing is added to the sync protocol: the graph is already the list of what is wanted.
+- Who may fetch
+	- Blobs travel on iroh-blobs' own protocol, on the same endpoint as [[Sync]] and so with the same device key. Its connections are accepted under the same rule as sync's: a device may connect if the graph lists it, if it was allowed on the command line, or if it is trusted for now. [[Device list]]
+	- The rule is asked on every connection, before anything is read, so a device taken off the list or never on it is turned away with a permission error. A device that knows a hash and an address gets nothing.
+	- Only fetching is served. Pushing blobs into a device's store is disabled, so a listed device cannot write to another's store.
+	- Each device has to list the other, as for pairing. A device that fetches is dialling the one that has the bytes, and that one checks its own list. [[Add a device]]
+- How a device fetches
+	- A task runs beside the dialler in `serve`. It looks for the hashes the graph names that the store lacks, and for each, asks the connected devices in turn until one gives it. It looks again when the graph changes, when a device connects or goes, and every 30 seconds while anything is still missing, since the device that has the bytes may not be here yet.
+	- Bytes are checked against the hash as they arrive, by iroh-blobs, so a device cannot give one file in place of another. A device that fails is passed over for the next, and the failure is reported once.
+	- It connects by device ID alone. With address lookup, which every real build has, that is enough. A connection that has already been made is enough on its own for devices on one machine, as in the tests.
+	- A large blob is fetched the same way as a small one, and a test moves three megabytes. Streaming it to the UI and fetching only part of one are not a priority. [[Binaries]]
+- What a peer does with a store
+	- `Peer::set_blobs` gives a peer a store. With one, `serve` offers the blobs protocol and runs the fetch task; without one it does neither, so nothing changes for a device that keeps no binaries.
+	- `quiddity-node serve` opens the store in the graph's directory, so the headless node keeps every blob. [[Storage]]
+- Not built yet
+	- [[The shell]] does not keep a store yet, so the app neither gives nor fetches blobs. That comes with the commands the UI uses.
+	- `quiddity-node sync`, which syncs with one device and stops, does not fetch blobs.
+	- Nothing writes an `##asset` line or puts bytes in the store: that is the shell's job, next.
+	- Per-device options to fetch on demand or to cap the cache, for a phone. Removing blobs nothing refers to. [[Compaction]]

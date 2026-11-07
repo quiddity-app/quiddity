@@ -7,9 +7,19 @@
 
 use std::path::Path;
 
+use iroh::EndpointId;
+use iroh::endpoint::Connection;
+use iroh_blobs::BlobsProtocol;
+use iroh_blobs::HashAndFormat;
+use iroh_blobs::provider::events::{
+    AbortReason, ConnectMode, EventMask, EventSender, ProviderMessage,
+};
 use iroh_blobs::store::fs::FsStore;
 
 pub use iroh_blobs::Hash;
+
+/// The name of the protocol blobs travel on, negotiated when connecting.
+pub use iroh_blobs::ALPN;
 
 const DIR: &str = "blobs";
 
@@ -69,6 +79,46 @@ impl Blobs {
     /// Whether the whole blob is here, not just part of it.
     pub async fn has(&self, hash: Hash) -> Result<bool, BlobError> {
         self.store.blobs().has(hash).await.map_err(BlobError::store)
+    }
+
+    /// The protocol handler that gives blobs to devices that ask, if
+    /// `permit` lets them: it is asked for each connection's device before
+    /// anything is read. Nothing can be written through it.
+    pub fn provider(
+        &self,
+        permit: impl Fn(&EndpointId) -> bool + Send + Sync + 'static,
+    ) -> BlobsProtocol {
+        let mask = EventMask {
+            connected: ConnectMode::Intercept,
+            ..EventMask::DEFAULT
+        };
+        let (events, mut requests) = EventSender::channel(32, mask);
+        tokio::spawn(async move {
+            while let Some(message) = requests.recv().await {
+                if let ProviderMessage::ClientConnected(connected) = message {
+                    let allowed = connected.inner.endpoint_id.as_ref().is_some_and(&permit);
+                    let answer = if allowed {
+                        Ok(())
+                    } else {
+                        Err(AbortReason::Permission)
+                    };
+                    connected.tx.send(answer).await.ok();
+                }
+            }
+        });
+        BlobsProtocol::new(&self.store, Some(events))
+    }
+
+    /// Fetches a blob from the device at the other end of `connection`,
+    /// keeping only what matches `hash`: the bytes are verified as they
+    /// arrive, so a device can't give another's blob in its place.
+    pub async fn fetch(&self, connection: Connection, hash: Hash) -> Result<(), BlobError> {
+        self.store
+            .remote()
+            .fetch(connection, HashAndFormat::raw(hash))
+            .await
+            .map_err(BlobError::store)?;
+        Ok(())
     }
 
     /// Stops the store's background tasks, once everything is written.
