@@ -404,6 +404,74 @@ impl Graph {
         out
     }
 
+    /// Every live block with its parent and text, depth first in document
+    /// order, as [`Graph::blocks`] and [`Graph::text`] would give them, but
+    /// reading the tree once rather than asking for each block in turn, which
+    /// costs several times as much. Whole-graph work (the index, the list of
+    /// entities, search) uses this.
+    pub fn scan(&self) -> Result<Vec<Scanned>> {
+        self.scan_reusing(&mut HashMap::new())
+    }
+
+    /// As [`Graph::scan`], but a block whose text is in `known` takes it from
+    /// there (removing it) instead of asking Loro, which is where most of the
+    /// time goes. The caller says which texts are still true.
+    pub fn scan_reusing(&self, known: &mut HashMap<BlockId, String>) -> Result<Vec<Scanned>> {
+        let tree = self.tree();
+        let nodes = tree.get_nodes(false);
+        // Texts are read in the order Loro stores the nodes in, which is much
+        // faster than document order.
+        let mut texts = Vec::with_capacity(nodes.len());
+        for node in &nodes {
+            texts.push(match known.remove(&BlockId(node.id)) {
+                Some(text) => text,
+                None => match tree.get_meta(node.id)?.get(TEXT) {
+                    Some(ValueOrContainer::Container(Container::Text(text))) => text.to_string(),
+                    _ => return Err(Error::MissingText(BlockId(node.id))),
+                },
+            });
+        }
+        let mut texts: Vec<Option<String>> = texts.into_iter().map(Some).collect();
+        let mut children: HashMap<Option<TreeID>, Vec<(usize, usize)>> = HashMap::new();
+        for (at, node) in nodes.iter().enumerate() {
+            let parent = match node.parent {
+                TreeParentId::Node(p) => Some(p),
+                TreeParentId::Root => None,
+                // Deleted nodes were left out, but nothing else is a block.
+                _ => continue,
+            };
+            children.entry(parent).or_default().push((node.index, at));
+        }
+        for siblings in children.values_mut() {
+            siblings.sort_unstable();
+        }
+        let mut out = Vec::with_capacity(nodes.len());
+        let mut stack: Vec<(Option<TreeID>, usize)> = children
+            .get(&None)
+            .into_iter()
+            .flatten()
+            .rev()
+            .map(|&(_, at)| (None, at))
+            .collect();
+        while let Some((parent, at)) = stack.pop() {
+            let id = nodes[at].id;
+            out.push(Scanned {
+                id: BlockId(id),
+                parent: parent.map(BlockId),
+                text: texts[at].take().unwrap_or_default(),
+            });
+            stack.extend(
+                children
+                    .get(&Some(id))
+                    .into_iter()
+                    .flatten()
+                    .rev()
+                    .map(|&(_, child)| (Some(id), child)),
+            );
+        }
+        Ok(out)
+    }
+
     /// The root block above `id`, or `id` itself if it is a root.
     pub fn entity_of(&self, mut id: BlockId) -> BlockId {
         while let Some(parent) = self.parent(id) {
@@ -510,6 +578,15 @@ impl Graph {
     }
 }
 
+/// A block as [`Graph::scan`] reads it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Scanned {
+    pub id: BlockId,
+    /// `None` for a root block, which is an entity.
+    pub parent: Option<BlockId>,
+    pub text: String,
+}
+
 fn parent_id(parent: Option<BlockId>) -> TreeParentId {
     parent.map_or(TreeParentId::Root, |p| TreeParentId::Node(p.0))
 }
@@ -553,6 +630,21 @@ mod tests {
             "a-B!",
             "a rejected splice changes nothing"
         );
+        Ok(())
+    }
+
+    #[test]
+    fn scanning_takes_known_texts_instead_of_asking() -> Result<()> {
+        let graph = Graph::new();
+        let page = graph.create_block(None, None, "Page")?;
+        let kept = graph.create_block(Some(page), None, "kept")?;
+        let other = graph.create_block(Some(page), None, "other")?;
+        let mut known = HashMap::from([(kept, "remembered".to_owned())]);
+        let scanned = graph.scan_reusing(&mut known)?;
+        let texts: Vec<_> = scanned.iter().map(|b| b.text.as_str()).collect();
+        assert_eq!(texts, ["Page", "remembered", "other"]);
+        assert_eq!(scanned[2].id, other);
+        assert!(known.is_empty(), "what was used is taken");
         Ok(())
     }
 

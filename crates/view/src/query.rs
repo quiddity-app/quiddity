@@ -302,11 +302,13 @@ impl View {
     /// Entities that are not merged into another, by name.
     pub fn entities(&self) -> Result<Vec<EntityRef>> {
         let index = self.index()?;
-        let mut refs = index
+        let mut refs: Vec<_> = index
             .entities()
-            .filter(|e| index.canonical(e.id) == e.id)
-            .map(|e| self.entity_ref(e.id))
-            .collect::<Result<Vec<_>>>()?;
+            .map(|e| EntityRef {
+                id: e.id.to_string(),
+                title: e.name.clone(),
+            })
+            .collect();
         refs.sort_by_cached_key(|e| (e.title.to_lowercase(), e.id.clone()));
         Ok(refs)
     }
@@ -319,9 +321,17 @@ impl View {
         let mut modified: BTreeMap<BlockId, Timestamp> = BTreeMap::new();
         let mut words: BTreeMap<BlockId, usize> = BTreeMap::new();
         let mut tags: BTreeMap<BlockId, BTreeSet<String>> = BTreeMap::new();
-        for block in self.graph.blocks() {
-            let root = self.graph.entity_of(block);
-            let entity = self.index()?.canonical(root);
+        let index = self.index()?;
+        let corpus = self.corpus()?;
+        let mut current = None;
+        for scanned in corpus.iter() {
+            let block = scanned.id;
+            if scanned.parent.is_none() {
+                current = Some(index.canonical(block));
+            }
+            let Some(entity) = current else {
+                continue;
+            };
             let touched = [
                 self.graph.placed_at(block),
                 activity.edited.get(&block).copied(),
@@ -330,15 +340,16 @@ impl View {
                 let latest = modified.entry(entity).or_insert(at);
                 *latest = (*latest).max(at);
             }
-            if block == root {
+            if scanned.parent.is_none() {
                 continue;
             }
-            let text = self.graph.text(block)?;
-            if !is_properties_block(&text) {
+            let text = &scanned.text;
+            if !is_properties_block(text) {
                 *words.entry(entity).or_default() += text.split_whitespace().count();
             }
-            tags.entry(entity).or_default().extend(tags_in(&text));
+            tags.entry(entity).or_default().extend(tags_in(text));
         }
+        drop(corpus);
         let rows = self
             .entities()?
             .into_iter()
@@ -360,14 +371,11 @@ impl View {
                 .filter(|j| *j != id)
                 .map(tags_of)
                 .collect();
-            let incoming = {
-                let index = self.index()?;
-                index
-                    .backlinks(*id)
-                    .iter()
-                    .filter(|b| index.canonical(self.graph.entity_of(b.source)) != *id)
-                    .count()
-            };
+            let incoming = index
+                .backlinks(*id)
+                .iter()
+                .filter(|b| index.entity_of(b.source).map(|e| index.canonical(e)) != Some(*id))
+                .count();
             summaries.push(Summary {
                 id: e.id.clone(),
                 title: e.title.clone(),
@@ -389,7 +397,10 @@ impl View {
             let index = self.index()?;
             for target in index.entities() {
                 for backlink in index.backlinks(target.id) {
-                    let source = index.canonical(self.graph.entity_of(backlink.source));
+                    let Some(source) = index.entity_of(backlink.source).map(|e| index.canonical(e))
+                    else {
+                        continue;
+                    };
                     if source != target.id {
                         edges.insert(Edge {
                             source: source.to_string(),
@@ -461,16 +472,19 @@ impl View {
         let index = self.index()?;
         let mut days: Vec<_> = index
             .entities()
-            .filter(|e| index.canonical(e.id) == e.id)
             .filter_map(|e| match e.identity() {
-                Some(Identity::Journal(date)) if date <= today => Some((date, e.id)),
+                Some(Identity::Journal(date)) if date <= today => Some((date, e)),
                 _ => None,
             })
             .collect();
-        days.sort_by(|a, b| b.cmp(a));
-        days.into_iter()
-            .map(|(_, id)| self.entity_ref(id))
-            .collect()
+        days.sort_by(|a, b| b.0.cmp(&a.0).then(b.1.id.cmp(&a.1.id)));
+        Ok(days
+            .into_iter()
+            .map(|(_, e)| EntityRef {
+                id: e.id.to_string(),
+                title: e.name.clone(),
+            })
+            .collect())
     }
 
     /// The journal page for `today`, created if there isn't one.

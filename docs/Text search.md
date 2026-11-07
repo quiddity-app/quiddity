@@ -9,7 +9,7 @@
 	- Equal scores come out in block order, so the answer doesn't depend on how the graph happens to be traversed.
 - The answer is the block's text, the entity it is on and the matched words as UTF-16 runs. The UI shows the stretch of the block around the first match, so a long block is shown where it matches and not from its start.
 - Cost
-	- Every query reads every block, as an index rebuild does: about 18 ms at 10,000 blocks was measured for the rebuild, and this has not been measured.
+	- Every query tokenises every block, from the text the view keeps rather than from the graph: about 60 ms at 38,000 blocks, natively. [[Performance]]
 	- The next step, if it is slow, is an inverted index kept beside the `Index` in `quiddity-view` and rebuilt with it.
 - Limits
 	- No stemming, so `link` doesn't find `linking`.

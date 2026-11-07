@@ -1732,3 +1732,109 @@ fn a_replica_that_has_joined_nothing_is_blank() {
     blank.graph().import(&source.snapshot().unwrap()).unwrap();
     assert!(!blank.is_blank());
 }
+
+/// A view that has been edited for a while answers as one made afresh from
+/// the same graph would. It keeps the text of the blocks between revisions
+/// and reads again only what an edit says it changed, so this is what
+/// catches an edit that says too little.
+mod revisions {
+    use proptest::collection::vec;
+    use proptest::prelude::*;
+    use proptest::sample::Index;
+
+    use super::*;
+
+    #[derive(Debug, Clone)]
+    enum Step {
+        Type(Index, &'static str),
+        Create(Index, &'static str),
+        Split(Index),
+        Indent(Index),
+        Outdent(Index),
+        Move(Index, bool),
+        Merge(Index),
+        Undo,
+        Redo,
+        /// Edited behind the view's back, as an import is, then reported.
+        Direct(Index, &'static str),
+    }
+
+    fn step() -> impl Strategy<Value = Step> {
+        let words = prop::sample::select(vec![
+            "alpha ",
+            "[[Beta]] ",
+            "#gamma ",
+            "[[Topic 1]] beta ",
+            "id:: one\n",
+        ]);
+        prop_oneof![
+            4 => (any::<Index>(), words.clone()).prop_map(|(i, w)| Step::Type(i, w)),
+            2 => (any::<Index>(), words.clone()).prop_map(|(i, w)| Step::Create(i, w)),
+            1 => any::<Index>().prop_map(Step::Split),
+            1 => any::<Index>().prop_map(Step::Indent),
+            1 => any::<Index>().prop_map(Step::Outdent),
+            1 => (any::<Index>(), any::<bool>()).prop_map(|(i, up)| Step::Move(i, up)),
+            1 => any::<Index>().prop_map(Step::Merge),
+            1 => Just(Step::Undo),
+            1 => Just(Step::Redo),
+            1 => (any::<Index>(), words).prop_map(|(i, w)| Step::Direct(i, w)),
+        ]
+    }
+
+    fn start() -> View {
+        let v = view_with(|g| {
+            for name in ["Beta", "Topic 1", "Plain"] {
+                let page = g.create_entity(name, &[]).unwrap();
+                note(g, page, "alpha beta");
+                note(g, page, "links to [[Beta]]");
+            }
+        });
+        v.graph().enable_undo();
+        v
+    }
+
+    /// Everything that reads the whole graph.
+    fn answers(v: &View) -> impl PartialEq + std::fmt::Debug {
+        (
+            v.entities().unwrap(),
+            v.summaries().unwrap(),
+            v.connections().unwrap(),
+            v.search_text("alpha", 100).unwrap(),
+            v.search_text("beta", 100).unwrap(),
+        )
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(48))]
+
+        #[test]
+        fn a_view_edited_for_a_while_agrees_with_a_fresh_one(steps in vec(step(), 1..25)) {
+            let v = start();
+            for step in &steps {
+                let blocks: Vec<String> =
+                    v.graph().blocks().into_iter().map(|b| b.to_string()).collect();
+                let pick = |i: &Index| blocks[i.index(blocks.len())].clone();
+                // An edit that doesn't apply changes nothing, which is fine.
+                match step {
+                    Step::Type(i, w) => { let _ = v.splice_text(&pick(i), 0, 0, w); }
+                    Step::Create(i, w) => { let _ = v.create_block(&pick(i), None, w); }
+                    Step::Split(i) => { let _ = v.split(&pick(i), 0); }
+                    Step::Indent(i) => { let _ = v.indent(&pick(i)); }
+                    Step::Outdent(i) => { let _ = v.outdent(&pick(i)); }
+                    Step::Move(i, up) => { let _ = v.move_sibling(&pick(i), if *up { -1 } else { 1 }); }
+                    Step::Merge(i) => { let _ = v.merge_into_previous(&pick(i)); }
+                    Step::Undo => { let _ = v.undo(); }
+                    Step::Redo => { let _ = v.redo(); }
+                    Step::Direct(i, w) => {
+                        let block: BlockId = pick(i).parse().unwrap();
+                        v.graph().set_text(block, w).unwrap();
+                        v.graph().commit();
+                        v.changed();
+                    }
+                }
+                let fresh = View::new(Graph::from_snapshot(&v.graph().snapshot().unwrap()).unwrap()).unwrap();
+                prop_assert_eq!(answers(&v), answers(&fresh), "after {:?}", step);
+            }
+        }
+    }
+}

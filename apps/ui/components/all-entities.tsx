@@ -10,6 +10,11 @@ import { useView } from "./use-view";
 
 type Column = "title" | "tags" | "words" | "incoming" | "created" | "modified";
 
+/** Rows drawn at first, and added each time the end of them is reached. A
+ * large graph has thousands, and drawing them all makes every sort and every
+ * edit wait on the browser's layout. */
+const ROWS = 200;
+
 const columns: { key: Column; label: string; numeric: boolean }[] = [
   { key: "title", label: "Title", numeric: false },
   { key: "tags", label: "Tags", numeric: false },
@@ -58,6 +63,8 @@ function List() {
   const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set());
   const [confirming, setConfirming] = useState(false);
   const everyone = useRef<HTMLInputElement>(null);
+  const [shown, setShown] = useState(ROWS);
+  const more = useRef<HTMLDivElement>(null);
   // Rows can go without the user's say (an undo, a sync), so only those still
   // here count as selected.
   const selected = rows.filter((r) => chosen.has(r.id));
@@ -73,6 +80,17 @@ function List() {
   useEffect(() => {
     if (everyone.current) everyone.current.indeterminate = selected.length > 0 && !all;
   });
+  const hasMore = shown < rows.length;
+  useEffect(() => {
+    const el = more.current;
+    if (!el) return;
+    const watcher = new IntersectionObserver(
+      ([entry]) => entry?.isIntersecting && setShown((n) => n + ROWS),
+      { rootMargin: "400px" },
+    );
+    watcher.observe(el);
+    return () => watcher.disconnect();
+  }, [shown, hasMore]);
   if (rows.length === 0) return <p>Nothing here yet.</p>;
   const sorted = rows.toSorted((a, b) => {
     const gap = Number(unknown(sort.column, a)) - Number(unknown(sort.column, b));
@@ -80,11 +98,13 @@ function List() {
     const order = compare(sort.column, a, b);
     return sort.descending ? -order : order;
   });
-  const sortBy = (column: Column) =>
+  const sortBy = (column: Column) => {
+    setShown(ROWS);
     setSort((s) => ({
       column,
       descending: s.column === column && !s.descending,
     }));
+  };
   const numeric = "px-3 py-1 text-right tabular-nums";
   const button =
     "rounded border border-control px-3 py-1 hover:bg-surface-hover";
@@ -155,7 +175,7 @@ function List() {
           </tr>
         </thead>
         <tbody>
-          {sorted.map((e) => (
+          {sorted.slice(0, shown).map((e) => (
             <tr key={e.id} className="border-b border-border">
               <td className="px-3 py-1">
                 <input
@@ -188,6 +208,7 @@ function List() {
           ))}
         </tbody>
       </table>
+      {hasMore ? <div ref={more} className="py-4" aria-hidden="true" /> : null}
     </>
   );
 }

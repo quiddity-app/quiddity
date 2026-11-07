@@ -92,10 +92,10 @@ pub struct BlockHit {
     pub ranges: Vec<(usize, usize)>,
 }
 
-struct Candidate {
+struct Candidate<'a> {
     block: quiddity_core::BlockId,
     entity: quiddity_core::BlockId,
-    text: String,
+    text: &'a str,
     tokens: Vec<Token>,
 }
 
@@ -107,19 +107,23 @@ impl View {
         if terms.is_empty() {
             return Ok(Vec::new());
         }
+        let index = self.index()?;
         let mut candidates = Vec::new();
-        for block in self.graph.blocks() {
-            if self.graph.parent(block).is_none() {
+        let corpus = self.corpus()?;
+        let mut entity = None;
+        for scanned in corpus.iter() {
+            if scanned.parent.is_none() {
+                entity = Some(scanned.id);
                 continue;
             }
-            let text = self.graph.text(block)?;
-            let tokens = tokens(&text);
-            let entity = self.graph.entity_of(block);
+            let Some(entity) = entity else {
+                continue;
+            };
             candidates.push(Candidate {
-                block,
+                block: scanned.id,
                 entity,
-                text,
-                tokens,
+                text: &scanned.text,
+                tokens: tokens(&scanned.text),
             });
         }
 
@@ -162,7 +166,6 @@ impl View {
         scored.sort_by(|(a, x), (b, y)| y.total_cmp(x).then_with(|| a.block.cmp(&b.block)));
         scored.truncate(limit);
 
-        let index = self.index()?;
         let entities: Vec<_> = scored
             .iter()
             .map(|(c, _)| index.canonical(c.entity))
@@ -181,7 +184,7 @@ impl View {
                 Ok(BlockHit {
                     entity: self.entity_ref(entity)?,
                     block: c.block.to_string(),
-                    text: c.text.clone(),
+                    text: c.text.to_owned(),
                     score,
                     ranges,
                 })
