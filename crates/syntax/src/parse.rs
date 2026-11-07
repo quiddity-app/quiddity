@@ -308,7 +308,11 @@ fn scan_inline(line: &str, offset: usize, tags: bool, block: &mut Block) {
             },
             '(' if sc.rest().starts_with("((") => match parse_block_ref(&mut sc) {
                 Some(id) => block.block_refs.push(id),
-                None => sc.pos += 2,
+                // One step, not two: in `[text](((id)))` the first parenthesis
+                // is the link's, and the reference starts at the second.
+                None => {
+                    sc.bump();
+                }
             },
             '#' if tags
                 && (prev.is_none_or(|p| p.is_whitespace() || p == '(')
@@ -953,6 +957,21 @@ mod tests {
         );
         assert_eq!(block.links, vec![link("Jane"), link("Ann"), link("Bob")]);
         assert_eq!(block.block_refs, vec!["a".to_owned(), "b".to_owned()]);
+    }
+
+    #[test]
+    fn markdown_links_to_entities_and_blocks_count_as_references() {
+        let block = parse_block("[the graph]([[Graph view]]) and [a point](((abc-1))) here");
+        assert_eq!(
+            block
+                .links
+                .iter()
+                .map(|l| l.name.as_str())
+                .collect::<Vec<_>>(),
+            ["Graph view"]
+        );
+        assert_eq!(block.block_refs, vec!["abc-1".to_owned()]);
+        assert!(parse_block("[x](`((abc))`)").block_refs.is_empty());
     }
 
     #[test]

@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useGraph } from "@/lib/use-graph";
 import type { Property, PropertyValue, ResolvedLink } from "@/lib/model";
@@ -17,14 +17,17 @@ export function LinkOrNot({
   linkKey,
   fallback = linkKey,
   links,
+  label,
 }: {
   linkKey: string;
   fallback?: string;
   links: Record<string, ResolvedLink>;
+  /** What to show instead of the link's name, as in `[label]([[Name]])`. */
+  label?: ReactNode;
 }) {
   const resolved = links[linkKey];
   const target = resolved ?? { kind: "missing" };
-  const name = resolved?.name ?? fallback;
+  const name = label ?? resolved?.name ?? fallback;
   const qualifiers = resolved?.qualifiers ?? "";
   if (target.kind === "entity") {
     return (
@@ -56,7 +59,7 @@ function NewEntityLink({
   linkKey,
   qualifiers,
 }: {
-  name: string;
+  name: ReactNode;
   linkKey: string;
   qualifiers: string;
 }) {
@@ -104,6 +107,35 @@ export function Value({
         </>
       );
   }
+}
+
+/** A link to the entity holding a block, written `[label](((id)))`. */
+export function BlockRefLink({ id, children }: { id: string; children: ReactNode }) {
+  const graph = useGraph();
+  const view = useView();
+  const router = useRouter();
+  const [missing, setMissing] = useState(false);
+  return (
+    <button
+      type="button"
+      className={
+        missing
+          ? "text-slate-500 dark:text-slate-400 cursor-help underline decoration-dashed underline-offset-2"
+          : "text-sky-700 underline-offset-2 hover:underline dark:text-sky-300"
+      }
+      title={missing ? "No block has this id" : "Opens the page holding the block"}
+      onClick={(e) => {
+        try {
+          const entity = graph.followBlockRef(id);
+          router.push(e.shiftKey ? view.toSide(entity) : view.toMain(entity));
+        } catch {
+          setMissing(true);
+        }
+      }}
+    >
+      {children}
+    </button>
+  );
 }
 
 /** A property's key, which goes to the entity that defines the property. */

@@ -93,6 +93,23 @@ test("only web and mail links are links; the rest are inert text", async ({ page
   await expect(block.getByText("local")).toBeVisible();
 });
 
+test("[text](dest) links to an entity, a block or an app page", async ({ page }) => {
+  const block = await write(
+    page,
+    "[the db]([[Loro]]) [the list]([[Reading list]]) [all](/all/) [graph](/graph/)\n" +
+      "[here](((self-1))) [nowhere](((nope)))\nid:: self-1",
+  );
+  await expect(block.getByRole("link", { name: "graph" })).toHaveAttribute("href", /\/graph\/$/);
+  await expect(block.getByRole("link", { name: "the list" })).toBeVisible();
+  await block.getByRole("link", { name: "the db" }).click();
+  await expect(page.getByRole("heading", { name: "Loro", level: 1 })).toBeVisible();
+  await page.goBack();
+  await block.getByRole("button", { name: "nowhere" }).click();
+  await expect(block.getByRole("button", { name: "nowhere" })).toHaveAttribute("title", /No block/);
+  await block.getByRole("button", { name: "here", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Reading list", level: 1 })).toBeVisible();
+});
+
 test("an external link opens outside the page instead of replacing it", async ({ page }) => {
   // Nothing leaves the test: the page is answered here.
   await page.context().route("https://example.com/**", (route) =>
