@@ -1,4 +1,4 @@
-- Files kept in a graph: images, PDFs and the like. The store and the way the graph describes a binary are built; the rest is planned. [[Design]]
+- Files kept in a graph: images, PDFs and the like. The store, the way the graph describes a binary and the transfer between devices are built; the rest is planned. [[Design]]
 - Decided
 	- A binary is an entity in the graph, an asset, and its properties block describes it with one `##asset` line. Nothing about it is stored outside its text, as for everything else. [[Meta-properties]] [[Design]]
 	- The bytes live in an [[iroh-blobs]] store, not in the [[Loro]] document, and travel on iroh-blobs' own protocol. [[iroh]]
@@ -15,8 +15,8 @@
 	     ##asset(ea8f…200f, image/png, 12345, cat.png)
 	  ```
 	- An `##asset` line that can't be read, or a second one on the same entity, is flagged on its chip and the entity is not counted as an asset. The hash is not checked against the store: whether the bytes are here is a separate question. Nothing else is stored about an asset, so a graph written before this existed is unchanged.
+	- A device that is told of an `##asset` it lacks fetches the bytes from a connected device, and the headless node keeps them all. [[Blob transfer]]
 - To build, in this order
-	- Fetching blobs from other devices over iroh-blobs, and a headless node that keeps them all.
 	- A shell command to put a file in the graph and one to read it back, and the UI: paste or drop a file, show images, link the rest.
 	- Export and import.
 	- Garbage collection.
