@@ -4,9 +4,11 @@ import { createElement, memo, useMemo, type ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Block, Property, ResolvedLink } from "@/lib/model";
+import Link from "next/link";
+import { appPage } from "@/lib/nav";
 import { isExternal, openExternal } from "@/lib/open-external";
 import { PROP_CLOSE, PROP_OPEN, remarkQuiddity } from "@/lib/remark-quiddity";
-import { LinkOrNot, PropertyChip } from "./property-chip";
+import { BlockRefLink, LinkOrNot, PropertyChip } from "./property-chip";
 
 /**
  * A block's text split for display: line properties come out, to be drawn as
@@ -82,6 +84,10 @@ function components(links: Record<string, ResolvedLink>, inline: Property[]): Co
         >
           {children}
         </a>
+      ) : appPage(href) ? (
+        <Link href={appPage(href)!} className="text-sky-700 underline-offset-2 hover:underline dark:text-sky-300">
+          {children}
+        </Link>
       ) : (
         <span className={muted}>{children}</span>
       ),
@@ -89,6 +95,12 @@ function components(links: Record<string, ResolvedLink>, inline: Property[]): Co
     "quiddity-link": ({ name }: { name?: string }) => (
       <LinkOrNot linkKey={name ?? ""} links={links} />
     ),
+    "quiddity-to": ({ kind, to, children }: { kind?: string; to?: string; children?: ReactNode }) =>
+      kind === "block" ? (
+        <BlockRefLink id={to ?? ""}>{children}</BlockRefLink>
+      ) : (
+        <LinkOrNot linkKey={to ?? ""} links={links} label={children} />
+      ),
     "quiddity-ref": ({ id }: { id?: string }) => <span className={muted}>(({id}))</span>,
     "quiddity-prop": ({ index }: { index?: string }) => {
       const property = inline[Number(index)];

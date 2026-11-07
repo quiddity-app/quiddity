@@ -28,3 +28,12 @@ export function viewHref({ path, main, open }: View): string {
   const query = params.size ? `?${params}` : "";
   return `${main ? "/entity/" : path}${query}`;
 }
+
+/** The pages a link in a block's text may name by path, as `[text](/graph/)`. */
+const APP_PAGES = ["/journals/", "/all/", "/graph/", "/devices/"];
+
+/** The app page `href` names, as `Link` wants it, or null if it names none. */
+export function appPage(href: string | undefined): string | null {
+  const page = APP_PAGES.find((p) => href === p || href === p.slice(0, -1));
+  return page ?? null;
+}

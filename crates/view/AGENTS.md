@@ -120,6 +120,8 @@ A `[[link]]` with no entity is made one in two ways (`links.rs`):
   more than that (notes written under it, another link to it) makes the
   entity real, and it keeps its name.
 - Saving is one undo step of its own, apart from the typing before it.
+- **`follow_block_ref(id)`** answers a `[text](((id)))` link with the entity
+  holding the block, or `NoSuchBlockRef`. It makes nothing.
 
 A property's key goes to the entity that defines it: `Property::definition` is
 that entity's id (found by name as `Index::property_entity` does) or `None`, and

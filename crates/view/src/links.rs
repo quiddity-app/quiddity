@@ -51,6 +51,18 @@ impl View {
         Ok(id.to_string())
     }
 
+    /// The entity that holds the block whose `id::` is `id`, which is where a
+    /// block reference goes until blocks can be shown in place. Nothing is
+    /// made for a reference to nowhere: there is no way to say what it was
+    /// meant to be.
+    pub fn follow_block_ref(&self, id: &str) -> Result<String> {
+        let index = self.index()?;
+        let block = index
+            .resolve_block_ref(id)
+            .ok_or_else(|| Error::NoSuchBlockRef(id.to_owned()))?;
+        Ok(index.canonical(self.graph.entity_of(block)).to_string())
+    }
+
     /// The entity that defines the property `key`, made first if nobody has
     /// defined it: a property entity, named for the key, with an empty block
     /// to describe it in. Following a property's key goes here.

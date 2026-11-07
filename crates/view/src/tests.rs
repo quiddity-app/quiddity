@@ -743,6 +743,21 @@ mod new_links {
     }
 
     #[test]
+    fn a_block_reference_goes_to_the_entity_holding_the_block() {
+        let (v, page, ids) = page(&["parent"]);
+        let parent = ids[0].parse().unwrap();
+        v.graph()
+            .create_block(Some(parent), None, "deep\nid:: abc")
+            .unwrap();
+        v.changed();
+        assert_eq!(v.follow_block_ref("abc").unwrap(), page);
+        assert!(matches!(
+            v.follow_block_ref("nope"),
+            Err(Error::NoSuchBlockRef(_))
+        ));
+    }
+
+    #[test]
     fn saving_makes_an_entity_for_each_link_it_gained() {
         let (v, page, ids) = page(&["start"]);
         let made = edit(&v, &ids[0], "see [[Alpha]] and [[Beta]] and [[Alpha]]");

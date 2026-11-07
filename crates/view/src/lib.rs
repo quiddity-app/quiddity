@@ -44,6 +44,8 @@ pub enum Error {
     NotALink(String),
     #[error("{0:?} matches several entities")]
     AmbiguousLink(String),
+    #[error("no block has the id {0:?}")]
+    NoSuchBlockRef(String),
     #[error("offset {0} is not between characters")]
     BadOffset(usize),
 }
