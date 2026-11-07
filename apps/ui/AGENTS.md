@@ -78,6 +78,11 @@ on load or when the first updates arrive. An edit made in a blank replica
 rests on history the graph it joins cannot have, and a compacted device then
 refuses it. The memory backend plays such a device with `?blank`.
 
+## Looks
+
+- **Colours are named for their job** (`bg-surface`, `text-ink-muted`, `border-border`, `text-link`, `text-danger`), declared once in `app/globals.css` with a light and a dark value. **Don't write a palette colour (`slate-500`) or a `dark:` pair in a component**: add or change a token. `ink-muted` is for hints on the page's own ground only; on a sidebar use `ink-secondary`.
+- **The repeated pieces are in `components/ui.tsx`**: `Button`, `Input`, `ErrorLine`, `Kbd`, and the class strings for links, section headings and small header buttons. Use them rather than retyping the classes. `docs/Design language.md` has the reasoning.
+
 ## Routing and boundaries
 
 - **View state is the URL**: `/entity/?id=<main>&open=<a>,<b>` (`lib/nav.ts`).

@@ -6,6 +6,7 @@ import { useGraph } from "@/lib/use-graph";
 import type { Property, PropertyValue, ResolvedLink } from "@/lib/model";
 import { EntityLink } from "./entity-link";
 import { useView } from "./use-view";
+import { linkClass, unresolvedLinkClass } from "./ui";
 
 const unresolved = "cursor-help underline decoration-dashed underline-offset-2";
 
@@ -33,7 +34,7 @@ export function LinkOrNot({
     return (
       <EntityLink
         id={target.id}
-        className="text-link underline-offset-2 hover:underline"
+        className={linkClass}
         title={qualifiers || undefined}
       >
         {name}
@@ -69,7 +70,7 @@ function NewEntityLink({
   return (
     <button
       type="button"
-      className="text-link underline decoration-dashed underline-offset-2 hover:decoration-solid"
+      className={unresolvedLinkClass}
       title={`No such entity yet. Open it to make it.${qualifiers ? ` ${qualifiers}` : ""}`}
       onClick={(e) => {
         const id = graph.followLink(linkKey);
@@ -121,7 +122,7 @@ export function BlockRefLink({ id, children }: { id: string; children: ReactNode
       className={
         missing
           ? "text-ink-muted cursor-help underline decoration-dashed underline-offset-2"
-          : "text-link underline-offset-2 hover:underline"
+          : linkClass
       }
       title={missing ? "No block has this id" : "Opens the page holding the block"}
       onClick={(e) => {

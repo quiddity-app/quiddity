@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { iconButtonClass } from "./ui";
 
 /**
  * Three panes, with an action strip above the main one. The shell itself knows nothing about the URL, so it can render
@@ -49,7 +50,7 @@ export function Shell({
           <button
             type="button"
             aria-label="Open navigation"
-            className="rounded px-2 py-1 hover:bg-surface-hover md:hidden"
+            className={`${iconButtonClass} md:hidden`}
             onClick={() => setDrawer(true)}
           >
             ☰
