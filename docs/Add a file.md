@@ -1,0 +1,15 @@
+- Keep a file in your graph: an image, a PDF, anything. It is stored on every device you share the graph with. [[Binaries]]
+- Adding one
+	- Drop a file onto a page, or paste one. It becomes a page of its own, named for the file, and the page you dropped it on ends with a link to it. Several at once each get a page.
+	- It is one step to undo: undoing takes the new page and the link away together. [[Undo]]
+	- Only the app keeps files. The published site and the made-up graph in a browser say so rather than pretending.
+- Looking at one
+	- An image is shown on its page. Any other file has a download link, with its size and type beside it.
+	- A file you have been told of by another device may not have arrived yet. The page says so, and Try again looks for it once more; it comes by itself when a device that has it is reachable. [[Blob transfer]]
+- What is in the graph
+	- The page for a file has a single `##asset` line in its properties block, with the file's hash, type, size and name. You can see it as a chip, and it is not for typing. [[Meta-properties]]
+	- A file's page is a page like any other: it can have properties, be linked from anywhere and have things written on it.
+	- The page is called by the file's name. Two files with the same name make two pages with that name, and a link to the name is then ambiguous. [[Links]]
+- Not built yet
+	- Showing a file inline where a link to it is written, rather than only on its own page.
+	- Removing a file's bytes when nothing refers to them any more. [[Binaries]]

@@ -31,6 +31,12 @@ export interface Backend {
   /** Lets another device in, given the ID it shows. Rejects with the reason
    * if the ID is not one. */
   allowDevice?(device: string): Promise<void>;
+  /** Keeps a file's bytes and returns their hash, in hex, which is what the
+   * graph then refers to them by. Only the app keeps files. */
+  putBlob?(bytes: Uint8Array): Promise<string>;
+  /** The bytes with this hash. Rejects if this device doesn't have them (yet):
+   * another device may have them, and they arrive when it is reached. */
+  getBlob?(hash: string): Promise<Uint8Array>;
 }
 
 /** Views catch up this long after typing stops; structure changes at once. */
@@ -145,6 +151,36 @@ export class Graph {
   async allowDevice(device: string) {
     try {
       await this.backend.allowDevice!(device);
+    } catch (error) {
+      throw new Error(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  /** Whether this build keeps files: the app does. The published site and the
+   * made-up graph outside the app have nowhere to put the bytes. */
+  canKeepFiles = () => this.backend.putBlob !== undefined && this.backend.getBlob !== undefined;
+
+  /** Adds a file to a page: the shell keeps its bytes, and the page gets an
+   * entity for the file, linked at the end, as one edit. Returns the entity.
+   * Rejects with a message the user can read. */
+  async addFile(page: EntityId, file: File): Promise<EntityId> {
+    let hash: string;
+    try {
+      hash = await this.backend.putBlob!(new Uint8Array(await file.arrayBuffer()));
+    } catch (error) {
+      throw new Error(error instanceof Error ? error.message : String(error));
+    }
+    const mime = file.type || "application/octet-stream";
+    return this.edited(
+      this.replica.attachAsset(page, hash, mime, BigInt(file.size), file.name || undefined),
+    );
+  }
+
+  /** The bytes of a file the graph names. Rejects with the reason if this
+   * device doesn't have them yet. */
+  async readFile(hash: string): Promise<Uint8Array> {
+    try {
+      return await this.backend.getBlob!(hash);
     } catch (error) {
       throw new Error(error instanceof Error ? error.message : String(error));
     }
