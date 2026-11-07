@@ -72,6 +72,7 @@ check both, and that the colours differ.
 - **Colours are named for their job** (`bg-surface`, `text-ink-muted`, `border-border`, `text-link`, `text-danger`), declared once in `app/globals.css` with a light and a dark value. **Don't write a palette colour (`slate-500`) or a `dark:` pair in a component**: add or change a token. `ink-muted` is for hints on the page's own ground only; on a sidebar use `ink-secondary`.
 - **The repeated pieces are in `components/ui.tsx`**: `Button`, `Input`, `ErrorLine`, `Kbd`, and the class strings for links, section headings and small header buttons. Use them rather than retyping the classes. `docs/Design language.md` has the reasoning.
 - **Focus, touch and motion.** A base rule draws the focus ring, so don't remove an outline without drawing one. Use the `coarse:` variant to make a target 44px on a touch screen and `no-hover:` for anything that would otherwise be revealed only by hovering. Use `motion-safe:` for any animation.
+- **Floating layers** (the search panel, the link list, an overlaid pane) share `shadow-overlay`, the page's ground and a hairline border, and sit at `z-(--z-overlay)` and its siblings rather than a bare number. Colours go in `globals.css` and nowhere else, which includes what a canvas or CodeMirror draws (`var(--selection)`).
 - **Type and widths.** A page's title, a section and a subsection are `pageTitle`, `sectionTitle` and `subsectionTitle` in `ui.tsx`; a page's text is `max-w-measure-text`, `-form` or `-table`. Monospace text is `font-mono`, which is JetBrains Mono NL (bundled in `app/fonts`, with its licence).
 
 ## Routing and boundaries
@@ -156,7 +157,9 @@ calls `draw()` once on mount and `update(data)` when the graph changes.**
 - **Painting** is one function, `paint`, reading the nodes, links and view as
   they are; anything that changes them asks `repaint()`, which coalesces to one
   paint per animation frame and does nothing while the page is hidden. Colours
-  are the Tailwind ones, written out, and follow `prefers-color-scheme`. The
+  are the theme's (`--graph-link`, `--graph-node`, `--graph-node-stroke`, `--graph-label`), read
+  from the stylesheet because a canvas can't take them from a class, and read again
+  when `prefers-color-scheme` changes. The
   backing store is scaled by `devicePixelRatio`, and **everything is sized in
   CSS pixels**: the canvas transform is `ratio·k`, so a retina display gets
   sharper output, not bigger nodes. The ratio is re-read when the canvas

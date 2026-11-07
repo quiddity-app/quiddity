@@ -29,7 +29,7 @@ export function Shell({
   return (
     <div className="flex h-dvh overflow-hidden">
       <aside
-        className={`${pane} fixed inset-y-0 left-0 z-30 flex w-64 shrink-0 flex-col border-r border-border motion-safe:transition-transform md:static md:translate-x-0 ${
+        className={`${pane} fixed inset-y-0 left-0 z-(--z-drawer) flex w-64 shrink-0 flex-col border-r border-border motion-safe:transition-transform md:static md:translate-x-0 ${
           drawer ? "translate-x-0" : "-translate-x-full"
         }`}
         onClick={() => setDrawer(false)}
@@ -41,7 +41,7 @@ export function Shell({
         <button
           type="button"
           aria-label="Close navigation"
-          className="fixed inset-0 z-20 bg-scrim md:hidden"
+          className="fixed inset-0 z-(--z-scrim) bg-scrim md:hidden"
           onClick={() => setDrawer(false)}
         />
       )}
@@ -63,7 +63,7 @@ export function Shell({
         <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
       </div>
       <aside
-        className={`${pane} fixed inset-y-0 right-0 z-10 flex w-[min(100%,24rem)] shrink-0 flex-col border-l border-border shadow-xl empty:hidden lg:static lg:w-96 lg:shadow-none`}
+        className={`${pane} fixed inset-y-0 right-0 z-(--z-pane) flex w-[min(100%,24rem)] shrink-0 flex-col border-l border-border shadow-overlay empty:hidden lg:static lg:w-96 lg:shadow-none`}
       >
         {right}
       </aside>
