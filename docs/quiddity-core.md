@@ -5,3 +5,4 @@ type:: crate
 - The graph's settings, and `quiddity.toml`. [[Graph settings]]
 - The index is derived from the text and never synced: names and aliases, properties, and what each link resolves to. [[Links]]
 - It also reads each property's schema from its [[Meta-properties]], works out every entity's effective properties (inherited, transitive and symmetric), answers [[Queries]], and flags what doesn't fit a schema.
+- It reads the `##asset` line that describes a binary ([[Binaries]]): `Asset` has its hash, MIME type, size and file name, and the index lists the entities that have one.

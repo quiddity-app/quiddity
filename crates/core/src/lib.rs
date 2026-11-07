@@ -10,6 +10,7 @@
 //! Everything derived from the text (names, properties, links, backlinks) is
 //! computed by an [`Index`], which can always be rebuilt from the graph.
 
+mod asset;
 mod check;
 mod devices;
 mod effective;
@@ -25,6 +26,7 @@ mod query;
 pub mod schema;
 mod settings;
 
+pub use asset::{Asset, AssetError};
 pub use check::Flag;
 pub use devices::Device;
 pub use effective::Item;

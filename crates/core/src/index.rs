@@ -17,11 +17,16 @@ pub struct EntityInfo {
     pub name: String,
     pub properties: Vec<Property>,
     /// Meta-property lines in its properties block. They mean something
-    /// only on a property entity.
+    /// only on a property entity, or, for `##asset`, on an asset.
     pub meta: Vec<MetaProperty>,
 }
 
 impl EntityInfo {
+    /// The binary this entity describes, if it has an `##asset` line.
+    pub fn asset(&self) -> Option<std::result::Result<crate::Asset, crate::AssetError>> {
+        crate::Asset::of(&self.meta)
+    }
+
     /// Values of every instance of the property `key`.
     pub fn values<'a>(&'a self, key: &str) -> impl Iterator<Item = &'a Value> + 'a {
         let key = normalise_name(key);
@@ -224,6 +229,13 @@ impl Index {
     }
 
     /// All entities, duplicates excluded.
+    /// The entities that describe a binary, with what they say about it.
+    /// One whose `##asset` line can't be read is flagged, not listed.
+    pub fn assets(&self) -> impl Iterator<Item = (BlockId, crate::Asset)> + '_ {
+        self.entities()
+            .filter_map(|e| Some((e.id, e.asset()?.ok()?)))
+    }
+
     pub fn entities(&self) -> impl Iterator<Item = &EntityInfo> {
         self.entities
             .values()
