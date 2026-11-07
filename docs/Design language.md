@@ -22,4 +22,8 @@
 	- On a touch screen (`coarse`, a Tailwind variant for `pointer: coarse`) buttons, fields, sidebar rows and search hits are at least 44px tall; with a mouse, controls are at least 32px.
 	- Nothing is only there on hover. `no-hover` is the variant for a device that can't hover, and it is why the "+ Add a block" row is simply shown on a touch screen. [[Editing]]
 	- A person who has asked for less motion gets none: the drawer doesn't slide, the placeholders don't pulse and the graph doesn't glide to its frame.
-- Planned, in the same design and not built yet: a type scale and page widths, JetBrains Mono for code, and one treatment for floating layers.
+- Type and widths
+	- Text is [[IBM Plex Sans]] and code is [[JetBrains Mono]] in its no-ligatures build.
+	- The entity page reads at a fluid size, at least 20px, and sizes what is inside it (its title at 1.5 times, chips smaller) in `em`. Every other page reads at 16px and chrome at 14px. A page's title is 24px with one space under it, a section within a page 18px, and a heading inside a section 16px; all are semibold.
+	- A page's text is one of three widths: reading (50rem), a form (56rem) or a table (72rem), named `max-w-measure-text`, `-form` and `-table`.
+- Planned, in the same design and not built yet: one treatment for floating layers, and the graph and editor colours following the theme.
