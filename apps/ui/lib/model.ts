@@ -123,6 +123,19 @@ export interface Entity extends EntityRef {
   inverses: Inverse[];
   /** What doesn't fit a schema and has no chip to show on, in words. */
   flags: string[];
+  /** The file this entity describes, if its `##asset` line can be read. */
+  asset: Asset | null;
+}
+
+/** A file kept in the graph: what its entity says about it. The bytes are not
+ * in the graph; the shell has them, by `hash`. */
+export interface Asset {
+  /** The BLAKE3 hash of the bytes, in hex. */
+  hash: string;
+  mime: string;
+  /** In bytes. */
+  size: number;
+  name: string | null;
 }
 
 /** What typing Backspace at the start of a block did: joined it to another. */

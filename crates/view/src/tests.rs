@@ -1706,3 +1706,70 @@ fn devices_are_listed_most_recently_seen_first() {
         "newest first, ties by ID"
     );
 }
+
+const HASH: &str = "ea8f163db38682925e4491c5e58d4bb3506ef8c14eb78a86e908c5624a67200f";
+
+/// An entity made for a file says what the file is, and an ordinary one says
+/// nothing of the kind. The UI is told this, not left to read the line.
+#[test]
+fn an_assets_page_says_what_the_file_is() {
+    let v = view_with(|_| {});
+    let id = v
+        .create_asset(HASH, "Image/PNG", 12_345, Some("cat.png"))
+        .unwrap();
+    let entity = v.entity(&id).unwrap();
+    assert_eq!(entity.title, "cat.png");
+    assert_eq!(
+        entity.asset,
+        Some(AssetInfo {
+            hash: HASH.into(),
+            mime: "image/png".into(),
+            size: 12_345,
+            name: Some("cat.png".into()),
+        })
+    );
+    assert_eq!(entity.flags, Vec::<String>::new());
+    // The line is in the properties block, drawn as a chip like any other.
+    let chips: Vec<_> = entity.blocks[0]
+        .properties
+        .iter()
+        .map(|p| p.key.as_str())
+        .collect();
+    assert_eq!(chips, ["asset"]);
+    assert!(entity.blocks[0].properties[0].flags.is_empty());
+
+    let plain = v.create_entity("Not a file").unwrap();
+    assert_eq!(v.entity(&plain).unwrap().asset, None);
+}
+
+/// A file with no name is called by the start of its hash, and the page
+/// that can't be read says so on the chip rather than claiming a file.
+#[test]
+fn a_file_with_no_name_and_a_line_that_is_wrong() {
+    let v = view_with(|_| {});
+    let id = v.create_asset(HASH, "application/pdf", 0, None).unwrap();
+    let entity = v.entity(&id).unwrap();
+    assert_eq!(entity.title, &HASH[..12]);
+    assert_eq!(entity.asset.unwrap().name, None);
+
+    let broken = v.create_entity("broken.png").unwrap();
+    let first = v.entity(&broken).unwrap().blocks[0].id.clone();
+    v.splice_text(&first, 0, 0, "##asset(not a hash)").unwrap();
+    let entity = v.entity(&broken).unwrap();
+    assert_eq!(entity.asset, None);
+    let chip = &entity.blocks[0].properties[0];
+    assert_eq!(chip.key, "asset");
+    assert_eq!(chip.flags, ["the hash must be 64 hexadecimal digits"]);
+}
+
+/// A file the UI describes wrongly changes nothing, so a bad answer from the
+/// shell can't leave an entity behind.
+#[test]
+fn a_file_described_wrongly_is_not_made() {
+    let v = view_with(|_| {});
+    let before = v.entities().unwrap().len();
+    for (hash, mime) in [("nope", "image/png"), (HASH, "png")] {
+        assert!(v.create_asset(hash, mime, 1, Some("x.png")).is_err());
+    }
+    assert_eq!(v.entities().unwrap().len(), before);
+}
