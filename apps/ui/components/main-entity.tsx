@@ -21,7 +21,7 @@ export function MainEntity({ id }: { id: EntityId }) {
     // `cqw` needs a container to measure, and an element can't be its own, so
     // the article's text size is set from the wrapper's width.
     <div className="@container">
-      <article className="mx-auto max-w-[50rem] px-6 py-8 [font-size:calc(1.25rem_+_max(0.325cqw,0.325lvh))]">
+      <article className="mx-auto max-w-measure-text px-6 py-8 [font-size:calc(1.25rem_+_max(0.325cqw,0.325lvh))]">
         {/* Keyed so navigating resets the boundary rather than keeping an error. */}
         <Region
           key={id}

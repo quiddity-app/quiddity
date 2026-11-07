@@ -3,7 +3,7 @@
 import { use, useState } from "react";
 import { useGraph, useRead } from "@/lib/use-graph";
 import { Region, Skeleton } from "./boundary";
-import { Button, ErrorLine, Input } from "./ui";
+import { Button, ErrorLine, Input, pageTitle, sectionTitle } from "./ui";
 
 const when = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 
@@ -18,7 +18,7 @@ function ThisDevice() {
   const [copied, setCopied] = useState(false);
   return (
     <section aria-labelledby="this-device" className="mb-8">
-      <h2 id="this-device" className="mb-2 text-lg font-semibold">
+      <h2 id="this-device" className={sectionTitle}>
         This device
       </h2>
       <p className="mb-2">
@@ -48,7 +48,7 @@ function Listed() {
   const mine = graph.canPair() ? use(graph.deviceId()) : undefined;
   return (
     <section aria-labelledby="in-graph" className="mb-8">
-      <h2 id="in-graph" className="mb-2 text-lg font-semibold">
+      <h2 id="in-graph" className={sectionTitle}>
         Devices in this graph
       </h2>
       {devices.length === 0 ? (
@@ -82,7 +82,7 @@ function Add() {
   const [outcome, setOutcome] = useState<Outcome>(null);
   return (
     <section aria-labelledby="add-device" className="mb-8">
-      <h2 id="add-device" className="mb-2 text-lg font-semibold">
+      <h2 id="add-device" className={sectionTitle}>
         Add a device
       </h2>
       <p className="mb-2">
@@ -150,8 +150,8 @@ function Pairing() {
 
 export function Devices() {
   return (
-    <article className="mx-auto max-w-4xl px-6 py-8">
-      <h1 className="mb-4 text-2xl font-semibold">Devices</h1>
+    <article className="mx-auto max-w-measure-form px-6 py-8">
+      <h1 className={pageTitle}>Devices</h1>
       <Region
         pending={<Skeleton className="h-4 w-1/2" />}
         failed={(error) => (

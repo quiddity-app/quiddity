@@ -6,7 +6,7 @@ import { useRead } from "@/lib/use-graph";
 import { Region, Skeleton } from "./boundary";
 import { EntityLink } from "./entity-link";
 import { Outline } from "./entity-view";
-import { ErrorLine, linkClass, sectionHeading } from "./ui";
+import { ErrorLine, linkClass, sectionHeading, subsectionTitle } from "./ui";
 
 
 function Groups({ references }: { references: Reference[] }) {
@@ -14,7 +14,7 @@ function Groups({ references }: { references: Reference[] }) {
     <ul className="space-y-4">
       {references.map(({ source, blocks, links }) => (
         <li key={source.id}>
-          <h3 className="mb-1 font-medium">
+          <h3 className={subsectionTitle}>
             <EntityLink
               id={source.id}
               className={linkClass}

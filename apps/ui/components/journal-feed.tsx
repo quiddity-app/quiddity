@@ -6,14 +6,14 @@ import { useRead } from "@/lib/use-graph";
 import { Region, Skeleton } from "./boundary";
 import { EntityLink } from "./entity-link";
 import { EntityBody } from "./entity-view";
-import { ErrorLine } from "./ui";
+import { ErrorLine, pageTitle, sectionTitle } from "./ui";
 
 const PAGE = 5;
 
 function Day({ day }: { day: EntityRef }) {
   return (
     <section className="py-4">
-      <h2 className="mb-2 text-xl font-semibold">
+      <h2 className={sectionTitle}>
         <EntityLink id={day.id} className="hover:underline">
           {day.title}
         </EntityLink>
@@ -69,8 +69,8 @@ function Days() {
 /** The home page: today's journal, then scroll-back. */
 export function JournalFeed() {
   return (
-    <article className="mx-auto max-w-3xl px-6 py-8">
-      <h1 className="mb-2 text-2xl font-semibold">Journals</h1>
+    <article className="mx-auto max-w-measure-text px-6 py-8">
+      <h1 className={pageTitle}>Journals</h1>
       <Region
         pending={<Skeleton className="h-8 w-1/3" />}
         failed={(error) => (
