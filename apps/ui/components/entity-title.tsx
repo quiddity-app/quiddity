@@ -37,7 +37,7 @@ export function EditableTitle({ id }: { id: EntityId }) {
       autoFocus
       aria-label="Name"
       value={draft}
-      className="w-full rounded bg-transparent outline outline-1 outline-slate-400 dark:outline-slate-500"
+      className="w-full rounded bg-transparent outline outline-1 outline-edit-outline"
       onChange={(e) => setDraft(e.target.value)}
       onFocus={(e) => e.target.select()}
       onBlur={() => finish(true)}

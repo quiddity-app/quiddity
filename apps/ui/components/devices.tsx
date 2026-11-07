@@ -7,7 +7,7 @@ import { Region, Skeleton } from "./boundary";
 const when = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 
 const button =
-  "rounded border border-slate-300 px-3 py-1 hover:bg-slate-200 dark:border-slate-600 dark:hover:bg-slate-700";
+  "rounded border border-control px-3 py-1 hover:bg-surface-hover";
 
 /** An ID, drawn to be read and copied: long, and no use cut short. */
 function Id({ id }: { id: string }) {
@@ -65,7 +65,7 @@ function Listed() {
               <li key={device.id} className="flex flex-wrap items-baseline gap-x-3">
                 <Id id={device.id} />
                 {device.id === mine ? <span className="font-medium">this device</span> : null}
-                <span className="text-slate-500 dark:text-slate-400">
+                <span className="text-ink-muted">
                   last saved <time dateTime={date.toISOString()}>{when.format(date)}</time>
                 </span>
               </li>
@@ -118,7 +118,7 @@ function Add() {
             onChange={(event) => setId(event.target.value)}
             spellCheck={false}
             autoComplete="off"
-            className="min-w-64 flex-1 rounded border border-slate-300 bg-transparent px-2 py-1 font-mono text-sm dark:border-slate-600"
+            className="min-w-64 flex-1 rounded border border-control bg-transparent px-2 py-1 font-mono text-sm"
           />
         </label>
         <button type="submit" className={button} disabled={busy || id.trim() === ""}>
@@ -132,7 +132,7 @@ function Add() {
           </p>
         ) : null}
         {outcome?.kind === "failed" ? (
-          <p role="alert" className="text-red-700 dark:text-red-300">
+          <p role="alert" className="text-danger">
             {outcome.message}
           </p>
         ) : null}
@@ -161,7 +161,7 @@ export function Devices() {
       <Region
         pending={<Skeleton className="h-4 w-1/2" />}
         failed={(error) => (
-          <p role="alert" className="text-red-700 dark:text-red-300">
+          <p role="alert" className="text-danger">
             {error.message}
           </p>
         )}

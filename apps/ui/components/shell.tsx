@@ -24,11 +24,11 @@ export function Shell({
   children: ReactNode;
 }) {
   const [drawer, setDrawer] = useState(false);
-  const pane = "bg-slate-100 dark:bg-slate-800";
+  const pane = "bg-surface-pane";
   return (
     <div className="flex h-dvh overflow-hidden">
       <aside
-        className={`${pane} fixed inset-y-0 left-0 z-30 flex w-64 shrink-0 flex-col border-r border-slate-200 transition-transform dark:border-slate-700 md:static md:translate-x-0 ${
+        className={`${pane} fixed inset-y-0 left-0 z-30 flex w-64 shrink-0 flex-col border-r border-border transition-transform md:static md:translate-x-0 ${
           drawer ? "translate-x-0" : "-translate-x-full"
         }`}
         onClick={() => setDrawer(false)}
@@ -40,16 +40,16 @@ export function Shell({
         <button
           type="button"
           aria-label="Close navigation"
-          className="fixed inset-0 z-20 bg-slate-900/40 md:hidden"
+          className="fixed inset-0 z-20 bg-scrim md:hidden"
           onClick={() => setDrawer(false)}
         />
       )}
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex items-center gap-2 border-b border-slate-200 px-3 py-2 dark:border-slate-700">
+        <div className="flex items-center gap-2 border-b border-border px-3 py-2">
           <button
             type="button"
             aria-label="Open navigation"
-            className="rounded px-2 py-1 hover:bg-slate-200 dark:hover:bg-slate-700 md:hidden"
+            className="rounded px-2 py-1 hover:bg-surface-hover md:hidden"
             onClick={() => setDrawer(true)}
           >
             ☰
@@ -62,7 +62,7 @@ export function Shell({
         <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
       </div>
       <aside
-        className={`${pane} fixed inset-y-0 right-0 z-10 flex w-[min(100%,24rem)] shrink-0 flex-col border-l border-slate-200 shadow-xl empty:hidden dark:border-slate-700 lg:static lg:w-96 lg:shadow-none`}
+        className={`${pane} fixed inset-y-0 right-0 z-10 flex w-[min(100%,24rem)] shrink-0 flex-col border-l border-border shadow-xl empty:hidden lg:static lg:w-96 lg:shadow-none`}
       >
         {right}
       </aside>

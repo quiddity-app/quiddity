@@ -1,20 +1,85 @@
 @import "tailwindcss";
 
+/*
+ * The colours, by what they are for (docs/Design language.md). Components use
+ * these names (`bg-surface`, `text-ink-muted`), never a palette colour, so a
+ * theme is one value each here and not a pair of classes at every use. Light
+ * is the default and dark follows `prefers-color-scheme`. The values are
+ * Tailwind's slate, sky, red and amber.
+ */
+:root {
+  --surface: #f8fafc; /* slate 50 */
+  --surface-pane: #f1f5f9; /* slate 100 */
+  --surface-hover: #e2e8f0; /* slate 200 */
+  --ink: #1e293b; /* slate 800 */
+  --ink-secondary: #475569; /* slate 600 */
+  --ink-muted: #64748b; /* slate 500: on surface only, it is under 4.5:1 elsewhere */
+  --link: #0369a1; /* sky 700 */
+  --danger: #b91c1c; /* red 700 */
+  --flag-text: #b45309; /* amber 700 */
+  --flag-ring: #f59e0b; /* amber 500 */
+  --border: #e2e8f0; /* slate 200 */
+  --border-control: #cbd5e1; /* slate 300 */
+  --outline-edit: #94a3b8; /* slate 400 */
+  --bullet: #94a3b8; /* slate 400 */
+  --scrim: rgb(15 23 42 / 0.4);
+  --sync-alone: #94a3b8; /* slate 400 */
+  --sync-offline: #ef4444; /* red 500 */
+  --sync-behind: #eab308; /* yellow 500 */
+  --sync-synced: #22c55e; /* green 500 */
+  --sync-present: #3b82f6; /* blue 500 */
+  --dot-ring: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: #0f172a; /* slate 900 */
+    --surface-pane: #1e293b; /* slate 800 */
+    --surface-hover: #334155; /* slate 700 */
+    --ink: #e2e8f0; /* slate 200 */
+    --ink-secondary: #cbd5e1; /* slate 300 */
+    --ink-muted: #94a3b8; /* slate 400 */
+    --link: #7dd3fc; /* sky 300 */
+    --danger: #fca5a5; /* red 300 */
+    --flag-text: #fcd34d; /* amber 300 */
+    --flag-ring: #fbbf24; /* amber 400 */
+    --border: #334155; /* slate 700 */
+    --border-control: #475569; /* slate 600 */
+    --outline-edit: #64748b; /* slate 500 */
+    --dot-ring: #0f172a; /* slate 900 */
+  }
+}
+
 @theme inline {
   --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --color-surface: var(--surface);
+  --color-surface-pane: var(--surface-pane);
+  --color-surface-hover: var(--surface-hover);
+  --color-ink: var(--ink);
+  --color-ink-secondary: var(--ink-secondary);
+  --color-ink-muted: var(--ink-muted);
+  --color-link: var(--link);
+  --color-danger: var(--danger);
+  --color-flag-text: var(--flag-text);
+  --color-flag-ring: var(--flag-ring);
+  --color-border: var(--border);
+  --color-control: var(--border-control);
+  --color-edit-outline: var(--outline-edit);
+  --color-bullet: var(--bullet);
+  --color-scrim: var(--scrim);
+  --color-sync-alone: var(--sync-alone);
+  --color-sync-offline: var(--sync-offline);
+  --color-sync-behind: var(--sync-behind);
+  --color-sync-synced: var(--sync-synced);
+  --color-sync-present: var(--sync-present);
+  --color-dot-ring: var(--dot-ring);
 }
 
 @layer base {
   html {
     color-scheme: light dark;
   }
-  /* Light: slate 50 on 800. Dark: slate 900 on 200. */
   body {
-    @apply bg-slate-50 font-sans text-slate-800 antialiased;
-  }
-  @media (prefers-color-scheme: dark) {
-    body {
-      @apply bg-slate-900 text-slate-200;
-    }
+    @apply bg-surface font-sans text-ink antialiased;
   }
 }

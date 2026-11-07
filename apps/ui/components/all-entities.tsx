@@ -87,7 +87,7 @@ function List() {
     }));
   const numeric = "px-3 py-1 text-right tabular-nums";
   const button =
-    "rounded border border-slate-300 px-3 py-1 hover:bg-slate-200 dark:border-slate-600 dark:hover:bg-slate-700";
+    "rounded border border-control px-3 py-1 hover:bg-surface-hover";
   return (
     <>
       <div className="mb-3 flex min-h-8 items-center gap-3" role="toolbar" aria-label="Selected entities">
@@ -99,7 +99,7 @@ function List() {
             </p>
             <button
               type="button"
-              className={`${button} border-red-700 text-red-700 dark:border-red-300 dark:text-red-300`}
+              className={`${button} border-danger text-danger`}
               onClick={() => {
                 graph.deleteEntities(selected.map((r) => r.id));
                 choose([]);
@@ -122,7 +122,7 @@ function List() {
       </div>
       <table className="w-full border-collapse text-left">
         <thead>
-          <tr className="border-b border-slate-300 dark:border-slate-600">
+          <tr className="border-b border-border">
             <th scope="col" className="w-8 px-3 py-1">
               <input
                 ref={everyone}
@@ -156,7 +156,7 @@ function List() {
         </thead>
         <tbody>
           {sorted.map((e) => (
-            <tr key={e.id} className="border-b border-slate-200 dark:border-slate-700">
+            <tr key={e.id} className="border-b border-border">
               <td className="px-3 py-1">
                 <input
                   type="checkbox"
@@ -168,12 +168,12 @@ function List() {
               <th scope="row" className="px-3 py-1 font-normal">
                 <EntityLink
                   id={e.id}
-                  className="text-sky-700 underline-offset-2 hover:underline dark:text-sky-300"
+                  className="text-link underline-offset-2 hover:underline"
                 >
                   {e.title}
                 </EntityLink>
               </th>
-              <td className="px-3 py-1 text-slate-600 dark:text-slate-400">
+              <td className="px-3 py-1 text-ink-secondary">
                 {e.tags.map((t) => `#${t}`).join(" ")}
               </td>
               <td className={numeric}>{e.words}</td>
@@ -212,11 +212,11 @@ function NewEntity() {
         onChange={(e) => setName(e.target.value)}
         placeholder="New entity"
         aria-label="Name of a new entity"
-        className="min-w-0 flex-1 rounded border border-slate-300 bg-transparent px-2 py-1 dark:border-slate-600"
+        className="min-w-0 flex-1 rounded border border-control bg-transparent px-2 py-1"
       />
       <button
         type="submit"
-        className="rounded border border-slate-300 px-3 py-1 hover:bg-slate-200 dark:border-slate-600 dark:hover:bg-slate-700"
+        className="rounded border border-control px-3 py-1 hover:bg-surface-hover"
       >
         Create
       </button>
@@ -231,7 +231,7 @@ export function AllEntities() {
       <Region
         pending={<Skeleton className="h-4 w-1/2" />}
         failed={(error) => (
-          <p role="alert" className="text-red-700 dark:text-red-300">
+          <p role="alert" className="text-danger">
             {error.message}
           </p>
         )}

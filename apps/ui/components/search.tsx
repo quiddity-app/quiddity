@@ -32,11 +32,11 @@ export function Search() {
       <button
         type="button"
         aria-haspopup="dialog"
-        className="flex items-center gap-2 rounded border border-slate-300 px-2 py-1 text-sm text-slate-600 hover:bg-slate-200 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+        className="flex items-center gap-2 rounded border border-control px-2 py-1 text-sm text-ink-secondary hover:bg-surface-hover"
         onClick={() => setOpen(true)}
       >
         Search
-        <kbd className="rounded bg-slate-200 px-1 text-xs dark:bg-slate-700">
+        <kbd className="rounded bg-surface-hover px-1 text-xs">
           {isMac() ? "⌘K" : "Ctrl K"}
         </kbd>
       </button>
@@ -52,7 +52,7 @@ function Highlighted({ hit }: { hit: Hit }) {
   for (const [start, end] of hit.ranges ?? []) {
     if (start > at) parts.push(hit.label.slice(at, start));
     parts.push(
-      <mark key={start} className="bg-transparent font-semibold text-sky-700 dark:text-sky-300">
+      <mark key={start} className="bg-transparent font-semibold text-link">
         {hit.label.slice(start, end)}
       </mark>,
     );
@@ -110,14 +110,14 @@ function Panel({ onClose }: { onClose: () => void }) {
         type="button"
         tabIndex={-1}
         aria-label="Close search"
-        className="absolute inset-0 bg-slate-900/40"
+        className="absolute inset-0 bg-scrim"
         onClick={onClose}
       />
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Search"
-        className="relative flex max-h-[70vh] w-full max-w-xl flex-col overflow-hidden rounded-lg border border-slate-200 bg-slate-50 shadow-xl dark:border-slate-700 dark:bg-slate-900"
+        className="relative flex max-h-[70vh] w-full max-w-xl flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-xl"
         onKeyDown={onKeyDown}
       >
         <input
@@ -137,16 +137,16 @@ function Panel({ onClose }: { onClose: () => void }) {
             setQuery(e.target.value);
             setActive(0);
           }}
-          className="w-full border-b border-slate-200 bg-transparent px-4 py-3 outline-none dark:border-slate-700"
+          className="w-full border-b border-border bg-transparent px-4 py-3 outline-none"
         />
         <div id={`${id}-results`} role="listbox" aria-label="Results" className="overflow-y-auto">
           {query.trim() && flat.length === 0 && (
-            <p className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">Nothing found.</p>
+            <p className="px-4 py-3 text-sm text-ink-muted">Nothing found.</p>
           )}
           {sections.map(({ facet, hits }) =>
             hits.length === 0 ? null : (
               <section key={facet.id} role="group" aria-label={facet.title} className="px-2 py-2">
-                <h2 className="px-2 pb-1 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                <h2 className="px-2 pb-1 text-xs font-medium uppercase tracking-wide text-ink-muted">
                   {facet.title}
                 </h2>
                 {hits.map((hit) => {
@@ -162,12 +162,12 @@ function Panel({ onClose }: { onClose: () => void }) {
                       onMouseMove={() => setActive(flat.findIndex((f) => f.hit === hit))}
                       onClick={(e) => choose(hit, e.shiftKey)}
                       className={`cursor-pointer truncate rounded px-2 py-1 text-sm ${
-                        selected ? "bg-slate-200 dark:bg-slate-700" : ""
+                        selected ? "bg-surface-hover" : ""
                       }`}
                     >
                       <Highlighted hit={hit} />
                       {hit.detail && (
-                        <div className="truncate text-xs text-slate-500 dark:text-slate-400">
+                        <div className="truncate text-xs text-ink-muted">
                           {hit.detail}
                         </div>
                       )}
@@ -178,7 +178,7 @@ function Panel({ onClose }: { onClose: () => void }) {
             ),
           )}
         </div>
-        <p className="border-t border-slate-200 px-4 py-1.5 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
+        <p className="border-t border-border px-4 py-1.5 text-xs text-ink-muted">
           ↑↓ to move · Enter to open · Shift-Enter to open at the side · Esc to close
         </p>
       </div>

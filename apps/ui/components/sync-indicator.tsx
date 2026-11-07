@@ -7,11 +7,11 @@ import { useGraph } from "@/lib/use-graph";
 
 /** What each state is called, and the colour of its dot. */
 const states: Record<SyncState, { label: string; dot: string }> = {
-  alone: { label: "No other devices to sync with", dot: "bg-slate-400" },
-  offline: { label: "Not connected to any other device", dot: "bg-red-500" },
-  behind: { label: "Connected, but out of date", dot: "bg-yellow-500" },
-  synced: { label: "Connected and up to date", dot: "bg-green-500" },
-  present: { label: "Another device is here", dot: "bg-blue-500" },
+  alone: { label: "No other devices to sync with", dot: "bg-sync-alone" },
+  offline: { label: "Not connected to any other device", dot: "bg-sync-offline" },
+  behind: { label: "Connected, but out of date", dot: "bg-sync-behind" },
+  synced: { label: "Connected and up to date", dot: "bg-sync-synced" },
+  present: { label: "Another device is here", dot: "bg-sync-present" },
 };
 
 /**
@@ -30,7 +30,7 @@ export function SyncIndicator() {
       aria-label={`Sync: ${label}`}
       title={label}
       data-state={status}
-      className="relative flex h-8 w-8 items-center justify-center rounded text-slate-600 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-700"
+      className="relative flex h-8 w-8 items-center justify-center rounded text-ink-secondary hover:bg-surface-hover"
     >
       <svg
         aria-hidden="true"
@@ -46,7 +46,7 @@ export function SyncIndicator() {
       </svg>
       <span
         aria-hidden="true"
-        className={`absolute bottom-0.5 right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-white dark:ring-slate-900 ${dot}`}
+        className={`absolute bottom-0.5 right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-dot-ring ${dot}`}
       />
     </Link>
   );

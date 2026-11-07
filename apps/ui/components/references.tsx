@@ -8,7 +8,7 @@ import { EntityLink } from "./entity-link";
 import { Outline } from "./entity-view";
 
 const heading =
-  "text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400";
+  "text-xs font-medium uppercase tracking-wide text-ink-muted";
 
 function Groups({ references }: { references: Reference[] }) {
   return (
@@ -18,7 +18,7 @@ function Groups({ references }: { references: Reference[] }) {
           <h3 className="mb-1 font-medium">
             <EntityLink
               id={source.id}
-              className="text-sky-700 underline-offset-2 hover:underline dark:text-sky-300"
+              className="text-link underline-offset-2 hover:underline"
             >
               {source.title}
             </EntityLink>
@@ -47,7 +47,7 @@ function Linked({ id }: { id: EntityId }) {
 function UnlinkedList({ id }: { id: EntityId }) {
   const references = useRead((g) => g.unlinkedReferences(id));
   if (references.length === 0) {
-    return <p className="text-sm text-slate-500 dark:text-slate-400">None.</p>;
+    return <p className="text-sm text-ink-muted">None.</p>;
   }
   return <Groups references={references} />;
 }
@@ -63,7 +63,7 @@ function Unlinked({ id }: { id: EntityId }) {
           <Region
             pending={<Skeleton className="h-4 w-1/2" />}
             failed={(error) => (
-              <p role="alert" className="text-sm text-red-700 dark:text-red-300">
+              <p role="alert" className="text-sm text-danger">
                 {error.message}
               </p>
             )}
@@ -79,12 +79,12 @@ function Unlinked({ id }: { id: EntityId }) {
 /** At the foot of an entity. Each part loads, and fails, on its own. */
 export function References({ id }: { id: EntityId }) {
   return (
-    <footer className="mt-10 space-y-6 border-t border-slate-200 pt-6 dark:border-slate-700">
+    <footer className="mt-10 space-y-6 border-t border-border pt-6">
       <Region
         key={`linked:${id}`}
         pending={<Skeleton className="h-4 w-1/3" />}
         failed={(error) => (
-          <p role="alert" className="text-sm text-red-700 dark:text-red-300">
+          <p role="alert" className="text-sm text-danger">
             {error.message}
           </p>
         )}

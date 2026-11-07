@@ -1,0 +1,14 @@
+- How the app looks, and the rules that keep it looking the same. The UI is [[The UI]]; the pieces are built with [[Tailwind CSS]].
+- Colours have names for what they are for, not what they are
+	- `apps/ui/app/globals.css` declares each as a CSS variable with a light and a dark value, and exposes it to Tailwind: `bg-surface`, `text-ink-muted`, `border-border`. A component never writes a palette colour (`slate-500`) or a `dark:` pair, so changing a theme is changing one value.
+	- Light is the default and dark follows the system's setting. There is no switch.
+	- The values are Tailwind's slate, with sky for links, red for errors and amber for flags.
+- Grounds
+	- `surface` is the page, the main pane and cards. `surface-pane` is the sidebars: a step darker in light and lighter in dark. `surface-hover` is hover, the current item, chips and code.
+- Three levels of text
+	- `ink` for content, `ink-secondary` for secondary text and icons on any ground, `ink-muted` for hints, and only on `surface`: on the other grounds it is under 4.5:1 for contrast.
+- Colour is rare
+	- `link`, `danger`, `flag-text` and `flag-ring`, and the five `sync-*` dots, which are always paired with a label so that colour is never the only signal. [[Sync status]]
+- Borders, not shadows
+	- `border` is the hairline between panes, cards and rows. `border-control` is the edge of a control that needs one.
+- Planned, in the same design and not built yet: a shared button, field and error line, a visible focus ring, touch-sized targets, a type scale and page widths, JetBrains Mono for code, and one treatment for floating layers.

@@ -32,8 +32,8 @@ export function splitBlock(block: Pick<Block, "text" | "properties">) {
   return { prose, lineProps, inlineProps };
 }
 
-const code = "rounded bg-slate-200 px-1 py-0.5 font-mono text-[0.9em] dark:bg-slate-700";
-const muted = "text-slate-500 dark:text-slate-400";
+const code = "rounded bg-surface-hover px-1 py-0.5 font-mono text-[0.9em]";
+const muted = "text-ink-muted";
 
 /** An element of this tag with these classes, for the renderer to use. */
 const styled = (tag: string, className: string) =>
@@ -58,13 +58,13 @@ function components(links: Record<string, ResolvedLink>, inline: Property[]): Co
     ),
     blockquote: styled(
       "blockquote",
-      "border-l-2 border-slate-300 pl-3 text-slate-600 dark:border-slate-600 dark:text-slate-300",
+      "border-l-2 border-control pl-3 text-ink-secondary",
     ),
-    hr: styled("hr", "my-2 border-slate-300 dark:border-slate-600"),
+    hr: styled("hr", "my-2 border-control"),
     pre: styled("pre", `overflow-x-auto ${code} p-2`),
     table: styled("table", "border-collapse text-sm"),
-    th: styled("th", "border border-slate-300 px-2 py-1 dark:border-slate-600"),
-    td: styled("td", "border border-slate-300 px-2 py-1 dark:border-slate-600"),
+    th: styled("th", "border border-control px-2 py-1"),
+    td: styled("td", "border border-control px-2 py-1"),
     // Inline code only: inside a `pre` the block's own background is enough.
     code: ({ className, children }: { className?: string; children?: ReactNode }) => (
       <code className={className ?? code}>{children}</code>
@@ -76,7 +76,7 @@ function components(links: Record<string, ResolvedLink>, inline: Property[]): Co
         <a
           href={href}
           rel="noopener noreferrer"
-          className="text-sky-700 underline-offset-2 hover:underline dark:text-sky-300"
+          className="text-link underline-offset-2 hover:underline"
           onClick={(e) => {
             e.preventDefault();
             void openExternal(href);
@@ -85,7 +85,7 @@ function components(links: Record<string, ResolvedLink>, inline: Property[]): Co
           {children}
         </a>
       ) : appPage(href) ? (
-        <Link href={appPage(href)!} className="text-sky-700 underline-offset-2 hover:underline dark:text-sky-300">
+        <Link href={appPage(href)!} className="text-link underline-offset-2 hover:underline">
           {children}
         </Link>
       ) : (

@@ -33,7 +33,7 @@ export function LinkOrNot({
     return (
       <EntityLink
         id={target.id}
-        className="text-sky-700 underline-offset-2 hover:underline dark:text-sky-300"
+        className="text-link underline-offset-2 hover:underline"
         title={qualifiers || undefined}
       >
         {name}
@@ -45,7 +45,7 @@ export function LinkOrNot({
   }
   return (
     <span
-      className={`text-slate-500 dark:text-slate-400 ${unresolved}`}
+      className={`text-ink-muted ${unresolved}`}
       title={qualifiers ? `Several entities match ${qualifiers}` : "Several entities match"}
     >
       {name}
@@ -69,7 +69,7 @@ function NewEntityLink({
   return (
     <button
       type="button"
-      className="text-sky-700 underline decoration-dashed underline-offset-2 hover:decoration-solid dark:text-sky-300"
+      className="text-link underline decoration-dashed underline-offset-2 hover:decoration-solid"
       title={`No such entity yet. Open it to make it.${qualifiers ? ` ${qualifiers}` : ""}`}
       onClick={(e) => {
         const id = graph.followLink(linkKey);
@@ -94,7 +94,7 @@ export function Value({
     case "link":
       return <LinkOrNot linkKey={value.key} fallback={value.name} links={links} />;
     case "ref":
-      return <span className="text-slate-500 dark:text-slate-400">(({value.id}))</span>;
+      return <span className="text-ink-muted">(({value.id}))</span>;
     case "list":
       return (
         <>
@@ -120,8 +120,8 @@ export function BlockRefLink({ id, children }: { id: string; children: ReactNode
       type="button"
       className={
         missing
-          ? "text-slate-500 dark:text-slate-400 cursor-help underline decoration-dashed underline-offset-2"
-          : "text-sky-700 underline-offset-2 hover:underline dark:text-sky-300"
+          ? "text-ink-muted cursor-help underline decoration-dashed underline-offset-2"
+          : "text-link underline-offset-2 hover:underline"
       }
       title={missing ? "No block has this id" : "Opens the page holding the block"}
       onClick={(e) => {
@@ -174,7 +174,7 @@ function PropertyKey({
   );
 }
 
-const flaggedChip = "ring-1 ring-amber-500 dark:ring-amber-400";
+const flaggedChip = "ring-1 ring-flag-ring";
 
 /**
  * A property, as a pill: the key, then its value if it has one. A
@@ -191,13 +191,13 @@ export function PropertyChip({
   const flagged = property.flags.length > 0;
   return (
     <span
-      className={`inline-flex items-baseline gap-1 rounded-full bg-slate-200 px-2 py-0.5 text-xs leading-5 dark:bg-slate-700 ${flagged ? flaggedChip : ""}`}
+      className={`inline-flex items-baseline gap-1 rounded-full bg-surface-hover px-2 py-0.5 text-xs leading-5 ${flagged ? flaggedChip : ""}`}
       title={flagged ? property.flags.join("\n") : undefined}
       data-flagged={flagged || undefined}
     >
       {property.meta ? (
         <>
-          <span className="text-slate-500 dark:text-slate-400">##{property.key}</span>
+          <span className="text-ink-muted">##{property.key}</span>
           {property.value?.kind === "text" && <code>{property.value.text}</code>}
         </>
       ) : property.value === null ? (
@@ -206,7 +206,7 @@ export function PropertyChip({
         </PropertyKey>
       ) : (
         <>
-          <PropertyKey property={property} className="text-slate-500 dark:text-slate-400">
+          <PropertyKey property={property} className="text-ink-muted">
             {property.key}
           </PropertyKey>
           <span>

@@ -7,7 +7,7 @@ favourite:: true
 	- [[Running the app]], [[Testing]] and [[Nightly builds]].
 - The parts
 	- Crates: [[quiddity-syntax]], [[quiddity-core]], [[quiddity-sync]], [[quiddity-node]], [[quiddity-view]] and [[quiddity-wasm]].
-	- Apps: [[The UI]] and [[The shell]].
+	- Apps: [[The UI]] and [[The shell]]. How they look: the [[Design language]].
 	- What they are built on is listed under [[Library]], and what they are built with under [[Tool]].
 - Between devices
 	- [[Sync]]: the protocol, over [[iroh]].
