@@ -38,5 +38,5 @@ alias:: text format
 	- Without it, as for a Logseq graph or these pages, indentation is judged by width, fenced code is respected, and `logseq/` and hidden directories are skipped.
 	- A `quiddity.toml` at the top sets the graph's settings, with or without `quiddity.json`. [[Graph settings]]
 	- Files in `journals/` named `2026-10-25.md` or `2026_10_25.md` become journals. [[Journal]]
-	- A file with no `title::` is named for the file.
+	- A file with no `title::` is named for the file. In a Logseq graph, `___` in the file name is a `/`, and a name with a `/` is a namespace: the page gets a `parent` to the page above it. [[Logseq]]
 	- Importing the same export twice makes two of everything except journals and property entities, which merge. Exports leave out copies that have been merged. [[Duplicates]]
