@@ -104,7 +104,7 @@ function Panel({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 z-40 flex items-start justify-center p-4 pt-[12vh]">
+    <div className="fixed inset-0 z-(--z-overlay) flex items-start justify-center p-4 pt-[12vh]">
       <button
         type="button"
         tabIndex={-1}
@@ -116,7 +116,7 @@ function Panel({ onClose }: { onClose: () => void }) {
         role="dialog"
         aria-modal="true"
         aria-label="Search"
-        className="relative flex max-h-[70vh] w-full max-w-xl flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-xl"
+        className="relative flex max-h-[70vh] w-full max-w-xl flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-overlay"
         onKeyDown={onKeyDown}
       >
         <input

@@ -230,7 +230,7 @@ export function BlockEditor({ id, caret }: { id: string; caret: Caret }) {
             // The defaults assume a light background.
             ".cm-cursor, .cm-dropCursor": { borderLeftColor: "currentColor" },
             "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground": {
-              background: "rgb(56 189 248 / 0.35)",
+              background: "var(--selection)",
             },
           }),
         ],

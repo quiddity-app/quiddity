@@ -223,11 +223,12 @@ export function linkCompletion(options: LinkCompletion): Extension {
     keymap.of(keys),
     EditorView.theme({
       ".cm-tooltip.cm-link-completions": {
-        backgroundColor: "Canvas",
-        color: "CanvasText",
-        border: "1px solid color-mix(in srgb, CanvasText 20%, transparent)",
-        borderRadius: "0.375rem",
-        boxShadow: "0 4px 12px rgb(0 0 0 / 0.15)",
+        // The same layer as the search panel (docs/Design language.md).
+        backgroundColor: "var(--surface)",
+        color: "var(--ink)",
+        border: "1px solid var(--border)",
+        borderRadius: "0.5rem",
+        boxShadow: "var(--shadow-overlay)",
         fontSize: "0.875rem",
         maxWidth: "min(32rem, 90vw)",
         padding: "0.25rem",
@@ -246,7 +247,7 @@ function row(hit: TitleHit, selected: boolean, onChoose: () => void): HTMLElemen
   el.setAttribute("aria-selected", String(selected));
   el.className = "cm-link-completion";
   el.style.cssText = `padding:0.125rem 0.5rem;border-radius:0.25rem;cursor:pointer;${
-    selected ? "background:color-mix(in srgb, CanvasText 15%, transparent);" : ""
+    selected ? "background:var(--surface-hover);" : ""
   }`;
   // Keeps the focus in the editor.
   el.addEventListener("mousedown", (e) => e.preventDefault());
