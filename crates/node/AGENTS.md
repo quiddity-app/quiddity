@@ -87,6 +87,18 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
   `shutdown` before dropping the last clone if something will reopen the
   directory at once: the store's database is locked until its tasks stop.
   Anything `put` is tagged and so kept; nothing deletes yet.
+- **Blobs travel on iroh-blobs' own ALPN, gated by `Peer::permits`**, the
+  rule `accept` uses for sync (`Blobs::provider` asks it on every
+  connection, in intercept mode, before anything is read; pushes stay
+  disabled). **Each device must list the other**: the one that has the
+  bytes checks its own list, so `admit` both ways in a test or the fetch
+  is refused with `permission`. `Peer::set_blobs` is what turns it on in
+  `serve`; without a store nothing is offered or fetched. `fetch_blobs`
+  looks at what `missing_blobs` says on a graph change, a connection
+  change and every 30 s while anything is missing; it connects by ID, which
+  works on localhost because iroh keeps the address of a device that
+  connected to it. Don't conclude "addressing" from a failed fetch in a
+  test: `connection lost` was the gate refusing.
 - **`--local ADDR`** binds to that address only, with no relays or address
   lookup. The tests use it on `127.0.0.1:0`, and iroh tests use
   `presets::Minimal` with relays disabled, so nothing leaves the machine.

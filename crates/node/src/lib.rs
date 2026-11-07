@@ -47,6 +47,10 @@ const REDIAL_MAX: Duration = Duration::from_secs(60);
 /// dialler, trying again. Waiting out a dead address takes much longer.
 const HANDSHAKE: Duration = Duration::from_secs(10);
 
+/// How long to wait before looking again for blobs that no connected device
+/// has given us.
+const BLOB_RETRY: Duration = Duration::from_secs(30);
+
 /// How long after the last keystroke an edit nobody is watching is sent.
 const EDIT_IDLE: Duration = Duration::from_secs(2);
 
@@ -160,6 +164,8 @@ struct Inner {
     next_link: AtomicU64,
     /// Bumped whenever [`Peer::sync_state`] may have changed.
     status_changes: watch::Sender<u64>,
+    /// The bytes of the graph's binaries, if this device keeps them.
+    blobs: Mutex<Option<blobs::Blobs>>,
 }
 
 /// Edits held back because nobody else has their block open.
@@ -226,6 +232,7 @@ impl Peer {
                 syncs: Mutex::new(BTreeMap::new()),
                 next_link: AtomicU64::new(0),
                 status_changes: watch::Sender::new(0),
+                blobs: Mutex::new(None),
                 gate: Mutex::new(Gate {
                     pending: BTreeSet::new(),
                     deadline: None,
@@ -359,6 +366,98 @@ impl Peer {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .insert(device);
+    }
+
+    /// Whether `device` may connect: for sync, and for fetching blobs.
+    fn permits(&self, device: &EndpointId) -> bool {
+        match &self.inner.allowed {
+            Allowed::Any => true,
+            Allowed::Only(ids) => {
+                ids.contains(device) || self.trusted(device) || self.listed(device)
+            }
+        }
+    }
+
+    /// Has this peer keep the bytes of the graph's binaries in `blobs`: it
+    /// gives them to the devices that may connect, and, once served (see
+    /// [`serve`]), fetches those the graph names that it lacks.
+    pub fn set_blobs(&self, blobs: blobs::Blobs) {
+        *self
+            .inner
+            .blobs
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = Some(blobs);
+    }
+
+    /// The blob store, if this peer keeps one.
+    pub fn blobs(&self) -> Option<blobs::Blobs> {
+        self.inner
+            .blobs
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
+    /// The devices connected now, as far as the sync protocol knows.
+    pub fn connected_devices(&self) -> Vec<EndpointId> {
+        let state = self.presence();
+        state
+            .links
+            .keys()
+            .filter_map(|device| device.parse().ok())
+            .collect()
+    }
+
+    /// The hashes the graph names as binaries that `blobs` doesn't have.
+    pub async fn missing_blobs(&self, blobs: &blobs::Blobs) -> Vec<blobs::Hash> {
+        let Ok(index) = Index::build(self.graph()) else {
+            return Vec::new();
+        };
+        let mut missing = Vec::new();
+        for (_, asset) in index.assets() {
+            let Ok(hash) = asset.hash.parse::<blobs::Hash>() else {
+                continue;
+            };
+            if !missing.contains(&hash) && !blobs.has(hash).await.unwrap_or(true) {
+                missing.push(hash);
+            }
+        }
+        missing
+    }
+
+    /// Fetches the blobs the graph names that `blobs` lacks, from the devices
+    /// that are connected, and goes on doing so: when the graph changes, when
+    /// a device connects, and, while any are missing, every so often, since
+    /// the device that has one may not be here yet. A device with a blob it
+    /// can't give, or that gives a different one, is passed over for the next.
+    pub async fn fetch_blobs(
+        &self,
+        endpoint: &Endpoint,
+        blobs: &blobs::Blobs,
+        address: impl Fn(EndpointId) -> EndpointAddr,
+    ) {
+        let (mut graph, mut devices) = (self.subscribe(), self.subscribe_status());
+        let mut reported = HashSet::new();
+        loop {
+            let missing = self.missing_blobs(blobs).await;
+            for hash in &missing {
+                for device in self.connected_devices() {
+                    match fetch_from(endpoint, blobs, address(device), *hash).await {
+                        Ok(()) => break,
+                        Err(e) if reported.insert((device, *hash)) => {
+                            eprintln!("quiddity: fetching {hash} from {device} failed: {e}");
+                        }
+                        Err(_) => {}
+                    }
+                }
+            }
+            let retry = tokio::time::sleep(BLOB_RETRY);
+            tokio::select! {
+                changed = graph.changed() => if changed.is_err() { return },
+                changed = devices.changed() => if changed.is_err() { return },
+                () = retry, if !missing.is_empty() => {}
+            }
+        }
     }
 
     fn trusted(&self, device: &EndpointId) -> bool {
@@ -818,7 +917,7 @@ pub async fn bind(key: SecretKey, local: Option<SocketAddr>) -> Result<Endpoint,
     };
     Ok(builder
         .secret_key(key)
-        .alpns(vec![ALPN.to_vec()])
+        .alpns(vec![ALPN.to_vec(), blobs::ALPN.to_vec()])
         .bind()
         .await?)
 }
@@ -830,6 +929,7 @@ pub async fn bind(key: SecretKey, local: Option<SocketAddr>) -> Result<Endpoint,
 pub struct Server {
     router: Router,
     dialler: Option<tokio::task::JoinHandle<()>>,
+    fetcher: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl Server {
@@ -845,8 +945,8 @@ impl Server {
 
 impl Drop for Server {
     fn drop(&mut self) {
-        if let Some(dialler) = &self.dialler {
-            dialler.abort();
+        for task in [&self.dialler, &self.fetcher].into_iter().flatten() {
+            task.abort();
         }
     }
 }
@@ -865,30 +965,66 @@ pub async fn serve(
 /// [`serve`], told where some devices are. Where there is no address lookup
 /// (`local`) that is the only way to dial one, so with any `known` the
 /// listed devices are dialled even then; the rest, if there is a lookup,
-/// are found from their IDs as usual.
+/// are found from their IDs as usual. Blobs are fetched from them the same
+/// way.
 pub async fn serve_at(
     peer: &Peer,
     key: SecretKey,
     local: Option<SocketAddr>,
     known: HashMap<EndpointId, SocketAddr>,
 ) -> Result<Server, NetError> {
-    let router = Router::builder(bind(key, local).await?)
-        .accept(ALPN, peer.clone())
-        .spawn();
+    let mut router = Router::builder(bind(key, local).await?).accept(ALPN, peer.clone());
+    let blobs = peer.blobs();
+    if let Some(blobs) = &blobs {
+        let gate = peer.clone();
+        router = router.accept(blobs::ALPN, blobs.provider(move |id| gate.permits(id)));
+    }
+    let router = router.spawn();
+    let known = Arc::new(known);
     let dialler = (local.is_none() || !known.is_empty()).then(|| {
-        let (peer, endpoint) = (peer.clone(), router.endpoint().clone());
+        let (peer, endpoint, known) = (peer.clone(), router.endpoint().clone(), known.clone());
         tokio::spawn(async move {
-            peer.dial_listed(&endpoint, move |id| {
-                let addr = EndpointAddr::new(id);
-                match known.get(&id) {
-                    Some(at) => addr.with_ip_addr(*at),
-                    None => addr,
-                }
-            })
-            .await;
+            peer.dial_listed(&endpoint, move |id| address_in(&known, id))
+                .await;
         })
     });
-    Ok(Server { router, dialler })
+    let fetcher = blobs.map(|blobs| {
+        let (peer, endpoint, known) = (peer.clone(), router.endpoint().clone(), known.clone());
+        tokio::spawn(async move {
+            peer.fetch_blobs(&endpoint, &blobs, move |id| address_in(&known, id))
+                .await;
+        })
+    });
+    Ok(Server {
+        router,
+        dialler,
+        fetcher,
+    })
+}
+
+/// Where a device is: the address it was told it is at, or, with none, just
+/// its ID, which needs an address lookup to be dialled.
+fn address_in(known: &HashMap<EndpointId, SocketAddr>, id: EndpointId) -> EndpointAddr {
+    let addr = EndpointAddr::new(id);
+    match known.get(&id) {
+        Some(at) => addr.with_ip_addr(*at),
+        None => addr,
+    }
+}
+
+/// Connects to a device for its blobs and fetches one.
+async fn fetch_from(
+    endpoint: &Endpoint,
+    blobs: &blobs::Blobs,
+    addr: EndpointAddr,
+    hash: blobs::Hash,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let connection = tokio::time::timeout(HANDSHAKE, endpoint.connect(addr, blobs::ALPN))
+        .await
+        .map_err(|_| Error::TimedOut)??;
+    let fetched = blobs.fetch(connection.clone(), hash).await;
+    connection.close(0u32.into(), b"done");
+    Ok(fetched?)
 }
 
 /// Reads where devices are, written `ID=ADDRESS` and separated by commas,
@@ -935,11 +1071,7 @@ pub fn save_on_change(peer: Peer, store: store::Store) {
 
 impl ProtocolHandler for Peer {
     async fn accept(&self, connection: Connection) -> Result<(), AcceptError> {
-        if let Allowed::Only(ids) = &self.inner.allowed
-            && !ids.contains(&connection.remote_id())
-            && !self.trusted(&connection.remote_id())
-            && !self.listed(&connection.remote_id())
-        {
+        if !self.permits(&connection.remote_id()) {
             connection.close(1u32.into(), b"not allowed");
             return Ok(());
         }
@@ -1070,6 +1202,7 @@ mod tests {
         drop(Server {
             router,
             dialler: Some(dialler),
+            fetcher: None,
         });
         tokio::time::timeout(Duration::from_secs(5), async {
             while !stopped.load(Ordering::SeqCst) {
