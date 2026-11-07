@@ -117,7 +117,15 @@ proptest! {
                 .into_iter()
                 .map(|n| (ids[n], model.parent[n].map(|p| ids[p]), model.text[n].clone()))
                 .collect();
-            prop_assert_eq!(common::layout(&graph), expected, "after {:?}", op);
+            prop_assert_eq!(common::layout(&graph), expected.clone(), "after {:?}", op);
+            // The bulk read agrees with asking for each block in turn.
+            let scanned: Vec<_> = graph
+                .scan()
+                .unwrap()
+                .into_iter()
+                .map(|b| (b.id, b.parent, b.text))
+                .collect();
+            prop_assert_eq!(scanned, expected, "scan after {:?}", op);
         }
     }
 }

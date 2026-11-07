@@ -17,6 +17,22 @@ outline text format.
 - `Graph::blank()` has no schema version until it syncs; `Graph::new()`
   writes one.
 
+## Reading the whole graph
+
+- **Loro costs about 7 µs for each block it is asked about**, however it is
+  asked, so work over every block must not ask block by block.
+  `Graph::scan` reads the structure in one call (`get_nodes`, which is 25
+  times faster than walking `children`) and the texts in the order Loro
+  stores them, and returns the blocks in document order with their parents.
+  `scan_reusing` takes the text of blocks the caller already has and removes
+  it from the map it is given, so the caller says which texts are still true.
+- `Index::from_scan` builds from that, and `Index::build` is `from_scan` of a
+  `scan`. `Index::entity_of(block)` is the entity a block is in, without asking
+  Loro. Parsing is cheap (23 ms for 38,000 blocks); don't cache it first.
+- Loro loads a container's state on first use, so the first read of a graph
+  just loaded from a snapshot is slower than the ones after it. Measure the
+  second.
+
 ## Compaction
 
 `Graph::shallow_snapshot(at)` keeps history only from `at` on. Loading it

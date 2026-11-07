@@ -31,7 +31,7 @@ pub use check::Flag;
 pub use devices::Device;
 pub use effective::Item;
 pub use error::{Error, Result};
-pub use graph::{BlockId, Graph, SCHEMA_VERSION, Version};
+pub use graph::{BlockId, Graph, SCHEMA_VERSION, Scanned, Version};
 pub use index::{Backlink, EntityInfo, Identity, Index, Resolution, canonical_value};
 pub use journal::ensure_journal;
 pub use merge::merge_duplicates;

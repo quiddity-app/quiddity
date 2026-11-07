@@ -3,12 +3,13 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use jiff::civil::Date;
 use quiddity_syntax::{
-    Link, MetaProperty, Property, Qualifier, Value, normalise_name, parse_block,
+    Link, MetaProperty, Property, Qualifier, Value, is_properties_block, normalise_name,
+    parse_block,
 };
 
 use crate::effective::Effective;
 use crate::schema::PropertySchema;
-use crate::{BlockId, Flag, Graph, Result};
+use crate::{BlockId, Flag, Graph, Result, Scanned};
 
 /// What the index knows about one entity.
 #[derive(Debug, Clone)]
@@ -116,6 +117,8 @@ pub struct Index {
     canonical: HashMap<BlockId, BlockId>,
     by_ref_id: HashMap<String, BlockId>,
     backlinks: HashMap<BlockId, Vec<Backlink>>,
+    /// The entity (root block) each block is in, itself for a root.
+    root_of: HashMap<BlockId, BlockId>,
     /// Schemas of built-in properties and of those with a property entity,
     /// by normalised key.
     pub(crate) schemas: HashMap<String, PropertySchema>,
@@ -129,18 +132,41 @@ pub struct Index {
 
 impl Index {
     pub fn build(graph: &Graph) -> Result<Self> {
+        Ok(Self::from_scan(&graph.scan()?))
+    }
+
+    /// Builds the index from blocks read by [`Graph::scan`], or kept from an
+    /// earlier one, so that a caller that already holds the text doesn't ask
+    /// Loro for it again.
+    pub fn from_scan(blocks: &[Scanned]) -> Self {
         let mut index = Self::default();
-        for id in graph.roots() {
-            let info = EntityInfo {
-                id,
-                name: graph.entity_name(id)?,
-                properties: graph.entity_properties(id)?,
-                meta: graph.entity_meta(id)?,
-            };
-            if let Some(identity) = info.identity() {
-                index.by_identity.entry(identity).or_default().push(id);
+        let mut root = None;
+        for (at, block) in blocks.iter().enumerate() {
+            let entity = *root.get_or_insert(block.id);
+            if block.parent.is_none() {
+                root = Some(block.id);
+                let entity = block.id;
+                // The properties block is the first child, if it is one.
+                let properties = blocks
+                    .get(at + 1)
+                    .filter(|next| next.parent == Some(entity) && is_properties_block(&next.text))
+                    .map(|next| parse_block(&next.text));
+                let (properties, meta) =
+                    properties.map_or((Vec::new(), Vec::new()), |p| (p.properties, p.meta));
+                let info = EntityInfo {
+                    id: entity,
+                    name: block.text.lines().next().unwrap_or("").trim().to_owned(),
+                    properties,
+                    meta,
+                };
+                if let Some(identity) = info.identity() {
+                    index.by_identity.entry(identity).or_default().push(entity);
+                }
+                index.entities.insert(entity, info);
+                index.root_of.insert(entity, entity);
+            } else {
+                index.root_of.insert(block.id, entity);
             }
-            index.entities.insert(id, info);
         }
         for group in index.by_identity.values_mut() {
             group.sort();
@@ -164,11 +190,12 @@ impl Index {
         }
 
         let mut references = Vec::new();
-        for block in graph.blocks() {
-            if graph.parent(block).is_none() {
+        for scanned in blocks {
+            if scanned.parent.is_none() {
                 continue;
             }
-            let parsed = parse_block(&graph.text(block)?);
+            let block = scanned.id;
+            let parsed = parse_block(&scanned.text);
             for p in &parsed.properties {
                 if let (true, Some(Value::Text(id))) = (normalise_name(&p.key) == "id", &p.value) {
                     let entry = index.by_ref_id.entry(id.clone()).or_insert(block);
@@ -193,7 +220,7 @@ impl Index {
         }
         index.read_schemas();
         index.compute_effective();
-        Ok(index)
+        index
     }
 
     /// Reads each property entity's meta-properties over the built-in
@@ -222,6 +249,12 @@ impl Index {
             Some(schema) => Cow::Borrowed(schema),
             None => Cow::Owned(PropertySchema::builtin(&key).unwrap_or_default()),
         }
+    }
+
+    /// The entity a block is in, before duplicates are merged: the block
+    /// itself if it is one. `None` for a block the index has not seen.
+    pub fn entity_of(&self, block: BlockId) -> Option<BlockId> {
+        self.root_of.get(&block).copied()
     }
 
     pub fn entity(&self, id: BlockId) -> Option<&EntityInfo> {
@@ -371,6 +404,39 @@ mod tests {
         );
         assert_eq!(index.resolve_block_ref("abc-123"), Some(quoted));
         assert_eq!(index.resolve_block_ref("nope"), None);
+        Ok(())
+    }
+
+    /// An entity's properties are those of its first child, and only if that
+    /// is a properties block: the next block in reading order is not enough
+    /// (it may belong to another entity), nor is a child that merely has an
+    /// inline property in its prose.
+    #[test]
+    fn only_a_first_child_of_properties_gives_properties() -> Result<()> {
+        let graph = Graph::new();
+        let prose = graph.create_block(None, None, "Prose")?;
+        graph.create_block(Some(prose), None, "done, #status(done)")?;
+        // Childless, and followed by an entity named like a property line.
+        let empty = graph.create_block(None, None, "Empty")?;
+        graph.create_block(None, None, "key:: value")?;
+        let real = graph.create_entity("Real", &[("key", text("value"))])?;
+        let index = Index::build(&graph)?;
+
+        let keys = |id| -> Vec<String> {
+            index
+                .entity(id)
+                .unwrap()
+                .properties
+                .iter()
+                .map(|p| p.key.clone())
+                .collect()
+        };
+        assert!(keys(prose).is_empty(), "prose is not a properties block");
+        assert!(
+            keys(empty).is_empty(),
+            "the next entity's name is not its properties"
+        );
+        assert_eq!(keys(real), ["key"]);
         Ok(())
     }
 

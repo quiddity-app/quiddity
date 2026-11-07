@@ -61,6 +61,6 @@ alias:: meta-property
 		- A parameter ending in a backslash, `##k(C:\ )`, needs the space: `\)` would be a literal parenthesis.
 	- [[quiddity-core]] reads each property's meta-properties into its schema, and, after building the index, works out each entity's effective properties (its own, inherited, transitive and symmetric) by repeating until nothing changes, which copes with cycles. [[Queries]] are answered against the effective properties; the checks look at what is written.
 	- A reference refers to an entity only if it resolves to exactly one. An ambiguous link, or one to nowhere, is followed nowhere and checked against nothing.
-	- The work grows with the graph and how far its relations reach, and is redone at every rebuild of the index. It hasn't been measured on a large graph.
+	- The work grows with the graph and how far its relations reach, and is redone at every rebuild of the index. On a graph of 3,150 pages it is about 20 ms of an 80 ms rebuild. [[Performance]]
 	- [[quiddity-view]] puts each flag on its chip, in words, and gives an entity's page its inherited values and inverse trees.
 	- They replace the `value-type::`, `form::` and `cardinality::` lines that a property entity is read for today. `form` goes: a list is always allowed.

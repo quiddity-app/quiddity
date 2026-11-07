@@ -8,7 +8,7 @@ use std::collections::BTreeSet;
 use quiddity_core::BlockId;
 use serde::Serialize;
 
-use crate::{Error, Result, View};
+use crate::{Change, Error, Result, View};
 
 /// The outcome of merging a block into the one before it.
 #[derive(Debug, Serialize, PartialEq, Eq)]
@@ -36,9 +36,16 @@ fn byte_offset(text: &str, utf16: usize) -> Option<usize> {
 }
 
 impl View {
+    /// Ends an edit that may have changed anything.
     pub(crate) fn edited<T>(&self, result: Result<T>) -> Result<T> {
+        self.edited_by(result, Change::Anything)
+    }
+
+    /// Ends an edit that changed only what `change` says, so that less is
+    /// read again.
+    pub(crate) fn edited_by<T>(&self, result: Result<T>, change: Change) -> Result<T> {
         self.graph.commit();
-        self.changed();
+        self.changed_by(change);
         result
     }
 
@@ -84,7 +91,7 @@ impl View {
             self.graph.begin_undo_group()?;
         }
         let result = self.graph.splice_text(block, pos, len, insert);
-        self.edited(result.map_err(Error::from))
+        self.edited_by(result.map_err(Error::from), Change::Text(block))
     }
 
     /// Creates a block under `parent` at `index`, or at the end.
@@ -92,7 +99,10 @@ impl View {
         self.structural();
         let parent = self.block_id(parent)?;
         let created = self.graph.create_block(Some(parent), index, text);
-        self.edited(created.map(|b| b.to_string()).map_err(Error::from))
+        self.edited_by(
+            created.map(|b| b.to_string()).map_err(Error::from),
+            Change::Structure,
+        )
     }
 
     /// Creates an entity with an empty first block to type into.
@@ -189,7 +199,7 @@ impl View {
             return Ok(false);
         };
         let moved = self.graph.move_block(block, Some(before), None);
-        self.edited(moved.map(|()| true).map_err(Error::from))
+        self.edited_by(moved.map(|()| true).map_err(Error::from), Change::Structure)
     }
 
     /// Makes a block the next sibling of its parent. False if its parent is
@@ -210,7 +220,7 @@ impl View {
             .position(|&u| u == parent)
             .map_or(0, |i| i + 1);
         let moved = self.graph.move_block(block, Some(grandparent), Some(at));
-        self.edited(moved.map(|()| true).map_err(Error::from))
+        self.edited_by(moved.map(|()| true).map_err(Error::from), Change::Structure)
     }
 
     /// Swaps a block with the sibling `delta` places away (-1 is up). False
@@ -231,7 +241,7 @@ impl View {
             return Ok(false);
         };
         let moved = self.graph.move_block(block, Some(parent), Some(to));
-        self.edited(moved.map(|()| true).map_err(Error::from))
+        self.edited_by(moved.map(|()| true).map_err(Error::from), Change::Structure)
     }
 
     /// Appends a childless block's text to the block before it in reading

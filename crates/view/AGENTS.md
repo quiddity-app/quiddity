@@ -14,9 +14,27 @@ of the graph; nothing here knows about JavaScript or Tauri.
   `RefCell`, and a rebuild needs the borrow exclusively, so a `Ref` kept while
   another method runs panics once an edit has made it stale. Take it, use it,
   drop it; `block` shows the pattern.
-- A rebuild reads every block, so an edit followed by a query costs time in
-  proportion to the graph (about 18 ms at 10,000 blocks). The UI therefore
-  asks for fresh answers after a pause in typing, not per keystroke.
+- A rebuild goes through every block, so an edit followed by a query costs
+  time in proportion to the graph (about 80 ms at 38,000 blocks, natively).
+  The UI therefore asks for fresh answers after a pause in typing, not per
+  keystroke. `cargo run --release -p quiddity-view --example scale` measures
+  it; run it before and after a change to anything here. `docs/Performance.md`
+  has the numbers and what is still to do.
+- **The corpus is what Loro costs, kept.** Reading a block's text from Loro is
+  about 7 µs, so a whole-graph answer that asked for each block spent most of
+  its time there. `View` keeps every block with its text (`Corpus`, in
+  document order, from `Graph::scan`), and the index, `summaries` and
+  `search_text` all read that. Don't call `graph.blocks()`, `graph.text()` or
+  `graph.entity_of()` in a loop over the whole graph: use the corpus and
+  `Index::entity_of`.
+- **An edit says what it changed** (`Change`). `splice_text` says `Text(block)`,
+  so only that block's text is read again; creating or moving blocks says
+  `Structure`; everything else, and `changed()`, says `Anything` and reads
+  every text. Saying too little leaves a stale text in every answer, so when
+  unsure use `edited`, which says `Anything`. The `revisions` property test
+  compares a long-lived view with a fresh one after random edits.
+- Hold a `corpus()` borrow only while nothing can make it stale: it is a
+  `RefCell` like the index, and asking for the index first makes both fresh.
 - There is no clock. Anything that depends on the date (`journals`,
   `ensure_journal`) takes `today`.
 
@@ -162,9 +180,9 @@ break the tests; the ranking tests are the ones to read when changing them.
 of letters and digits, compared ignoring case; a block is found when every
 query word matches one of its words, **the last also as a prefix** (the query
 is usually still being typed). Blocks are ranked by BM25 with a bonus when a
-multi-word query's words are together and in order. **It reads every block on
-every query** (no inverted index yet), like an index rebuild; an inverted
-index kept beside `Index` is the next step if that gets slow. Entity names
+multi-word query's words are together and in order. **It tokenises every
+block on every query**, from the corpus (about 60 ms at 38,000 blocks); an
+inverted index kept beside `Index` is the next step if that gets slow. Entity names
 aren't text: `search_titles` has them.
 
 ## Tests

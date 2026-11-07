@@ -14,10 +14,10 @@ mod query;
 mod search;
 
 use std::cell::{Cell, Ref, RefCell};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use jiff::Timestamp;
-use quiddity_core::{BlockId, Graph, Index, Version};
+use quiddity_core::{BlockId, Graph, Index, Scanned, Version};
 
 pub use edit::Merged;
 pub use fts::BlockHit;
@@ -57,9 +57,37 @@ pub struct View {
     graph: Graph,
     index: RefCell<Index>,
     stale: Cell<bool>,
+    /// Every block with its text, kept between revisions because reading it
+    /// from Loro is the most expensive part of any whole-graph answer.
+    corpus: RefCell<Corpus>,
     /// Whether a burst of typing is open, as one undo step.
     typing: Cell<bool>,
     activity: RefCell<Activity>,
+}
+
+/// The blocks as [`Graph::scan`] reads them, and what of them is still true.
+#[derive(Debug, Default)]
+struct Corpus {
+    blocks: Vec<Scanned>,
+    /// Whether blocks have been created, moved or deleted since `blocks` was
+    /// read.
+    restructured: bool,
+    /// Blocks whose text has changed since.
+    edited: HashSet<BlockId>,
+    /// Whether anything at all may have: re-read every text.
+    all: bool,
+}
+
+/// What an edit changed, so that only that is read again.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum Change {
+    /// The text of one block, which already existed.
+    Text(BlockId),
+    /// Blocks made, moved or deleted, with no text of an existing block
+    /// changed.
+    Structure,
+    /// Anything: an import, an undo.
+    Anything,
 }
 
 /// When blocks' text was last edited, as far as the graph's history says.
@@ -72,14 +100,21 @@ struct Activity {
 
 impl View {
     pub fn new(graph: Graph) -> Result<Self> {
-        let index = Index::build(&graph)?;
-        Ok(Self {
+        let view = Self {
             graph,
-            index: RefCell::new(index),
-            stale: Cell::new(false),
+            index: RefCell::default(),
+            stale: Cell::new(true),
+            corpus: RefCell::new(Corpus {
+                all: true,
+                ..Corpus::default()
+            }),
             typing: Cell::new(false),
             activity: RefCell::default(),
-        })
+        };
+        // Built now, not on first use, so that a graph that can't be read is
+        // refused here.
+        drop(view.index()?);
+        Ok(view)
     }
 
     /// Whether the graph has no history at all: a replica that has not yet
@@ -110,12 +145,56 @@ impl View {
     /// Records that the graph changed, from an edit or an import, so the
     /// index is rebuilt before it is next used.
     pub fn changed(&self) {
+        self.changed_by(Change::Anything);
+    }
+
+    pub(crate) fn changed_by(&self, change: Change) {
         self.stale.set(true);
+        let mut corpus = self.corpus.borrow_mut();
+        match change {
+            Change::Text(block) => {
+                corpus.edited.insert(block);
+            }
+            Change::Structure => {}
+            Change::Anything => corpus.all = true,
+        }
+        corpus.restructured = true;
+    }
+
+    /// Every block with its text, in document order, as of now. Only what
+    /// has changed since the last call is read from the graph again.
+    fn corpus(&self) -> Result<Ref<'_, [Scanned]>> {
+        let behind = {
+            let corpus = self.corpus.borrow();
+            corpus.restructured || corpus.all
+        };
+        if behind {
+            let mut corpus = self.corpus.borrow_mut();
+            {
+                let mut known = HashMap::new();
+                if !corpus.all {
+                    let edited = std::mem::take(&mut corpus.edited);
+                    known.extend(
+                        std::mem::take(&mut corpus.blocks)
+                            .into_iter()
+                            .filter(|b| !edited.contains(&b.id))
+                            .map(|b| (b.id, b.text)),
+                    );
+                }
+                corpus.blocks = self.graph.scan_reusing(&mut known)?;
+                corpus.edited.clear();
+                corpus.restructured = false;
+                corpus.all = false;
+            }
+        }
+        Ok(Ref::map(self.corpus.borrow(), |c| c.blocks.as_slice()))
     }
 
     fn index(&self) -> Result<Ref<'_, Index>> {
-        if self.stale.replace(false) {
-            *self.index.borrow_mut() = Index::build(&self.graph)?;
+        if self.stale.get() {
+            let built = Index::from_scan(&self.corpus()?);
+            *self.index.borrow_mut() = built;
+            self.stale.set(false);
         }
         Ok(self.index.borrow())
     }

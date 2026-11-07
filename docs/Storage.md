@@ -6,7 +6,8 @@
 - Blobs, the bytes of [[Binaries]], are kept by hash in `blobs/` beside the snapshot, in an [[iroh-blobs]] store. They are not derived and not in the document.
 - Everything else is derived.
 	- The index, of names and aliases, properties, links and how each resolved, is rebuilt from the document in memory and never synced or stored. [[quiddity-core]]
-	- Full-text search reads every block when asked. [[Text search]]
+	- Full-text search reads every block when asked, from the text the view keeps. [[Text search]]
+	- What costs time at start and after an edit, and what is planned about it. [[Performance]]
 - Planned, not built
 	- A snapshot plus an append-only log of updates, compacted now and then, so that a save doesn't rewrite everything. The shell's `AGENTS.md` says when that will be needed.
 	- The derived indexes and full-text search in SQLite tables, which can be rebuilt from the document at any time and are never synced.
