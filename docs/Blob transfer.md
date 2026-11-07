@@ -16,7 +16,6 @@
 	- `Peer::set_blobs` gives a peer a store. With one, `serve` offers the blobs protocol and runs the fetch task; without one it does neither, so nothing changes for a device that keeps no binaries.
 	- `quiddity-node serve` opens the store in the graph's directory, so the headless node keeps every blob. [[Storage]]
 - Not built yet
-	- [[The shell]] does not keep a store yet, so the app neither gives nor fetches blobs. That comes with the commands the UI uses.
 	- `quiddity-node sync`, which syncs with one device and stops, does not fetch blobs.
-	- Nothing writes an `##asset` line or puts bytes in the store: that is the shell's job, next.
+	- Nothing in the UI writes an `##asset` line or calls `put_blob` yet.
 	- Per-device options to fetch on demand or to cap the cache, for a phone. Removing blobs nothing refers to. [[Compaction]]
