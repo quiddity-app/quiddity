@@ -148,22 +148,24 @@ test("clicking a link or chip doesn't start editing, and selecting text doesn't 
 
 test("a property's key goes to the entity that defines it, making it the first time", async ({ page }) => {
   const block = await write(page, "A task\nstatus:: open");
-  const key = block.getByRole("button", { name: "status", exact: true });
-  await expect(key).toHaveAttribute("title", /not defined yet/i);
+  // Nothing defines it yet, but it reads as a link all the same.
+  const key = block.getByRole("link", { name: "status", exact: true });
+  await expect(key).toHaveAttribute("href", "#");
   await key.click();
   await expect(page.getByRole("heading", { name: "status", level: 1 })).toBeVisible();
 
-  // Defined now, so the key is a plain link, and it leads to the same place.
+  // Defined now, so the key goes somewhere real, and it leads to the same place.
   await page.locator("nav").getByRole("link", { name: "Reading list" }).first().click();
   const again = page.locator("main article > ul > li").first().locator("[data-block-text]");
-  await expect(again.getByRole("button", { name: "status" })).toHaveCount(0);
-  await again.getByRole("link", { name: "status", exact: true }).click();
+  const defined = again.getByRole("link", { name: "status", exact: true });
+  await expect(defined).not.toHaveAttribute("href", "#");
+  await defined.click();
   await expect(page.getByRole("heading", { name: "status", level: 1 })).toBeVisible();
 });
 
 test("a valueless property is a link too", async ({ page }) => {
   const block = await write(page, "todo\n#urgent");
-  await block.getByRole("button", { name: "#urgent" }).click();
+  await block.getByRole("link", { name: "#urgent" }).click();
   await expect(page.getByRole("heading", { name: "urgent", level: 1 })).toBeVisible();
 });
 

@@ -133,7 +133,7 @@ refuses it. The memory backend plays such a device with `?blank`.
   editing moves on or the page is left. That is what makes an entity for a
   `[[link]]` the edit added, and renames one a moment-old link made if the
   link is corrected. A link to nowhere that is already in a block (written on
-  another device, or left by an undo) is a button, `NewEntityLink`, and
+  another device, or left by an undo) is a link (`NewEntityLink`, an `<a href="#">` drawn like any other), and
   following it makes the entity (`graph.followLink`).
 - **Links are completed in the editor** (`lib/link-completion.ts`, with
   `lib/auto-brackets.ts` pairing `[`). Its keys sit above the outliner's, so

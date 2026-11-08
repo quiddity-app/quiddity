@@ -21,5 +21,5 @@ alias:: property
 	- A schema can't reject anything: the text is what it is. A value that doesn't fit is flagged instead.
 - In the UI
 	- When a block isn't being edited, its properties are chips. [[Rendering]]
-	- A chip's key goes to the property's entity. If there is none yet, the key is a dashed button, and following it makes one with an empty block to describe it in. Shift-click opens it at the side. Making it is one step of [[Undo]].
+	- A chip's key goes to the property's entity. If there is none yet, the key is a link that looks like any other key, and following it makes one with an empty block to describe it in. Shift-click opens it at the side. Making it is one step of [[Undo]].
 - How it works: the view reports each property with where it is written, in UTF-16 units, and with the ID of the entity that defines it, so the UI never parses the text itself. [[quiddity-view]]

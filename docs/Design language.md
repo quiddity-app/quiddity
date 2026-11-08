@@ -13,7 +13,7 @@
 	- `border` is the hairline between panes, cards and rows. `border-control` is the edge of a control that needs one.
 - The shared pieces are in `apps/ui/components/ui.tsx`
 	- `Button` is outlined and never filled; `danger` is for what is asked about first, and `overlay` floats over the graph. `Input` is the one text field, `ErrorLine` the one way to say what went wrong, `Kbd` a key hint, and `iconButtonClass` the small button in a card's header or a toolbar.
-	- `sectionHeading` is the small-capitals caption, and `paneHeading` the same on a sidebar's ground, where the muted colour is too faint. `linkClass` is a link, and `unresolvedLinkClass` one to somewhere that doesn't exist yet.
+	- `sectionHeading` is the small-capitals caption, and `paneHeading` the same on a sidebar's ground, where the muted colour is too faint. `linkClass` is a link, including one to an entity that doesn't exist yet: following it makes the entity, so it looks no different.
 	- A screen uses these rather than typing the classes again, so a change to how a button looks is made once.
 - Two kinds of hover
 	- A control (a button, a row, a table row) is small and sought out, so hovering it fills it. The "+ Add a block" row is wide and usually invisible, so the pointer crosses it all the time without meaning to use it; it only gets an outline, which says it is there without a heavy block flashing across the page.
