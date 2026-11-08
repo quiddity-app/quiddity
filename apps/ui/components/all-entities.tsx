@@ -7,7 +7,7 @@ import { useGraph, useRead } from "@/lib/use-graph";
 import { Region, Skeleton } from "./boundary";
 import { EntityLink } from "./entity-link";
 import { useView } from "./use-view";
-import { Button, ErrorLine, Input, linkClass } from "./ui";
+import { Button, ErrorLine, Input, linkClass, pageTitle } from "./ui";
 
 type Column = "title" | "tags" | "words" | "incoming" | "created" | "modified";
 
@@ -238,8 +238,8 @@ function NewEntity() {
 
 export function AllEntities() {
   return (
-    <article className="mx-auto max-w-6xl px-6 py-8">
-      <h1 className="mb-4 text-2xl font-semibold">All entities</h1>
+    <article className="mx-auto max-w-measure-table px-6 py-8">
+      <h1 className={pageTitle}>All entities</h1>
       <Region
         pending={<Skeleton className="h-4 w-1/2" />}
         failed={(error) => (

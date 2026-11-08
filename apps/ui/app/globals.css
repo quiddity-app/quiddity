@@ -55,8 +55,32 @@
 @custom-variant coarse (@media (pointer: coarse));
 @custom-variant no-hover (@media (hover: none));
 
+/*
+ * The monospace face: JetBrains Mono's no-ligatures build, so code reads
+ * exactly as typed. IBM Plex Sans comes from @fontsource (see layout.tsx).
+ */
+@font-face {
+  font-family: "JetBrains Mono NL";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/JetBrainsMonoNL-Regular.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono NL";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./fonts/JetBrainsMonoNL-Bold.woff2") format("woff2");
+}
+
 @theme inline {
   --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono NL", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* How wide a page's text runs: reading, a form, a table. */
+  --container-measure-text: 50rem;
+  --container-measure-form: 56rem;
+  --container-measure-table: 72rem;
   --color-surface: var(--surface);
   --color-surface-pane: var(--surface-pane);
   --color-surface-hover: var(--surface-hover);
