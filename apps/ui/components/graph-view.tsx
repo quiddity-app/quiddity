@@ -36,11 +36,19 @@ type Link = SimulationLinkDatum<Node>;
 
 const radius = (n: Node) => nodeRadius(n.degree);
 
-/** The Tailwind colours the SVG version used, which a canvas can't take from
- * classes. */
-const palette = {
-  light: { link: "#cbd5e1", fill: "#0284c7", stroke: "#0c4a6e", text: "#1e293b" },
-  dark: { link: "#475569", fill: "#38bdf8", stroke: "#e0f2fe", text: "#e2e8f0" },
+/**
+ * The theme's colours for the graph, read from the page: a canvas can't take a
+ * colour from a class, so it asks for the values the stylesheet gives.
+ */
+const readColours = () => {
+  const style = getComputedStyle(document.documentElement);
+  const get = (name: string) => style.getPropertyValue(name).trim();
+  return {
+    link: get("--graph-link"),
+    fill: get("--graph-node"),
+    stroke: get("--graph-node-stroke"),
+    text: get("--graph-label"),
+  };
 };
 
 /** How the graph draws itself, kept apart from React. */
@@ -66,6 +74,7 @@ function draw(
 ): Drawing {
   const root = select(canvas);
   const dark = matchMedia("(prefers-color-scheme: dark)");
+  let colours = readColours();
 
   let nodes: Node[] = [];
   let links: Link[] = [];
@@ -95,7 +104,6 @@ function draw(
     if (document.hidden) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    const colours = dark.matches ? palette.dark : palette.light;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.setTransform(ratio * view.k, 0, 0, ratio * view.k, ratio * view.x, ratio * view.y);
@@ -153,7 +161,12 @@ function draw(
   const repaint = () => {
     if (frame === 0) frame = requestAnimationFrame(paint);
   };
-  dark.addEventListener("change", repaint);
+  // A change of scheme changes what the stylesheet says, so ask it again.
+  const retheme = () => {
+    colours = readColours();
+    repaint();
+  };
+  dark.addEventListener("change", retheme);
 
   const resize = () => {
     const { width, height } = canvas.getBoundingClientRect();
@@ -445,7 +458,7 @@ function draw(
       cancelAnimationFrame(frame);
       observer.disconnect();
       density?.removeEventListener("change", densityChanged);
-      dark.removeEventListener("change", repaint);
+      dark.removeEventListener("change", retheme);
       root.interrupt();
       root.on(".zoom", null).on(".fit", null).on(".focus", null).on(".open", null).on(".drag", null);
     },

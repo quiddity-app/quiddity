@@ -26,4 +26,7 @@
 	- Text is [[IBM Plex Sans]] and code is [[JetBrains Mono]] in its no-ligatures build.
 	- The entity page reads at a fluid size, at least 20px, and sizes what is inside it (its title at 1.5 times, chips smaller) in `em`. Every other page reads at 16px and chrome at 14px. A page's title is 24px with one space under it, a section within a page 18px, and a heading inside a section 16px; all are semibold.
 	- A page's text is one of three widths: reading (50rem), a form (56rem) or a table (72rem), named `max-w-measure-text`, `-form` and `-table`.
-- Planned, in the same design and not built yet: one treatment for floating layers, and the graph and editor colours following the theme.
+- Layers that float
+	- The search panel, the link list in the editor and the right pane when it overlays all look the same: the page's ground, a hairline border, a rounded corner and one shadow (`shadow-overlay`). Where something blocks the page there is a dim layer under it. What covers what is four named levels: the overlaid pane, the dim layer, the drawer and whatever floats over everything (`--z-pane`, `--z-scrim`, `--z-drawer`, `--z-overlay`).
+- Colours that Tailwind can't reach follow the theme too
+	- The graph's canvas reads its colours from the stylesheet (`--graph-link`, `--graph-node` and so on) and asks again when the scheme changes, and the editor's selection is `--selection`. Nothing outside `globals.css` writes a colour.
