@@ -101,8 +101,8 @@ run = [
 ]
 
 [tasks."test:scripts"]
-description = "Test the scripts in scripts/ (the journal roll-up)"
-run = "node --test scripts/journals.test.mjs"
+description = "Test the scripts in scripts/ (the journal roll-up, the fuzz target filter)"
+run = "node --test scripts/*.test.mjs"
 
 [tasks.check]
 description = "Everything CI checks, apart from fuzzing and mutation testing"
