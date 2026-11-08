@@ -30,6 +30,7 @@ alias:: text format
 	    id:: 0198f0c4-…
 	  ```
 	- The lines before the first bullet are the entity's name, as `title::`, followed by its properties block. So names needn't be valid or unique file names. [[title]]
+	- A properties block that has children, or blank lines at either end of its text, is written as the first bullet instead, since the header is trimmed of blank lines when read.
 	- Child bullets are indented with one tab per level. Continuation lines get the bullet's tabs and two spaces.
 	- A block's own properties are part of its text, so they need no special handling.
 - Importing
