@@ -1757,6 +1757,10 @@ mod revisions {
         Redo,
         /// Edited behind the view's back, as an import is, then reported.
         Direct(Index, &'static str),
+        /// Asks everything, and checks it against a fresh view. Edits between
+        /// looks pile up, which is how a text edit comes to be followed by a
+        /// structural one before anything has read the first.
+        Look,
     }
 
     fn step() -> impl Strategy<Value = Step> {
@@ -1778,6 +1782,7 @@ mod revisions {
             1 => Just(Step::Undo),
             1 => Just(Step::Redo),
             1 => (any::<Index>(), words).prop_map(|(i, w)| Step::Direct(i, w)),
+            3 => Just(Step::Look),
         ]
     }
 
@@ -1793,15 +1798,153 @@ mod revisions {
         v
     }
 
-    /// Everything that reads the whole graph.
+    /// A view made afresh from the graph `v` is on.
+    fn fresh_of(v: &View) -> View {
+        View::new(Graph::from_snapshot(&v.graph().snapshot().unwrap()).unwrap()).unwrap()
+    }
+
+    /// Everything that reads the whole graph, and each entity's page and
+    /// references, which are what the index's backlinks and links answer.
     fn answers(v: &View) -> impl PartialEq + std::fmt::Debug {
+        let entities = v.entities().unwrap();
+        let pages: Vec<_> = entities
+            .iter()
+            .map(|e| (v.entity(&e.id).unwrap(), v.references(&e.id).unwrap()))
+            .collect();
         (
-            v.entities().unwrap(),
+            entities,
+            pages,
             v.summaries().unwrap(),
             v.connections().unwrap(),
             v.search_text("alpha", 100).unwrap(),
             v.search_text("beta", 100).unwrap(),
         )
+    }
+
+    fn texts_of(hits: &[BlockHit]) -> Vec<&str> {
+        hits.iter().map(|h| h.text.as_str()).collect()
+    }
+
+    /// What `settled` makes: an entity "Page" with a properties block and two
+    /// notes, and a note in "Other", with undo on.
+    struct Settled {
+        view: View,
+        props: BlockId,
+        notes: Vec<BlockId>,
+        elsewhere: BlockId,
+    }
+
+    /// A view with everything asked once, so that nothing is left to do.
+    fn settled() -> Settled {
+        let mut parts = None;
+        let view = view_with(|g| {
+            let other = g.create_entity("Other", &[]).unwrap();
+            let elsewhere = note(g, other, "alpha");
+            let page = g.create_entity("Page", &[("kind", text("a"))]).unwrap();
+            let props = g.children(page)[0];
+            let notes = vec![note(g, page, "alpha"), note(g, page, "beta")];
+            parts = Some((props, notes, elsewhere));
+        });
+        let (props, notes, elsewhere) = parts.unwrap();
+        view.graph().enable_undo();
+        view.summaries().unwrap();
+        Settled {
+            view,
+            props,
+            notes,
+            elsewhere,
+        }
+    }
+
+    #[test]
+    fn typing_in_a_note_reads_and_builds_nothing_again() {
+        let Settled {
+            view: v,
+            notes,
+            elsewhere,
+            ..
+        } = settled();
+        let before = v.work();
+        v.splice_text(&elsewhere.to_string(), 0, 0, "[[Page]] ")
+            .unwrap();
+        v.splice_text(&notes[0].to_string(), 0, 0, "x").unwrap();
+        // Everything that reads the corpus or the index.
+        v.summaries().unwrap();
+        v.connections().unwrap();
+        v.search_text("alpha", 5).unwrap();
+        assert_eq!(v.work(), before);
+        // And it was seen: the new link is a reference.
+        let page = id_of(&v, "Page");
+        assert_eq!(titles(&v.references(&page).unwrap()), ["Other"]);
+    }
+
+    #[test]
+    fn typing_in_what_defines_an_entity_builds_the_index_but_reads_no_more() {
+        let Settled { view: v, props, .. } = settled();
+        let before = v.work();
+        v.splice_text(&props.to_string(), 0, 0, "alias:: Pagey\n")
+            .unwrap();
+        v.summaries().unwrap();
+        let after = v.work();
+        assert_eq!(after.scans, before.scans);
+        assert_eq!(after.index_builds, before.index_builds + 1);
+        // The alias is known: following it finds the page, rather than making one.
+        let page = id_of(&v, "Page");
+        assert_eq!(v.follow_link("Pagey").unwrap(), page);
+    }
+
+    #[test]
+    fn making_moving_and_undoing_read_the_structure_again() {
+        let Settled { view: v, notes, .. } = settled();
+        let page = id_of(&v, "Page");
+        let mut scans = v.work().scans;
+        let mut again = |what: &str| {
+            v.summaries().unwrap();
+            scans += 1;
+            assert_eq!(v.work().scans, scans, "{what}");
+        };
+        v.create_block(&page, None, "new").unwrap();
+        again("a new block");
+        assert!(v.indent(&notes[1].to_string()).unwrap());
+        again("an indent");
+        assert!(v.undo().unwrap());
+        again("an undo");
+    }
+
+    /// A text edit followed by a structural one, with nothing reading between:
+    /// the typed text must not be taken for what the block said before.
+    #[test]
+    fn typing_before_a_structural_edit_is_not_forgotten() {
+        let Settled { view: v, notes, .. } = settled();
+        let page = id_of(&v, "Page");
+        v.splice_text(&notes[0].to_string(), 0, 0, "typed ")
+            .unwrap();
+        v.create_block(&page, None, "new").unwrap();
+        let hits = v.search_text("typed", 5).unwrap();
+        assert_eq!(texts_of(&hits), ["typed alpha"]);
+    }
+
+    /// The corpus can be brought up to date more than once before the index
+    /// is: the index must still be told what the text was when it last looked,
+    /// not what it was between.
+    #[test]
+    fn the_index_is_told_the_text_it_last_saw() {
+        let mut linking = None;
+        let v = view_with(|g| {
+            g.create_entity("Page", &[]).unwrap();
+            let other = g.create_entity("Other", &[]).unwrap();
+            linking = Some(note(g, other, "[[Page]] x").to_string());
+        });
+        let linking = linking.unwrap();
+        let page = id_of(&v, "Page");
+        assert_eq!(titles(&v.references(&page).unwrap()), ["Other"]);
+
+        v.splice_text(&linking, 0, 9, "").unwrap();
+        drop(v.corpus().unwrap());
+        v.splice_text(&linking, 1, 0, "y").unwrap();
+        drop(v.corpus().unwrap());
+        assert!(v.references(&page).unwrap().is_empty(), "the link is gone");
+        assert_eq!(v.block_text(&linking).unwrap(), "xy");
     }
 
     proptest! {
@@ -1831,10 +1974,15 @@ mod revisions {
                         v.graph().commit();
                         v.changed();
                     }
+                    Step::Look => {}
                 }
-                let fresh = View::new(Graph::from_snapshot(&v.graph().snapshot().unwrap()).unwrap()).unwrap();
-                prop_assert_eq!(answers(&v), answers(&fresh), "after {:?}", step);
+                if matches!(step, Step::Look) {
+                    let fresh = fresh_of(&v);
+                    prop_assert_eq!(answers(&v), answers(&fresh), "after {:?}", step);
+                }
             }
+            let fresh = fresh_of(&v);
+            prop_assert_eq!(answers(&v), answers(&fresh), "after all of {:?}", steps);
         }
     }
 }

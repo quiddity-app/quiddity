@@ -60,22 +60,54 @@ pub struct View {
     /// Every block with its text, kept between revisions because reading it
     /// from Loro is the most expensive part of any whole-graph answer.
     corpus: RefCell<Corpus>,
+    work: Cell<Work>,
     /// Whether a burst of typing is open, as one undo step.
     typing: Cell<bool>,
     activity: RefCell<Activity>,
+}
+
+/// How much of the expensive work a view has done, for finding out whether an
+/// edit cost what it should. Each is a count since the view was made.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct Work {
+    /// Times the whole graph's structure was read.
+    pub scans: u32,
+    /// Times the index was built from the whole graph.
+    pub index_builds: u32,
 }
 
 /// The blocks as [`Graph::scan`] reads them, and what of them is still true.
 #[derive(Debug, Default)]
 struct Corpus {
     blocks: Vec<Scanned>,
+    /// Where each of `blocks` is.
+    at: HashMap<BlockId, usize>,
     /// Whether blocks have been created, moved or deleted since `blocks` was
     /// read.
     restructured: bool,
-    /// Blocks whose text has changed since.
+    /// Blocks whose text has changed since, and nothing else has.
     edited: HashSet<BlockId>,
     /// Whether anything at all may have: re-read every text.
     all: bool,
+    /// What has happened to `blocks` since the index last looked.
+    log: Log,
+}
+
+/// How `blocks` has changed since the index was last brought up to date with
+/// it.
+#[derive(Debug)]
+enum Log {
+    /// Only these blocks' texts, each from what it was then.
+    Edited(HashMap<BlockId, String>),
+    /// Read again, so the index is built again.
+    Rescanned,
+}
+
+impl Default for Log {
+    /// Before the index has been built it has seen nothing.
+    fn default() -> Self {
+        Self::Rescanned
+    }
 }
 
 /// What an edit changed, so that only that is read again.
@@ -108,6 +140,7 @@ impl View {
                 all: true,
                 ..Corpus::default()
             }),
+            work: Cell::default(),
             typing: Cell::new(false),
             activity: RefCell::default(),
         };
@@ -155,45 +188,122 @@ impl View {
             Change::Text(block) => {
                 corpus.edited.insert(block);
             }
-            Change::Structure => {}
+            Change::Structure => corpus.restructured = true,
             Change::Anything => corpus.all = true,
         }
-        corpus.restructured = true;
     }
 
-    /// Every block with its text, in document order, as of now. Only what
-    /// has changed since the last call is read from the graph again.
-    fn corpus(&self) -> Result<Ref<'_, [Scanned]>> {
-        let behind = {
+    fn count(&self, count: impl FnOnce(&mut Work)) {
+        let mut work = self.work.get();
+        count(&mut work);
+        self.work.set(work);
+    }
+
+    /// What this view has had to do so far. See [`Work`].
+    pub fn work(&self) -> Work {
+        self.work.get()
+    }
+
+    /// Brings the corpus up to date with the graph, reading as little as the
+    /// edits since say can have changed.
+    fn sync_corpus(&self) -> Result<()> {
+        {
             let corpus = self.corpus.borrow();
-            corpus.restructured || corpus.all
-        };
-        if behind {
-            let mut corpus = self.corpus.borrow_mut();
-            {
-                let mut known = HashMap::new();
-                if !corpus.all {
-                    let edited = std::mem::take(&mut corpus.edited);
-                    known.extend(
-                        std::mem::take(&mut corpus.blocks)
-                            .into_iter()
-                            .filter(|b| !edited.contains(&b.id))
-                            .map(|b| (b.id, b.text)),
-                    );
-                }
-                corpus.blocks = self.graph.scan_reusing(&mut known)?;
-                corpus.edited.clear();
-                corpus.restructured = false;
-                corpus.all = false;
+            if !(corpus.all || corpus.restructured || !corpus.edited.is_empty()) {
+                return Ok(());
             }
         }
+        let mut corpus = self.corpus.borrow_mut();
+        let synced = if corpus.all || corpus.restructured {
+            self.rescan(&mut corpus)
+        } else {
+            self.reread(&mut corpus)
+        };
+        if synced.is_err() {
+            // Whatever was half done, read everything next time.
+            corpus.all = true;
+        }
+        synced
+    }
+
+    /// Reads the structure again, and the text of blocks that may have
+    /// changed or are new.
+    fn rescan(&self, corpus: &mut Corpus) -> Result<()> {
+        let mut known = HashMap::new();
+        if !corpus.all {
+            let edited = std::mem::take(&mut corpus.edited);
+            known.extend(
+                std::mem::take(&mut corpus.blocks)
+                    .into_iter()
+                    .filter(|b| !edited.contains(&b.id))
+                    .map(|b| (b.id, b.text)),
+            );
+        }
+        corpus.blocks = self.graph.scan_reusing(&mut known)?;
+        self.count(|w| w.scans += 1);
+        corpus.at = corpus
+            .blocks
+            .iter()
+            .enumerate()
+            .map(|(at, b)| (b.id, at))
+            .collect();
+        corpus.edited.clear();
+        corpus.restructured = false;
+        corpus.all = false;
+        corpus.log = Log::Rescanned;
+        Ok(())
+    }
+
+    /// Reads the text of the blocks edited, and nothing else: no block has
+    /// been made, moved or deleted, so the rest is where it was.
+    fn reread(&self, corpus: &mut Corpus) -> Result<()> {
+        for block in std::mem::take(&mut corpus.edited) {
+            let Some(&at) = corpus.at.get(&block) else {
+                // Not a block the corpus knows: read everything.
+                corpus.all = true;
+                return self.rescan(corpus);
+            };
+            let new = self.graph.text(block)?;
+            let old = std::mem::replace(&mut corpus.blocks[at].text, new);
+            if let Log::Edited(edits) = &mut corpus.log {
+                // The index knows the first text, not any in between.
+                edits.entry(block).or_insert(old);
+            }
+        }
+        Ok(())
+    }
+
+    /// Every block with its text, in document order, as of now.
+    fn corpus(&self) -> Result<Ref<'_, [Scanned]>> {
+        self.sync_corpus()?;
         Ok(Ref::map(self.corpus.borrow(), |c| c.blocks.as_slice()))
     }
 
+    /// The index, made up to date first. An edit to an ordinary block's text
+    /// is applied to it where it is, which costs nothing like building it
+    /// again; anything else builds it again from the corpus.
     fn index(&self) -> Result<Ref<'_, Index>> {
         if self.stale.get() {
-            let built = Index::from_scan(&self.corpus()?);
-            *self.index.borrow_mut() = built;
+            self.sync_corpus()?;
+            let log = std::mem::replace(
+                &mut self.corpus.borrow_mut().log,
+                Log::Edited(HashMap::new()),
+            );
+            let corpus = self.corpus.borrow();
+            let mut index = self.index.borrow_mut();
+            let updated = match &log {
+                Log::Edited(edits) => edits.iter().all(|(block, old)| {
+                    corpus
+                        .at
+                        .get(block)
+                        .is_some_and(|&at| index.update_text(*block, old, &corpus.blocks[at].text))
+                }),
+                Log::Rescanned => false,
+            };
+            if !updated {
+                self.count(|w| w.index_builds += 1);
+                *index = Index::from_scan(&corpus.blocks);
+            }
             self.stale.set(false);
         }
         Ok(self.index.borrow())

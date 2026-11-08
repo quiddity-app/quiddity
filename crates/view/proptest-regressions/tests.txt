@@ -5,3 +5,4 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc bd9011e38e12a2dc4aa15611501677e648865f0be8d9b9b02a058313b2464906 # shrinks to steps = [Type(Index(0), "alpha ")]
+cc 87ce1b0b6dc470a6a53069a87fa9b32b98ecdfa126340a9fcc3de7a3424e08d2 # shrinks to steps = [Type(Index(0), "alpha "), Indent(Index(4099276460824344804))]

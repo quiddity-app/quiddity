@@ -29,6 +29,16 @@ outline text format.
 - `Index::from_scan` builds from that, and `Index::build` is `from_scan` of a
   `scan`. `Index::entity_of(block)` is the entity a block is in, without asking
   Loro. Parsing is cheap (23 ms for 38,000 blocks); don't cache it first.
+- **`Index::update_text` brings the index up to date for one block's text
+  changing, and says whether it could.** Only an ordinary block's backlinks
+  depend on its text: names, properties, schemas and effective properties are
+  read from roots and properties blocks. So it declines a root, a properties
+  block either side of the edit, a block with an `id` property either side
+  (`((id))` would refer to another block) and a block it hasn't seen, and
+  changes nothing when it does; the caller builds the index again. It keeps each
+  list of backlinks in document order (`position`), which is what a fresh build
+  gives, so a test compares them as vectors. If the index starts to depend on
+  prose, this must decline it.
 - Loro loads a container's state on first use, so the first read of a graph
   just loaded from a snapshot is slower than the ones after it. Measure the
   second.

@@ -9,13 +9,17 @@
 	- `Graph::scan` reads the tree's structure in one call (`get_nodes`, 8 ms instead of 200), and `scan_reusing` takes the text of blocks it already has instead of asking again. [[quiddity-core]]
 	- `View` keeps what it read (the corpus) between revisions. Typing says which block it changed, so only that block's text is read again; creating or moving blocks changes no text; anything else (an undo, an import) reads everything. A property test checks that a view edited for a while agrees with one made fresh from the same graph. [[quiddity-view]]
 	- The index is built from the corpus, and records which entity each block is in, so `summaries`, `connections` and `search_text` stop asking Loro for each block's root. Titles come from the index, not from Loro.
+	- **The index is updated in place for typing in an ordinary block.** Only that block's backlinks can change, so `Index::update_text` takes them out and puts the new ones in, in document order, and the view patches that one block's text in the corpus without reading the structure. Typing in a root, a properties block or a block with an `id` property builds the index again, because what they say is what the index is made of; so does anything that makes, moves or deletes blocks. `View::work` counts the scans and builds, which is how the tests (and the `scale` example) can tell. [[quiddity-core]]
 	- The All entities table draws 200 rows and more as the end is reached, as the journal feed does. [[All entities]]
 - Measured at that size, in milliseconds
 	- | | native before | native after | WASM before | WASM after |
 	  |---|---|---|---|---|
 	  | load and first index | 630 | 460 | 650 | 570 |
 	  | first read after typing a character | 560 | 80 | 470 | 110 |
+	  | the same, in an ordinary block, with the index updated in place | | 2 | | 1 |
+	  | the same, in a properties block or an entity's name | | 80 | | 80 |
 	  | first read after an undo or import | 560 | 330 | | |
+	  | first read after making, moving or deleting a block | | 100 | | |
 	  | `summaries()` | 620 | 180 | 670 | 400 |
 	  | `search_text()` | 450 | 60 | 560 | 120 |
 	  | `entities()` | 34 | 1 | 38 | 12 |
@@ -23,7 +27,7 @@
 	- Native is the `scale` example. WASM is the same graph (`scale 3150 5 <path>` saves it) loaded into the generated `quiddity_wasm` in Node, which is about one and a half to two times slower than native, with the cost of handing results to JavaScript added. Browsers differ; run it in the one you use.
 	- **`summaries()` and `connections()` are the least improved in the browser**, because much of what remains is turning thousands of results into JavaScript objects, which a Rust change doesn't touch. Only the All entities and graph pages ask for them.
 - Not done, in the order it would pay
-	- **An incremental index.** Typing still rebuilds all of it, and 80 ms is mostly that: parsing every block again (35 ms), resolving every link (17 ms) and working out effective properties (20 ms). Parsing could be kept per block; links and effective properties need to know which entities an edit touches.
+	- **The rest of the index, incrementally.** Typing in a properties block or a name, and anything that makes or moves blocks (Enter, indent), still builds it again: about 100 ms. A properties block changes entities' properties, which feed inherited values and inverse labels, so doing it in place needs to know which entities those reach; the repeat-until-nothing-changes pass in `effective.rs` would have to start from the entities that changed.
 	- **Starting without reading everything.** The first index is the cost of reading every block from Loro once, and that is about 330 ms of the 460. Only keeping something derived on disk avoids it. [[Storage]] plans that, in SQLite.
 	- **`summaries()`** still walks every block for its time of last move (77 ms of the 180) and for its words and tags. It could be kept per entity and redone for the entities an edit touched.
 	- **An inverted index for full-text search**, kept beside the index. `search_text` now tokenises every block per query, 60 ms, which is fine for a search box and not for anything more.

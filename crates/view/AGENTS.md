@@ -33,6 +33,15 @@ of the graph; nothing here knows about JavaScript or Tauri.
   every text. Saying too little leaves a stale text in every answer, so when
   unsure use `edited`, which says `Anything`. The `revisions` property test
   compares a long-lived view with a fresh one after random edits.
+- **Typing in an ordinary block updates the index where it is** (`Index::update_text`,
+  see `quiddity-core`); nothing else does. The corpus keeps a `Log` of what has
+  changed since the index last looked: the first text of each block edited, or
+  that it was read again. `index()` applies the log, and builds the index again
+  when the log says rescanned or `update_text` declines. **A `Text` change
+  doesn't mark the corpus restructured**, or every keystroke would read the
+  whole tree again. `View::work` counts scans and index builds so that tests and
+  the `scale` example can see an edit cost what it should; the tests pin which
+  edits scan and which build.
 - Hold a `corpus()` borrow only while nothing can make it stale: it is a
   `RefCell` like the index, and asking for the index first makes both fresh.
 - There is no clock. Anything that depends on the date (`journals`,
