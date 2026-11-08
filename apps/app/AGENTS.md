@@ -63,6 +63,12 @@ holds its own replica and answers its own queries (see `apps/ui` and
 - **Permissions are in `capabilities/default.json`.** The opener plugin lets the
   UI open `http(s)` and `mailto` links in the system's browser; without it
   following one would replace the UI with the page.
+- **The macOS icon has its shape baked in.** iOS rounds an icon itself, but
+  macOS draws an `.icns` as it is, so `icon.icns` comes from
+  `source/icon-macos.svg` (Apple's 824px squircle on the 1024px canvas, with a
+  shadow) and not from the plain master. `scripts/icons.sh` replaces the one
+  Tauri made from the master with it, so don't copy the `.icns` from a bare
+  `tauri icon` run.
 - **Don't run `cargo generate-lockfile`** here: it re-resolves everything.
   Let cargo add only what a new dependency needs.
 
