@@ -1,7 +1,7 @@
 - Tests should be useful, not numerous: each behaviour is checked once, at the layer that owns it. [[Compaction]]
 - Each layer is tested on its own.
 	- `cargo mutants` ([[cargo-mutants]]) runs each mutant against its own crate's tests only, so a crate cannot lean on another crate's tests.
-	- CI runs it over the lines each pull request changes, and nothing may be missed.
+	- CI runs it over the lines each pull request changes, and nothing may be missed. A pull request that changes no Rust file skips it, since there is nothing to mutate.
 - Property tests come first.
 	- Generators are weighted towards the inputs that matter, such as the characters a parser treats specially, so a few dozen cases find the edges.
 	- A handful of named examples cover what a generator is unlikely to hit.

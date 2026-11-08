@@ -118,12 +118,13 @@ jobs:
         cargo test --locked
 
   changes:
-    # Works out what the run needs to do. Only fuzzing so far: mutation testing
-    # and the merge queue have nothing to decide.
+    # Works out what the run needs to do: which fuzz targets, and whether
+    # there is any Rust to mutate. The merge queue has nothing to decide.
     if: github.event_name != 'merge_group'
     runs-on: ubuntu-latest
     outputs:
       fuzz: ${{ steps.fuzz.outputs.targets }}
+      rust: ${{ steps.rust.outputs.changed }}
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
@@ -143,11 +144,24 @@ jobs:
           push) range="${BEFORE}..HEAD" ;;
         esac
         echo "targets=$(node scripts/fuzz-targets.mjs "$range")" >> "$GITHUB_OUTPUT"
+    # cargo-mutants only mutates the lines a diff changes in Rust files.
+    - id: rust
+      if: github.event_name == 'pull_request'
+      env:
+        BASE_REF: ${{ github.base_ref }}
+      run: |
+        if git diff --name-only "origin/${BASE_REF}...HEAD" | grep -q '\.rs$'; then
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+        fi
 
   mutants:
     # Every mutant in the lines a PR changes must be caught by some test. There
-    # is no diff to mutate on a push, and the merge queue relies on the PR's run.
-    if: github.event_name == 'pull_request'
+    # is no diff to mutate on a push, the merge queue relies on the PR's run,
+    # and a PR that changes no Rust has nothing to mutate.
+    needs: changes
+    if: github.event_name == 'pull_request' && needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
