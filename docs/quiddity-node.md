@@ -6,7 +6,7 @@ alias:: headless node
 - The headless node is `quiddity-node serve`, left running: a full peer owned by the user, not a relay, and no different from any other device. Being always on, it lets devices that are never online together sync. It keeps every blob. [[Binaries]] [[Architecture]]
 - Commands
 	- `init` makes a graph, or with `--blank` an empty replica to sync an existing one into. `id` prints this device's ID.
-	- `import` and `export` read and write Markdown. [[Export and import]]
+	- `import` and `export` read and write Markdown, and the files in `assets/` beside it. [[Export and import]]
 	- `allow` lists a device in the graph, so it may connect, and `devices` lists the devices holding the graph with when each last saved. [[Device list]]
 	- `serve` keeps the graph online until interrupted. With `--export DIR`, SIGUSR1 writes the running graph to `DIR` as Markdown, replacing what is there: the pre-backup hook for something like Home Assistant's online backups. [[Export and import]]
 	- `sync` syncs with one device until neither has anything more to send.

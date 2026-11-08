@@ -5,6 +5,7 @@
 //! later exchange them on iroh-blobs' own protocol. Every device keeps every
 //! blob for now.
 
+use std::collections::HashSet;
 use std::path::Path;
 
 use iroh::EndpointId;
@@ -15,6 +16,7 @@ use iroh_blobs::provider::events::{
     AbortReason, ConnectMode, EventMask, EventSender, ProviderMessage,
 };
 use iroh_blobs::store::fs::FsStore;
+use quiddity_core::{Graph, Index};
 
 pub use iroh_blobs::Hash;
 
@@ -29,6 +31,30 @@ pub enum BlobError {
     Store(String),
     #[error("no blob with hash {0}")]
     Missing(Hash),
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error(transparent)]
+    Graph(#[from] quiddity_core::Error),
+}
+
+/// What [`Blobs::export_assets`] did.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct Exported {
+    /// Files written to `assets/`.
+    pub written: usize,
+    /// Assets the graph names whose bytes are not on this device yet, so
+    /// they are not in the export.
+    pub missing: usize,
+}
+
+/// What [`Blobs::import_assets`] did.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct Imported {
+    /// Files kept.
+    pub stored: usize,
+    /// Files in `assets/` that are not named for the hash of what is in
+    /// them, and so are not Quiddity's: left alone.
+    pub skipped: usize,
 }
 
 impl BlobError {
@@ -119,6 +145,75 @@ impl Blobs {
             .await
             .map_err(BlobError::store)?;
         Ok(())
+    }
+
+    /// Writes the bytes of the graph's assets to `<dir>/assets/<hash>.<ext>`
+    /// (see `Asset::file_name`), once for each hash, so a text export can
+    /// refer to them by path and be read by anything. An asset whose bytes
+    /// are not here yet is counted, not written. Whole files are read into
+    /// memory, one at a time.
+    pub async fn export_assets(&self, graph: &Graph, dir: &Path) -> Result<Exported, BlobError> {
+        let index = Index::build(graph)?;
+        let assets = dir.join("assets");
+        let mut seen = HashSet::new();
+        let mut done = Exported::default();
+        for (_, asset) in index.assets() {
+            let Ok(hash) = asset.hash.parse::<Hash>() else {
+                continue;
+            };
+            if !seen.insert(hash) {
+                continue;
+            }
+            if !self.has(hash).await? {
+                done.missing += 1;
+                continue;
+            }
+            let bytes = self.get(hash).await?;
+            std::fs::create_dir_all(&assets)?;
+            std::fs::write(assets.join(asset.file_name()), bytes)?;
+            done.written += 1;
+        }
+        Ok(done)
+    }
+
+    /// Keeps the files in `<dir>/assets/` that are named for the BLAKE3 hash
+    /// of what is in them, as an export names them. Others are skipped: a
+    /// Logseq graph's `assets/` is full of files nothing in Quiddity refers
+    /// to by hash, and one whose name doesn't match its contents is damaged or
+    /// not ours. There being no `assets/` is not an error.
+    pub async fn import_assets(&self, dir: &Path) -> Result<Imported, BlobError> {
+        let mut done = Imported::default();
+        let entries = match std::fs::read_dir(dir.join("assets")) {
+            Ok(entries) => entries,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(done),
+            Err(e) => return Err(e.into()),
+        };
+        for entry in entries {
+            let entry = entry?;
+            if !entry.file_type()?.is_file() {
+                continue;
+            }
+            let path = entry.path();
+            let named = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                // Only a name of 64 characters, which `Hash` reads as lower-case hex
+                // and nothing else: any other length it would try as base32.
+                .filter(|s| s.len() == 64)
+                .and_then(|s| s.parse::<Hash>().ok());
+            let Some(named) = named else {
+                done.skipped += 1;
+                continue;
+            };
+            let bytes = std::fs::read(&path)?;
+            if Hash::new(&bytes) != named {
+                done.skipped += 1;
+                continue;
+            }
+            self.put(bytes).await?;
+            done.stored += 1;
+        }
+        Ok(done)
     }
 
     /// Stops the store's background tasks, once everything is written.

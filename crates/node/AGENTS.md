@@ -92,6 +92,14 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
   `shutdown` before dropping the last clone if something will reopen the
   directory at once: the store's database is locked until its tasks stop.
   Anything `put` is tagged and so kept; nothing deletes yet.
+- **Export and import of files are `Blobs::export_assets` and `import_assets`**,
+  called by the CLI after the Markdown's. Core does the Markdown and knows
+  nothing of the store, and names the file (`Asset::file_name`). Import keeps a
+  file only if its name's stem is the BLAKE3 hash *of its contents*, so a
+  Logseq `assets/` isn't swept in as bytes nothing refers to, and a corrupt file
+  isn't kept under a hash it doesn't have. The CLI opens the store only if
+  there is something to do, so an export of a graph with no files doesn't leave
+  an empty `blobs/` behind, and shuts it down so the next run can open it.
 - **Blobs travel on iroh-blobs' own ALPN, gated by `Peer::permits`**, the
   rule `accept` uses for sync (`Blobs::provider` asks it on every
   connection, in intercept mode, before anything is read; pushes stay
