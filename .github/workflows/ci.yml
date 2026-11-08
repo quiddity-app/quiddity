@@ -25,6 +25,7 @@ jobs:
   lint:
     # Everything that doesn't run the tests, so that it overlaps with them.
     runs-on: ubuntu-latest
+    timeout-minutes: 3
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
@@ -40,6 +41,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 6
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
@@ -52,6 +54,7 @@ jobs:
 
   scripts:
     runs-on: ubuntu-latest
+    timeout-minutes: 1
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
@@ -66,6 +69,7 @@ jobs:
     # Apart from `ui` so that it overlaps with the browser tests. It builds the
     # WASM itself, which tsc needs for the types, and mbx caches that.
     runs-on: ubuntu-latest
+    timeout-minutes: 4
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
@@ -79,6 +83,7 @@ jobs:
 
   ui:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
@@ -115,6 +120,7 @@ jobs:
     # the UI, so this needs neither Node nor the WASM build, which the ui job
     # already proves.
     runs-on: ubuntu-latest
+    timeout-minutes: 13
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
@@ -147,6 +153,7 @@ jobs:
     # there is any Rust to mutate. The merge queue has nothing to decide.
     if: github.event_name != 'merge_group'
     runs-on: ubuntu-latest
+    timeout-minutes: 1
     outputs:
       fuzz: ${{ steps.fuzz.outputs.targets }}
       rust: ${{ steps.rust.outputs.changed }}
@@ -188,6 +195,7 @@ jobs:
     needs: changes
     if: github.event_name == 'pull_request' && needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
@@ -215,6 +223,7 @@ jobs:
     needs: changes
     if: github.event_name != 'merge_group' && needs.changes.outputs.fuzz != '[]'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     strategy:
       fail-fast: false
       matrix:
@@ -267,6 +276,7 @@ jobs:
     if: always()
     needs: [lint, test, scripts, ui, app, changes, mutants, fuzz, typecheck]
     runs-on: ubuntu-latest
+    timeout-minutes: 1
     steps:
     - env:
         NEEDS: ${{ toJSON(needs) }}

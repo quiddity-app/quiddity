@@ -159,3 +159,6 @@ vite.config.ts.timestamp-*
 
 # Graph copied in for a published build (QUIDDITY_STATIC_GRAPH)
 apps/ui/public/graph.loro
+
+# macOS Finder metadata
+.DS_Store

@@ -4,9 +4,14 @@ on:
     types:
     - closed
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   cleanup:
     runs-on: ubuntu-latest
+    timeout-minutes: 1
     permissions:
       actions: write
     steps:
