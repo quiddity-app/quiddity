@@ -21,6 +21,7 @@ concurrency:
 jobs:
   save:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: write
       pull-requests: write
@@ -46,6 +47,7 @@ jobs:
         # access token) gets them straight away, so use it when it's set.
         GH_TOKEN: ${{ secrets.ROLLUP_TOKEN || github.token }}
       run: |
+        set -o pipefail
         if [ -z "$(git status --porcelain docs/journals)" ]; then
           echo "Nothing new to save"
           exit 0

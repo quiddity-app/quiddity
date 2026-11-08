@@ -32,6 +32,7 @@ defaults:
 jobs:
   version:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       # What names the artifacts: 2026-11-01-nightly.
       label: ${{ steps.version.outputs.label }}
@@ -54,6 +55,7 @@ jobs:
   ui:
     # Every app embeds the same UI, so it is built once.
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
@@ -94,6 +96,7 @@ jobs:
         - {os: windows, arch: x64, runner: windows-latest, target: x86_64-pc-windows-msvc}
         - {os: windows, arch: arm64, runner: windows-11-arm, target: aarch64-pc-windows-msvc}
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
     env:
       LABEL: ${{ needs.version.outputs.label }}
       SEMVER: ${{ needs.version.outputs.semver }}
@@ -176,6 +179,7 @@ jobs:
   android:
     needs: [version, ui]
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     env:
       LABEL: ${{ needs.version.outputs.label }}
       SEMVER: ${{ needs.version.outputs.semver }}
@@ -259,6 +263,7 @@ jobs:
     # `tauri ios build` with a team set; see docs/Nightly builds.md.
     if: github.event_name == 'workflow_dispatch' && inputs.ios
     runs-on: macos-latest
+    timeout-minutes: 60
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
