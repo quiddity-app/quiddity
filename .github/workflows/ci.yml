@@ -239,20 +239,23 @@ jobs:
         name: fuzz-${{ matrix.target }}
         path: fuzz/artifacts/
 
-  fuzz-gate:
-    # The one fuzzing check to require. The matrix legs only exist when `fuzz`
-    # runs, so requiring them by name would hang the merge queue, where it is
-    # skipped, and a change that touches no fuzzed code. `always()` stops a
-    # failed `fuzz` skipping this job, which would count as a pass. `changes`
-    # is here too: if it fails, `fuzz` is skipped and would look like a pass.
+  gate:
+    # The one check to require, so that adding, splitting or renaming a job
+    # never means editing the branch protection. Its name is what the
+    # protection matches, so keep it. Add every new job to `needs`. Jobs that
+    # are skipped on purpose (the merge queue skips `changes`, `mutants` and
+    # `fuzz`; a change with no Rust or fuzzed code skips the last two) count as
+    # a pass, so requiring the jobs themselves would hang the queue. `always()`
+    # stops a failure upstream skipping this job, which would also count as a
+    # pass; the check below fails on anything but success or skipped, which
+    # includes a cancelled run.
+    name: lint, build, test
     if: always()
-    needs: [changes, fuzz]
+    needs: [lint, test, scripts, ui, app, changes, mutants, fuzz]
     runs-on: ubuntu-latest
     steps:
     - env:
-        CHANGES: ${{ needs.changes.result }}
-        FUZZ: ${{ needs.fuzz.result }}
+        NEEDS: ${{ toJSON(needs) }}
       run: |
-        for result in "$CHANGES" "$FUZZ"; do
-          test "$result" = success || test "$result" = skipped || exit 1
-        done
+        echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+        echo "$NEEDS" | jq -e 'all(.[]; .result == "success" or .result == "skipped")' > /dev/null
