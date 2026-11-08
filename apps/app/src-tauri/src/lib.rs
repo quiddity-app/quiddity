@@ -6,6 +6,7 @@
 //! and the edits back as updates, both as raw bytes. The shell's replica is
 //! the one on the network.
 
+mod appearance;
 mod session;
 
 use std::path::PathBuf;
@@ -216,6 +217,9 @@ pub fn run() {
             }
             start_network(&session);
             app.manage(Mutex::new(session));
+            if let Some(window) = app.get_webview_window("main") {
+                appearance::follow_theme(&window);
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

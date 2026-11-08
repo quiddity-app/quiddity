@@ -26,6 +26,9 @@
 	- Text is [[IBM Plex Sans]] and code is [[JetBrains Mono]] in its no-ligatures build.
 	- The entity page reads at a fluid size, at least 20px, and sizes what is inside it (its title at 1.5 times, chips smaller) in `em`. Every other page reads at 16px and chrome at 14px. A page's title is 24px with one space under it, a section within a page 18px, and a heading inside a section 16px; all are semibold.
 	- A page's text is one of three widths: reading (50rem), a form (56rem) or a table (72rem), named `max-w-measure-text`, `-form` and `-table`.
+- The window and what is outside the page
+	- The page tells the browser, or the system around a webview, its own ground in each scheme (`theme-color`), so a tab strip or a status bar doesn't end the page at an edge. The app's window paints the same ground behind the page and follows the system's theme as it changes. Tests hold both to `--surface`, the one in the stylesheet.
+	- The title bar isn't ours to colour: the system draws it, in the theme it is in, which is the page's. A mobile status bar is set by the project that `tauri android init` generates, which isn't committed, so it is not set here.
 - Layers that float
 	- The search panel, the link list in the editor and the right pane when it overlays all look the same: the page's ground, a hairline border, a rounded corner and one shadow (`shadow-overlay`). Where something blocks the page there is a dim layer under it. What covers what is four named levels: the overlaid pane, the dim layer, the drawer and whatever floats over everything (`--z-pane`, `--z-scrim`, `--z-drawer`, `--z-overlay`).
 - Colours that Tailwind can't reach follow the theme too

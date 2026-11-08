@@ -60,3 +60,27 @@ test("the graph is painted in the theme's colour for a node", async ({ page }) =
     )
     .toEqual([255, 0, 0, 255]);
 });
+
+/** "#f8fafc" as the browser writes a colour: "rgb(248, 250, 252)". */
+const rgb = (hex: string) => {
+  const [r, g, b] = [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
+  return `rgb(${r}, ${g}, ${b})`;
+};
+
+// What the browser, or the system around a webview, paints outside the page
+// (a tab strip, a status bar) is told the page's own ground, in each scheme.
+for (const scheme of ["light", "dark"] as const) {
+  test(`the page names its ground to the system in ${scheme}`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.goto("/devices/");
+    const ground = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+    const named = await page
+      .locator('meta[name="theme-color"]')
+      .evaluateAll((metas) =>
+        metas.map((m) => ({ media: m.getAttribute("media"), colour: m.getAttribute("content") ?? "" })),
+      );
+    const mine = named.find((m) => m.media === `(prefers-color-scheme: ${scheme})`);
+    expect(mine, "a theme-color for this scheme").toBeDefined();
+    expect(rgb(mine!.colour)).toBe(ground);
+  });
+}
