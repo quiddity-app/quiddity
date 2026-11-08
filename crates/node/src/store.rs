@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use iroh::SecretKey;
 use jiff::{SignedDuration, Timestamp};
 use quiddity_core::{Graph, Version};
+use tracing::{debug, info, instrument};
 
 const SNAPSHOT: &str = "graph.loro";
 const KEY: &str = "device.key";
@@ -32,6 +33,7 @@ impl Store {
 
     /// Creates the directory with an empty graph (or, with `blank`, an empty
     /// replica for a device that will sync an existing graph).
+    #[instrument(level = "debug", skip_all, fields(dir = %self.dir.display()))]
     pub fn init(&self, blank: bool) -> Result<Graph, crate::StoreError> {
         if self.dir.join(SNAPSHOT).exists() {
             return Err(crate::StoreError::Exists(self.dir.clone()));
@@ -42,8 +44,16 @@ impl Store {
         Ok(graph)
     }
 
+    #[instrument(level = "debug", skip_all, fields(dir = %self.dir.display()))]
     pub fn load(&self) -> Result<Graph, crate::StoreError> {
-        let bytes = fs::read(self.dir.join(SNAPSHOT))?;
+        let bytes = match fs::read(self.dir.join(SNAPSHOT)) {
+            Ok(bytes) => bytes,
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                return Err(crate::StoreError::Missing(self.dir.clone()));
+            }
+            Err(e) => return Err(e.into()),
+        };
+        debug!(bytes = bytes.len(), "loading the snapshot");
         Ok(Graph::from_snapshot(&bytes)?)
     }
 
@@ -52,6 +62,7 @@ impl Store {
     /// The saved graph records that this device has stored it, and keeps
     /// only the history some device might still need. A blank replica
     /// records nothing: it has yet to join.
+    #[instrument(level = "debug", skip_all, fields(dir = %self.dir.display()))]
     pub fn save(&self, graph: &Graph) -> Result<(), crate::StoreError> {
         let snapshot = if graph.version() == Version::default() {
             graph.snapshot()?
@@ -63,6 +74,7 @@ impl Store {
                 None => graph.snapshot()?,
             }
         };
+        debug!(bytes = snapshot.len(), "saving the snapshot");
         let tmp = self.dir.join(format!("{SNAPSHOT}.tmp"));
         fs::write(&tmp, snapshot)?;
         fs::rename(tmp, self.dir.join(SNAPSHOT))?;
@@ -71,6 +83,7 @@ impl Store {
 
     /// The device's key, created on first use. Its public half is the
     /// device's ID.
+    #[instrument(level = "debug", skip_all, fields(dir = %self.dir.display()))]
     pub fn key(&self) -> io::Result<SecretKey> {
         let path = self.dir.join(KEY);
         match fs::read(&path) {
@@ -81,6 +94,7 @@ impl Store {
                 Ok(SecretKey::from_bytes(&bytes))
             }
             Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                info!(path = %path.display(), "creating this device's key");
                 let key = SecretKey::generate();
                 let mut options = fs::OpenOptions::new();
                 options.write(true).create_new(true);
@@ -153,6 +167,18 @@ mod tests {
         let store = Store::new(tmp.path());
         store.init(true).unwrap();
         assert_eq!(store.load().unwrap().version(), Version::default());
+    }
+
+    /// A directory with no graph says so, and where, rather than reporting
+    /// a missing file.
+    #[test]
+    fn loading_where_there_is_no_graph_names_the_directory() {
+        let tmp = tempfile::tempdir().unwrap();
+        let err = Store::new(tmp.path()).load().unwrap_err();
+        assert!(matches!(err, crate::StoreError::Missing(_)), "{err:?}");
+        let message = err.to_string();
+        assert!(message.contains(&tmp.path().display().to_string()));
+        assert!(message.contains("init"));
     }
 
     #[test]

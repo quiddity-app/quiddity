@@ -1,5 +1,6 @@
 use jiff::Timestamp;
 use quiddity_core::{Graph, SCHEMA_VERSION, Version};
+use tracing::debug;
 
 use crate::Message;
 
@@ -105,6 +106,7 @@ impl Session {
                 self.peer = Some(device.clone());
                 let readable = |s: Option<i64>| s.is_none_or(|s| s == SCHEMA_VERSION);
                 if !readable(schema) || !readable(graph.schema_version()) {
+                    debug!(%device, ?schema, "refusing a peer with another schema");
                     self.state = State::Incompatible { theirs: schema };
                     return Ok(Vec::new());
                 }
@@ -113,16 +115,19 @@ impl Session {
                 // A blank replica is behind everyone, but can start from a
                 // snapshot; any other is stranded.
                 if !blank(&ours) && !ours.includes(&start) {
+                    debug!(%device, "this replica is behind the peer's history");
                     self.state = State::Behind;
                     return Ok(Vec::new());
                 }
                 if !blank(&version) && !graph.can_update(&version) {
+                    debug!(%device, "the peer is behind this replica's history");
                     self.state = State::PeerBehind;
                     return Ok(Vec::new());
                 }
                 if !blank(&ours) {
                     graph.vouch_for(&device, &version, now)?;
                 }
+                debug!(%device, "syncing");
                 self.state = State::Syncing;
                 self.theirs = version;
                 Ok(self.flush(graph)?.into_iter().collect())
@@ -138,6 +143,7 @@ impl Session {
                 Ok(Vec::new())
             }
             Message::Updates(updates) => {
+                debug!(bytes = updates.len(), "importing updates");
                 graph.import(&updates)?;
                 self.theirs.merge(&Graph::version_of_updates(&updates)?);
                 Ok(Vec::new())
@@ -147,6 +153,7 @@ impl Session {
             // one that has reached where it now starts. Either can build on
             // it; anything else would import nothing, silently.
             Message::Snapshot(snapshot) => {
+                debug!(bytes = snapshot.len(), "importing a snapshot");
                 let ours = graph.version();
                 if ours != Version::default() && !ours.includes(&Graph::start_of(&snapshot)?) {
                     return Err(Error::UnexpectedSnapshot);

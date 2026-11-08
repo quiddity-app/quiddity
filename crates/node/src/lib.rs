@@ -34,6 +34,7 @@ use quiddity_sync::{
 };
 use tokio::sync::watch;
 use tokio::task::JoinSet;
+use tracing::{debug, error, info, instrument, warn};
 
 /// The protocol's name, negotiated when connecting.
 pub const ALPN: &[u8] = b"quiddity/sync/2";
@@ -88,6 +89,9 @@ pub enum Error {
 pub enum StoreError {
     #[error("{} already holds a graph", .0.display())]
     Exists(PathBuf),
+    /// There is no graph to load: `init` makes one.
+    #[error("{} holds no graph: create one with `init`", .0.display())]
+    Missing(PathBuf),
     #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error(transparent)]
@@ -344,7 +348,12 @@ impl Peer {
                 delay = min;
             } else {
                 let started = tokio::time::Instant::now();
-                let _ = self.connect(endpoint, address(id), None).await;
+                debug!(device, "dialling");
+                // Failing to reach a device is routine, such as when it is
+                // off: say so for someone looking, and try again.
+                if let Err(e) = self.connect(endpoint, address(id), None).await {
+                    debug!(device, error = %e, "connection ended");
+                }
                 // A connection that outlasted the longest wait was a good one:
                 // go back to retrying at once.
                 if started.elapsed() >= max {
@@ -445,7 +454,7 @@ impl Peer {
                     match fetch_from(endpoint, blobs, address(device), *hash).await {
                         Ok(()) => break,
                         Err(e) if reported.insert((device, *hash)) => {
-                            eprintln!("quiddity: fetching {hash} from {device} failed: {e}");
+                            warn!(%hash, %device, error = %e, "fetching a blob failed");
                         }
                         Err(_) => {}
                     }
@@ -653,6 +662,7 @@ impl Peer {
     }
 
     fn connected(&self, device: &str) {
+        info!(device, "connected");
         let mut state = self.presence();
         *state.links.entry(device.to_owned()).or_default() += 1;
         state.presence.connect(device);
@@ -661,6 +671,7 @@ impl Peer {
     }
 
     fn disconnected(&self, device: &str) {
+        info!(device, "disconnected");
         let mut state = self.presence();
         let remaining = state.links.get_mut(device).map_or(0, |n| {
             *n -= 1;
@@ -685,6 +696,7 @@ impl Peer {
         let graph = self.graph();
         let moved = merge_duplicates(graph, &Index::build(graph)?)? > 0;
         if moved {
+            debug!("merged duplicates");
             self.changed();
         }
         Ok(moved)
@@ -909,6 +921,7 @@ pub type NetError = Box<dyn std::error::Error + Send + Sync>;
 /// Binds an endpoint with `key`. With `local` it listens on that address
 /// only, with no relays or address lookup: for a local network, or testing.
 pub async fn bind(key: SecretKey, local: Option<SocketAddr>) -> Result<Endpoint, NetError> {
+    debug!(?local, "binding an endpoint");
     let builder = match local {
         Some(addr) => Endpoint::builder(presets::Minimal)
             .relay_mode(RelayMode::Disabled)
@@ -1063,21 +1076,26 @@ pub fn save_on_change(peer: Peer, store: store::Store) {
                 Ok(())
             })();
             if let Err(e) = saved {
-                eprintln!("quiddity: saving failed: {e}");
+                error!(error = %e, "saving failed");
             }
         }
     });
 }
 
 impl ProtocolHandler for Peer {
+    #[instrument(level = "debug", skip_all, fields(remote = %connection.remote_id().fmt_short()))]
     async fn accept(&self, connection: Connection) -> Result<(), AcceptError> {
         if !self.permits(&connection.remote_id()) {
+            warn!("refusing a device that isn't allowed: see `allow`");
             connection.close(1u32.into(), b"not allowed");
             return Ok(());
         }
         let (send, recv) = connection.accept_bi().await?;
         let result = self.sync(send, recv, None).await;
         close(&connection, &result);
+        if let Err(e) = &result {
+            warn!(error = %e, "sync ended");
+        }
         result.map_err(AcceptError::from_err)
     }
 }

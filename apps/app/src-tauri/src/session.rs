@@ -56,9 +56,7 @@ impl Session {
         let store = Store::new(dir);
         let graph = match store.load() {
             Ok(graph) => graph,
-            Err(quiddity_node::StoreError::Io(e)) if e.kind() == std::io::ErrorKind::NotFound => {
-                store.init(false)?
-            }
+            Err(quiddity_node::StoreError::Missing(_)) => store.init(false)?,
             Err(e) => return Err(e.into()),
         };
         let device = store.key()?.public().to_string();
