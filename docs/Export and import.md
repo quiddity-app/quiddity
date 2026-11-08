@@ -4,6 +4,7 @@ alias:: text format
 - From the command line, with [[quiddity-node]]
 	- `quiddity-node -g ~/graph export ~/export` writes the graph to `~/export`.
 	- `quiddity-node -g ~/graph import ~/export` reads a directory into the graph. A blank replica can't import: it has to join by syncing first. [[Sync]]
+	- `quiddity-node serve --export ~/export` exports the *running* graph when the process gets SIGUSR1 (`kill -USR1 <pid>`), replacing `~/export`. It is written beside it as `~/export.new` and swapped in, so a reader never sees a half-written export. The export is done when the node prints `exported N entities to …`; the signal itself says nothing, so a hook should wait for that line (or for `~/export` to appear afresh) before the backup proceeds. Unix only.
 	- The app has no export or import of its own yet.
 - The directory
 	- ```

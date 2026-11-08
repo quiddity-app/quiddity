@@ -177,3 +177,46 @@ fn serve_needs_to_be_told_who_may_connect() {
     std::io::Read::read_to_string(&mut refused.stderr.take().unwrap(), &mut stderr).unwrap();
     assert!(stderr.contains("allow"), "{stderr}");
 }
+
+/// SIGUSR1 makes a running server export its graph, the hook a backup uses.
+#[cfg(unix)]
+#[test]
+fn sigusr1_exports_the_running_graph() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (graph, out) = (tmp.path().join("g"), tmp.path().join("out"));
+    run(node(&graph).arg("init"));
+    let source = tmp.path().join("source");
+    fs::create_dir_all(source.join("pages")).unwrap();
+    fs::write(source.join("pages/Jane.md"), "- A person\n").unwrap();
+    run(node(&graph).arg("import").arg(&source));
+    // Stale contents must not survive the replacement.
+    fs::create_dir_all(&out).unwrap();
+    fs::write(out.join("stale"), "old").unwrap();
+
+    let mut server = node(&graph)
+        .args(["serve", "--allow-any", "--local", "127.0.0.1:0", "--export"])
+        .arg(&out)
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut lines = BufReader::new(server.stdout.take().unwrap());
+    let mut line = String::new();
+    lines.read_line(&mut line).unwrap();
+    assert!(line.starts_with("serving "), "{line:?}");
+
+    // Signalling is by the `kill` command, which avoids a libc dependency.
+    let status = Command::new("kill")
+        .args(["-USR1", &server.id().to_string()])
+        .status()
+        .unwrap();
+    assert!(status.success());
+    line.clear();
+    lines.read_line(&mut line).unwrap();
+    server.kill().unwrap();
+    server.wait().unwrap();
+
+    assert!(line.starts_with("exported 1 entities to "), "{line:?}");
+    assert!(!out.join("stale").exists());
+    assert!(!tmp.path().join("out.new").exists());
+    assert_eq!(files(&out).keys().collect::<Vec<_>>(), ["entities/Jane.md"]);
+}
