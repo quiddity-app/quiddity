@@ -1,7 +1,8 @@
 #!/bin/sh
 # Makes every app icon from the SVGs in apps/app/src-tauri/icons/source: the
 # desktop and Windows icons, the iOS set, and Android's adaptive icon (its
-# foreground, background and monochrome layers) and older launcher icons.
+# foreground, background and monochrome layers) and older launcher icons, and
+# the macOS one, which has the rounded square built in.
 # Needs only what `mise run setup` installs.
 set -eu
 cd "$(dirname "$0")/.."
@@ -27,3 +28,9 @@ done
 # repo's checks (.editorconfig) want.
 xml="$icons/android/mipmap-anydpi-v26/ic_launcher.xml"
 [ -z "$(tail -c1 "$xml")" ] || echo >> "$xml"
+
+# macOS draws an .icns as it is and doesn't round it, unlike iOS, so the macOS
+# icon comes from a master with the rounded square, margin and shadow already
+# in it, and replaces the one made from the plain master.
+pnpm app tauri icon src-tauri/icons/source/icon-macos.svg -o "$scratch/macos"
+cp "$scratch/macos/icon.icns" "$icons/icon.icns"

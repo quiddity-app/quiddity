@@ -37,6 +37,19 @@ for (const name of ["icon-foreground.svg", "icon-monochrome.svg"]) {
   });
 }
 
+test("the macOS icon is the master's ring, scaled about the middle", () => {
+  const master = ring(source("icon.svg"));
+  const svg = source("icon-macos.svg");
+  const placed =
+    /translate\(([-\d.]+) ([-\d.]+)\) scale\(([\d.]+)\) translate\(([-\d.]+) ([-\d.]+)\)/.exec(svg)!;
+  const [middleX, middleY, scale, backX, backY] = placed.slice(1).map(Number);
+  expect([middleX, middleY]).toEqual([512, 512]);
+  expect([backX, backY]).toEqual([-master.cx, -master.cy]);
+  expect(ring(svg)).toEqual(master);
+  // Apple's template: an 824px body on the 1024px canvas.
+  expect(scale! * 1024).toBeCloseTo(824, 0);
+});
+
 test("the page has an icon, and it loads", async ({ page, request, baseURL }) => {
   await page.goto("/devices/");
   const href = await page.locator('link[rel~="icon"]').first().getAttribute("href");
