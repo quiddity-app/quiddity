@@ -252,9 +252,12 @@ The action strip above the main pane holds the search button; **Cmd/Ctrl-K**
 
 ## All entities
 
-`AllEntities` is a sortable table with a checkbox on each row. **Selection is
-the set of IDs ticked, filtered by the rows still there**, so an entity that an
-undo or a sync removes simply stops counting. Deleting asks first, inline
+`AllEntities` is a sortable table with a checkbox on each row, above a title
+filter and a "Hide journals" checkbox (ticked to begin with; the rows say
+`journal`, from Rust). It makes no entities: the tests make one by linking to
+it from a journal block. **Selection is the set of IDs ticked, filtered by the
+rows still there and shown**, so an entity that an undo or a sync removes, or
+that the filter hides, simply stops counting. Deleting asks first, inline
 (`role="alertdialog"`) rather than with `window.confirm`, which the Tauri
 webview can't be relied on to show; **changing the selection withdraws the
 question**, so what is confirmed is what was asked about. Deletion

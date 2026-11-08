@@ -1,12 +1,10 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { Summary } from "@/lib/model";
 import { useGraph, useRead } from "@/lib/use-graph";
 import { Region, Skeleton } from "./boundary";
 import { EntityLink } from "./entity-link";
-import { useView } from "./use-view";
 import { Button, ErrorLine, Input, linkClass, pageTitle } from "./ui";
 
 type Column = "title" | "tags" | "words" | "incoming" | "created" | "modified";
@@ -53,8 +51,13 @@ function compare(column: Column, a: Summary, b: Summary): number {
 const unknown = (column: Column, row: Summary) =>
   (column === "created" || column === "modified") && row[column] === null;
 
-function List() {
-  const rows = useRead((g) => g.summaries());
+function List({ filter, journals }: { filter: string; journals: boolean }) {
+  const everything = useRead((g) => g.summaries());
+  const needle = filter.trim().toLowerCase();
+  // Selection only counts what is shown, so nothing is deleted out of sight.
+  const rows = everything.filter(
+    (r) => (journals || !r.journal) && r.title.toLowerCase().includes(needle),
+  );
   // Rows arrive by title, and the sort is stable, so ties stay in that order.
   const [sort, setSort] = useState<{ column: Column; descending: boolean }>({
     column: "title",
@@ -92,7 +95,7 @@ function List() {
     watcher.observe(el);
     return () => watcher.disconnect();
   }, [shown, hasMore]);
-  if (rows.length === 0) return <p>Nothing here yet.</p>;
+  if (rows.length === 0) return <p>{everything.length === 0 ? "Nothing here yet." : "Nothing matches."}</p>;
   const sorted = rows.toSorted((a, b) => {
     const gap = Number(unknown(sort.column, a)) - Number(unknown(sort.column, b));
     if (gap !== 0) return gap;
@@ -209,34 +212,10 @@ function List() {
   );
 }
 
-function NewEntity() {
-  const graph = useGraph();
-  const router = useRouter();
-  const view = useView();
-  const [name, setName] = useState("");
-  return (
-    <form
-      className="mb-6 flex gap-2"
-      onSubmit={(e) => {
-        e.preventDefault();
-        const trimmed = name.trim();
-        if (!trimmed) return;
-        router.push(view.toMain(graph.createEntity(trimmed)));
-      }}
-    >
-      <Input
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="New entity"
-        aria-label="Name of a new entity"
-        className="min-w-0 flex-1"
-      />
-      <Button type="submit">Create</Button>
-    </form>
-  );
-}
-
 export function AllEntities() {
+  const [filter, setFilter] = useState("");
+  // Journals are a day each, so they swamp the list unless asked for.
+  const [journals, setJournals] = useState(false);
   return (
     <article className="mx-auto max-w-measure-table px-6 py-8">
       <h1 className={pageTitle}>All entities</h1>
@@ -246,8 +225,21 @@ export function AllEntities() {
           <ErrorLine>{error.message}</ErrorLine>
         )}
       >
-        <NewEntity />
-        <List />
+        <form className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2" onSubmit={(e) => e.preventDefault()}>
+          <Input
+            type="search"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Filter"
+            aria-label="Filter entities by title"
+            className="min-w-0 flex-1"
+          />
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={!journals} onChange={(e) => setJournals(!e.target.checked)} />
+            Hide journals
+          </label>
+        </form>
+        <List filter={filter} journals={journals} />
       </Region>
     </article>
   );

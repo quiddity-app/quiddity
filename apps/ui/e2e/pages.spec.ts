@@ -100,6 +100,30 @@ test("all entities is a table of words and incoming links", async ({ page }) => 
   await expect(loro.getByRole("cell")).toHaveText(["", "", "9", "1", /./, /./]);
 });
 
+test("all entities hides journals until asked, and filters by title", async ({ page }) => {
+  await page.goto("/all/");
+  const rows = page.locator("main table tbody tr");
+  const hide = page.getByRole("checkbox", { name: "Hide journals" });
+  await expect(rows.first()).toBeVisible();
+  await expect(hide).toBeChecked();
+  const without = await rows.count();
+  const today = new Date();
+  const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const day = rows.filter({ has: page.getByRole("link", { name: iso, exact: true }) });
+  await expect(day).toHaveCount(0);
+
+  await hide.uncheck();
+  await expect(day).toHaveCount(1);
+  expect(await rows.count()).toBeGreaterThan(without);
+
+  await page.getByRole("searchbox", { name: "Filter entities by title" }).fill("lORo");
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText("Loro");
+
+  await page.getByRole("searchbox", { name: "Filter entities by title" }).fill("zzzz");
+  await expect(page.getByText("Nothing matches.")).toBeVisible();
+});
+
 test("the all entities table sorts by a column, and the other way on a second click", async ({ page }) => {
   await page.goto("/all/");
   const table = page.locator("main table");

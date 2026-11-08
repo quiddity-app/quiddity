@@ -117,6 +117,8 @@ export interface Summary extends EntityRef {
   created: number | null;
   /** When a block of it was last added, moved or edited, as `created`. */
   modified: number | null;
+  /** Whether it is a journal page. */
+  journal: boolean;
 }
 
 /** Every entity, and which link to which: one edge per pair, however many links. */

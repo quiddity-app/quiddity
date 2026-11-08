@@ -42,7 +42,7 @@ test.describe("on a touch screen", () => {
     await page.goto("/all/");
     const heights = await Promise.all(
       [
-        page.locator("main").getByRole("button", { name: "Create", exact: true }),
+        page.locator("main").getByRole("searchbox", { name: "Filter entities by title" }),
         page.getByRole("button", { name: /^Search/ }),
         page.getByRole("link", { name: "Devices", exact: true }),
       ].map(async (target) => (await target.boundingBox())!.height),

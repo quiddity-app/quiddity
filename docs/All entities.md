@@ -4,6 +4,10 @@
 	- Tags: only enough to tell apart entities that share a title. See below.
 	- Words: whitespace-separated words in the entity's blocks, at any depth. The title does not count, and nor does a block of nothing but property lines.
 	- Incoming links: the blocks of *other* entities that link to it. A duplicate merged into the entity counts as the entity, so a journal's twin does not link to it.
+- Filtering
+	- The box above the table keeps the entities whose title contains what is typed, ignoring case. It does not make an entity: a new one is made by linking to it, or from the journal. [[Links to nowhere]] [[Journal]]
+	- **Hide journals** is ticked to begin with, since a day each swamps the list. Unticking it shows them. The view crate marks each row as a journal or not (`Summary::journal`), so the UI never works it out.
+	- Selecting and deleting only count the rows shown, so nothing goes that you can't see.
 - Sorting
 	- Click a column heading to sort by it, and click it again to reverse. The heading says which way with an arrow, and `aria-sort`.
 	- It starts by title. Rows arrive in that order and the sort is stable, so ties keep it.
