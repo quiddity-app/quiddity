@@ -2103,3 +2103,38 @@ fn a_file_described_wrongly_is_not_made() {
     }
     assert_eq!(v.entities().unwrap().len(), before);
 }
+
+/// A file added to a page makes its entity and ends the page with a link to
+/// it, and undoing takes both away in one step.
+#[test]
+fn attaching_a_file_links_it_from_the_page_in_one_step() {
+    let (v, page, _) = page(&["first"]);
+    v.graph().enable_undo();
+    let id = v
+        .attach_asset(&page, HASH, "image/png", 9, Some("a [b] c.png"))
+        .unwrap();
+    let on_page = v.entity(&page).unwrap();
+    let last = on_page.blocks.last().unwrap();
+    assert_eq!(last.text, "[[a \\[b\\] c.png]]");
+    let key = last.text.trim_start_matches("[[").trim_end_matches("]]");
+    assert_eq!(
+        on_page.links[key].target,
+        LinkTarget::Entity { id: id.clone() }
+    );
+    assert_eq!(v.entity(&id).unwrap().asset.unwrap().size, 9);
+
+    assert!(v.undo().unwrap());
+    assert!(v.entity(&id).is_err(), "the entity went with the link");
+    assert_eq!(v.entity(&page).unwrap().blocks.len(), 1);
+}
+
+#[test]
+fn attaching_a_file_wrongly_changes_nothing() {
+    let (v, page, _) = page(&["first"]);
+    assert!(v.attach_asset(&page, "nope", "image/png", 1, None).is_err());
+    assert!(
+        v.attach_asset("not a page", HASH, "image/png", 1, None)
+            .is_err()
+    );
+    assert_eq!(v.entity(&page).unwrap().blocks.len(), 1);
+}

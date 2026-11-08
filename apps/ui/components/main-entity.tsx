@@ -4,11 +4,14 @@ import { useEffect } from "react";
 import type { EntityId } from "@/lib/model";
 import { recordVisit } from "@/lib/recents";
 import { useRead } from "@/lib/use-graph";
+import { AssetFile } from "./asset-file";
 import { Region, Skeleton } from "./boundary";
 import { EditableTitle } from "./entity-title";
 import { EntityBody } from "./entity-view";
+import { useFileDrop } from "./file-drop";
 import { EntityFlags, MetaSections } from "./meta-sections";
 import { References } from "./references";
+import { ErrorLine } from "./ui";
 
 function Visit({ id }: { id: EntityId }) {
   const { id: canonical, title } = useRead((g) => g.entity(id));
@@ -17,11 +20,16 @@ function Visit({ id }: { id: EntityId }) {
 }
 
 export function MainEntity({ id }: { id: EntityId }) {
+  const { handlers, problem } = useFileDrop(id);
   return (
     // `cqw` needs a container to measure, and an element can't be its own, so
     // the article's text size is set from the wrapper's width.
     <div className="@container">
-      <article className="mx-auto max-w-measure-text px-6 py-8 [font-size:calc(1.25rem_+_max(0.325cqw,0.325lvh))]">
+      <article
+        className="mx-auto max-w-measure-text px-6 py-8 [font-size:calc(1.25rem_+_max(0.325cqw,0.325lvh))]"
+        {...handlers}
+      >
+        {problem && <ErrorLine className="mb-2">{problem}</ErrorLine>}
         {/* Keyed so navigating resets the boundary rather than keeping an error. */}
         <Region
           key={id}
@@ -46,6 +54,7 @@ export function MainEntity({ id }: { id: EntityId }) {
             <EditableTitle id={id} />
           </h1>
           <EntityFlags id={id} />
+          <AssetFile id={id} />
           <EntityBody id={id} />
           <MetaSections id={id} />
         </Region>

@@ -243,6 +243,22 @@ impl Replica {
         Ok(self.view.create_asset(hash, mime, size, name.as_deref())?)
     }
 
+    /// Adds a file the shell has kept to a page: makes its entity and ends the
+    /// page with a link to it, as one undo step. Returns the entity's ID.
+    #[wasm_bindgen(js_name = attachAsset)]
+    pub fn attach_asset(
+        &self,
+        page: &str,
+        hash: &str,
+        mime: &str,
+        size: u64,
+        name: Option<String>,
+    ) -> Result<String, JsError> {
+        Ok(self
+            .view
+            .attach_asset(page, hash, mime, size, name.as_deref())?)
+    }
+
     /// Renames an entity, keeping the old name as an alias. False if the name
     /// is the same.
     #[wasm_bindgen(js_name = renameEntity)]
