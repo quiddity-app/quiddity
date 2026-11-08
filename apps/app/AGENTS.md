@@ -47,6 +47,11 @@ holds its own replica and answers its own queries (see `apps/ui` and
 - `session.rs` knows nothing about Tauri, so it is tested on its own.
 - **`QUIDDITY_GRAPH`** names a directory made by `quiddity-node` to work on
   instead of the one graph in the app's data directory.
+- **The window's background follows the system theme** (`appearance.rs`):
+  the page's own ground, so a dark window doesn't open with a flash of white,
+  repainted on `ThemeChanged`. The two colours are `--surface` in
+  `apps/ui/app/globals.css`, and a test reads the stylesheet and fails if they
+  drift. The title bar is the system's and isn't set here.
 - **Permissions are in `capabilities/default.json`.** The opener plugin lets the
   UI open `http(s)` and `mailto` links in the system's browser; without it
   following one would replace the UI with the page.

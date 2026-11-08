@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import "@fontsource/ibm-plex-sans/latin-400.css";
 import "@fontsource/ibm-plex-sans/latin-400-italic.css";
@@ -16,6 +16,19 @@ import { Shell } from "@/components/shell";
 import { UndoKeys } from "@/components/undo-keys";
 
 export const metadata: Metadata = { title: "Quiddity" };
+
+/**
+ * What the browser, or the system around a webview, paints outside the page (a
+ * tab strip, a status bar) is the page's own ground, so the page doesn't end at
+ * an edge. These are `--surface` in globals.css, and a test holds them to it.
+ */
+export const viewport: Viewport = {
+  colorScheme: "light dark",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f8fafc" },
+    { media: "(prefers-color-scheme: dark)", color: "#0f172a" },
+  ],
+};
 
 /**
  * Both sidebars read the URL, which suspends up to the nearest boundary, so
