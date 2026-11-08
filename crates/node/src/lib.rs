@@ -13,6 +13,7 @@
 //! see [`Peer::edited`].
 
 pub mod blobs;
+pub mod gc;
 pub mod store;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};

@@ -13,6 +13,7 @@ use iroh::{Endpoint, EndpointAddr, EndpointId};
 use quiddity_core::files::{export_dir, import_dir};
 use quiddity_core::{Index, merge_duplicates};
 use quiddity_node::blobs::Blobs;
+use quiddity_node::gc;
 use quiddity_node::store::Store;
 use quiddity_node::{Allowed, NetError, Peer, allow_device};
 use tracing::{debug, error, warn};
@@ -41,6 +42,19 @@ enum Command {
     Import { dir: PathBuf },
     /// Export the graph as a directory of Markdown.
     Export { dir: PathBuf },
+    /// Delete the files that nothing in the graph refers to any more. A file
+    /// goes only after it has gone unreferenced for the grace period, and
+    /// only once every active device has stored a version of the graph from
+    /// after the reference went; the first run only notes what is unreferenced.
+    /// The node must not be serving: the store allows one process at a time.
+    Gc {
+        /// Say what would be deleted, and change nothing.
+        #[arg(long)]
+        dry_run: bool,
+        /// How many days a file must have gone unreferenced.
+        #[arg(long, default_value_t = 30)]
+        grace_days: u32,
+    },
     /// Let a device connect to every device holding this graph, by listing
     /// it in the graph. The device's ID is what `id` prints on it.
     Allow { device: EndpointId },
@@ -202,6 +216,27 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
                 }
                 println!();
             }
+        }
+        Command::Gc {
+            dry_run,
+            grace_days,
+        } => {
+            let graph = store.load()?;
+            if graph.version() == quiddity_core::Version::default() {
+                anyhow::bail!("this is a blank replica: sync it before collecting its files");
+            }
+            let grace = jiff::SignedDuration::from_hours(24 * i64::from(grace_days));
+            let found =
+                gc::collect(store.dir(), &graph, jiff::Timestamp::now(), grace, dry_run).await?;
+            // This device has now seen what it judged, which other devices
+            // wait for before they delete.
+            if !dry_run {
+                store.save(&graph)?;
+            }
+            println!("{} files in use", found.in_use);
+            println!("{} unreferenced, not yet due", found.waiting);
+            let verb = if dry_run { "would delete" } else { "deleted" };
+            println!("{verb} {} files", found.removed.len());
         }
         Command::Allow { device } => {
             let graph = store.load()?;

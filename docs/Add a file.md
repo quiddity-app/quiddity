@@ -12,4 +12,4 @@
 	- The page is called by the file's name. Two files with the same name make two pages with that name, and a link to the name is then ambiguous. [[Links]]
 - Not built yet
 	- Showing a file inline where a link to it is written, rather than only on its own page.
-	- Removing a file's bytes when nothing refers to them any more. [[Binaries]]
+	- Removing a file's bytes when nothing refers to them any more is done by `quiddity-node gc`, on a node; the app never does it. [[Binaries]]

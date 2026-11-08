@@ -24,3 +24,4 @@ alias:: [vouching, eviction]
 - Planned: undo will bound it further, never compacting past the start of the local undo stack. [[Undo]]
 - Devices
 	- The same list says who may connect. Authorising a device is a graph edit. [[Device list]]
+- The same point decides when a file nothing refers to any more may be deleted: it waits until every active device has stored a version from after the last reference went. [[Binaries]]
