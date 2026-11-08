@@ -60,6 +60,8 @@ pub struct Summary {
     pub created: Option<i64>,
     /// When a block of it was last added, moved or edited, in the same units.
     pub modified: Option<i64>,
+    /// Whether it is a journal page, so the list can leave the days out.
+    pub journal: bool,
 }
 
 /// Where the UI opens: the graph's `home` setting, with an entity found.
@@ -425,6 +427,10 @@ impl View {
                 incoming,
                 created: self.graph.created_at(*id).map(Timestamp::as_second),
                 modified: modified.get(id).copied().map(Timestamp::as_second),
+                journal: matches!(
+                    index.entity(*id).and_then(|e| e.identity()),
+                    Some(Identity::Journal(_))
+                ),
             });
         }
         Ok(summaries)

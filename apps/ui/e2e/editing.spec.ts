@@ -148,9 +148,15 @@ test("a block open in the main pane and a side card stays in step both ways", as
 });
 
 test("a new entity can be made, written in, and found again", async ({ page }) => {
-  await page.goto("/all/");
-  await page.getByLabel("Name of a new entity").fill("Fresh page");
-  await page.getByRole("button", { name: "Create", exact: true }).click();
+  // Entities are made by linking to them.
+  await page.goto("/");
+  const today = page.locator("main section").first();
+  await today.locator("[data-block-text]").last().click();
+  await page.keyboard.press("End");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("[[Fresh page]]");
+  await page.keyboard.press("Escape");
+  await today.getByRole("link", { name: "Fresh page" }).click();
   await expect(page.getByRole("heading", { name: "Fresh page", level: 1 })).toBeVisible();
   await page.locator("main article > ul [data-block-text]").first().click();
   await page.keyboard.type("first thought");

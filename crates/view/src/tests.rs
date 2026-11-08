@@ -1034,6 +1034,20 @@ mod summaries {
     }
 
     #[test]
+    fn only_journal_pages_are_journals() {
+        let v = view_with(|g| {
+            let index = quiddity_core::Index::build(g).unwrap();
+            quiddity_core::ensure_journal(g, &index, today()).unwrap();
+            g.create_entity("Not a journal", &[]).unwrap();
+        });
+        let rows = v.summaries().unwrap();
+        assert_eq!(rows.len(), 2);
+        for row in &rows {
+            assert_eq!(row.journal, row.title != "Not a journal", "{row:?}");
+        }
+    }
+
+    #[test]
     fn incoming_counts_linking_blocks_in_other_entities() {
         let v = view_with(|g| {
             let a = g.create_entity("A", &[]).unwrap();

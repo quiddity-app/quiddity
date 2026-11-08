@@ -135,11 +135,15 @@ test("the pan and zoom are kept too, and a new entity joins without moving the r
   const zoomed = await view(page);
   const before = await placements(page);
 
-  // Make an entity, then come back.
-  await page.locator("nav").getByRole("link", { name: "All entities" }).click();
-  await page.getByLabel("Name of a new entity").fill("Brand new");
+  // Make an entity by linking to it from today's journal, then come back.
+  await page.locator("nav").getByRole("link", { name: "Journals", exact: true }).click();
+  const today = page.locator("main section").first();
+  await today.locator("[data-block-text]").last().click();
+  await page.keyboard.press("End");
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("heading", { name: "Brand new", level: 1 })).toBeVisible();
+  await page.keyboard.type("[[Brand new]]");
+  await page.keyboard.press("Escape");
+  await expect(today.getByRole("link", { name: "Brand new" })).toBeVisible();
   await openGraph(page);
   await settled(page);
 
