@@ -282,7 +282,10 @@ function draw(
     );
     if (!target) return;
     const to = zoomIdentity.translate(target.x, target.y).scale(target.k);
-    if (animate) root.transition().duration(600).call(behaviour.transform, to);
+    // Animated unless the person has asked for less motion.
+    if (animate && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      root.transition().duration(600).call(behaviour.transform, to);
+    }
     else root.call(behaviour.transform, to);
   };
   root.on("dblclick.fit", (event: MouseEvent) => {
