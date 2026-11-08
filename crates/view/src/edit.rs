@@ -115,6 +115,22 @@ impl View {
         self.edited(made.map(|e| e.to_string()).map_err(Error::from))
     }
 
+    /// Creates an entity for a binary the shell has kept, named for its file,
+    /// and returns its ID. `hash` is the shell's answer for the bytes. The
+    /// parts are checked before anything is changed.
+    pub fn create_asset(
+        &self,
+        hash: &str,
+        mime: &str,
+        size: u64,
+        name: Option<&str>,
+    ) -> Result<String> {
+        let asset = quiddity_core::Asset::new(hash, mime, size, name)?;
+        self.structural();
+        let made = self.graph.create_asset(&asset);
+        self.edited(made.map(|e| e.to_string()).map_err(Error::from))
+    }
+
     /// Renames an entity, keeping the old name as an alias so that links to it
     /// still resolve. Returns false if the name is the same. A journal or
     /// property entity is identified by its date or name and can't be renamed.

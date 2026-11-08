@@ -6,3 +6,4 @@ type:: crate
 - Offsets are UTF-16 code units, which is what JavaScript and [[CodeMirror]] count in. Rust's byte offsets never leave the crate.
 - It turns what [[Meta-properties]] say into what a page shows: chips for `##` lines, flags in words on the chips they concern, inherited values, and inverse trees.
 - Pages that lean on it: [[Editing]], [[Undo]], [[Links to nowhere]], [[All entities]], [[Graph view]], [[Title matching]], [[Text search]] and [[Graph settings]].
+- An entity page says what file it describes, if it is an asset (`Entity.asset`: hash, MIME type, size and name), so the UI never reads the `##asset` line itself. `create_asset` makes the entity for a file the shell has kept, checking its parts first, so a bad answer leaves nothing behind. [[Binaries]]
