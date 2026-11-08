@@ -29,6 +29,7 @@
 - The window and what is outside the page
 	- The page tells the browser, or the system around a webview, its own ground in each scheme (`theme-color`), so a tab strip or a status bar doesn't end the page at an edge. The app's window paints the same ground behind the page and follows the system's theme as it changes. Tests hold both to `--surface`, the one in the stylesheet.
 	- The title bar isn't ours to colour: the system draws it, in the theme it is in, which is the page's. A mobile status bar is set by the project that `tauri android init` generates, which isn't committed, so it is not set here.
+- The icon is a Q whose ring is centred. [[App icon]]
 - Layers that float
 	- The search panel, the link list in the editor and the right pane when it overlays all look the same: the page's ground, a hairline border, a rounded corner and one shadow (`shadow-overlay`). Where something blocks the page there is a dim layer under it. What covers what is four named levels: the overlaid pane, the dim layer, the drawer and whatever floats over everything (`--z-pane`, `--z-scrim`, `--z-drawer`, `--z-overlay`).
 - Colours that Tailwind can't reach follow the theme too

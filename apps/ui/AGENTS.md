@@ -288,10 +288,10 @@ if the page logs an error. Pitfalls:
 - On the in-memory graph a page reload starts over, so a test that has changed
   something must move by clicking (the sidebar), not `page.goto`.
 - A block's rendered text is `[data-block-text]` and an editor is `.cm-content`.
-- **Playwright's full Chromium asks for `/favicon.ico`**, which the export
-  doesn't have, and the 404 fails every test. CI's headless shell doesn't
-  ask. Where only full Chromium is installed, put an empty `favicon.ico` in
-  `out/` and `public/` for the run, and don't commit it.
+- The page links an icon (`app/icon.svg`, a copy of the app icon's master), so
+  Playwright's full Chromium doesn't ask for `/favicon.ico`, whose 404 would
+  fail every test. Keep the link: without it, full Chromium needs an empty
+  `favicon.ico` in `out/` and `public/` for the run.
 - Typing `\n` presses Enter, which splits the block; use Shift-Enter for a
   newline. Press `Control+Shift+Z`, not `Control+Shift+z`: Playwright otherwise
   sends a lowercase `z` that no keyboard does.

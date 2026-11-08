@@ -52,6 +52,14 @@ holds its own replica and answers its own queries (see `apps/ui` and
   repainted on `ThemeChanged`. The two colours are `--surface` in
   `apps/ui/app/globals.css`, and a test reads the stylesheet and fails if they
   drift. The title bar is the system's and isn't set here.
+- **Every icon is made from the SVGs in `src-tauri/icons/source`** by
+  `mise run icons` (`scripts/icons.sh`): don't edit the generated PNGs, ICNS
+  and ICO by hand. **The Q's ring, not the whole glyph, is centred** in the
+  square and in the Android foreground, so a circular mask shows a ring in the
+  middle; `apps/ui/e2e/icon.spec.ts` measures the sources and the generated
+  launcher icons. Tauri composes the older Android icons from the layers with
+  the ring off to one side, so the script takes those from the master alone.
+  `apps/ui/app/icon.svg` is a copy of `icon.svg`, for the page's favicon.
 - **Permissions are in `capabilities/default.json`.** The opener plugin lets the
   UI open `http(s)` and `mailto` links in the system's browser; without it
   following one would replace the UI with the page.
