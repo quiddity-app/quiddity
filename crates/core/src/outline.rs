@@ -48,11 +48,13 @@ pub struct OutlineBlock {
 /// The outline of an entity in the graph.
 pub fn outline_of(graph: &Graph, entity: BlockId) -> Result<Outline> {
     // The properties block goes in the file's header, which can't hold
-    // children. One that has children is written as the first bullet
-    // instead, and reads back as the same graph.
+    // children, and which is trimmed of blank lines at either end when read.
+    // One that has children, or blank lines at either end of its text, is
+    // written as the first bullet instead, and reads back as the same graph.
     let props = graph
         .properties_block(entity)?
-        .filter(|&p| graph.children(p).is_empty());
+        .filter(|&p| graph.children(p).is_empty())
+        .filter(|&p| graph.text(p).is_ok_and(|t| !has_blank_edge(&t)));
     let blocks = graph
         .children(entity)
         .into_iter()
@@ -64,6 +66,15 @@ pub fn outline_of(graph: &Graph, entity: BlockId) -> Result<Outline> {
         properties: props.map(|p| graph.text(p)).transpose()?,
         blocks,
     })
+}
+
+/// Whether the first or last line of `text` is blank, as `take_title` counts
+/// it (so a lone `\r` is blank).
+fn has_blank_edge(text: &str) -> bool {
+    let mut lines = text.split('\n');
+    let first = lines.next().unwrap_or("");
+    let last = lines.next_back().unwrap_or(first);
+    first.trim().is_empty() || last.trim().is_empty()
 }
 
 fn outline_block(graph: &Graph, block: BlockId) -> Result<OutlineBlock> {
@@ -435,6 +446,18 @@ mod tests {
         // A `\r` in Quiddity's own format is part of the text, even there.
         let kept = parse_outline("- a:: x\r\n  b:: y\n", Indent::Tabs);
         assert_eq!(kept.blocks, vec![block("a:: x\r\nb:: y", vec![])]);
+    }
+
+    #[test]
+    fn a_properties_block_with_blank_edges_is_written_as_a_bullet() {
+        for text in ["a:: b\n", "\na:: b", "\r\nc:: d", "a:: b\n\r"] {
+            let graph = Graph::new();
+            let entity = graph.create_block(None, None, "Page").unwrap();
+            graph.create_block(Some(entity), None, text).unwrap();
+            let outline = parse_outline(&export_entity(&graph, entity).unwrap(), Indent::Tabs);
+            assert_eq!(outline.properties, None, "{text:?}");
+            assert_eq!(outline.blocks, vec![block(text, vec![])], "{text:?}");
+        }
     }
 
     #[test]
