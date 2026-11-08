@@ -70,6 +70,43 @@ impl Asset {
         })
     }
 
+    /// The file this asset is in an export: `<hash>.<extension>`, in `assets/`.
+    ///
+    /// The extension is the name's, if it has a short plain one, so that a
+    /// file manager or a browser knows what it is; otherwise the MIME type's,
+    /// if it is a common one; otherwise `bin`. It is always lower-case letters
+    /// and digits, so it is safe as part of a path whatever the name says. The
+    /// hash is what identifies the file: the extension is only a convenience.
+    pub fn file_name(&self) -> String {
+        format!("{}.{}", self.hash, self.extension())
+    }
+
+    fn extension(&self) -> String {
+        let named = self
+            .name
+            .as_deref()
+            .and_then(|n| std::path::Path::new(n).extension())
+            .and_then(|e| e.to_str())
+            .map(str::to_ascii_lowercase)
+            .filter(|e| (1..=8).contains(&e.len()) && e.bytes().all(|b| b.is_ascii_alphanumeric()));
+        named.unwrap_or_else(|| {
+            let known = match self.mime.as_str() {
+                "image/png" => "png",
+                "image/jpeg" => "jpg",
+                "image/gif" => "gif",
+                "image/webp" => "webp",
+                "image/avif" => "avif",
+                "image/svg+xml" => "svg",
+                "application/pdf" => "pdf",
+                "application/json" => "json",
+                "text/plain" => "txt",
+                "text/markdown" => "md",
+                _ => "bin",
+            };
+            known.to_owned()
+        })
+    }
+
     /// The parameter of the `##asset` line that says this.
     pub fn parameter(&self) -> String {
         let mut p = format!("{}, {}, {}", self.hash, self.mime, self.size);
