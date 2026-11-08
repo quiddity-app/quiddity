@@ -269,6 +269,20 @@ pub struct Entity {
     /// What doesn't fit a schema and has no chip of its own to show on, in
     /// words.
     pub flags: Vec<String>,
+    /// The binary this entity describes, if its `##asset` line can be read.
+    pub asset: Option<AssetInfo>,
+}
+
+/// A binary kept in the graph: what its entity says about it.
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetInfo {
+    /// The BLAKE3 hash of the bytes, in hex: what to ask the shell for.
+    pub hash: String,
+    pub mime: String,
+    /// In bytes.
+    pub size: u64,
+    pub name: Option<String>,
 }
 
 /// The blocks of one entity that mention another.
@@ -525,6 +539,16 @@ impl View {
         let flags = self.flag(id, chips)?;
         let inherited = self.inherited(id, &mut links)?;
         let inverses = self.inverses(id)?;
+        let asset = self
+            .index()?
+            .entity(id)
+            .and_then(|e| e.asset()?.ok())
+            .map(|a| AssetInfo {
+                hash: a.hash,
+                mime: a.mime,
+                size: a.size,
+                name: a.name,
+            });
         Ok(Entity {
             id: id.to_string(),
             title: self.graph.entity_name(id)?,
@@ -534,6 +558,7 @@ impl View {
             inherited,
             inverses,
             flags,
+            asset,
         })
     }
 

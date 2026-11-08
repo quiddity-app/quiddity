@@ -23,8 +23,8 @@ pub use edit::Merged;
 pub use fts::BlockHit;
 pub use meta::{INVERSE_LIMIT, Inherited, Inverse, InverseNode};
 pub use query::{
-    Block, Connections, DeviceInfo, Edge, Entity, EntityRef, LinkTarget, Property, PropertyValue,
-    Reference, ResolvedLink, Start, Summary,
+    AssetInfo, Block, Connections, DeviceInfo, Edge, Entity, EntityRef, LinkTarget, Property,
+    PropertyValue, Reference, ResolvedLink, Start, Summary,
 };
 pub use search::{HitProperty, Match, TitleHit, fuzzy_match};
 
@@ -48,6 +48,8 @@ pub enum Error {
     NoSuchBlockRef(String),
     #[error("offset {0} is not between characters")]
     BadOffset(usize),
+    #[error(transparent)]
+    Asset(#[from] quiddity_core::AssetError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
