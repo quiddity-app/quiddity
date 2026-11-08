@@ -125,6 +125,12 @@ what the All entities table shows.
   duplicate journals moves blocks, so it counts as a move. The text edit times
   are read from history once and then only what is new (`Activity`), kept for
   the life of the `View`.
+- **What it works out of blocks is kept** (`Facts`): each block's words and
+  tags until its text may have changed, and when each block was put where it
+  is until blocks may have moved. Typing therefore re-reads one block, and
+  `Work::blocks_summed` and `placements_read` say so. Both are dropped where
+  the corpus is (`rescan`, `reread`); a new way of changing the corpus must
+  drop them too, or `summaries` answers from the old.
 
 ## Links to nowhere
 

@@ -108,6 +108,12 @@ Every replica records commit times (`Graph::blank` turns it on, so `new` and
   `find_id_spans_between` unwraps a `None` and panics, which in the browser
   is an opaque `unreachable` from WASM. `text_edits_since` walks each peer's
   changes with `get_change` from no earlier than `history_start` instead.
+- **`text_edits_since` finds a changed container's block by asking Loro for
+  its path** (`block_with_text`), so it costs what the change did. It used to
+  read every block's text container first to build a map, which was 200 ms at
+  38,000 blocks on every call after an edit. Loro has no path for a deleted
+  block's container, which is how an edited-then-deleted block is left out;
+  `graph_model` checks it over the whole history.
 - **A deletion isn't attributed to anything**: it leaves no block to ask.
 - The text of a block is its own container, so a text edit isn't a move: ask
   `text_edits_since` for those and `placed_at` for the others. Reading history

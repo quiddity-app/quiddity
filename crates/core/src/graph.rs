@@ -6,8 +6,8 @@ use std::sync::{Mutex, MutexGuard};
 
 use jiff::Timestamp;
 use loro::{
-    Container, ContainerID, ContainerTrait, ExportMode, ID, LoroDoc, LoroText, LoroTree, LoroValue,
-    TreeID, TreeParentId, UndoManager, UpdateOptions, ValueOrContainer, VersionVector,
+    Container, ContainerID, ContainerType, ExportMode, ID, Index, LoroDoc, LoroText, LoroTree,
+    LoroValue, TreeID, TreeParentId, UndoManager, UpdateOptions, ValueOrContainer, VersionVector,
 };
 
 use crate::{Error, Result};
@@ -160,11 +160,6 @@ impl Graph {
         if from.0.includes_vv(&to) {
             return Ok(Vec::new());
         }
-        let texts: HashMap<ContainerID, BlockId> = self
-            .blocks()
-            .into_iter()
-            .filter_map(|b| Some((self.text_container(b).ok()?.id(), b)))
-            .collect();
         let mut edits = Vec::new();
         for &peer in to.keys() {
             let mut counter = from.0.get(&peer).copied().unwrap_or(0);
@@ -179,14 +174,38 @@ impl Graph {
                     edits.extend(
                         containers
                             .iter()
-                            .filter_map(|c| texts.get(c))
-                            .map(|&b| (b, at)),
+                            .filter_map(|c| self.block_with_text(c))
+                            .map(|b| (b, at)),
                     );
                 }
                 counter = until;
             }
         }
         Ok(edits)
+    }
+
+    /// The live block whose text is this container, if it is one. Found by
+    /// asking Loro where the container is, which costs what the container's
+    /// depth does, rather than by reading every block's: this is called for
+    /// each container a change touched, and a graph has tens of thousands.
+    fn block_with_text(&self, container: &ContainerID) -> Option<BlockId> {
+        if !matches!(
+            container,
+            ContainerID::Normal {
+                container_type: ContainerType::Text,
+                ..
+            }
+        ) {
+            return None;
+        }
+        // The tree, then the block's node, then its text under a key. Loro has
+        // no path to a container whose block has been deleted, which is how a
+        // block edited and then deleted is left out (`graph_model` checks).
+        let path = self.doc.get_path_to_container(container)?;
+        let [.., (_, Index::Node(node)), (_, Index::Key(_))] = path.as_slice() else {
+            return None;
+        };
+        Some(BlockId(*node))
     }
 
     /// The schema version the graph was created with, if known yet.
