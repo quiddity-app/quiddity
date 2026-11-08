@@ -10,8 +10,9 @@
 	- Sync runs sessions over a network that connects, disconnects and delivers in a scrambled order. [[Presence]]
 	- Each simulation caught a real design flaw before it shipped: compacting before catching up, a creator missing from the device list, gossip that forgot records.
 - Fuzzing covers arbitrary input: nothing panics, and formatting reaches a fixed point. [[cargo-fuzz]]
-	- Targets are `block`, `outline` and `peer`. A crash becomes a seed and a regression test in the crate it is about.
-	- CI fuzzes for a minute per target on pull requests and on `main`. [[mbx]] can't cache cargo-fuzz's builds, so `main` saves the dependencies' build with [[rust-cache]] for pull requests to restore.
+	- Targets are `block`, `outline`, `peer` and `query`. A crash becomes a seed and a regression test in the crate it is about.
+	- CI fuzzes a target for a minute on pull requests and on `main`, but only when something it depends on changed: its own source or seeds, a crate it reaches (found from its `use` lines and `fuzz/Cargo.lock` by `scripts/fuzz-targets.mjs`), or what all targets share, such as the lockfile, the toolchain and the CI configuration. Each run starts from the committed seeds, so fuzzing unchanged code again would find nothing new.
+	- [[mbx]] can't cache cargo-fuzz's builds, so `main` saves the dependencies' build with [[rust-cache]] for pull requests to restore. That is saved whenever `main` fuzzes, which any change to the lockfile does.
 - The UI is tested in a browser.
 	- [[Playwright]] runs against the static export, and a few tests against `next dev`, which renders on a server as development does and shows React warnings that a production build hides. [[The UI]]
 	- Each test starts from the same made-up graph, and fails if the page logs an error.
