@@ -44,6 +44,11 @@ description = "Run the UI alone in a browser, on a made-up graph in memory"
 depends = ["setup", "doctor"]
 run = "pnpm ui dev"
 
+[tasks.icons]
+description = "Make every app icon from the SVGs in apps/app/src-tauri/icons/source"
+depends = ["setup"]
+run = "scripts/icons.sh"
+
 [tasks.wasm]
 description = "Rebuild the graph replica the UI embeds"
 depends = ["doctor"]

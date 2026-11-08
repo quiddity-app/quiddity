@@ -1,0 +1,9 @@
+- The app's icon: a capital Q in the page's own colours, a light ring and a straight tail on the dark ground. [[Design language]] [[The shell]]
+- Made from SVGs, not edited as pictures
+	- `apps/app/src-tauri/icons/source` holds the master (`icon.svg`, 1024 square, no rounded corners, because iOS and macOS round them themselves) and, for Android's adaptive icon, a foreground, a background and a monochrome layer. `mise run icons` makes every size from them with Tauri's icon command, and the generated files are committed.
+	- The favicon is a copy of the master, `apps/ui/app/icon.svg`.
+- The ring is centred, not the whole Q
+	- The tail makes the glyph heavier towards a corner, so centring the glyph's box puts the ring off to one side, which shows on a circular base. The ring is at the exact middle of the square, in the master and in the Android foreground, which is scaled down about the ring's centre to keep the tail inside the part of an adaptive icon every launcher shows.
+	- Tauri composes the older Android launcher icons, square and round, from the layers itself, and moves the ring. So the script takes those from the master alone. Tests measure the sources and every generated launcher icon.
+- What is not set
+	- A mobile project's status bar or splash is part of the generated Android and iOS projects, which aren't committed.
