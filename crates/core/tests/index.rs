@@ -178,3 +178,105 @@ proptest! {
         }
     }
 }
+
+/// Text for a note: some words and links, to the entities' names and
+/// qualified, so that a block links to the same entity more than once, and
+/// some links are ambiguous and some are not.
+fn note_text() -> impl Strategy<Value = String> {
+    let part = prop_oneof![
+        2 => Just("words ".to_owned()),
+        2 => (0..NAMES.len()).prop_map(|i| format!("[[{}]] ", NAMES[i])),
+        1 => (0..NAMES.len()).prop_map(|i| {
+            let link = Link {
+                name: NAMES[i].to_owned(),
+                qualifiers: vec![Qualifier {
+                    key: "kind".to_owned(),
+                    value: Some(Value::Text("a".to_owned())),
+                }],
+            };
+            format!("{} ", format_link(&link))
+        }),
+    ];
+    vec(part, 0..4).prop_map(|parts| parts.concat())
+}
+
+proptest! {
+    /// Updating the index for an edited block gives exactly what building it
+    /// again would, backlinks in the same order.
+    #[test]
+    fn updating_a_block_is_building_again(
+        entities in vec(entity(), 1..5),
+        notes in vec(note_text(), 1..6),
+        edits in vec((any::<Pick>(), note_text()), 1..8),
+    ) {
+        let graph = Graph::new();
+        let ids: Vec<BlockId> = entities
+            .iter()
+            .map(|(name, props)| {
+                let props: Vec<_> = props.iter().map(|(k, v)| (KEYS[*k], v.clone())).collect();
+                graph.create_entity(NAMES[*name], &props).unwrap()
+            })
+            .collect();
+        let page = graph.create_entity("Notes", &[]).unwrap();
+        // Spread over two entities, so that blocks' order isn't their creation order.
+        let blocks: Vec<BlockId> = notes
+            .iter()
+            .enumerate()
+            .map(|(i, text)| {
+                let parent = if i % 2 == 0 { page } else { ids[0] };
+                graph.create_block(Some(parent), None, text).unwrap()
+            })
+            .collect();
+        graph.commit();
+
+        let mut index = Index::build(&graph).unwrap();
+        for (pick, text) in &edits {
+            let block = blocks[pick.index(blocks.len())];
+            let old = graph.text(block).unwrap();
+            graph.set_text(block, text).unwrap();
+            graph.commit();
+            prop_assert!(index.update_text(block, &old, text), "an ordinary block can be updated");
+
+            let fresh = Index::build(&graph).unwrap();
+            for &entity in ids.iter().chain([&page]) {
+                prop_assert_eq!(index.backlinks(entity), fresh.backlinks(entity), "backlinks of {}", entity);
+            }
+        }
+    }
+}
+
+/// What the index can't update for it says so, and is left as it was.
+#[test]
+fn update_declines_what_changes_more_than_backlinks() {
+    let graph = Graph::new();
+    let jane = graph
+        .create_entity("Jane", &[("kind", Some(Value::Text("a".into())))])
+        .unwrap();
+    let props = graph.children(jane)[0];
+    let note = graph
+        .create_block(Some(jane), None, "see [[Jane]]")
+        .unwrap();
+    let referred = graph
+        .create_block(Some(jane), None, "quotable\nid:: abc")
+        .unwrap();
+    graph.commit();
+    let mut index = Index::build(&graph).unwrap();
+    let before = index.backlinks(jane).to_vec();
+    assert_eq!(before.len(), 1);
+
+    // A root's text is a name.
+    assert!(!index.update_text(jane, "Jane", "Janet [[Jane]]"));
+    // A properties block, either side of the edit.
+    assert!(!index.update_text(props, "kind:: a", "kind:: a [[Jane]]"));
+    assert!(!index.update_text(note, "see [[Jane]]", "kind:: b"));
+    assert!(!index.update_text(note, "kind:: b", "see [[Jane]]"));
+    // An `id` property, which `((id))` refers to, either side.
+    assert!(!index.update_text(referred, "quotable\nid:: abc", "quotable [[Jane]]"));
+    assert!(!index.update_text(note, "see [[Jane]]", "see\nid:: abc"));
+    // A block the index has never seen.
+    let new = graph.create_block(Some(jane), None, "new").unwrap();
+    assert!(!index.update_text(new, "new", "newer [[Jane]]"));
+
+    assert_eq!(index.backlinks(jane), before, "declining changes nothing");
+    assert_eq!(index.resolve_block_ref("abc"), Some(referred));
+}

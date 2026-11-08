@@ -88,15 +88,29 @@ fn main() {
     });
 
     println!("-- after typing one character");
+    let before = view.work();
     timed("splice_text()", || {
         view.splice_text(&typed_in, 0, 0, "x").unwrap();
     });
-    timed("first query (new index)", || {
+    timed("first query (updated index)", || {
         view.search_titles("a", 5).unwrap()
     });
+    let after = view.work();
+    println!(
+        "   whole-graph work: {} scans, {} index builds",
+        after.scans - before.scans,
+        after.index_builds - before.index_builds
+    );
     timed("summaries()", || view.summaries().unwrap());
     timed("search_text()", || {
         view.search_text("ordinary words", 20).unwrap()
+    });
+
+    println!("-- after creating a block (the structure is read again)");
+    let page = view.graph().roots()[0].to_string();
+    view.create_block(&page, None, "new").unwrap();
+    timed("first query (new index)", || {
+        view.search_titles("a", 5).unwrap()
     });
 
     println!("-- after an import (everything read again)");

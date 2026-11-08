@@ -5,3 +5,4 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc 8c6936bcbdce352e61c21131b8446e1bee04f7858bbd7356e2f45cc930a3368d # shrinks to entities = [(3, [(0, Some(Text("a")))]), (3, [(0, Some(Link(Link { name: "b", qualifiers: [] })))])], query = Derived(Index(0), [true, false, false, false])
+cc a5e6ea57cd48800f621bd23156a7206b97041191c0ec6afc944cb88a9f11e8fb # shrinks to entities = [(0, []), (0, [(2, Some(Text("Bob")))])], notes = [""], edits = [(Index(0), "[[Jane]] [[Bob]] ")]

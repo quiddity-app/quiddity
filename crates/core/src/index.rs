@@ -119,6 +119,9 @@ pub struct Index {
     backlinks: HashMap<BlockId, Vec<Backlink>>,
     /// The entity (root block) each block is in, itself for a root.
     root_of: HashMap<BlockId, BlockId>,
+    /// Where each block is in document order, which is the order of every
+    /// list of backlinks.
+    position: HashMap<BlockId, usize>,
     /// Schemas of built-in properties and of those with a property entity,
     /// by normalised key.
     pub(crate) schemas: HashMap<String, PropertySchema>,
@@ -143,6 +146,7 @@ impl Index {
         let mut root = None;
         for (at, block) in blocks.iter().enumerate() {
             let entity = *root.get_or_insert(block.id);
+            index.position.insert(block.id, at);
             if block.parent.is_none() {
                 root = Some(block.id);
                 let entity = block.id;
@@ -205,10 +209,8 @@ impl Index {
             references.extend(parsed.links.into_iter().map(|link| (block, link)));
         }
         for (source, link) in references {
-            let (targets, ambiguous) = match index.resolve(&link) {
-                Resolution::Unique(id) => (vec![id], false),
-                Resolution::Ambiguous(ids) => (ids, true),
-                Resolution::Missing => continue,
+            let Some((targets, ambiguous)) = index.targets(&link) else {
+                continue;
             };
             for target in targets {
                 index
@@ -221,6 +223,68 @@ impl Index {
         index.read_schemas();
         index.compute_effective();
         index
+    }
+
+    /// What a link refers to, and whether it is ambiguous. `None` if nothing.
+    fn targets(&self, link: &Link) -> Option<(Vec<BlockId>, bool)> {
+        match self.resolve(link) {
+            Resolution::Unique(id) => Some((vec![id], false)),
+            Resolution::Ambiguous(ids) => Some((ids, true)),
+            Resolution::Missing => None,
+        }
+    }
+
+    /// Brings the index up to date with a block's text changing from `old`
+    /// to `new`, without building it again, and says whether it could.
+    ///
+    /// Only an ordinary block's backlinks can change this way: entities,
+    /// names, properties, schemas and effective properties are all read from
+    /// roots and properties blocks. So this declines (and the caller builds
+    /// the index again) for a root, for a properties block either side of the
+    /// edit, and for a block with an `id` property either side, which would
+    /// change which block `((id))` refers to. It also declines a block it
+    /// doesn't know, which is one made since the index was built.
+    ///
+    /// The blocks must be where they were when the index was built: it relies
+    /// on that for their order.
+    pub fn update_text(&mut self, block: BlockId, old: &str, new: &str) -> bool {
+        let known = self.root_of.get(&block).is_some_and(|&root| root != block);
+        if !known || is_properties_block(old) || is_properties_block(new) {
+            return false;
+        }
+        let (old, new) = (parse_block(old), parse_block(new));
+        let has_id = |p: &Property| normalise_name(&p.key) == "id";
+        if old.properties.iter().chain(&new.properties).any(has_id) {
+            return false;
+        }
+        // Where this block's backlinks go: after those of blocks before it.
+        let at = self.position[&block];
+        for link in &old.links {
+            for target in self.targets(link).map(|(t, _)| t).unwrap_or_default() {
+                if let Some(links) = self.backlinks.get_mut(&target) {
+                    links.retain(|b| b.source != block);
+                }
+            }
+        }
+        for link in &new.links {
+            let Some((targets, ambiguous)) = self.targets(link) else {
+                continue;
+            };
+            for target in targets {
+                let position = &self.position;
+                let links = self.backlinks.entry(target).or_default();
+                // After this block's own earlier links, so they keep their order.
+                let after = links.partition_point(|b| position[&b.source] <= at);
+                links.insert(
+                    after,
+                    Backlink {
+                        source: block,
+                        ambiguous,
+                    },
+                );
+            }
+        }
+        true
     }
 
     /// Reads each property entity's meta-properties over the built-in
