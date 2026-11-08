@@ -29,3 +29,4 @@
 	- A loop whose exit test is flipped by a mutant runs forever. Written as a recursion it overflows the stack at once instead, which is a quick failure.
 - Check that a new test fails without the fix before trusting it.
 - `cargo nextest run` is the suite. It has profiles for CI and for mutants, where the first failing test ends the run.
+- CI has one check to require, `lint, build, test`, which passes when every other job succeeded or was skipped on purpose. Branch protection names only that, so adding, splitting or renaming a job means adding it to the gate's `needs` in `.github/workflows/ci.yml` and nothing else.
