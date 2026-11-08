@@ -8,13 +8,15 @@ use std::process::ExitCode;
 use std::time::Duration;
 
 use clap::{Parser, Subcommand};
+use clap_verbosity_flag::{Verbosity, WarnLevel};
 use iroh::{Endpoint, EndpointAddr, EndpointId};
 use quiddity_core::files::{export_dir, import_dir};
 use quiddity_core::{Index, merge_duplicates};
 use quiddity_node::store::Store;
 use quiddity_node::{Allowed, NetError, Peer, allow_device};
+use tracing::debug;
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 #[command(version, about)]
 struct Cli {
     /// The graph's directory.
@@ -22,9 +24,11 @@ struct Cli {
     graph: PathBuf,
     #[command(subcommand)]
     command: Command,
+    #[command(flatten)]
+    verbosity: Verbosity<WarnLevel>,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Debug)]
 enum Command {
     /// Create a graph. With --blank, an empty replica to sync an existing
     /// graph into.
@@ -66,7 +70,7 @@ enum Command {
     },
 }
 
-#[derive(clap::Args)]
+#[derive(clap::Args, Debug)]
 struct Net {
     /// Listen on this address only, without relays or address lookup:
     /// for a local network, or testing.
@@ -87,9 +91,17 @@ impl Net {
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    match run(Cli::parse()).await {
+    let args = Cli::parse();
+    // What a command reports goes to stdout; the log is for diagnosis, so it
+    // goes to stderr, and `-v` and `-q` set how much of it there is.
+    tracing_subscriber::fmt()
+        .with_max_level(args.verbosity)
+        .with_writer(std::io::stderr)
+        .init();
+    match run(args).await {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
+            // The command's result, which `-q` must not hide.
             eprintln!("quiddity-node: {e:#}");
             ExitCode::FAILURE
         }
@@ -97,6 +109,7 @@ async fn main() -> ExitCode {
 }
 
 async fn run(cli: Cli) -> anyhow::Result<()> {
+    debug!(graph = %cli.graph.display(), command = ?cli.command, "running");
     let store = Store::new(cli.graph);
     match cli.command {
         Command::Init { blank } => {

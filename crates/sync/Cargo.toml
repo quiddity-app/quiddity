@@ -11,6 +11,7 @@ rust-version.workspace = true
 jiff.workspace = true
 quiddity-core.workspace = true
 thiserror.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true

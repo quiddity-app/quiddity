@@ -14,6 +14,7 @@ use std::sync::Mutex;
 use session::{Error, Session};
 use tauri::ipc::{Channel, InvokeBody, InvokeResponseBody, Request, Response};
 use tauri::{Manager, State};
+use tracing::{error, warn};
 
 type Shared<'a> = State<'a, Mutex<Session>>;
 
@@ -77,7 +78,7 @@ async fn subscribe_updates(
                     }
                 }
                 Ok(None) => {}
-                Err(e) => eprintln!("quiddity: couldn't update the UI: {e}"),
+                Err(e) => warn!(error = %e, "couldn't update the UI"),
             }
             if changes.changed().await.is_err() {
                 return;
@@ -138,7 +139,7 @@ fn start_network(session: &Session) {
     // Where some devices are, for where there is no lookup to find them.
     let known = match std::env::var("QUIDDITY_PEERS") {
         Ok(text) => quiddity_node::known_addresses(&text).unwrap_or_else(|e| {
-            eprintln!("quiddity: ignoring QUIDDITY_PEERS: {e}");
+            warn!(error = %e, "ignoring QUIDDITY_PEERS");
             Default::default()
         }),
         Err(_) => Default::default(),
@@ -158,7 +159,7 @@ fn start_network(session: &Session) {
                 let _server = server;
                 std::future::pending::<()>().await;
             }
-            Err(e) => eprintln!("quiddity: not syncing: {e}"),
+            Err(e) => error!(error = %e, "not syncing"),
         }
     });
 }
@@ -175,6 +176,15 @@ fn graph_dir(app: &tauri::App) -> Result<PathBuf, Box<dyn std::error::Error>> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // `QUIDDITY_LOG` is a level (`debug`, say); the default is warnings.
+    let level = std::env::var("QUIDDITY_LOG")
+        .ok()
+        .and_then(|level| level.parse().ok())
+        .unwrap_or(tracing::level_filters::LevelFilter::WARN);
+    tracing_subscriber::fmt()
+        .with_max_level(level)
+        .with_writer(std::io::stderr)
+        .init();
     tauri::Builder::default()
         // Opens links from the text of a block in the system's browser.
         .plugin(tauri_plugin_opener::init())

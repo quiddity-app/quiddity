@@ -20,6 +20,7 @@
 	- A node that lists the app dials it, so only the node needs to be reachable by name. [[Device list]]
 - Settings, as environment variables
 	- `QUIDDITY_NO_SYNC` leaves the network off.
+	- `QUIDDITY_LOG` sets how much the app logs to stderr: a level such as `debug`, warnings by default.
 	- `QUIDDITY_LOCAL` is an address to listen on and nothing else, with no relays or lookup, for two devices on a network or one machine.
 	- `QUIDDITY_PEERS` says where devices are, as `ID=ADDRESS` separated by commas. With no lookup a device can only be dialled where it is told to be, so this is what lets two instances on one machine find each other.
 - Things worth knowing

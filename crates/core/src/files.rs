@@ -17,6 +17,7 @@ use std::path::{Path, PathBuf};
 
 use jiff::civil::Date;
 use quiddity_syntax::{Value, format_property_line};
+use tracing::{debug, instrument, trace, warn};
 
 use crate::merge::is_spent_duplicate;
 use crate::outline::{Indent, export_entity, import_outline, parse_outline};
@@ -29,6 +30,7 @@ pub const SETTINGS: &str = "quiddity.toml";
 
 /// Writes every entity to `dir`, which must be empty or not yet exist.
 /// Returns the number of files written.
+#[instrument(level = "debug", skip(graph), fields(dir = %dir.display()))]
 pub fn export_dir(graph: &Graph, dir: &Path) -> Result<usize> {
     if dir.exists() && fs::read_dir(dir)?.next().is_some() {
         return Err(io::Error::new(
@@ -58,9 +60,11 @@ pub fn export_dir(graph: &Graph, dir: &Path) -> Result<usize> {
             _ => ("entities", file_stem(&info.name)),
         };
         let path = unique_path(&dir.join(sub), &stem, &mut used);
+        trace!(path = %path.display(), "exporting");
         fs::write(path, export_entity(graph, entity)?)?;
         written += 1;
     }
+    debug!(entities = written, "exported");
     Ok(written)
 }
 
@@ -68,7 +72,16 @@ pub fn export_dir(graph: &Graph, dir: &Path) -> Result<usize> {
 /// `journals` directory named for a date (`2026-10-25.md`, or Logseq's
 /// `2026_10_25.md`) become journal pages. A `quiddity.toml` sets the graph's
 /// settings; those it doesn't mention are left as they were.
+#[instrument(level = "debug", skip(graph), fields(dir = %dir.display()))]
 pub fn import_dir(graph: &Graph, dir: &Path) -> Result<Vec<BlockId>> {
+    // Name the directory: the error from reading it doesn't.
+    if !dir.is_dir() {
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("{} is not a directory", dir.display()),
+        )
+        .into());
+    }
     // Read first, so that a mistake in it stops the import before anything
     // has been added.
     let settings = match fs::read_to_string(dir.join(SETTINGS)) {
@@ -84,8 +97,12 @@ pub fn import_dir(graph: &Graph, dir: &Path) -> Result<Vec<BlockId>> {
     let mut files = Vec::new();
     collect_markdown(dir, &mut files)?;
     files.sort();
+    if files.is_empty() {
+        warn!("no Markdown files to import");
+    }
     let mut ids = Vec::new();
     for path in files {
+        trace!(path = %path.display(), "importing");
         let mut outline = parse_outline(&fs::read_to_string(&path)?, indent);
         let stem = path
             .file_stem()
@@ -117,8 +134,10 @@ pub fn import_dir(graph: &Graph, dir: &Path) -> Result<Vec<BlockId>> {
         ids.push(import_outline(graph, &outline, &stem)?);
     }
     if let Some(settings) = settings {
+        debug!("applying the settings");
         graph.apply_settings(&settings)?;
     }
+    debug!(entities = ids.len(), "imported");
     Ok(ids)
 }
 
@@ -130,6 +149,7 @@ fn collect_markdown(dir: &Path, out: &mut Vec<PathBuf>) -> io::Result<()> {
         let name = name.to_string_lossy();
         // Hidden directories, and Logseq's config and backups.
         if name.starts_with('.') || name == "logseq" {
+            trace!(path = %path.display(), "skipping");
             continue;
         }
         if entry.file_type()?.is_dir() {
@@ -215,6 +235,15 @@ fn unique_path(dir: &Path, stem: &str, used: &mut HashSet<String>) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Importing from somewhere that isn't there says where.
+    #[test]
+    fn importing_a_missing_directory_names_it() {
+        let tmp = tempfile::tempdir().unwrap();
+        let missing = tmp.path().join("nothing");
+        let err = import_dir(&Graph::new(), &missing).unwrap_err();
+        assert!(err.to_string().contains(&missing.display().to_string()));
+    }
 
     #[test]
     fn file_stems() {
