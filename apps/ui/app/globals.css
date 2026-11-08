@@ -30,6 +30,20 @@
   --sync-synced: #22c55e; /* green 500 */
   --sync-present: #3b82f6; /* blue 500 */
   --dot-ring: #ffffff;
+  --graph-link: #cbd5e1; /* slate 300 */
+  --graph-node: #0284c7; /* sky 600 */
+  --graph-node-stroke: #0c4a6e; /* sky 900 */
+  --graph-label: #1e293b; /* slate 800 */
+  --selection: rgb(56 189 248 / 0.35); /* sky 400, in the editor */
+
+  /*
+   * What covers what: the right pane when it overlays, the dim layer, the
+   * drawer, and what floats over everything.
+   */
+  --z-pane: 10;
+  --z-scrim: 20;
+  --z-drawer: 30;
+  --z-overlay: 40;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -48,6 +62,10 @@
     --border-control: #475569; /* slate 600 */
     --outline-edit: #64748b; /* slate 500 */
     --dot-ring: #0f172a; /* slate 900 */
+    --graph-link: #475569; /* slate 600 */
+    --graph-node: #38bdf8; /* sky 400 */
+    --graph-node-stroke: #e0f2fe; /* sky 100 */
+    --graph-label: #e2e8f0; /* slate 200 */
   }
 }
 
@@ -72,6 +90,14 @@
   font-weight: 700;
   font-display: swap;
   src: url("./fonts/JetBrainsMonoNL-Bold.woff2") format("woff2");
+}
+
+/*
+ * A layer that floats (the search panel, the link list, an overlaid pane) has
+ * this shadow, as a utility and as a variable for what Tailwind can't reach.
+ */
+@theme static {
+  --shadow-overlay: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
 }
 
 @theme inline {
