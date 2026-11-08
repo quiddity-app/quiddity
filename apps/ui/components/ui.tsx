@@ -14,6 +14,15 @@ export const linkClass = "text-link underline-offset-2 hover:underline";
 export const unresolvedLinkClass =
   "text-link underline decoration-dashed underline-offset-2 hover:decoration-solid";
 
+/** A page's title: the largest type outside an entity, with one space under it. */
+export const pageTitle = "mb-4 text-2xl font-semibold";
+
+/** A section within a page. */
+export const sectionTitle = "mb-2 text-lg font-semibold";
+
+/** A heading inside a section, such as the title of one reference. */
+export const subsectionTitle = "mb-1 font-semibold";
+
 /** A section's small-capitals caption, on the page or in a card. */
 export const sectionHeading = "text-xs font-medium uppercase tracking-wide text-ink-muted";
 
