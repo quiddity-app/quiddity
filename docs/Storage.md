@@ -3,7 +3,7 @@
 	- A graph on disk is a directory, made by `quiddity-node init`. It holds `graph.loro`, the graph's snapshot, and `device.key`, the device's secret key. [[quiddity-node]]
 	- Saving writes the whole snapshot atomically, by writing a new file and renaming it over the old. It records this device in the graph's device list first, and compacts what it writes. [[Compaction]]
 	- [[The shell]] keeps its graph the same way, in the app's data directory, or wherever `QUIDDITY_GRAPH` says. It saves after each batch of updates from the UI.
-- Blobs, the bytes of [[Binaries]], are kept by hash in `blobs/` beside the snapshot, in an [[iroh-blobs]] store. They are not derived and not in the document.
+- Blobs, the bytes of [[Binaries]], are kept by hash in `blobs/` beside the snapshot, in an [[iroh-blobs]] store. They are not derived and not in the document. `unreferenced-blobs.txt` beside them is the node's record of when it first saw each file that nothing refers to, for deleting them.
 - Everything else is derived.
 	- The index, of names and aliases, properties, links and how each resolved, is rebuilt from the document in memory and never synced or stored. [[quiddity-core]]
 	- Full-text search reads every block when asked, from the text the view keeps. [[Text search]]
