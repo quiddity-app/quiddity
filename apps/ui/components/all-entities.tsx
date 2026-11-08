@@ -106,7 +106,7 @@ function List() {
       descending: s.column === column && !s.descending,
     }));
   };
-  const numeric = "px-3 py-1 text-right tabular-nums";
+  const numeric = "px-3 py-1 coarse:py-3 text-right tabular-nums";
   return (
     <>
       <div className="mb-3 flex min-h-8 items-center gap-3" role="toolbar" aria-label="Selected entities">
@@ -139,7 +139,7 @@ function List() {
       <table className="w-full border-collapse text-left">
         <thead>
           <tr className="border-b border-border">
-            <th scope="col" className="w-8 px-3 py-1">
+            <th scope="col" className="w-8 px-3 py-1 coarse:py-3">
               <input
                 ref={everyone}
                 type="checkbox"
@@ -155,7 +155,7 @@ function List() {
                   key={c.key}
                   scope="col"
                   aria-sort={active ? (sort.descending ? "descending" : "ascending") : undefined}
-                  className={`px-3 py-1 font-medium ${c.numeric ? "text-right" : ""}`}
+                  className={`px-3 py-1 coarse:py-3 font-medium ${c.numeric ? "text-right" : ""}`}
                 >
                   <button
                     type="button"
@@ -173,7 +173,7 @@ function List() {
         <tbody>
           {sorted.slice(0, shown).map((e) => (
             <tr key={e.id} className="border-b border-border">
-              <td className="px-3 py-1">
+              <td className="px-3 py-1 coarse:py-3">
                 <input
                   type="checkbox"
                   aria-label={`Select ${e.title}`}
@@ -181,7 +181,7 @@ function List() {
                   onChange={() => toggle(e.id)}
                 />
               </td>
-              <th scope="row" className="px-3 py-1 font-normal">
+              <th scope="row" className="px-3 py-1 coarse:py-3 font-normal">
                 <EntityLink
                   id={e.id}
                   className={linkClass}
@@ -189,15 +189,15 @@ function List() {
                   {e.title}
                 </EntityLink>
               </th>
-              <td className="px-3 py-1 text-ink-secondary">
+              <td className="px-3 py-1 coarse:py-3 text-ink-secondary">
                 {e.tags.map((t) => `#${t}`).join(" ")}
               </td>
               <td className={numeric}>{e.words}</td>
               <td className={numeric}>{e.incoming}</td>
-              <td className="px-3 py-1 whitespace-nowrap">
+              <td className="px-3 py-1 coarse:py-3 whitespace-nowrap">
                 <When seconds={e.created} />
               </td>
-              <td className="px-3 py-1 whitespace-nowrap">
+              <td className="px-3 py-1 coarse:py-3 whitespace-nowrap">
                 <When seconds={e.modified} />
               </td>
             </tr>

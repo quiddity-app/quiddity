@@ -15,6 +15,7 @@
   --ink-secondary: #475569; /* slate 600 */
   --ink-muted: #64748b; /* slate 500: on surface only, it is under 4.5:1 elsewhere */
   --link: #0369a1; /* sky 700 */
+  --focus-ring: var(--link); /* 3:1 or better on every ground, in both themes */
   --danger: #b91c1c; /* red 700 */
   --flag-text: #b45309; /* amber 700 */
   --flag-ring: #f59e0b; /* amber 500 */
@@ -50,6 +51,10 @@
   }
 }
 
+/* For a finger, and for a device that can't hover (docs/Design language.md). */
+@custom-variant coarse (@media (pointer: coarse));
+@custom-variant no-hover (@media (hover: none));
+
 @theme inline {
   --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
   --color-surface: var(--surface);
@@ -81,5 +86,13 @@
   }
   body {
     @apply bg-surface font-sans text-ink antialiased;
+  }
+  /*
+   * Every control shows where the keyboard is, the same way. A field that draws
+   * its own focus (the search box, the editor) says so with its own outline.
+   */
+  :focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
   }
 }
