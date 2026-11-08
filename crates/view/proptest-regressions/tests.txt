@@ -6,3 +6,5 @@
 # everyone who runs the test benefits from these saved cases.
 cc bd9011e38e12a2dc4aa15611501677e648865f0be8d9b9b02a058313b2464906 # shrinks to steps = [Type(Index(0), "alpha ")]
 cc 87ce1b0b6dc470a6a53069a87fa9b32b98ecdfa126340a9fcc3de7a3424e08d2 # shrinks to steps = [Type(Index(0), "alpha "), Indent(Index(4099276460824344804))]
+cc e8d3aafb7a5d62694b2e84b05f60be94c958a6e8e94b4647e9398a1130b9d718 # shrinks to steps = [Look, Type(Index(2049638230412172402), "alpha ")]
+cc bfe9513ad28454d3afa14d8f7f2b510095d6d50909505f0935c0d4f13a1d11bf # shrinks to steps = [Outdent(Index(267257)), Create(Index(500857655772793061), "alpha "), Type(Index(6849068626907076224), "alpha "), Look, Split(Index(7178999602539975728))]

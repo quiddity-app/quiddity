@@ -1872,7 +1872,12 @@ mod revisions {
         v.summaries().unwrap();
         v.connections().unwrap();
         v.search_text("alpha", 5).unwrap();
-        assert_eq!(v.work(), before);
+        let after = v.work();
+        assert_eq!(after.scans, before.scans);
+        assert_eq!(after.index_builds, before.index_builds);
+        // Nor were blocks asked where they were put, or any text but the two typed in.
+        assert_eq!(after.placements_read, before.placements_read);
+        assert_eq!(after.blocks_summed, before.blocks_summed + 2);
         // And it was seen: the new link is a reference.
         let page = id_of(&v, "Page");
         assert_eq!(titles(&v.references(&page).unwrap()), ["Other"]);
@@ -1922,6 +1927,37 @@ mod revisions {
         v.create_block(&page, None, "new").unwrap();
         let hits = v.search_text("typed", 5).unwrap();
         assert_eq!(texts_of(&hits), ["typed alpha"]);
+    }
+
+    #[test]
+    fn summaries_read_only_what_changed() {
+        let Settled { view: v, notes, .. } = settled();
+        let page = id_of(&v, "Page");
+        let mut before = v.work();
+        let mut step = |what: &str, summed: u32, placements: u32| {
+            v.summaries().unwrap();
+            let after = v.work();
+            assert_eq!(
+                after.blocks_summed - before.blocks_summed,
+                summed,
+                "{what}: blocks read"
+            );
+            assert_eq!(
+                after.placements_read - before.placements_read,
+                placements,
+                "{what}: placements"
+            );
+            before = after;
+        };
+        step("asked again", 0, 0);
+        v.splice_text(&notes[0].to_string(), 0, 0, "x").unwrap();
+        step("a block typed in", 1, 0);
+        v.create_block(&page, None, "new").unwrap();
+        step("a block made", 1, 1);
+        assert!(v.indent(&notes[1].to_string()).unwrap());
+        step("a block moved", 0, 1);
+        v.changed();
+        step("an import", 5, 1);
     }
 
     /// The corpus can be brought up to date more than once before the index

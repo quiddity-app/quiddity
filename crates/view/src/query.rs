@@ -13,7 +13,7 @@ use quiddity_core::{BlockId, Home, Identity, Index, Resolution, ensure_journal};
 use serde::Serialize;
 
 use crate::meta::{Inherited, Inverse};
-use crate::{Error, Result, View};
+use crate::{Error, Facts, Result, TextFacts, View};
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -323,6 +323,18 @@ impl View {
         let mut tags: BTreeMap<BlockId, BTreeSet<String>> = BTreeMap::new();
         let index = self.index()?;
         let corpus = self.corpus()?;
+        let mut facts = self.facts.borrow_mut();
+        let Facts {
+            text: texts,
+            placed,
+        } = &mut *facts;
+        let placed = placed.get_or_insert_with(|| {
+            self.count(|w| w.placements_read += 1);
+            corpus
+                .iter()
+                .filter_map(|b| Some((b.id, self.graph.placed_at(b.id)?)))
+                .collect()
+        });
         let mut current = None;
         for scanned in corpus.iter() {
             let block = scanned.id;
@@ -333,7 +345,7 @@ impl View {
                 continue;
             };
             let touched = [
-                self.graph.placed_at(block),
+                placed.get(&block).copied(),
                 activity.edited.get(&block).copied(),
             ];
             if let Some(at) = touched.into_iter().flatten().max() {
@@ -343,12 +355,27 @@ impl View {
             if scanned.parent.is_none() {
                 continue;
             }
-            let text = &scanned.text;
-            if !is_properties_block(text) {
-                *words.entry(entity).or_default() += text.split_whitespace().count();
+            let text = texts.entry(block).or_insert_with(|| {
+                self.count(|w| w.blocks_summed += 1);
+                TextFacts {
+                    words: if is_properties_block(&scanned.text) {
+                        0
+                    } else {
+                        scanned.text.split_whitespace().count()
+                    },
+                    tags: tags_in(&scanned.text),
+                }
+            });
+            if text.words > 0 {
+                *words.entry(entity).or_default() += text.words;
             }
-            tags.entry(entity).or_default().extend(tags_in(text));
+            if !text.tags.is_empty() {
+                tags.entry(entity)
+                    .or_default()
+                    .extend(text.tags.iter().cloned());
+            }
         }
+        drop(facts);
         drop(corpus);
         let rows = self
             .entities()?

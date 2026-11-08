@@ -64,6 +64,7 @@ pub struct View {
     /// Whether a burst of typing is open, as one undo step.
     typing: Cell<bool>,
     activity: RefCell<Activity>,
+    facts: RefCell<Facts>,
 }
 
 /// How much of the expensive work a view has done, for finding out whether an
@@ -74,6 +75,11 @@ pub struct Work {
     pub scans: u32,
     /// Times the index was built from the whole graph.
     pub index_builds: u32,
+    /// Blocks whose text `summaries` has had to read the words and tags of.
+    pub blocks_summed: u32,
+    /// Times `summaries` has had to ask the graph when every block was put
+    /// where it is.
+    pub placements_read: u32,
 }
 
 /// The blocks as [`Graph::scan`] reads them, and what of them is still true.
@@ -130,6 +136,25 @@ struct Activity {
     edited: HashMap<BlockId, Timestamp>,
 }
 
+/// What `summaries` works out of blocks, kept while it is still true: reading
+/// it again for every block is most of what it costs.
+#[derive(Debug, Default)]
+struct Facts {
+    /// By block: what its text says. Dropped when the text may have changed.
+    text: HashMap<BlockId, TextFacts>,
+    /// When each block was last made or moved, for those that were recorded.
+    /// Typing doesn't change it, so it lasts until blocks may have moved.
+    placed: Option<HashMap<BlockId, Timestamp>>,
+}
+
+/// What `summaries` takes from a block's text.
+#[derive(Debug)]
+struct TextFacts {
+    /// Words, or none for a block of nothing but properties.
+    words: usize,
+    tags: Vec<String>,
+}
+
 impl View {
     pub fn new(graph: Graph) -> Result<Self> {
         let view = Self {
@@ -143,6 +168,7 @@ impl View {
             work: Cell::default(),
             typing: Cell::new(false),
             activity: RefCell::default(),
+            facts: RefCell::default(),
         };
         // Built now, not on first use, so that a graph that can't be read is
         // refused here.
@@ -239,6 +265,12 @@ impl View {
                     .map(|b| (b.id, b.text)),
             );
         }
+        {
+            // Keep what was worked out of a text that is still the text.
+            let mut facts = self.facts.borrow_mut();
+            facts.text.retain(|block, _| known.contains_key(block));
+            facts.placed = None;
+        }
         corpus.blocks = self.graph.scan_reusing(&mut known)?;
         self.count(|w| w.scans += 1);
         corpus.at = corpus
@@ -263,6 +295,7 @@ impl View {
                 corpus.all = true;
                 return self.rescan(corpus);
             };
+            self.facts.borrow_mut().text.remove(&block);
             let new = self.graph.text(block)?;
             let old = std::mem::replace(&mut corpus.blocks[at].text, new);
             if let Log::Edited(edits) = &mut corpus.log {

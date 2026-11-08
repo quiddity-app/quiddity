@@ -71,7 +71,12 @@ proptest! {
         let mut model = Model::default();
         let mut ids: Vec<BlockId> = Vec::new();
 
+        let mut ever: Vec<usize> = Vec::new();
         for op in &ops {
+            let before = graph.version();
+            // The blocks this op made or changed the text of, which is what
+            // `text_edits_since` should name.
+            let mut touched: Vec<usize> = Vec::new();
             let live = model.live();
             let pick = |i: &proptest::sample::Index| (!live.is_empty()).then(|| live[i.index(live.len())]);
             match op {
@@ -79,7 +84,11 @@ proptest! {
                     let parent = parent.as_ref().and_then(pick);
                     let at = at.index(model.siblings(parent).len() + 1);
                     let id = graph.create_block(parent.map(|p| ids[p]), Some(at), text).unwrap();
-                    model.create(parent, at, text.clone());
+                    let made = model.create(parent, at, text.clone());
+                    // Making a block with no text writes nothing to its text.
+                    if !text.is_empty() {
+                        touched.push(made);
+                    }
                     ids.push(id);
                 }
                 Op::Move { block, parent, at } => {
@@ -107,6 +116,9 @@ proptest! {
                 Op::SetText { block, text } => {
                     let Some(block) = pick(block) else { continue };
                     graph.set_text(ids[block], text).unwrap();
+                    if model.text[block] != *text {
+                        touched.push(block);
+                    }
                     model.text[block].clone_from(text);
                 }
             }
@@ -126,6 +138,26 @@ proptest! {
                 .map(|b| (b.id, b.parent, b.text))
                 .collect();
             prop_assert_eq!(scanned, expected, "scan after {:?}", op);
+
+            ever.extend(touched.iter().copied());
+            let live: std::collections::BTreeSet<_> = model.live().into_iter().collect();
+            let want: std::collections::BTreeSet<_> =
+                touched.into_iter().filter(|n| live.contains(n)).map(|n| ids[n]).collect();
+            let named: std::collections::BTreeSet<_> =
+                graph.text_edits_since(&before).unwrap().into_iter().map(|(b, _)| b).collect();
+            prop_assert_eq!(named, want, "text edits after {:?}", op);
+
+            // And over the whole history at once, where a block edited and
+            // then deleted must not be named.
+            let ever_live: std::collections::BTreeSet<_> =
+                ever.iter().filter(|n| live.contains(n)).map(|&n| ids[n]).collect();
+            let since_start: std::collections::BTreeSet<_> = graph
+                .text_edits_since(&quiddity_core::Version::default())
+                .unwrap()
+                .into_iter()
+                .map(|(b, _)| b)
+                .collect();
+            prop_assert_eq!(since_start, ever_live, "text edits since the start after {:?}", op);
         }
     }
 }
