@@ -53,12 +53,17 @@ Pages as the UI showing its own documentation (see
   line** if nothing before the `::` stops it being a key (a `:`, `#`, bracket
   or parenthesis does), and is drawn as a chip. Word such lines so one comes
   first.
-- **Add a journal entry** in `docs/journals/YYYY-MM-DD.md` for the day's work,
-  or add to the day's entry if it exists: what changed and why, and what the
-  next person should know, linking to the pages it touches. The format is the
-  Markdown outline of the text export: `- ` bullets, children indented with a
-  tab.
-- Check it imports and builds with `mise run docs`.
+- **Add a journal entry in the commit message**, not in `docs/journals/`:
+  those files are made from commit messages by `scripts/journals.mjs`, and a
+  scheduled job saves them, so that changes don't conflict over the day's
+  file. Put a `Journal:` block after the prose, with a blank line either
+  side: `- ` bullets, children indented with a tab, saying what changed and
+  why and what the next person should know, linking to the pages it touches.
+  If the PR is squashed, keep the block in the squash message. Don't edit
+  `docs/journals/` by hand, except to correct a saved day. The format is in
+  [Journal entries](docs/Journal%20entries.md).
+- Check it imports and builds with `mise run docs`. The scripts in `scripts/`
+  are tested with `mise run test:scripts`.
 
 ## Testing
 

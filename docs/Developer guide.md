@@ -26,4 +26,4 @@ favourite:: true
 	- [[Binaries]]: files in the graph, partly built.
 - This site
 	- [[Publishing]]: how CI builds it, and [[Static build]], what that asks of the UI.
-	- Each day's work has a [[Journal]] entry.
+	- Each day's work has a [[Journal]] entry, written in commit messages: [[Journal entries]].
