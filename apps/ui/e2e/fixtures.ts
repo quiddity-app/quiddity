@@ -16,6 +16,10 @@ declare global {
   interface Window {
     __quiddityRemote?: {
       createEntity(name: string): void;
+      /** A file another device has the bytes of, and this one doesn't. */
+      createAsset(name: string, hash: string, mime: string, size: number): void;
+      /** The hashes of the files the page has kept. */
+      kept: string[];
       /** The blocks the page last said it was editing. */
       focus: string[];
       /** What each push said it was typing in. */

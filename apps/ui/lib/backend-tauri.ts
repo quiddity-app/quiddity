@@ -28,6 +28,12 @@ export const tauriBackend: Backend = {
     channel.onmessage = onStatus;
     await invoke("subscribe_status", { channel });
   },
+  async putBlob(bytes) {
+    return await invoke<string>("put_blob", bytes);
+  },
+  async getBlob(hash) {
+    return new Uint8Array(await invoke<ArrayBuffer>("get_blob", { hash }));
+  },
   /** What other devices change arrives on a channel, as raw bytes. */
   async subscribe(onUpdates) {
     const channel = new Channel<ArrayBuffer>();

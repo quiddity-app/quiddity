@@ -93,6 +93,10 @@ let started: Uint8Array | undefined;
  * shell's updates do. */
 interface Remote {
   createEntity(name: string): void;
+  /** A file another device has the bytes of, and this one doesn't. */
+  createAsset(name: string, hash: string, mime: string, size: number): void;
+  /** The hashes of the files this page has kept. */
+  kept: string[];
   /** The blocks the page last said it was editing. */
   focus: string[];
   /** What each push said it was typing in. */
@@ -101,6 +105,16 @@ interface Remote {
   allowed: string[];
   /** Plays the shell telling the page how this device stands. */
   setStatus(status: SyncState): void;
+}
+
+/** Files kept for the life of the page, by hash. The hash is SHA-256, not the
+ * BLAKE3 the app uses: nothing here is shared with a device that would check,
+ * and the browser has no BLAKE3. It has the same shape. */
+const files = new Map<string, Uint8Array>();
+
+async function hashOf(bytes: Uint8Array): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", bytes as BufferSource);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 export const memoryBackend: Backend = {
@@ -136,6 +150,17 @@ export const memoryBackend: Backend = {
     remote().setStatus = onStatus;
     onStatus("alone");
   },
+  async putBlob(bytes) {
+    const hash = await hashOf(bytes);
+    files.set(hash, bytes);
+    remote().kept.push(hash);
+    return hash;
+  },
+  async getBlob(hash) {
+    const bytes = files.get(hash);
+    if (!bytes) throw new Error(`no file with hash ${hash} on this device yet`);
+    return bytes;
+  },
   async subscribe(onUpdates) {
     // A blank page's other device is the one with the graph, which it sends
     // whole with the first thing it makes.
@@ -148,6 +173,11 @@ export const memoryBackend: Backend = {
         onUpdates(before ? other.exportUpdates(before) : other.snapshot());
         before = other.version();
       },
+      createAsset(name: string, hash: string, mime: string, size: number) {
+        const before = other.version();
+        other.createAsset(hash, mime, BigInt(size), name);
+        onUpdates(other.exportUpdates(before));
+      },
     });
   },
 };
@@ -157,6 +187,8 @@ function remote(): Remote {
   const w = window as unknown as { __quiddityRemote?: Remote };
   w.__quiddityRemote ??= {
     createEntity() {},
+    createAsset() {},
+    kept: [],
     focus: [],
     typed: [],
     allowed: [],
