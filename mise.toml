@@ -2,7 +2,7 @@
 [tools]
 rust = { version = "1.99.1", profile = "default", targets = "wasm32-unknown-unknown" }
 node = "22"
-pnpm = "12.17.0"
+pnpm = "12.18.0"
 jj = "0.47.1"
 pinact = "5.0.2"
 # Must match the wasm-bindgen crate, which crates/wasm pins.
