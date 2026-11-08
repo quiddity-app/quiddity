@@ -123,6 +123,25 @@ async fn allow_device(state: Shared<'_>, device: String) -> Result<(), Error> {
     state.lock().expect("session lock poisoned").allow(&device)
 }
 
+/// Keeps the bytes of a file, the request body, and returns their hash. The
+/// UI then says in the graph what the file is, as it does any edit.
+#[tauri::command]
+async fn put_blob(state: Shared<'_>, request: Request<'_>) -> Result<String, Error> {
+    let InvokeBody::Raw(bytes) = request.body() else {
+        return Err(Error::NotBytes);
+    };
+    let session = state.lock().expect("session lock poisoned").clone();
+    session.put_blob(bytes.clone()).await
+}
+
+/// The bytes of a file the graph names, by hash, as raw bytes. The UI shows
+/// them from an object URL.
+#[tauri::command]
+async fn get_blob(state: Shared<'_>, hash: String) -> Result<Response, Error> {
+    let session = state.lock().expect("session lock poisoned").clone();
+    Ok(Response::new(session.blob(&hash).await?))
+}
+
 /// Puts the session on the network, and keeps it saved as other devices
 /// change it. `QUIDDITY_NO_SYNC` leaves it off, and `QUIDDITY_LOCAL` (an
 /// address) keeps it to that address, with no relays or lookup: for trying
@@ -190,6 +209,11 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let session = Session::open(&graph_dir(app)?)?;
+            // Before the network, which gives and fetches what this keeps. A
+            // store that won't open leaves the app without binaries, no more.
+            if let Err(e) = tauri::async_runtime::block_on(session.keep_blobs()) {
+                warn!(error = %e, "not keeping binaries");
+            }
             start_network(&session);
             app.manage(Mutex::new(session));
             Ok(())
@@ -201,7 +225,9 @@ pub fn run() {
             subscribe_updates,
             subscribe_status,
             device_id,
-            allow_device
+            allow_device,
+            put_blob,
+            get_blob
         ])
         .run(tauri::generate_context!())
         .expect("error while running the Quiddity app");
