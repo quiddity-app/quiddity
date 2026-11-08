@@ -59,9 +59,11 @@ test("a link left dangling makes its entity when followed", async ({ page }) => 
   // Undo takes the entity away again, leaving the link to nowhere.
   await page.keyboard.press("Control+z");
   const outline = page.locator("main article > ul");
-  await expect(outline.getByRole("link", { name: "Gone" })).toHaveCount(0);
-  const dangling = outline.getByRole("button", { name: "Gone" });
-  await expect(dangling).toHaveAttribute("title", /No such entity/);
+  // It is a link like any other, to assistive technology and to the eye.
+  const dangling = outline.getByRole("link", { name: "Gone" });
+  await expect(dangling).toHaveAttribute("href", "#");
+  await expect(dangling).toHaveClass(/text-link/);
+  await expect(dangling).not.toHaveClass(/dashed/);
   await dangling.click();
   await expect(page.getByRole("heading", { name: "Gone", level: 1 })).toBeVisible();
 });

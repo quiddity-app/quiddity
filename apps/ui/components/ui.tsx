@@ -10,10 +10,6 @@ import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react
 /** A link: the link colour, underlined on hover. */
 export const linkClass = "text-link underline-offset-2 hover:underline";
 
-/** A link to somewhere that doesn't exist yet: dashed, solid on hover. */
-export const unresolvedLinkClass =
-  "text-link underline decoration-dashed underline-offset-2 hover:decoration-solid";
-
 /** A page's title: the largest type outside an entity, with one space under it. */
 export const pageTitle = "mb-4 text-2xl font-semibold";
 

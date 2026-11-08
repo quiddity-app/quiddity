@@ -6,7 +6,7 @@ import { useGraph } from "@/lib/use-graph";
 import type { Property, PropertyValue, ResolvedLink } from "@/lib/model";
 import { EntityLink } from "./entity-link";
 import { useView } from "./use-view";
-import { linkClass, unresolvedLinkClass } from "./ui";
+import { linkClass } from "./ui";
 
 const unresolved = "cursor-help underline decoration-dashed underline-offset-2";
 
@@ -68,17 +68,18 @@ function NewEntityLink({
   const view = useView();
   const router = useRouter();
   return (
-    <button
-      type="button"
-      className={unresolvedLinkClass}
-      title={`No such entity yet. Open it to make it.${qualifiers ? ` ${qualifiers}` : ""}`}
+    <a
+      href="#"
+      className={linkClass}
+      title={qualifiers || undefined}
       onClick={(e) => {
+        e.preventDefault();
         const id = graph.followLink(linkKey);
         router.push(e.shiftKey ? view.toSide(id) : view.toMain(id));
       }}
     >
       {name}
-    </button>
+    </a>
   );
 }
 
@@ -161,17 +162,17 @@ function PropertyKey({
   }
   // Nobody has defined it yet, so following it does.
   return (
-    <button
-      type="button"
-      className={`${className} underline decoration-dashed underline-offset-2 hover:decoration-solid`}
-      title="Not defined yet. Open it to define it."
+    <a
+      href="#"
+      className={`${className} hover:underline`}
       onClick={(e) => {
+        e.preventDefault();
         const id = graph.defineProperty(property.key);
         router.push(e.shiftKey ? view.toSide(id) : view.toMain(id));
       }}
     >
       {children}
-    </button>
+    </a>
   );
 }
 
