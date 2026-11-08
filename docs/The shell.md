@@ -4,6 +4,7 @@ alias:: [shell, apps/app]
 - Two commands carry the graph, both raw bytes: `load_graph` returns a snapshot, and `push_updates` imports [[Loro]] updates from the UI, saves and sends them on.
 - `subscribe_status` takes a channel and sends the UI how this device stands with the others, each time it changes. [[Sync status]]
 - `subscribe_updates` takes a channel and sends the UI, as raw bytes, whatever other devices have changed since it was last told. The UI imports it. [[App sync]]
+- It keeps the bytes of [[Binaries]] too. `put_blob` takes a file as the request body and returns its hash; `get_blob` takes a hash and returns the bytes. The UI says in the graph what a file is, as an edit like any other, so the shell never edits the graph for it. The store is opened before the app goes on the network, so the app gives blobs to the devices that may connect and fetches those the graph names. If it won't open, the app runs without binaries and says so. [[Blob transfer]]
 - It holds a `Peer` from [[quiddity-node]] and puts it on the network when the app starts. `device_id` and `allow_device` let devices meet, and the Devices page calls them. [[Add a device]] [[App sync]]
 - `set_focus` takes the block being edited, and `push_updates` may name the blocks its updates were typed in (an `x-typed` header). The shell passes both to the peer, which holds typing back from devices that can't see it. [[Publish gate]]
 - It opens the one graph in the app's data directory, or the directory `QUIDDITY_GRAPH` names. [[Storage]]

@@ -8,7 +8,7 @@ holds its own replica and answers its own queries (see `apps/ui` and
   because it needs Tauri's system packages (webkit) that the core's CI
   shouldn't. It has its own `Cargo.lock`, its own CI job, and its own
   `cargo fmt`, `clippy` and `test` runs (from `src-tauri`).
-- **Six commands.** `load_graph` returns a snapshot and `push_updates`
+- **Nine commands.** `load_graph` returns a snapshot and `push_updates`
   takes Loro updates as the request body, imports them, saves and sends them
   to other devices, both as raw bytes rather than JSON arrays. Updates that
   arrive out of order are held by Loro until their causes do.
@@ -20,12 +20,20 @@ holds its own replica and answers its own queries (see `apps/ui` and
   the others (`Session::sync_state`) each time it changes.
   `subscribe_updates` is below. `device_id` and `allow_device` are for letting
   another device in (see `docs/App sync.md`); the Devices page calls them.
+  `put_blob` takes a file as the request body and returns its hash, and
+  `get_blob` returns the bytes for a hash: the shell only keeps bytes, and the
+  UI says in the graph what a file is, with an `##asset` line, as an ordinary
+  edit pushed with `push_updates`.
 - **The shell's graph is a `quiddity_node::Peer`, on the network from
   `setup`.** `start_network` binds an endpoint, serves the peer, dials the
   devices the graph lists and saves a moment after any change. It never
   blocks startup: a failure is logged and the app runs without sync.
   `QUIDDITY_NO_SYNC` turns it off and `QUIDDITY_LOCAL` keeps it to one
   address. `QUIDDITY_LOG` sets the log level (default warnings).
+  **`Session::keep_blobs` must come before `serve`**: `serve` offers and
+  fetches blobs only if the peer already has a store, and nothing says so if
+  it doesn't. A store that won't open is logged as a warning and the app
+  runs without binaries.
 - **Changes from other devices reach the UI on a channel.**
   `subscribe_updates` takes a `Channel` and sends raw bytes: the graph's
   updates since what the UI is known to have (`Session::ui_updates`). That
