@@ -9,4 +9,4 @@ alias:: journals
 	- If two devices each make the same day's journal before they sync, the two are merged into one. [[Duplicates]]
 - In the references at the foot of a page, journals come first, newest first. [[Links]]
 - Importing a directory turns files in `journals/` named `2026-10-25.md`, or [[Logseq]]'s `2026_10_25.md`, into journals. [[Export and import]]
-- This documentation has journals too: an entry for each day's work on Quiddity.
+- This documentation has journals too: an entry for each day's work on Quiddity, which people write in commit messages and a job saves here. [[Journal entries]]

@@ -18,9 +18,15 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       with:
+        # The journals are written from the commit messages since the last one
+        # saved, so they need the history.
+        fetch-depth: 0
         persist-credentials: false
     - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
     - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
@@ -36,6 +42,11 @@ jobs:
       with:
         tool: wasm-bindgen@0.2.130
     - run: pnpm install --frozen-lockfile
+    # Journal entries live in commit messages until the Journals workflow saves
+    # them; this writes the days it hasn't yet, today's included.
+    - run: node scripts/journals.mjs
+      env:
+        GH_TOKEN: ${{ github.token }}
     # Import docs/ into a graph with the headless node...
     - run: cargo run --locked -p quiddity-node -- -g "$RUNNER_TEMP/graph" init
     - run: cargo run --locked -p quiddity-node -- -g "$RUNNER_TEMP/graph" import docs

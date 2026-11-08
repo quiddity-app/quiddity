@@ -1,0 +1,70 @@
+name: Journals
+
+# Journal entries are written in commit messages, so that changes don't
+# conflict over the day's file. This saves them into docs/journals once the
+# day is over, through a pull request that is set to merge itself, since main
+# can't be pushed to. See docs/Journal entries.md.
+
+on:
+  schedule:
+  # Just after midnight UTC, when the day before is complete.
+  - cron: "10 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: journals
+  cancel-in-progress: false
+
+jobs:
+  save:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      with:
+        ref: main
+        fetch-depth: 0
+        # The push at the end uses the credentials the checkout keeps.
+        token: ${{ secrets.ROLLUP_TOKEN || github.token }}
+        persist-credentials: true
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+      with:
+        node-version: 22
+    # Never today's: the day isn't over, and more may land before it is.
+    - run: node scripts/journals.mjs --exclude-today
+      env:
+        GH_TOKEN: ${{ github.token }}
+    - name: Open a pull request
+      env:
+        # GITHUB_TOKEN's pull requests get their checks only once someone
+        # approves the runs. A ROLLUP_TOKEN (a GitHub App's or a personal
+        # access token) gets them straight away, so use it when it's set.
+        GH_TOKEN: ${{ secrets.ROLLUP_TOKEN || github.token }}
+      run: |
+        if [ -z "$(git status --porcelain docs/journals)" ]; then
+          echo "Nothing new to save"
+          exit 0
+        fi
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git add docs/journals
+        # The subject is what scripts/journals.mjs recognises and leaves out.
+        last=$(git diff --cached --name-only | sed 's|.*/||; s|\.md$||' | sort | tail -1)
+        git commit -m "Roll up journal entries up to $last" \
+          -m "Saved from the commit messages by the Journals workflow."
+        # One branch, replaced each night: a pull request that hasn't merged
+        # yet is updated to cover the new days rather than left to conflict.
+        git push --force origin HEAD:refs/heads/journals/roll-up
+        if [ -z "$(gh pr list --head journals/roll-up --state open --json number --jq '.[].number')" ]; then
+          gh pr create --base main --head journals/roll-up \
+            --title "Roll up journal entries up to $last" \
+            --body "Saved from the commit messages by the Journals workflow."
+        fi
+        # Main uses a merge queue, so this queues the pull request once its
+        # checks pass rather than merging at once.
+        gh pr merge journals/roll-up --auto --rebase

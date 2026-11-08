@@ -1,0 +1,23 @@
+- Journal entries are written in the commit message, not in `docs/journals/`, and a scheduled job saves them into the repository once the day is over. Almost every change wanted the same day's file, so almost every change conflicted. [[Journal]]
+- Writing one
+	- Put a `Journal:` block in the commit message, after the prose and before the trailers, with a blank line either side.
+	- ```
+	  Journal:
+	  - Moved blobs between devices. [[Blob transfer]]
+	  	- A child is indented with a tab, as in any page.
+	  ```
+	- The block is the lines after `Journal:` that begin `- ` or are indented, up to the first blank line or any other line. It must start with a bullet. It is an outline like any page, so link the pages it touches, and say what changed, why, and what the next person should know.
+	- A change that matters to a day's story has one; a change that doesn't may leave it out, and still appears in the day's page with its title and link.
+	- If the pull request is squashed on merge, make sure the squash message keeps the block.
+- What the script makes
+	- `scripts/journals.mjs` writes `docs/journals/YYYY-MM-DD.md` for each day after the newest file there that has commits on `main`.
+	- Each commit is a top-level bullet: the pull request's title and link, with the commit's journal block indented under it. Commits are in the order they landed.
+	- The title and link come from a `(#123)` on the subject, else from GitHub's API for the pull requests that contain the commit (needs `GH_TOKEN`), else the commit itself.
+	- A day is the UTC date a commit was committed, which on `main` is the day it landed. A day is never written again once it has a file.
+	- The roll-up's own commits, subject `Roll up journal entries`, are left out.
+- Where it runs
+	- The Pages workflow runs it before importing `docs/`, so the site shows entries as soon as a change lands, today's included. [[Publishing]]
+	- The Journals workflow (`.github/workflows/journals.yml`) runs just after midnight UTC and opens a pull request, set to merge itself, with the days before today. Today's is left, since more may land. `main` can't be pushed to, so it is a pull request; a new night replaces the branch of one that hasn't merged. [[GitHub Pages]]
+	- The pull request is made with the workflow's own token, which needs "Allow GitHub Actions to create and approve pull requests" turned on. Checks on a pull request made that way wait for someone with write access to select "Approve workflows to run", so it merges only once they have. Setting the `ROLLUP_TOKEN` secret to a GitHub App's or personal access token makes the checks start by themselves.
+	- `mise run docs` runs it too, so a local build shows them. Without `GH_TOKEN` entries link to commits rather than pull requests.
+- Not built: a check that a pull request's block parses. It would show only in the next day's page if it didn't.

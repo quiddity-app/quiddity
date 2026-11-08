@@ -60,6 +60,7 @@ depends = ["setup", "doctor"]
 # The scratch graph is rebuilt each time so that removed pages don't linger.
 run = """
 rm -rf target/docs-graph
+node scripts/journals.mjs
 cargo run -p quiddity-node -- -g target/docs-graph init
 cargo run -p quiddity-node -- -g target/docs-graph import docs
 QUIDDITY_STATIC_GRAPH=$PWD/target/docs-graph pnpm ui build
@@ -99,6 +100,10 @@ run = [
   "pnpm ui test:e2e",
 ]
 
+[tasks."test:scripts"]
+description = "Test the scripts in scripts/ (the journal roll-up)"
+run = "node --test scripts/journals.test.mjs"
+
 [tasks.check]
 description = "Everything CI checks, apart from fuzzing and mutation testing"
-depends = ["fmt:check", "lint", "test", "typecheck", "e2e"]
+depends = ["fmt:check", "lint", "test", "test:scripts", "typecheck", "e2e"]
