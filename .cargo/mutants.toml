@@ -8,3 +8,8 @@ gitignore = true
 # The WASM glue returns JavaScript values, so it only runs in a browser. What
 # it wraps (quiddity-view) is tested and mutation-tested natively.
 exclude_globs = ["crates/wasm/**"]
+
+# The non-Unix `wait_for_stop` is compiled out on every platform CI runs on, so
+# no test can notice it being replaced. The Unix one has the same name, but the
+# SIGUSR1 CLI test kills the mutant: the server would exit before it exported.
+exclude_re = ["replace wait_for_stop -> anyhow::Result<\\(\\)> with Ok\\(\\(\\)\\)"]

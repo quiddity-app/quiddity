@@ -3,7 +3,7 @@
 
 use std::collections::HashSet;
 use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::Duration;
 
@@ -14,7 +14,7 @@ use quiddity_core::files::{export_dir, import_dir};
 use quiddity_core::{Index, merge_duplicates};
 use quiddity_node::store::Store;
 use quiddity_node::{Allowed, NetError, Peer, allow_device};
-use tracing::debug;
+use tracing::{debug, error, warn};
 
 #[derive(Parser, Debug)]
 #[command(version, about)]
@@ -56,6 +56,11 @@ enum Command {
         /// Allow any device to connect.
         #[arg(long, conflicts_with = "allow")]
         allow_any: bool,
+        /// Write the graph as Markdown to this directory, replacing what is
+        /// there, whenever the process receives SIGUSR1: for a backup to take
+        /// while the node runs.
+        #[arg(long, value_name = "DIR")]
+        export: Option<PathBuf>,
         #[command(flatten)]
         net: Net,
     },
@@ -108,6 +113,50 @@ async fn main() -> ExitCode {
     }
 }
 
+/// Replaces `dir` with an export of the graph. It is written beside `dir` and
+/// then swapped in, so `dir` is never seen half-written; only the moment
+/// between removing the old one and renaming the new one has no `dir`.
+fn export_replacing(peer: &Peer, dir: &Path) -> anyhow::Result<usize> {
+    let mut staging = dir.as_os_str().to_owned();
+    staging.push(".new");
+    let staging = PathBuf::from(staging);
+    if staging.exists() {
+        std::fs::remove_dir_all(&staging)?;
+    }
+    let written = export_dir(peer.graph(), &staging)?;
+    if dir.exists() {
+        std::fs::remove_dir_all(dir)?;
+    }
+    std::fs::rename(&staging, dir)?;
+    Ok(written)
+}
+
+/// Waits for Ctrl-C. With `export`, SIGUSR1 meanwhile writes an export there
+/// and says so on stdout, which is how a caller that sent the signal knows
+/// the export is complete.
+#[cfg(unix)]
+async fn wait_for_stop(peer: &Peer, export: Option<&Path>) -> anyhow::Result<()> {
+    use tokio::signal::unix::{SignalKind, signal};
+    let mut usr1 = signal(SignalKind::user_defined1())?;
+    loop {
+        tokio::select! {
+            result = tokio::signal::ctrl_c() => return Ok(result?),
+            _ = usr1.recv() => match export {
+                Some(dir) => match export_replacing(peer, dir) {
+                    Ok(written) => println!("exported {written} entities to {}", dir.display()),
+                    Err(e) => error!(error = %e, "export failed"),
+                },
+                None => warn!("SIGUSR1 ignored: serve was not given --export"),
+            },
+        }
+    }
+}
+
+#[cfg(not(unix))]
+async fn wait_for_stop(_peer: &Peer, _export: Option<&Path>) -> anyhow::Result<()> {
+    Ok(tokio::signal::ctrl_c().await?)
+}
+
 async fn run(cli: Cli) -> anyhow::Result<()> {
     debug!(graph = %cli.graph.display(), command = ?cli.command, "running");
     let store = Store::new(cli.graph);
@@ -155,6 +204,7 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
         Command::Serve {
             allow,
             allow_any,
+            export,
             net,
         } => {
             let me = store.key()?.public().to_string();
@@ -182,7 +232,7 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
                 None => println!("serving {}", endpoint.id()),
             }
             quiddity_node::save_on_change(peer.clone(), store.clone());
-            tokio::signal::ctrl_c().await?;
+            wait_for_stop(&peer, export.as_deref()).await?;
             self::net(server.shutdown().await)?;
             store.save(peer.graph())?;
         }

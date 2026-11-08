@@ -8,7 +8,8 @@ alias:: headless node
 	- `init` makes a graph, or with `--blank` an empty replica to sync an existing one into. `id` prints this device's ID.
 	- `import` and `export` read and write Markdown. [[Export and import]]
 	- `allow` lists a device in the graph, so it may connect, and `devices` lists the devices holding the graph with when each last saved. [[Device list]]
-	- `serve` keeps the graph online until interrupted, and `sync` syncs with one device until neither has anything more to send.
+	- `serve` keeps the graph online until interrupted. With `--export DIR`, SIGUSR1 writes the running graph to `DIR` as Markdown, replacing what is there: the pre-backup hook for something like Home Assistant's online backups. [[Export and import]]
+	- `sync` syncs with one device until neither has anything more to send.
 - Logging
 	- The crates log with `tracing`; only the binaries install a subscriber, which writes to stderr. What a command reports (`imported 2 entities`, an ID, the device list) is its output and goes to stdout whatever the log level, so `-q` never hides it.
 	- `quiddity-node` takes `-v` and `-q`: warnings by default, `-v` adds info, `-vv` debug and `-vvv` trace. At `-v` the connections coming and going are logged; at `-vv` the store and import and export, with the directory they work on. [[Loro]] logs at info too, so `-v` is noisy while saving.

@@ -10,6 +10,11 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
   Devices don't have to merge for themselves to get the result.
 - **`serve` saves as changes arrive**, not only on Ctrl-C. The CLI test
   kills the server outright to check that.
+- **`serve --export DIR` exports on SIGUSR1** (unix), from the live graph in
+  memory, into `DIR.new` and then swapped over `DIR`. It prints
+  `exported N entities to DIR` when done: the signal can't report that, so
+  callers wait for the line. Without `--export` the signal is logged and
+  ignored (the default action would kill the process).
 - `Store::save` is atomic (write then rename). The device key is created
   once with mode 0600; an unreadable key is reported, never replaced.
 - **Saving records and compacts.** `Store::save` records this device (its
