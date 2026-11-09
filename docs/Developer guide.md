@@ -4,6 +4,7 @@ favourite:: true
 - Start here
 	- [[Design]]: the goals, the decisions and the open questions.
 	- [[Architecture]]: the app, the headless node and the crates.
+	- [[Model redesign]]: planned changes to tags, properties, `##`, blobs and the properties block.
 	- [[Running the app]], [[Testing]] and [[Nightly builds]].
 	- [[Performance]]: what costs time in a large graph, and what is still to do.
 - The parts
