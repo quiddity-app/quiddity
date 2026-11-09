@@ -214,10 +214,10 @@ fn meta_property(text: &str, m: &MetaProperty) -> Property {
     Property {
         definition: None,
         key: m.key.clone(),
-        value: m
-            .parameter
-            .as_ref()
-            .map(|p| PropertyValue::Text { text: p.clone() }),
+        value: match (&m.value, &m.parameter) {
+            (Some(v), _) => Some(property_value(v)),
+            (None, p) => p.as_ref().map(|p| PropertyValue::Text { text: p.clone() }),
+        },
         inline: false,
         start: utf16_at(text, m.span.start),
         end: utf16_at(text, m.span.end),

@@ -8,9 +8,9 @@ use proptest::collection::vec;
 use proptest::option;
 use proptest::prelude::*;
 use quiddity_syntax::{
-    Link, PropertyStyle, Qualifier, Query, Value, format_inline_property, format_meta_line,
-    format_property_line, format_query, is_properties_block, parse_block, parse_meta_line,
-    parse_property_line, parse_query,
+    Link, PropertyStyle, Qualifier, Query, Value, format_meta_line, format_meta_value_line,
+    format_property_line, format_query, format_tag, is_properties_block, parse_block,
+    parse_meta_line, parse_meta_value_line, parse_property_line, parse_query,
 };
 
 /// Text weighted towards the characters that mean something to the parser.
@@ -64,7 +64,7 @@ fn value() -> impl Strategy<Value = Value> {
 #[derive(Debug, Clone)]
 enum Fragment {
     Prose(String),
-    Inline(String, Option<Value>),
+    Tag(String),
 }
 
 /// One line of a block: either a property line, or prose with inline
@@ -78,7 +78,7 @@ enum Line {
 fn line() -> impl Strategy<Value = Line> {
     let fragment = prop_oneof![
         "[A-Za-z][A-Za-z .,!?]{0,10}".prop_map(Fragment::Prose),
-        (inline_key(), option::of(value())).prop_map(|(k, v)| Fragment::Inline(k, v)),
+        inline_key().prop_map(Fragment::Tag),
     ];
     prop_oneof![
         (line_key(), option::of(value())).prop_map(|(k, v)| Line::Property(k, v)),
@@ -88,32 +88,30 @@ fn line() -> impl Strategy<Value = Line> {
 
 proptest! {
     #[test]
-    fn inline_properties_round_trip(key in inline_key(), value in option::of(value())) {
-        let src = format_inline_property(&key, value.as_ref());
+    fn tags_round_trip(key in inline_key()) {
+        let src = format_tag(&key);
         let block = parse_block(&src);
         prop_assert_eq!(block.properties.len(), 1, "{}", src);
         let p = &block.properties[0];
         prop_assert_eq!(&p.key, &key);
-        prop_assert_eq!(&p.value, &value);
+        prop_assert_eq!(&p.value, &None);
+        prop_assert_eq!(p.style, PropertyStyle::Inline);
         prop_assert_eq!(p.span.clone(), 0..src.len());
+        prop_assert!(block.links.is_empty(), "{}", src);
+    }
 
-        // References come from the value's structure: links and block refs
-        // at the top level or in a list, but not inside text or qualifiers.
-        let (mut links, mut refs) = (Vec::new(), Vec::new());
-        let items = match &value {
-            Some(Value::List(items)) => items.clone(),
-            Some(v) => vec![v.clone()],
-            None => Vec::new(),
-        };
-        for item in items {
-            match item {
-                Value::Link(l) => links.push(l),
-                Value::BlockRef(id) => refs.push(id),
-                _ => {}
-            }
-        }
-        prop_assert_eq!(&block.links, &links, "{}", src);
-        prop_assert_eq!(&block.block_refs, &refs, "{}", src);
+    /// Whatever follows a tag is text, so it changes nothing about the tag. A
+    /// delimiter comes first because key characters would extend a bare key.
+    #[test]
+    fn a_tag_ignores_what_follows(
+        key in inline_key(),
+        gap in prop_oneof![Just(" "), Just("(")],
+        after in any_text(),
+    ) {
+        let tag = format_tag(&key);
+        let block = parse_block(&format!("{tag}{gap}{after}"));
+        let first = &block.properties[0];
+        prop_assert_eq!((&first.key, first.span.clone()), (&key, 0..tag.len()));
     }
 
     #[test]
@@ -123,7 +121,7 @@ proptest! {
         prop_assert_eq!(parse_property_line(&line), Some((key, value)), "{}", line);
     }
 
-    /// Properties are found in context: among prose, next to each other, and
+    /// Properties and tags are found in context: among prose, next to each other, and
     /// on separate lines, with spans pointing at exactly what was written.
     #[test]
     fn properties_in_context(lines in vec(line(), 1..5), tight in any::<bool>()) {
@@ -136,16 +134,13 @@ proptest! {
             match line {
                 Line::Property(key, value) => {
                     let written = format_property_line(key, value.as_ref());
-                    // Without a value it's written `#key`, which in a block
-                    // is an inline property like any other.
-                    let style = if value.is_some() { PropertyStyle::Line } else { PropertyStyle::Inline };
-                    expected.push((key.clone(), value.clone(), style, written.clone()));
+                    expected.push((key.clone(), value.clone(), PropertyStyle::Line, written.clone()));
                     text.push_str(&written);
                 }
                 Line::Mixed(fragments) => {
                     let mut prev_inline = false;
                     for (j, fragment) in fragments.iter().enumerate() {
-                        let is_inline = matches!(fragment, Fragment::Inline(..));
+                        let is_inline = matches!(fragment, Fragment::Tag(..));
                         // Inline properties may abut each other; anything
                         // else needs a space.
                         if j > 0 && !(tight && prev_inline && is_inline) {
@@ -153,9 +148,9 @@ proptest! {
                         }
                         match fragment {
                             Fragment::Prose(s) => text.push_str(s),
-                            Fragment::Inline(key, value) => {
-                                let written = format_inline_property(key, value.as_ref());
-                                expected.push((key.clone(), value.clone(), PropertyStyle::Inline, written.clone()));
+                            Fragment::Tag(key) => {
+                                let written = format_tag(key);
+                                expected.push((key.clone(), None, PropertyStyle::Inline, written.clone()));
                                 text.push_str(&written);
                             }
                         }
@@ -233,6 +228,23 @@ proptest! {
         prop_assert_eq!(block.meta[0].span.clone(), at..text.len());
         let links: Vec<Link> = q.iter().flat_map(|q| q.links()).cloned().collect();
         prop_assert!(block.links.ends_with(&links), "{}", text);
+    }
+}
+
+proptest! {
+    /// A `##key:: value` line reads back, alone and in a block, with the links
+    /// in its value counted as the block's.
+    #[test]
+    fn meta_value_lines_round_trip(key in inline_key(), value in value()) {
+        let line = format_meta_value_line(&key, Some(&value));
+        prop_assert!(!line.contains(['\n', '\r']), "{:?}", line);
+        prop_assert_eq!(parse_meta_value_line(&line), Some((key.clone(), Some(value))), "{}", line);
+        prop_assert!(is_properties_block(&line), "{}", line);
+        let block = parse_block(&line);
+        prop_assert_eq!(block.meta.len(), 1, "{}", line);
+        prop_assert_eq!(&block.meta[0].key, &key);
+        prop_assert_eq!(block.meta[0].span.clone(), 0..line.len());
+        prop_assert!(block.properties.is_empty(), "{}", line);
     }
 }
 

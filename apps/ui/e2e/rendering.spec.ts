@@ -57,11 +57,10 @@ test("a block of nothing but properties is only chips", async ({ page }) => {
   await expect(block).not.toContainText("type::");
 });
 
-test("inline properties are chips in the text", async ({ page }) => {
-  const block = await write(page, "ship it #urgent #due(friday) soon");
+test("tags are chips in the text", async ({ page }) => {
+  const block = await write(page, "ship it #urgent #due soon");
   await expect(block.getByText("#urgent")).toBeVisible();
-  await expect(block.getByText("due", { exact: true })).toBeVisible();
-  await expect(block.getByText("friday", { exact: true })).toBeVisible();
+  await expect(block.getByText("#due")).toBeVisible();
   await expect(block).toContainText("ship it");
   await expect(block).toContainText("soon");
 });

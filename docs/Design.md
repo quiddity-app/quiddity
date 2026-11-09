@@ -17,7 +17,7 @@
 		- A property edit is a text edit, so it merges character by character like any other. Two devices changing the same value at once can produce a merged string rather than one winner. With one person on several devices that is rare, and the result is visible and fixable rather than silently dropping one side.
 		- The schema can't reject anything. Values that don't fit it are flagged.
 	- **One [[Loro]] document per graph**, with every block in one tree. A move between entities is a tree move, and Loro handles concurrent moves, cycles included.
-	- **Properties** are Logseq-style `key:: value` lines, with an entity's own in its first block, plus inline `#key(value)`. Lists are explicit: `#key([a, b])`. [[Properties]]
+	- **Properties** are Logseq-style `key:: value` lines, with an entity's own in its first block, plus `#tag`s in the text. Lists are explicit: `key:: [a, b]`. [[Properties]]
 	- **Property names are unique.** [[Properties]]
 	- **Names are not unique.** An [[Entity]] is identified by its name together with its properties. [[Links]]
 	- **Links are resolved when followed**, not when written, so a link can be written before what it points to exists. [[Links to nowhere]]

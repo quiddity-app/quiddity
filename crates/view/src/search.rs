@@ -3,7 +3,7 @@
 use std::cmp::Reverse;
 use std::collections::BTreeMap;
 
-use quiddity_core::syntax::{Link, Qualifier, Value, format_inline_property};
+use quiddity_core::syntax::{Link, Qualifier, Value, format_qualifier};
 use quiddity_core::{BlockId, Index};
 use serde::Serialize;
 
@@ -276,7 +276,7 @@ fn qualifiers_for(index: &Index, id: BlockId, title: &str) -> Vec<Qualifier> {
     let mut candidates: BTreeMap<String, Qualifier> = BTreeMap::new();
     for p in &own.properties {
         let mut add = |value: Option<Value>| {
-            let written = format_inline_property(&p.key, value.as_ref());
+            let written = format_qualifier(&p.key, value.as_ref());
             candidates.entry(written).or_insert(Qualifier {
                 key: p.key.clone(),
                 value,

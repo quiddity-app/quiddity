@@ -2,7 +2,7 @@
 - Properties are chips. [[Properties]]
 	- So are meta-property lines, `##key` with the parameter as written. A chip whose property doesn't fit its schema is ringed, and says why when hovered over. [[Meta-properties]]
 	- `key:: value` lines come out of the text and are drawn as pills below it. A list is a comma-separated run, and a link value is a live link.
-	- Inline `#tag` and `#prop(value)` become pills where they were written.
+	- Inline `#tag`s become pills where they were written.
 	- A block of nothing but properties is only chips, so its bullet is hidden. The bullet keeps its place so the chips line up with the text around them, and comes back while the block is edited.
 - The view reports where each property is written, in UTF-16 units, so the UI never parses block text itself.
 - How it is drawn
