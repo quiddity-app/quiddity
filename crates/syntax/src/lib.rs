@@ -6,14 +6,13 @@
 //! | Syntax                         | Meaning                                        |
 //! |--------------------------------|------------------------------------------------|
 //! | `key:: value`                  | a property, on a line of its own (Logseq style) |
-//! | `#tag`                         | a property with no value                       |
-//! | `#prop(value)`                 | a property with a value                        |
-//! | `#prop([a, b])`                | a property whose value is a list               |
-//! | `#[[multi word]](value)`       | a property whose name contains spaces          |
+//! | `#tag`                         | a tag: a property with no value                |
+//! | `#[[multi word]]`              | a tag whose name contains spaces               |
 //! | `[[Name]]`                     | a link to an entity by name                    |
 //! | `[[Name#type(person)]]`        | a link narrowed by the target's properties     |
 //! | `((id))`                       | a reference to a block by its `id` property    |
-//! | `##key(parameter)`             | a meta-property, on a line of its own          |
+//! | `##key(parameter)`             | a `##` property, on a line of its own          |
+//! | `##key:: value`                | the same, with a value as a property line has  |
 //!
 //! It also parses [`Query`]s, the language meta-properties' parameters are
 //! written in, which, unlike block text, can be malformed.
@@ -26,12 +25,12 @@ mod parse;
 mod query;
 
 pub use format::{
-    format_inline_property, format_key, format_link, format_meta_line, format_property_line,
-    format_value,
+    format_key, format_link, format_meta_line, format_meta_value_line, format_property_line,
+    format_qualifier, format_tag, format_value,
 };
 pub use name::normalise_name;
 pub use parse::{
     Block, Link, MetaProperty, Property, PropertyStyle, Qualifier, Value, is_properties_block,
-    parse_block, parse_line_value, parse_meta_line, parse_property_line,
+    parse_block, parse_line_value, parse_meta_line, parse_meta_value_line, parse_property_line,
 };
 pub use query::{Query, QueryError, format_query, parse_query};

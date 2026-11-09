@@ -53,7 +53,7 @@ export type PropertyValue =
 export interface Property {
   key: string;
   value: PropertyValue | null;
-  /** `#key(value)` within the text, rather than `key:: value` on a line. */
+  /** A tag, `#key`, within the text, rather than `key:: value` on a line. */
   inline: boolean;
   /** Where it is written, in UTF-16 units of the block's text. For a line
    * property, the whole line. */
@@ -61,7 +61,7 @@ export interface Property {
   end: number;
   /** The entity that defines the property, if anyone has. */
   definition: EntityId | null;
-  /** A `##key(parameter)` line, whose parameter is its value, as text. */
+  /** A `##key(parameter)` or `##key:: value` line, whose parameter or value is its value. */
   meta: boolean;
   /** What doesn't fit the property's schema here, in words. */
   flags: string[];

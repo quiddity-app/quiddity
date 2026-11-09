@@ -37,7 +37,8 @@ pub struct Qualifier {
 pub enum PropertyStyle {
     /// `key:: value` on a line of its own.
     Line,
-    /// `#key` or `#key(value)` within the text.
+    /// `#key` within the text: a tag. It has no value, since a `(value)`
+    /// after it is ordinary text.
     Inline,
 }
 
@@ -51,11 +52,14 @@ pub struct Property {
     pub span: Range<usize>,
 }
 
-/// A `##key` or `##key(parameter)` line: something said about a property
-/// by the entity that defines it.
+/// A `##key`, `##key(parameter)` or `##key:: value` line: a built-in
+/// property, which Quiddity gives a meaning of its own.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MetaProperty {
     pub key: String,
+    /// What follows `::`, for a `##key:: value` line. Such a line has no
+    /// parameter, and a line with a parameter has no value.
+    pub value: Option<Value>,
     /// What is between the parentheses, trimmed and as written: escapes
     /// are left in, for whatever reads it (often [`crate::parse_query`]).
     pub parameter: Option<String>,
@@ -94,13 +98,15 @@ pub fn parse_block(text: &str) -> Block {
     block
 }
 
-/// Whether a block consists only of `key:: value` lines (and meta-property
-/// lines), like the initial block of an entity that holds the entity's
+/// Whether a block consists only of `key:: value` lines (and `##` lines), like the initial block of an entity that holds the entity's
 /// properties.
 pub fn is_properties_block(text: &str) -> bool {
     let mut any = false;
     for line in text.lines().filter(|l| !l.trim().is_empty()) {
-        if parse_property_line(line).is_none() && parse_meta_line(line).is_none() {
+        if parse_property_line(line).is_none()
+            && parse_meta_line(line).is_none()
+            && parse_meta_value_line(line).is_none()
+        {
             return false;
         }
         any = true;
@@ -188,6 +194,26 @@ pub fn parse_meta_line(line: &str) -> Option<(String, Option<String>)> {
         .then(|| (key, (!parameter.is_empty()).then(|| parameter.to_owned())))
 }
 
+/// Parses a line that is `##key:: value`: a `##` property whose value is
+/// written as a property line's is, so a list or a link needs no query syntax.
+/// `::` must be followed by whitespace or the end of the line, and a line with
+/// no value is the same as `##key`.
+pub fn parse_meta_value_line(line: &str) -> Option<(String, Option<Value>)> {
+    split_meta_value_line(line).map(|(key, value)| (key, value.map(parse_line_value)))
+}
+
+/// Splits a `##key:: value` line into its key and unparsed value.
+fn split_meta_value_line(line: &str) -> Option<(String, Option<&str>)> {
+    let mut sc = Scanner::new(line.trim().strip_prefix("##")?);
+    let key = parse_key(&mut sc)?;
+    let rest = sc.rest().strip_prefix("::")?;
+    if !(rest.is_empty() || rest.starts_with([' ', '\t'])) {
+        return None;
+    }
+    let rest = rest.trim();
+    Some((key, (!rest.is_empty()).then_some(rest)))
+}
+
 /// The key of a line that is nothing but `#key`.
 fn hash_property_line(line: &str) -> Option<String> {
     let mut sc = Scanner::new(line.trim().strip_prefix('#')?);
@@ -271,7 +297,20 @@ fn parse_line(line: &str, offset: usize, block: &mut Block) {
         }
         block.meta.push(MetaProperty {
             key,
+            value: None,
             parameter,
+            span: offset..offset + line.len(),
+        });
+    } else if let Some((key, value)) = split_meta_value_line(line) {
+        let value = value.map(|v| {
+            let (value, refs) = line_value(v);
+            refs.add_to(block);
+            value
+        });
+        block.meta.push(MetaProperty {
+            key,
+            value,
+            parameter: None,
             span: offset..offset + line.len(),
         });
     } else if let Some((key, value)) = split_property_line(line) {
@@ -320,12 +359,9 @@ fn scan_inline(line: &str, offset: usize, tags: bool, block: &mut Block) {
             {
                 sc.pos += 1;
                 if let Some(key) = parse_key(&mut sc) {
-                    let (value, refs, len) = inline_value(&line[sc.pos..]);
-                    refs.add_to(block);
-                    sc.pos += len;
                     block.properties.push(Property {
                         key,
-                        value,
+                        value: None,
                         style: PropertyStyle::Inline,
                         span: offset + at..offset + sc.pos,
                     });
@@ -337,39 +373,6 @@ fn scan_inline(line: &str, offset: usize, tags: bool, block: &mut Block) {
         }
         prev = line[..sc.pos].chars().next_back();
     }
-}
-
-/// The `(value)` after an inline property's key at the start of `rest`, if it
-/// has a well-formed one: the value, the links and block refs in it, and how
-/// much of `rest` it takes.
-///
-/// A value is read from its own text alone. Reading nested links can run past
-/// the closing parenthesis and be settled by what follows it, so the first
-/// reading only says where the value ends; the text up to there is read again
-/// until it reads as exactly itself. What follows a property then can't change
-/// what the property means.
-fn inline_value(rest: &str) -> (Option<Value>, Refs, usize) {
-    fn read(rest: &str) -> (Option<Value>, Refs, usize) {
-        let mut sc = Scanner::new(rest);
-        let mut refs = Refs::default();
-        match sc.peek() {
-            Some('(') => match parse_paren_value(&mut sc, &mut refs) {
-                Some(value) => (value, refs, sc.pos),
-                None => (None, Refs::default(), 0),
-            },
-            _ => (None, refs, 0),
-        }
-    }
-    /// Reads `rest[..len]` until what it reads takes all of it.
-    fn settle(rest: &str, len: usize) -> (Option<Value>, Refs, usize) {
-        let (value, refs, took) = read(&rest[..len]);
-        if took == len {
-            (value, refs, len)
-        } else {
-            settle(rest, took)
-        }
-    }
-    settle(rest, read(rest).2)
 }
 
 /// Whether an inline property ends exactly at `pos`, so that `#a(1)#b(2)`
@@ -798,59 +801,48 @@ mod tests {
     #[test]
     fn inline_properties() {
         assert_eq!(
-            props("Call #status(waiting) about #project, see #[[due date]](2026-10-25)."),
+            props("Call #status about #project, see #[[due date]]."),
             vec![
-                prop("status", Some(text("waiting"))),
+                prop("status", None),
                 prop("project", None),
-                prop("due date", Some(text("2026-10-25"))),
+                prop("due date", None),
             ]
         );
     }
 
     #[test]
-    fn a_property_does_not_depend_on_what_follows_it() {
-        // Found by fuzzing. Nested links read past the closing parenthesis, and
-        // the `]]` after it completed one that the property's own text leaves
-        // open, so the property alone meant something else.
-        let text = "#s([[k#s([[t#s([[k#r(([[]])]])]]";
-        let all = parse_block(text).properties;
-        assert_eq!(all.len(), 1);
-        let alone = parse_block(&text[all[0].span.clone()]).properties;
-        assert_eq!((alone.len(), &alone[0].value), (1, &all[0].value));
+    fn a_tag_has_no_value() {
+        // What follows a tag is text, whatever it looks like.
+        assert_eq!(props("#p(a)"), vec![prop("p", None)]);
+        assert_eq!(props("#p([a, b])"), vec![prop("p", None)]);
+        assert_eq!(props("#p(a)#p(b)"), vec![prop("p", None)]);
+        assert_eq!(props("#a(#b)"), vec![prop("a", None), prop("b", None)]);
+        assert_eq!(props("#p()"), vec![prop("p", None)]);
+        let block = parse_block("#p([[Jane]]) and #q(((abc)))");
+        assert_eq!(
+            block.links,
+            vec![link("Jane")],
+            "a link in the text is a link"
+        );
+        assert_eq!(block.block_refs, vec!["abc".to_owned()]);
     }
 
     #[test]
-    fn inline_values() {
-        assert_eq!(
-            props("#p([a, b])"),
-            vec![prop("p", Some(Value::List(vec![text("a"), text("b")])))]
-        );
-        assert_eq!(props("#p([])"), vec![prop("p", Some(Value::List(vec![])))]);
-        let two = vec![prop("p", Some(text("a"))), prop("p", Some(text("b")))];
-        assert_eq!(props("#p(a)#p(b)"), two);
-        assert_eq!(props("#p(a) #p(b)"), two);
-        assert_eq!(
-            props("#p(a)x#q"),
-            vec![prop("p", Some(text("a")))],
-            "only directly after a property"
-        );
-        assert_eq!(props("#p(\"a)b\")"), vec![prop("p", Some(text("a)b")))]);
-        assert_eq!(props(r"#p(a\)b)"), vec![prop("p", Some(text("a)b")))]);
-        assert_eq!(props("#p(f(x))"), vec![prop("p", Some(text("f(x)")))]);
-        assert_eq!(props("#p()"), vec![prop("p", None)]);
-        assert_eq!(props("#author([[Jane#type(person)]])").len(), 1);
-        assert_eq!(
-            props("#p(unclosed"),
-            vec![prop("p", None)],
-            "falls back to a bare tag"
-        );
+    fn tags_may_abut() {
+        assert_eq!(props("#a#b"), vec![prop("a", None), prop("b", None)]);
+        assert_eq!(props("#a x#b"), vec![prop("a", None)], "not after a word");
     }
 
     #[test]
     fn inline_property_spans() {
-        let src = "go #to(there) now";
+        let src = "go #to(there) and #[[far away]]";
         let block = parse_block(src);
-        assert_eq!(&src[block.properties[0].span.clone()], "#to(there)");
+        let spans: Vec<_> = block
+            .properties
+            .iter()
+            .map(|p| &src[p.span.clone()])
+            .collect();
+        assert_eq!(spans, ["#to", "#[[far away]]"]);
     }
 
     #[test]
@@ -953,10 +945,10 @@ mod tests {
     #[test]
     fn references_in_property_values() {
         let block = parse_block(
-            "author:: [[Jane]]\nsee:: ((a)) and [[Ann]]\nquoted:: \"[[No]] ((no))\"\n#with([[Bob]]) #at(((b))) #q(\"[[No]]\")",
+            "author:: [[Jane]]\nsee:: ((a)) and [[Ann]]\nquoted:: \"[[No]] ((no))\"\n##tag:: [[Bob]]",
         );
         assert_eq!(block.links, vec![link("Jane"), link("Ann"), link("Bob")]);
-        assert_eq!(block.block_refs, vec!["a".to_owned(), "b".to_owned()]);
+        assert_eq!(block.block_refs, vec!["a".to_owned()]);
     }
 
     #[test]
@@ -1067,6 +1059,92 @@ mod tests {
         );
         assert_eq!(block.links, [link("place")]);
         assert!(parse_block("##values(#k(a) &)").links.is_empty());
+    }
+
+    #[test]
+    fn meta_value_lines() {
+        let value = |line: &str| parse_meta_value_line(line);
+        assert_eq!(
+            value("##tag:: person"),
+            Some(("tag".into(), Some(text("person"))))
+        );
+        assert_eq!(
+            value("  ##tag:: [person, [[Ann]]] "),
+            Some((
+                "tag".into(),
+                Some(Value::List(vec![text("person"), Value::Link(link("Ann"))]))
+            ))
+        );
+        assert_eq!(value("##journal::"), Some(("journal".into(), None)));
+        assert_eq!(
+            value("##[[odd key]]:: x"),
+            Some(("odd key".into(), Some(text("x"))))
+        );
+        for not in [
+            "##tag",
+            "##tag(x)",
+            "##tag::x",
+            "##tag :: x",
+            "tag:: x",
+            "# #tag:: x",
+            "###tag:: x",
+            "##:: x",
+            "##k(a):: b",
+        ] {
+            assert_eq!(value(not), None, "{not:?}");
+        }
+        // Neither form is the other's.
+        assert_eq!(parse_meta_line("##tag:: x"), None);
+        assert_eq!(parse_property_line("##tag:: x"), None);
+        assert!(is_properties_block("##tag:: [a, b]\nnote:: x"));
+    }
+
+    #[test]
+    fn meta_value_lines_in_blocks() {
+        let text = "type:: x\n##tag:: [[Ann]]\n##values(#a)\n##journal::";
+        let block = parse_block(text);
+        let seen: Vec<_> = block
+            .meta
+            .iter()
+            .map(|m| {
+                (
+                    &text[m.span.clone()],
+                    m.value.is_some(),
+                    m.parameter.is_some(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            seen,
+            [
+                ("##tag:: [[Ann]]", true, false),
+                ("##values(#a)", false, true),
+                ("##journal::", false, false),
+            ]
+        );
+        assert_eq!(block.links, [link("Ann")]);
+        assert_eq!(block.properties.len(), 1, "a ## line is not a property");
+    }
+
+    /// Found by fuzzing: `##key::` with nothing after it has neither a value
+    /// nor a parameter, so it can't be told from `##key` by what it holds. It
+    /// is still the value form, which is the one that reads it.
+    #[test]
+    fn a_meta_value_line_may_have_no_value() {
+        let block = parse_block("##k:: \n##[[a::b]]");
+        let seen: Vec<_> = block
+            .meta
+            .iter()
+            .map(|m| (m.key.as_str(), m.value.is_some(), m.parameter.is_some()))
+            .collect();
+        assert_eq!(seen, [("k", false, false), ("a::b", false, false)]);
+        assert_eq!(parse_meta_line("##k:: "), None);
+        assert_eq!(parse_meta_value_line("##k:: "), Some(("k".into(), None)));
+        assert_eq!(
+            parse_meta_line("##[[a::b]]"),
+            Some(("a::b".into(), None)),
+            "a `::` inside a bracketed key is part of the key"
+        );
     }
 
     #[test]

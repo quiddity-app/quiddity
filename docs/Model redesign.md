@@ -46,7 +46,7 @@
 - The stack
 	- Each is a PR of one commit, which builds and passes on its own and updates the pages it touches. In order:
 	- 1. This design.
-	- 2. [[quiddity-syntax]]: `#entity` and `#[[entity]]` are tags with no value; `#key(value)` in text goes; `##key:: value` is read. The formatter and fuzz seeds follow.
+	- 2. Built: [[quiddity-syntax]] reads `#entity` and `#[[entity]]` as tags with no value, `#key(value)` in text is a tag and then text, and `##key:: value` is read. A tag is still a valueless property in the index until step 4.
 	- 3. [[quiddity-core]]: properties blocks and regular blocks. Properties are read only from a properties block, prose in one is flagged, and so are properties and misplaced `##` lines elsewhere.
 	- 4. `##tag` replaces `type` and `tags`: the shorthand, qualifiers, queries, and the built-in schemas that named `type`.
 	- 5. `##journal` replaces `type:: journal` and `date`, in identity, creation, import and merging of journals.

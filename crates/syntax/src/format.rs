@@ -3,7 +3,7 @@ use crate::parse::{Link, Value, is_bare_key, parse_block, parse_line_value};
 /// Where a value is being written; each context has different delimiters.
 #[derive(Debug, Clone, Copy)]
 enum Context {
-    /// Inside `#key(…)`.
+    /// Inside a qualifier's `#key(…)`.
     Paren,
     /// Inside `[…]`.
     ListItem,
@@ -20,25 +20,38 @@ pub fn format_key(key: &str) -> String {
     }
 }
 
-/// Formats a value for use inside `#key(…)`.
+/// Formats a value for use inside a link's qualifier, `#key(…)`.
 pub fn format_value(value: &Value) -> String {
     format_in(value, Context::Paren)
 }
 
-/// Formats `#key` or `#key(value)`.
-pub fn format_inline_property(key: &str, value: Option<&Value>) -> String {
+/// Formats a tag, `#key`.
+pub fn format_tag(key: &str) -> String {
+    format!("#{}", format_key(key))
+}
+
+/// Formats a link's qualifier, `#key` or `#key(value)`.
+pub fn format_qualifier(key: &str, value: Option<&Value>) -> String {
     match value {
         Some(v) => format!("#{}({})", format_key(key), format_value(v)),
-        None => format!("#{}", format_key(key)),
+        None => format_tag(key),
     }
 }
 
-/// Formats a `key:: value` line, or `#key` for a property without a value.
+/// Formats a `key:: value` line, or `key::` for a property without a value.
 /// The key must be valid as a line key.
 pub fn format_property_line(key: &str, value: Option<&Value>) -> String {
     match value {
         Some(v) => format!("{key}:: {}", format_in(v, Context::Line)),
-        None => format_inline_property(key, None),
+        None => format!("{key}::"),
+    }
+}
+
+/// Formats a `##key:: value` line, or `##key` for one without a value.
+pub fn format_meta_value_line(key: &str, value: Option<&Value>) -> String {
+    match value {
+        Some(v) => format!("##{}:: {}", format_key(key), format_in(v, Context::Line)),
+        None => format!("##{}", format_key(key)),
     }
 }
 
@@ -59,7 +72,7 @@ pub fn format_link(link: &Link) -> String {
     let qualifiers: String = link
         .qualifiers
         .iter()
-        .map(|q| format_inline_property(&q.key, q.value.as_ref()))
+        .map(|q| format_qualifier(&q.key, q.value.as_ref()))
         .collect();
     let mut name = String::new();
     let mut chars = link.name.chars().peekable();
@@ -131,8 +144,8 @@ fn format_text(s: &str, ctx: Context) -> String {
 
 fn reparse(raw: &str, ctx: Context) -> Option<Value> {
     match ctx {
-        Context::Paren => single_inline_value(&format!("#k({raw})")),
-        Context::ListItem => match single_inline_value(&format!("#k([{raw}])")) {
+        Context::Paren => qualifier_value(&format!("#k({raw})")),
+        Context::ListItem => match qualifier_value(&format!("#k([{raw}])")) {
             Some(Value::List(items)) => match <[Value; 1]>::try_from(items) {
                 Ok([item]) => Some(item),
                 Err(_) => None,
@@ -143,11 +156,19 @@ fn reparse(raw: &str, ctx: Context) -> Option<Value> {
     }
 }
 
-fn single_inline_value(src: &str) -> Option<Value> {
-    match parse_block(src).properties.as_slice() {
-        // No need to check the span: the caller compares the value with the
-        // whole of what was wrapped, so a property that ended early differs.
-        [p] => p.value.clone(),
+/// The value of the one qualifier in a link around `qualifier`, if that is
+/// all the link reads as. A value is only ever written in a qualifier, so
+/// that is where it has to read back.
+///
+/// A link with a qualifier always has the name written before it, and one
+/// whose qualifiers don't read is taken whole as a name, with none.
+fn qualifier_value(qualifier: &str) -> Option<Value> {
+    let block = parse_block(&format!("[[x{qualifier}]]"));
+    match block.links.as_slice() {
+        [link] => match link.qualifiers.as_slice() {
+            [q] => q.value.clone(),
+            _ => None,
+        },
         _ => None,
     }
 }
@@ -165,20 +186,17 @@ mod tests {
     #[test]
     fn readable_where_possible() {
         assert_eq!(
-            format_inline_property("status", Some(&text("done"))),
+            format_qualifier("status", Some(&text("done"))),
             "#status(done)"
         );
-        assert_eq!(format_inline_property("due date", None), "#[[due date]]");
+        assert_eq!(format_qualifier("due date", None), "#[[due date]]");
         assert_eq!(
             format_property_line("note", Some(&text("a, b"))),
             "note:: a, b"
         );
+        assert_eq!(format_qualifier("note", Some(&text("a, b"))), "#note(a, b)");
         assert_eq!(
-            format_inline_property("note", Some(&text("a, b"))),
-            "#note(a, b)"
-        );
-        assert_eq!(
-            format_inline_property("tags", Some(&Value::List(vec![text("a, b"), text("c")]))),
+            format_qualifier("tags", Some(&Value::List(vec![text("a, b"), text("c")]))),
             "#tags([\"a, b\", c])"
         );
         let jane = Value::Link(Link {
@@ -186,7 +204,7 @@ mod tests {
             qualifiers: vec![],
         });
         assert_eq!(
-            format_inline_property("with", Some(&Value::List(vec![jane]))),
+            format_qualifier("with", Some(&Value::List(vec![jane]))),
             "#with([ [[Jane]]])",
             "a space keeps `[[[` from reading as a link"
         );
@@ -220,18 +238,15 @@ mod tests {
     }
 
     /// Text that reads back alone can still pair with brackets after it:
-    /// `#p(a [[b] c]) see x]]` would read as a link reaching past the `)`.
+    /// `[[x#p(a [[b] c])]] see x]]` would read as a link reaching past the `)`.
     #[test]
     fn values_stop_at_their_end() {
         for (value, after) in [("a [[b] c]", "x]]"), ("a ((b) c)", "x))")] {
-            for written in [
-                format_inline_property("p", Some(&text(value))),
-                format_inline_property("p", Some(&Value::List(vec![text(value)]))),
-            ] {
-                let src = format!("{written} {after}");
+            for v in [text(value), Value::List(vec![text(value)])] {
+                let src = format!("[[x{}]] {after}", format_qualifier("p", Some(&v)));
                 let block = crate::parse_block(&src);
-                assert_eq!(block.properties.len(), 1, "{src}");
-                assert_eq!(block.properties[0].span, 0..written.len(), "{src}");
+                assert_eq!(block.links.len(), 1, "{src}");
+                assert_eq!(block.links[0].qualifiers[0].value, Some(v), "{src}");
             }
         }
     }

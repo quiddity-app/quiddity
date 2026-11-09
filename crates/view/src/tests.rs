@@ -487,14 +487,32 @@ mod properties {
     }
 
     #[test]
-    fn inline_properties_are_marked_and_may_have_no_value() {
+    fn tags_are_inline_and_have_no_value() {
         let src = "see #urgent and #due(friday) ok";
         let props = of(src);
         let keys: Vec<_> = props.iter().map(|p| (p.key.as_str(), p.inline)).collect();
         assert_eq!(keys, [("urgent", true), ("due", true)]);
-        assert_eq!(props[0].value, None);
-        assert_eq!(props[1].value, text_value("friday"));
-        assert_eq!(&src[props[1].start..props[1].end], "#due(friday)");
+        assert!(props.iter().all(|p| p.value.is_none()));
+        assert_eq!(&src[props[1].start..props[1].end], "#due");
+    }
+
+    #[test]
+    fn meta_lines_show_their_parameter_or_their_value() {
+        let src = "##values(#a)\n##tag:: [x, y]\n##journal";
+        let props = of(src);
+        let seen: Vec<_> = props.iter().map(|p| (p.key.as_str(), p.meta)).collect();
+        assert_eq!(seen, [("values", true), ("tag", true), ("journal", true)]);
+        assert_eq!(props[0].value, text_value("#a"));
+        assert_eq!(
+            props[1].value,
+            Some(PropertyValue::List {
+                items: vec![
+                    PropertyValue::Text { text: "x".into() },
+                    PropertyValue::Text { text: "y".into() }
+                ]
+            })
+        );
+        assert_eq!(props[2].value, None);
     }
 
     #[test]
