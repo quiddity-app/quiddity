@@ -35,4 +35,5 @@
 	- Pairing by QR code, and revoking a device. [[Device list]]
 	- A disambiguation page for links that match several entities, and an offer to merge entities with the same name. [[Links]] [[Duplicates]]
 	- Editing aids driven by the schema, such as a date picker and autocomplete for references, which write Markdown into the text. [[Properties]]
+	- A change to tags, properties, journals and blobs, in a stack of changes. [[Model redesign]]
 	- Mobile builds, cursors in [[Presence]], [[Queries]] anywhere but meta-properties, table and board views by type, and a plugin API.

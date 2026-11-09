@@ -1,0 +1,56 @@
+- Planned, not built. A change to the vocabulary and the rules of the model: what a tag is, what a property is, what `##` means, why a blob is a block, and what an entity's properties block may hold. Pages elsewhere describe what is built today; each pull request in the stack below brings the pages it touches up to date, and this page shrinks as they land. [[Design]] [[Properties]]
+- Vocabulary
+	- **Tag**: a link written `#entity` or `#[[multi-word entity]]`, with no value. It may be in an entity's properties block or in a regular block. A tag is a link to an [[Entity]] that is read as classification: `#person` says something is a person.
+	- **Property**: a triple relating an entity to a value, or to a set of values. Any entity may define a property, by being named for its key, and nothing restricts which entities may have one. There is no `type` property any more: `type` is an ordinary key if anyone writes it, and a tag does its job.
+	- **`##` property**: a property in a built-in namespace of its own, `##journal`, `##blob`, `##id`, `##tag` and the schema ones ([[Meta-properties]]). Quiddity gives each a meaning, and writing one changes how the thing it is on behaves. They are not all meta, so the page named for them changes its name when this lands. They need no chips: the behaviour is the evidence.
+	- **Regular block** and **properties block**: see below.
+- Tags
+	- `#person` in a properties block is shorthand for a value of `##tag`: `#person #employee` is `##tag:: [person, employee]`. `##tag` is the one built-in that is read as a list of references, and the shorthand and the long form mean the same.
+	- In a regular block a tag is a link like `[[person]]`, which also marks that block as being about it. Backlinks list it as they do any link.
+	- `#key(value)` in running text goes. The inline form was the same thing as a property of the block, and a block no longer has properties of its own.
+	- A bare `#key` in a link's qualifier matches a tag as well as any instance of the property `key`, so `[[Jane#person]]` picks the Jane who is tagged person. `[[Jane#born(1970-01-01)]]` still works: qualifiers and [[Queries]] read properties, and are unchanged otherwise. [[Links]]
+	- [[tags]] (the property) and [[type]] are replaced by this page's `##tag`. [[All entities]] still shows enough tags to tell apart entities that share a title.
+- The properties block
+	- An entity's first child, if its first line is a property line, a tag or a `##` line. Everything in it must be one of those: properties, tags and `##` properties, and no prose. A line that is not is flagged and read as plain text, not as a property. [[Entity]]
+	- It is edited differently: a different background, completion of property names from the graph and of values from the property's schema or from the values already used, and the same completion for tags. [[Editing]]
+	- If an entity has none, the page offers to make one, in the same way as the "add a block" link. Making it opens an empty block in this mode; left empty, it is not kept, since an empty first child means nothing. [[Undo]]
+	- Properties are only read from here. `key:: value` in a regular block is text, flagged ("properties go in the properties block"). That is the rule that lets a property be a statement about an entity and not about a paragraph.
+- Regular blocks and `##`
+	- A regular block holds prose, links, tags and block references. It may hold `##` properties only in two cases: `##id(…)`, which makes the block referable with `((id))` and replaces the `id::` line, and `##blob(…)`, below.
+	- Any other `##` property in a regular block is flagged and has no effect, as a misplaced one is now.
+	- `##` properties in a properties block: `##journal`, `##tag`, and the schema ones on an entity named for a property, as now. They can be written `##key(parameter)`, as now, or `##key:: value` when the value is a list or links, as `##tag` is.
+- Journals
+	- A [[Journal]] has `##journal(2026-10-09)` in its properties block. The date is what identifies it, so `type:: journal` and `date::` go, and so does the [[date]] property.
+	- Everything else about journals stays: made on start, merged when two devices make the same day, the first of the references, renamed never. [[Duplicates]]
+- Blobs are blocks
+	- A blob is a block, in whichever entity it is wanted, whose first line is `##blob(hash, mime, size, name)`. Any further text in the block is its caption. It replaces `##asset`, with the same fields and escaping, and it is not an entity: it is not in [[All entities]] or the [[Graph view]], and nothing can be renamed or tagged but the entity that holds it. [[Binaries]]
+	- A blob is referred to with `((id))` through an `##id` line, so it can be embedded elsewhere without being copied. The same bytes in two blocks are two blocks and one stored blob.
+	- [[Blob transfer]] reads the hashes from blocks instead of from entities. Garbage collection is unchanged in kind: a blob no block refers to goes after a grace period. [[Compaction]]
+	- Pasting or dropping a file in the UI makes a block. Export writes the file to `assets/` and the block to the Markdown. [[Export and import]]
+- Links between entities
+	- A property with reference values links the entity to each value: `author:: [[Jane]]` on a book links the book to Jane, and is listed in Jane's references like any link. Tags link in the same way.
+	- There is also a link from each end to the entity that defines the property, `author`, and from `author` to each: much weaker. The graph draws them lighter; [[Links]] does not list them in an entity's references, but the property's own page lists its uses, grouped by the entity that has them.
+	- A defining entity is found by name alone, which is how property entities are found now. Where nobody has made one, the property has a virtual entity, as a tag or a link does: see the next section.
+- A missing entity looks like an empty one
+	- Every name a link, a tag or a property key mentions has an entity as far as anyone can tell. If nobody has made it, the index supplies a virtual one: no blocks, no properties, found by name as the real one would be. It is not stored, and there is nothing to sync. [[Links to nowhere]]
+	- The two are the same to the user in every way: the page opens with its title and the "add a block" link, it is drawn in the [[Graph view]] with its links and its weak links, [[Links]] lists what refers to it, it is a row in [[All entities]], and a tag or a property's page lists its uses. A property with no entity has the built-in schema it would have, or none.
+	- It becomes real by being written to: the first block added, or a property block made, creates the entity under the name it was found by. That edit is one step of [[Undo]], and undoing it makes the entity virtual again, so nothing visible changes.
+	- Only the implementations differ. Code that handles entities takes both from one place, and the places that have to tell them apart are listed in [[quiddity-core]] when this lands: deleting (a virtual entity has nothing to delete, so it stays while anything refers to it, as a deleted entity's links already go nowhere), sync, and merging duplicates (two devices making the same one is a merge, as now).
+	- A test for this is a property of the index: for any graph, replacing each virtual entity with an empty real one changes nothing the view reports.
+- Decided, with the reasons
+	- Inline properties go, qualifiers stay: a qualifier is a way to say which entity is meant, and nothing in prose needs it.
+	- A property's entity is found by name, with no marker. It is what we do now with `type:: property`, less the line.
+	- No migration. Nothing is rewritten and nothing reads the old forms, and this repository's own pages are updated by hand as part of each change.
+	- `##id` replaces `id::` because a regular block can no longer hold a regular property. It is the first thing to change if that turns out to be too strict.
+	- A properties block is known by its first line, not by being only properties. That lets the editor keep prose out of one that has been started, and lets a line be flagged.
+- The stack
+	- Each is a PR of one commit, which builds and passes on its own and updates the pages it touches. In order:
+	- 1. This design.
+	- 2. [[quiddity-syntax]]: `#entity` and `#[[entity]]` are tags with no value; `#key(value)` in text goes; `##key:: value` is read. The formatter and fuzz seeds follow.
+	- 3. [[quiddity-core]]: properties blocks and regular blocks. Properties are read only from a properties block, prose in one is flagged, and so are properties and misplaced `##` lines elsewhere.
+	- 4. `##tag` replaces `type` and `tags`: the shorthand, qualifiers, queries, and the built-in schemas that named `type`.
+	- 5. `##journal` replaces `type:: journal` and `date`, in identity, creation, import and merging of journals.
+	- 6. `##id` replaces `id::`, and blobs become blocks with `##blob`: the index, [[quiddity-view]], [[quiddity-wasm]], the shell and [[Blob transfer]].
+	- 7. Virtual entities, so that a name nobody has made behaves as an empty entity. Links defined by properties, the weak links to the defining entity, and the graph view and property page that show them.
+	- 8. The UI: the properties block's background and completion, the offer to make one, tags in place of chips for `##` lines, and the chips that remain.
+	- 9. Rename [[Meta-properties]] to match what it now covers, and remove this page.
