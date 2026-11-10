@@ -532,10 +532,13 @@ mod properties {
     }
 
     /// A property line in an ordinary block still has a chip, but says it
-    /// does nothing there. A tag is fine, and so is `id` for now.
+    /// does nothing there, `id::` included. A tag is fine, and so is `##id`.
     #[test]
     fn property_lines_in_ordinary_blocks_are_flagged() {
-        let (v, page, _) = page(&["first\nkind:: a", "role:: b\nid:: abc\n#tag"]);
+        let (v, page, _) = page(&[
+            "first\nkind:: a",
+            "role:: b\nid:: abc\n#tag\n##id(abc)\n##id\n##key(x)",
+        ]);
         let blocks = v.entity(&page).unwrap().blocks;
         let flags = |b: usize| -> Vec<(String, usize)> {
             blocks[b]
@@ -553,11 +556,17 @@ mod properties {
             flags(1),
             [
                 ("role".to_owned(), 1),
+                ("id".to_owned(), 1),
+                ("tag".to_owned(), 0),
                 ("id".to_owned(), 0),
-                ("tag".to_owned(), 0)
+                ("id".to_owned(), 1),
+                ("key".to_owned(), 1),
             ],
-            "a later block isn't a properties block, however it starts"
+            "a later block isn't a properties block, however it starts: `id::` has no \
+             effect, `##id(abc)` is fine, a bare `##id` needs an ID, and any other `##` \
+             line has no effect"
         );
+        assert_eq!(blocks[1].properties[4].flags, ["Needs an ID: ##id(abc)"]);
         assert_eq!(
             blocks[0].properties[0].flags,
             ["Has no effect outside an entity's properties block"]
@@ -885,7 +894,7 @@ mod new_links {
         let (v, page, ids) = page(&["parent"]);
         let parent = ids[0].parse().unwrap();
         v.graph()
-            .create_block(Some(parent), None, "deep\nid:: abc")
+            .create_block(Some(parent), None, "deep\n##id(abc)")
             .unwrap();
         v.changed();
         assert_eq!(v.follow_block_ref("abc").unwrap(), page);

@@ -292,7 +292,7 @@ export class Graph {
     return this.edited(this.replica.followLink(key));
   }
 
-  /** The entity holding the block whose `id::` is `id`. Throws if there is none. */
+  /** The entity holding the block whose `##id` is `id`. Throws if there is none. */
   followBlockRef(id: string): string {
     return this.replica.followBlockRef(id);
   }

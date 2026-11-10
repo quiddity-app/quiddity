@@ -280,7 +280,7 @@ impl Replica {
         Ok(self.view.follow_link(key)?)
     }
 
-    /// The entity holding the block whose `id::` is `id`: where a block
+    /// The entity holding the block whose `##id` is `id`: where a block
     /// reference goes. An error if there is no such block.
     #[wasm_bindgen(js_name = followBlockRef)]
     pub fn follow_block_ref(&self, id: &str) -> Result<String, JsError> {

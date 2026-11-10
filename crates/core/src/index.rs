@@ -249,11 +249,9 @@ impl Index {
                 .and_then(|before| blocks.get(before))
                 .is_some_and(|before| before.parent.is_none());
             let read = read_block(&scanned.text, first_child);
-            for p in &read.block.properties {
-                if let (true, Some(Value::Text(id))) = (normalise_name(&p.key) == "id", &p.value) {
-                    let entry = index.by_ref_id.entry(id.clone()).or_insert(block);
-                    *entry = (*entry).min(block);
-                }
+            if let Some(id) = crate::ref_id::of(&read.block.meta) {
+                let entry = index.by_ref_id.entry(id.to_owned()).or_insert(block);
+                *entry = (*entry).min(block);
             }
             references.extend(read.links.into_iter().map(|link| (block, link)));
         }
@@ -303,9 +301,10 @@ impl Index {
             return false;
         }
         let (old, new) = (read_block(old, false), read_block(new, false));
-        let has_id = |p: &Property| normalise_name(&p.key) == "id";
-        let properties = old.block.properties.iter().chain(&new.block.properties);
-        if properties.into_iter().any(has_id) {
+        if [&old, &new]
+            .iter()
+            .any(|read| crate::ref_id::of(&read.block.meta).is_some())
+        {
             return false;
         }
         // Where this block's backlinks go: after those of blocks before it.
@@ -353,7 +352,9 @@ impl Index {
             let meta: Vec<_> = self.entities[&id]
                 .meta
                 .iter()
-                .filter(|m| !tags::is_tag(m) && !crate::journal::is_journal(m))
+                .filter(|m| {
+                    !tags::is_tag(m) && !crate::journal::is_journal(m) && !crate::ref_id::is_id(m)
+                })
                 .cloned()
                 .collect();
             let (schema, problems) = base.with_meta(&meta);
@@ -515,7 +516,9 @@ mod tests {
         )?;
         let props = graph.children(notes)[0];
         let inline = graph.create_block(Some(notes), None, "#with([ [[Jane]]])")?;
-        let quoted = graph.create_block(Some(notes), None, "Quotable\nid:: abc-123")?;
+        let quoted = graph.create_block(Some(notes), None, "Quotable\n##id(abc-123)")?;
+        // `id::` is an ordinary property: nothing is called by it.
+        graph.create_block(Some(notes), None, "Old\nid:: old-1")?;
         let index = Index::build(&graph)?;
 
         let sources: Vec<_> = index.backlinks(jane).iter().map(|b| b.source).collect();
@@ -526,6 +529,7 @@ mod tests {
         );
         assert_eq!(index.resolve_block_ref("abc-123"), Some(quoted));
         assert_eq!(index.resolve_block_ref("nope"), None);
+        assert_eq!(index.resolve_block_ref("old-1"), None);
         Ok(())
     }
 

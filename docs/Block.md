@@ -3,11 +3,11 @@
 	- Text, written in Markdown. It merges character by character, so two devices typing in one block both keep what they typed. [[Rendering]]
 	- A parent, or none if it is the root of an [[Entity]].
 	- A place among its siblings. Blocks can be indented, outdented and moved, and moves made on two devices at once can't make a loop.
-	- An ID, which is stable and unique but internal to the graph. To refer to a block from elsewhere, give it an `id::` property. [[Block references]]
+	- An ID, which is stable and unique but internal to the graph. To refer to a block from elsewhere, give it an `##id(…)` line. [[Block references]]
 - Everything else about a block is read from its text.
 	- [[Properties]]: `key:: value` lines, and `#tag`s in the text.
 	- [[Links]] to entities, `[[Name]]`, and references to blocks, `((id))`.
 	- So the text exports and imports with nothing lost. [[Export and import]]
-- A property line says something about an entity, not about a paragraph, so properties are read only from an entity's first child, the properties block. A `key:: value` line in any other block keeps its chip but is flagged as having no effect, apart from `id::` for now. Tags are fine anywhere. [[Entity]] [[Model redesign]]
+- A property line says something about an entity, not about a paragraph, so properties are read only from an entity's first child, the properties block. A `key:: value` line in any other block keeps its chip but is flagged as having no effect. Tags are fine anywhere, and so is `##id(…)`. [[Entity]] [[Model redesign]]
 - Undoing a deletion brings the block back as a new block, with a new ID. [[Undo]]
 - The full syntax is in [[Syntax]].

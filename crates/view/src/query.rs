@@ -639,9 +639,8 @@ impl View {
             .map(|p| {
                 let mut chip = property(&text, p, &index);
                 // A property says something about an entity, so it goes in the
-                // entity's properties block. `id` is the exception until
-                // block references have a `##` property of their own.
-                if !here && p.style == PropertyStyle::Line && normalise_name(&p.key) != "id" {
+                // entity's properties block.
+                if !here && p.style == PropertyStyle::Line {
                     chip.flags
                         .push("Has no effect outside an entity's properties block".into());
                 }
@@ -652,7 +651,12 @@ impl View {
         if !parsed.meta.is_empty() {
             properties.extend(parsed.meta.iter().map(|m| {
                 let mut chip = meta_property(&text, m);
-                if !here {
+                // `##id` belongs to the block it is in, so it goes anywhere.
+                if quiddity_core::ref_id::is_id(m) {
+                    if m.parameter.is_none() {
+                        chip.flags.push("Needs an ID: ##id(abc)".into());
+                    }
+                } else if !here {
                     chip.flags
                         .push("Has no effect outside a property's properties block".into());
                 }

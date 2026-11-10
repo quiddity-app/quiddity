@@ -1,5 +1,4 @@
-type:: property
-
-- A block's name for being referred to: `id:: 0198f0c4-…` is what `((0198f0c4-…))` finds. [[Block references]]
+- A block's name for being referred to: `##id(0198f0c4-…)` in the block is what `((0198f0c4-…))` finds. [[Block references]]
 - Block IDs inside a graph don't survive export and import, so a reference needs one written in the text.
-- One value. [[Properties]]
+- It is a `##` property, and the one that goes in any block, since it is about the block it is in. A block's first `##id` line that has an ID is its ID; a line with none says nothing, and is flagged. [[Meta-properties]]
+- `id::` is an ordinary property now, and refers to nothing. [[Properties]]
