@@ -11,6 +11,7 @@
 	- Tab and Shift-Tab indent and outdent, Backspace at the start joins the block to the one before, and Alt-Up and Alt-Down move it among its siblings.
 	- The arrows move between blocks at the edges, and Escape leaves the editor.
 	- A key that moves the block being edited says where editing continues before it moves it, because moving makes React remount the block.
+	- A block opened by a key, Enter above all, takes focus without the browser scrolling and has CodeMirror bring the caret into view in the pane that scrolls, with room to spare. Left to itself, a new editor's focus either did not scroll at all, so the caret ran off the bottom of the pane, or scrolled by the engine's own rules.
 - Links
 	- `[` makes `[]` with the caret inside, so `[[` makes `[[]]`. With a selection, the brackets go round it. `]` steps over a closer rather than doubling it, and Backspace in an empty pair removes both. A `[` before a word is left alone.
 	- Typing in a `[[link]]`, or making a new one, offers the pages whose titles match, by the same matching as search. [[Title matching]]
