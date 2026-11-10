@@ -10,7 +10,8 @@ use proptest::prelude::*;
 use quiddity_syntax::{
     Link, PropertyStyle, Qualifier, Query, Value, format_meta_line, format_meta_value_line,
     format_property_line, format_query, format_tag, is_properties_block, parse_block,
-    parse_meta_line, parse_meta_value_line, parse_property_line, parse_query,
+    parse_meta_line, parse_meta_value_line, parse_properties_block, parse_property_line,
+    parse_query,
 };
 
 /// Text weighted towards the characters that mean something to the parser.
@@ -228,6 +229,90 @@ proptest! {
         prop_assert_eq!(block.meta[0].span.clone(), at..text.len());
         let links: Vec<Link> = q.iter().flat_map(|q| q.links()).cloned().collect();
         prop_assert!(block.links.ends_with(&links), "{}", text);
+    }
+}
+
+/// One line of a properties block's text.
+#[derive(Debug, Clone)]
+enum BlockLine {
+    Property(String, Value),
+    Tags(Vec<String>),
+    Meta(String, Option<String>),
+    Prose(String),
+}
+
+fn block_line() -> impl Strategy<Value = BlockLine> {
+    prop_oneof![
+        (line_key(), value()).prop_map(|(k, v)| BlockLine::Property(k, v)),
+        vec(inline_key(), 1..4).prop_map(BlockLine::Tags),
+        (inline_key(), option::of("[a-z]{1,6}")).prop_map(|(k, p)| BlockLine::Meta(k, p)),
+        // Words, which can carry tags and links, but never read as a line of
+        // the other kinds: they have no `::` (a key may have spaces in it) and
+        // start with a letter, so they aren't tags or `##` lines.
+        r"[a-z]{1,5} [a-z#\[\]()]{0,8}".prop_map(BlockLine::Prose),
+    ]
+}
+
+proptest! {
+    /// Prose in a properties block is stray, and the lines around it are read
+    /// as they would be alone, so one bad line doesn't hide the rest.
+    #[test]
+    fn a_properties_block_reads_its_lines_and_flags_the_rest(
+        first in prop_oneof![
+            (line_key(), value()).prop_map(|(k, v)| BlockLine::Property(k, v)),
+            vec(inline_key(), 1..4).prop_map(BlockLine::Tags),
+        ],
+        rest in vec(block_line(), 0..6),
+        blanks in any::<bool>(),
+    ) {
+        let lines: Vec<_> = std::iter::once(first).chain(rest).collect();
+        let mut text = String::new();
+        let (mut properties, mut meta, mut stray) = (0, 0, Vec::new());
+        for line in &lines {
+            let written = match line {
+                BlockLine::Property(k, v) => {
+                    properties += 1;
+                    format_property_line(k, Some(v))
+                }
+                BlockLine::Tags(keys) => {
+                    properties += keys.len();
+                    keys.iter().map(|k| format_tag(k)).collect::<Vec<_>>().join(" ")
+                }
+                BlockLine::Meta(k, p) => {
+                    meta += 1;
+                    format_meta_line(k, p.as_deref())
+                }
+                BlockLine::Prose(s) => {
+                    stray.push(s.clone());
+                    s.clone()
+                }
+            };
+            if blanks && !text.is_empty() {
+                text.push('\n');
+            }
+            text.push_str(&written);
+            text.push('\n');
+        }
+        let found = parse_properties_block(&text);
+        prop_assert!(found.is_some(), "{}", text);
+        let found = found.unwrap();
+        let seen: Vec<_> = found.stray.iter().map(|r| text[r.clone()].to_owned()).collect();
+        prop_assert_eq!(seen, stray, "{}", text);
+        prop_assert_eq!(found.block.properties.len(), properties, "{}", text);
+        prop_assert_eq!(found.block.meta.len(), meta, "{}", text);
+        // Nothing read lies within a stray line.
+        for r in &found.stray {
+            let inside = |at: &std::ops::Range<usize>| at.start < r.end && r.start < at.end;
+            prop_assert!(!found.block.properties.iter().any(|p| inside(&p.span)), "{}", text);
+            prop_assert!(!found.block.meta.iter().any(|m| inside(&m.span)), "{}", text);
+        }
+    }
+
+    /// Prose first means it isn't a properties block at all.
+    #[test]
+    fn prose_first_is_not_a_properties_block(prose in r"[a-z]{1,5} [a-z]{1,5}", rest in "[a-z\n ]{0,12}") {
+        let text = format!("{}\n{}", prose, rest);
+        prop_assert!(parse_properties_block(&text).is_none(), "{}", text);
     }
 }
 

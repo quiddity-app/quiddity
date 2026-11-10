@@ -7,7 +7,7 @@ use jiff::civil::Date;
 use quiddity_core::schema::{Typed, coerce};
 use quiddity_core::syntax::{
     Link, MetaProperty, Property as Prop, PropertyStyle, Value, format_link, is_properties_block,
-    normalise_name, parse_block,
+    normalise_name, parse_block, parse_properties_block,
 };
 use quiddity_core::{BlockId, Home, Identity, Index, Resolution, ensure_journal};
 use serde::Serialize;
@@ -597,20 +597,42 @@ impl View {
 
     fn block(&self, id: BlockId, links: &mut BTreeMap<String, ResolvedLink>) -> Result<Block> {
         let text = self.graph.text(id)?;
+        // A properties block is its entity's first child, if it starts like
+        // one; only its property, tag and `##` lines are read.
+        let is_first_child = self.graph.parent(id).is_some_and(|p| {
+            self.graph.parent(p).is_none() && self.graph.children(p).first() == Some(&id)
+        });
+        let props_block = if is_first_child {
+            parse_properties_block(&text)
+        } else {
+            None
+        };
+        let here = props_block.is_some();
+        let parsed = match props_block {
+            Some(found) => found.block,
+            None => parse_block(&text),
+        };
         let index = self.index()?;
-        let parsed = parse_block(&text);
         for link in &parsed.links {
             add_link(&index, link, links);
         }
         let mut properties: Vec<Property> = parsed
             .properties
             .iter()
-            .map(|p| property(&text, p, &index))
+            .map(|p| {
+                let mut chip = property(&text, p, &index);
+                // A property says something about an entity, so it goes in the
+                // entity's properties block. `id` is the exception until
+                // block references have a `##` property of their own.
+                if !here && p.style == PropertyStyle::Line && normalise_name(&p.key) != "id" {
+                    chip.flags
+                        .push("Has no effect outside an entity's properties block".into());
+                }
+                chip
+            })
             .collect();
         drop(index);
         if !parsed.meta.is_empty() {
-            let entity = self.graph.entity_of(id);
-            let here = self.graph.properties_block(entity)? == Some(id);
             properties.extend(parsed.meta.iter().map(|m| {
                 let mut chip = meta_property(&text, m);
                 if !here {

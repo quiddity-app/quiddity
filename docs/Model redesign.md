@@ -47,7 +47,7 @@
 	- Each is a PR of one commit, which builds and passes on its own and updates the pages it touches. In order:
 	- 1. This design.
 	- 2. Built: [[quiddity-syntax]] reads `#entity` and `#[[entity]]` as tags with no value, `#key(value)` in text is a tag and then text, and `##key:: value` is read. A tag is still a valueless property in the index until step 4.
-	- 3. [[quiddity-core]]: properties blocks and regular blocks. Properties are read only from a properties block, prose in one is flagged, and so are properties and misplaced `##` lines elsewhere.
+	- 3. Built: [[quiddity-core]] and [[quiddity-view]] know a properties block by its first line. Only its property, tag and `##` lines are read, prose in it is flagged under the entity's title, and a `key:: value` line in another block is flagged on its chip and read as nothing, apart from `id::` until step 6. A link in a properties block's prose is not a backlink, though following it or typing it still makes the entity.
 	- 4. `##tag` replaces `type` and `tags`: the shorthand, qualifiers, queries, and the built-in schemas that named `type`.
 	- 5. `##journal` replaces `type:: journal` and `date`, in identity, creation, import and merging of journals.
 	- 6. `##id` replaces `id::`, and blobs become blocks with `##blob`: the index, [[quiddity-view]], [[quiddity-wasm]], the shell and [[Blob transfer]].

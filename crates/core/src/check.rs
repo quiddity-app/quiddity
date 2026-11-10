@@ -36,6 +36,9 @@ pub enum Flag {
     /// Meta-properties on an entity that doesn't define a property, where
     /// they mean nothing.
     MetaOutsideProperty,
+    /// A line of a properties block that is no property, tag or `##` line,
+    /// which is read as nothing.
+    StrayLine { text: String },
     /// A property entity named for another property's inverse label, which
     /// it would be confused with in queries.
     InverseClash { label: String, property: String },
@@ -116,6 +119,12 @@ impl Index {
                 flags.push(Flag::Cycle { key });
             }
         }
+
+        flags.extend(
+            info.stray
+                .iter()
+                .map(|text| Flag::StrayLine { text: text.clone() }),
+        );
 
         let defines = matches!(info.identity(), Some(Identity::Property(_)));
         if !defines {

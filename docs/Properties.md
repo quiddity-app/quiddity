@@ -1,7 +1,7 @@
 alias:: property
 
 - A property is a `key:: value` line, and a tag is a `#key` anywhere in running text, which is a property with no value for now. Both are read from a [[Block]]'s Markdown, which is the source of truth. A `(value)` after a tag is ordinary text. [[Syntax]] [[Model redesign]]
-	- An [[Entity]]'s own properties are in its properties block, its first child.
+	- An [[Entity]]'s own properties are in its properties block, its first child, and only there: a `key:: value` line in another block has no effect and is flagged, except `id::` until block references have a `##` property of their own. [[Block]]
 	- A block's `type` property is its type. [[type]]
 	- A property with no value is written `#key`, in a properties block and in prose. In prose that is a tag. [[tags]]
 - One value or several

@@ -98,6 +98,69 @@ pub fn parse_block(text: &str) -> Block {
     block
 }
 
+/// An entity's properties block: only its property lines, tags and `##` lines
+/// are read, and the rest is said to be stray.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PropertiesBlock {
+    /// What the block's property, tag and `##` lines say. Spans are within
+    /// the block's text.
+    pub block: Block,
+    /// Byte ranges of the lines that are none of those: prose, which a
+    /// properties block can't hold. They are read as nothing.
+    pub stray: Vec<Range<usize>>,
+}
+
+/// Reads `text` as a properties block, or says it isn't one: a block is one
+/// when its first line that isn't blank is a `key:: value` line, a line of
+/// nothing but tags (`#a #b`) or a `##` line. Any later line that is none of
+/// those is stray, so prose typed into a properties block neither becomes a
+/// property nor hides the others.
+pub fn parse_properties_block(text: &str) -> Option<PropertiesBlock> {
+    let mut found = PropertiesBlock::default();
+    let mut offset = 0;
+    let mut started = false;
+    for line in text.split_inclusive('\n') {
+        let content = line.strip_suffix('\n').unwrap_or(line);
+        let content = content.strip_suffix('\r').unwrap_or(content);
+        if !content.trim().is_empty() {
+            if is_properties_line(content) {
+                parse_line(content, offset, &mut found.block);
+            } else if started {
+                found.stray.push(offset..offset + content.len());
+            } else {
+                return None;
+            }
+            started = true;
+        }
+        offset += line.len();
+    }
+    started.then_some(found)
+}
+
+/// Whether a line belongs in a properties block.
+fn is_properties_line(line: &str) -> bool {
+    parse_property_line(line).is_some()
+        || parse_meta_line(line).is_some()
+        || parse_meta_value_line(line).is_some()
+        || is_tags_line(line)
+}
+
+/// Whether a line is nothing but tags, `#a #[[b c]]`.
+fn is_tags_line(line: &str) -> bool {
+    let mut sc = Scanner::new(line);
+    sc.skip_ws();
+    if sc.at_end() {
+        return false;
+    }
+    while !sc.at_end() {
+        if !sc.eat("#") || parse_key(&mut sc).is_none() {
+            return false;
+        }
+        sc.skip_ws();
+    }
+    true
+}
+
 /// Whether a block consists only of `key:: value` lines (and `##` lines), like the initial block of an entity that holds the entity's
 /// properties.
 pub fn is_properties_block(text: &str) -> bool {
@@ -1145,6 +1208,67 @@ mod tests {
             Some(("a::b".into(), None)),
             "a `::` inside a bracketed key is part of the key"
         );
+    }
+
+    #[test]
+    fn a_properties_block_is_known_by_its_first_line() {
+        let yes = |text: &str| parse_properties_block(text).is_some();
+        assert!(yes("type:: person"));
+        assert!(
+            yes("\n\n  born:: 1970\nsome prose"),
+            "blank lines don't count"
+        );
+        assert!(yes("#person"));
+        assert!(yes("#a #[[b c]]"));
+        assert!(yes("##journal(2026-10-09)"));
+        assert!(yes("##tag:: [a]"));
+        assert!(!yes("prose\ntype:: person"), "prose first");
+        assert!(!yes("#todo buy milk"), "a tag in prose");
+        assert!(!yes("#a."), "a full stop isn't part of a tag");
+        assert!(!yes("#123"));
+        assert!(!yes(""));
+        assert!(!yes(" \n\t\n"));
+        assert!(!yes("- bullet:: no"));
+    }
+
+    #[test]
+    fn prose_in_a_properties_block_is_stray() {
+        let text = "type:: person\nMet at [[Summit]] #oops\n#a #b\r\n\nborn:: 1970";
+        let found = parse_properties_block(text).unwrap();
+        let stray: Vec<_> = found.stray.iter().map(|r| &text[r.clone()]).collect();
+        assert_eq!(stray, ["Met at [[Summit]] #oops"]);
+        let keys: Vec<_> = found
+            .block
+            .properties
+            .iter()
+            .map(|p| p.key.as_str())
+            .collect();
+        assert_eq!(
+            keys,
+            ["type", "a", "b", "born"],
+            "the stray line adds nothing"
+        );
+        assert!(
+            found.block.links.is_empty(),
+            "a stray line's links aren't read"
+        );
+        let spans: Vec<_> = found
+            .block
+            .properties
+            .iter()
+            .map(|p| &text[p.span.clone()])
+            .collect();
+        assert_eq!(spans, ["type:: person", "#a", "#b", "born:: 1970"]);
+    }
+
+    #[test]
+    fn tag_lines() {
+        for yes in ["#a", "  #a  #b ", "#a#b", "#[[b c]] #d", "\t#a"] {
+            assert!(is_tags_line(yes), "{yes:?}");
+        }
+        for no in ["", "  ", "a", "#a b", "#a. #b", "# a", "#", "#a x#b", "##a"] {
+            assert!(!is_tags_line(no), "{no:?}");
+        }
     }
 
     #[test]
