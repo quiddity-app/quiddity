@@ -171,8 +171,8 @@ gains one makes the entity.
 
 - **`##` lines are `Property`s with `meta: true`**, the parameter as text.
   Outside an entity's properties block, each is flagged as having no effect.
-  So is a `key:: value` line outside it, whose chip stays (`id` is exempt for
-  now). In a properties block only its own lines are chips: prose is stray, and
+  So is a `key:: value` line outside it, whose chip stays (`id::` included: a block's ID is
+  `##id(…)`, which is allowed in any block and flagged only when it has no ID). In a properties block only its own lines are chips: prose is stray, and
   is flagged under the entity's title.
 - **Flags go on their chips** (`Property::flags`), matched by normalised key
   and by whether the chip is a meta-property; only the properties block's

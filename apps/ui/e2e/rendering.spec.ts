@@ -97,7 +97,7 @@ test("[text](dest) links to an entity, a block or an app page", async ({ page })
   const block = await write(
     page,
     "[the db]([[Loro]]) [the list]([[Reading list]]) [all](/all/) [graph](/graph/)\n" +
-      "[here](((self-1))) [nowhere](((nope)))\nid:: self-1",
+      "[here](((self-1))) [nowhere](((nope)))\n##id(self-1)",
   );
   await expect(block.getByRole("link", { name: "graph" })).toHaveAttribute("href", /\/graph\/$/);
   await expect(block.getByRole("link", { name: "the list" })).toBeVisible();

@@ -60,7 +60,7 @@ impl View {
         Ok(id.to_string())
     }
 
-    /// The entity that holds the block whose `id::` is `id`, which is where a
+    /// The entity that holds the block whose `##id` is `id`, which is where a
     /// block reference goes until blocks can be shown in place. Nothing is
     /// made for a reference to nowhere: there is no way to say what it was
     /// meant to be.

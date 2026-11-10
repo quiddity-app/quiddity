@@ -298,7 +298,7 @@ fn what_is_not_inherited() -> Result<()> {
     entity(
         &graph,
         "plant",
-        "kind of:: living thing\nid:: p1\nalias:: flora\ntitle:: Plants\nleaves:: yes",
+        "kind of:: living thing\nalias:: flora\ntitle:: Plants\nleaves:: yes",
     )?;
     let tree = entity(&graph, "tree", "kind of:: plant")?;
     entity(&graph, "living thing", "")?;

@@ -14,6 +14,7 @@ alias:: meta-property
 		  ```
 	- The set is fixed: Quiddity gives each one its meaning, and they can't be defined in the graph. `##` is a namespace of its own, so `##inverse` has nothing to do with a property called `inverse`.
 	- They are drawn as chips, `##key` and the parameter as written. Anywhere else, a `##` line has no effect, and its chip is flagged. The one exception is `##asset`, which goes on an asset's entity instead. [[Binaries]]
+	- `##id(0198f0c4-…)` gives a block an ID to be referred to by, and unlike the rest goes in any block. [[id]]
 	- `##journal(2026-10-25)` is another that isn't about a property: it makes an entity that day's [[Journal]]. It needs a day, and is flagged without one.
 	- `##tag:: [a, b]` is the one that isn't about a property: it goes in the properties block of any entity, and is the long form of `#a #b`. It needs a value, and a bare `##tag` is flagged. [[tags]]
 	- They are meant to be written once, when a property is set up, and seldom touched after. Changing one changes what every use of the property means, and nothing is rewritten.
@@ -33,7 +34,7 @@ alias:: meta-property
 	- `##values`, `##transitive`, `##inherits`, `##inverse` and `##symmetric` only make sense for references, so a property with any of them is a `ref` property unless `##value-type` says otherwise. As now, a bare name in a reference is a name: with `parent` a reference, `parent:: Scotland` means `parent:: [[Scotland]]`. [[Links]]
 - Defaults
 	- A property with no meta-properties is text, with any number of values, on anything.
-	- Quiddity's own properties ([[type]], [[alias]], [[favourite]], [[id]] and [[title]]) have built-in meta-properties, so a new graph needs nothing written into it. A property entity overrides each one it writes, so they are editable like any other.
+	- Quiddity's own properties ([[type]], [[alias]], [[favourite]] and [[title]]) have built-in meta-properties, so a new graph needs nothing written into it. A property entity overrides each one it writes, so they are editable like any other.
 	- Quiddity defines no taxonomy of its own. There is no built-in `supertype` or `parent`: a graph makes the ones it wants.
 - Transitive properties
 	- With `##transitive` on [[type]], `Oak` with `type:: tree`, and `tree` with `type:: plant`, Oak's types are tree and plant, and the query `#type(plant)` finds both Oak and tree.
@@ -42,7 +43,7 @@ alias:: meta-property
 	- With `##inherits` on a property, an entity has the properties of each entity the property refers to, as well as its own. The entities it inherits from may themselves inherit, and so on.
 	- A taxonomy, for example: `supertype`, with `##transitive`, `##inherits` and `##inverse(subtypes)`. If `tree` has `supertype:: plant` and `plant` has `#alive`, then tree is `#alive` too, a query for `#alive` finds it, and plant's page lists tree under subtypes.
 	- Its own values come first: a property an entity writes itself is not inherited, so a `cardinality` of one isn't broken by inheritance.
-	- Not inherited: the inheriting property itself (that is what `##transitive` is for), and what identifies an entity: [[title]], [[alias]] and [[id]]. What an entity is identified by is read from its own properties only, so inheriting `type:: property` doesn't make a property entity. [[Duplicates]]
+	- Not inherited: the inheriting property itself (that is what `##transitive` is for), and what identifies an entity: [[title]] and [[alias]]. What an entity is identified by is read from its own properties only, so inheriting `type:: property` doesn't make a property entity. [[Duplicates]]
 	- An entity's page lists what it has from others under Inherited, below its body, apart from what it writes itself: each value with a link to the entity it is written on. A value that can be reached more than one way is listed once. Values a transitive property reaches are listed there too.
 - Inverses
 	- `##inverse(children)` on `parent` gives each entity a list headed children: the entities whose `parent` is it. It is shown below the entity's body, above the references, as a tree of children's children, open by default. A tree stops at 100 entities, showing all of an entity's children before any of theirs, and says how many more an entity has where it stops; they are on that entity's own page. An entity isn't repeated beneath itself.

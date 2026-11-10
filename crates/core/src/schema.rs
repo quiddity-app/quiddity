@@ -212,7 +212,6 @@ const BUILTIN: &[(&str, PropertySchema)] = {
         ("type", PropertySchema::of(Ref, C::ANY)),
         ("alias", PropertySchema::of(Text, C::ANY)),
         ("favourite", PropertySchema::of(Boolean, C::OPTIONAL)),
-        ("id", PropertySchema::of(Text, C::OPTIONAL)),
         ("title", PropertySchema::of(Text, C::OPTIONAL)),
     ]
 };
@@ -438,7 +437,10 @@ mod tests {
         assert_eq!(coerce(&t("Yes"), &flag), Ok(Typed::Boolean(true)));
         assert_eq!(PropertySchema::builtin("Favourite"), Some(flag));
 
-        for (key, cardinality) in [("id", Cardinality::OPTIONAL), ("alias", Cardinality::ANY)] {
+        for (key, cardinality) in [
+            ("title", Cardinality::OPTIONAL),
+            ("alias", Cardinality::ANY),
+        ] {
             assert_eq!(
                 PropertySchema::builtin(key).unwrap().cardinality,
                 cardinality

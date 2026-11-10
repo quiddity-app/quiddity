@@ -23,6 +23,7 @@ pub mod journal;
 mod merge;
 pub mod outline;
 mod query;
+pub mod ref_id;
 pub mod schema;
 mod settings;
 pub mod tags;

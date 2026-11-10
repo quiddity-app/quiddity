@@ -149,7 +149,10 @@ impl Index {
         let defines = matches!(info.identity(), Some(Identity::Property(_)));
         if !defines {
             if info.meta.iter().any(|m| {
-                !crate::asset::is_asset(m) && !tags::is_tag(m) && !crate::journal::is_journal(m)
+                !crate::asset::is_asset(m)
+                    && !tags::is_tag(m)
+                    && !crate::journal::is_journal(m)
+                    && !crate::ref_id::is_id(m)
             }) {
                 flags.push(Flag::MetaOutsideProperty);
             }

@@ -8,11 +8,12 @@
 	  | `[[Name]]` | a link to the entity called Name |
 	  | `[[Name#type(person)]]` | a link narrowed by its target's properties |
 	  | `author:: [[Jane#type(person)]]` | a link as a property's value |
-	  | `((id))` | a reference to the block with that `id::` |
+	  | `((id))` | a reference to the block with that `##id(…)` line |
 	  | `[text]([[Name]])` | a link to an entity, with words of its own |
 	  | `[text](((id)))` | a link to a block |
 	  | `[text](/graph/)`, `[text](https://…)` | a link to an app page, or the web |
 	  | `##key(parameter)` | a meta-property, on a line of its own in a property's own properties block |
+	  | `##id(abc)` | gives its block an ID, which `((abc))` refers to |
 	  | `##key:: value` | the same, with a value written as a property line's is |
 	- [[Properties]], [[Links]], [[Block references]] and [[Meta-properties]] have the details, and [[Queries]] has the language a meta-property's parameter is written in.
 - Values

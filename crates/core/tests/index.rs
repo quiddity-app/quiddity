@@ -260,7 +260,7 @@ fn update_declines_what_changes_more_than_backlinks() {
         .create_block(Some(jane), None, "see [[Jane]]")
         .unwrap();
     let referred = graph
-        .create_block(Some(jane), None, "quotable\nid:: abc")
+        .create_block(Some(jane), None, "quotable\n##id(abc)")
         .unwrap();
     graph.commit();
     let mut index = Index::build(&graph).unwrap();
@@ -277,9 +277,11 @@ fn update_declines_what_changes_more_than_backlinks() {
     assert!(!index.update_text(note, "see [[Jane]]", "kind:: b\nsee [[Jane]]"));
     assert!(!index.update_text(note, "see [[Jane]]", "#tag"));
     assert!(index.update_text(note, "see [[Jane]]", "see [[Jane]] #tag"));
-    // An `id` property, which `((id))` refers to, either side.
-    assert!(!index.update_text(referred, "quotable\nid:: abc", "quotable [[Jane]]"));
-    assert!(!index.update_text(note, "see [[Jane]]", "see\nid:: abc"));
+    // An `##id` line, which `((id))` refers to, either side.
+    assert!(!index.update_text(referred, "quotable\n##id(abc)", "quotable [[Jane]]"));
+    assert!(!index.update_text(note, "see [[Jane]]", "see\n##id(abc)"));
+    // A line with no ID refers to nothing, so it doesn't stop an update.
+    assert!(index.update_text(note, "see [[Jane]]", "see [[Jane]]\n##id"));
     // A block the index has never seen.
     let new = graph.create_block(Some(jane), None, "new").unwrap();
     assert!(!index.update_text(new, "new", "newer [[Jane]]"));

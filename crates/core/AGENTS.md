@@ -33,7 +33,7 @@ outline text format.
   changing, and says whether it could.** Only an ordinary block's backlinks
   depend on its text: names, properties, schemas and effective properties are
   read from roots and properties blocks. So it declines a root, a block that
-  starts like a properties block either side of the edit, a block with an `id` property either side
+  starts like a properties block either side of the edit, a block with an `##id` line (one with an ID) either side
   (`((id))` would refer to another block) and a block it hasn't seen, and
   changes nothing when it does; the caller builds the index again. It keeps each
   list of backlinks in document order (`position`), which is what a fresh build
@@ -152,8 +152,7 @@ so the caller must know there is nothing.
   starts with a property, tag or `##` line, is its properties block
   (`parse_properties_block`). Only those lines are read: others are `stray`
   (`EntityInfo::stray`, flagged as `Flag::StrayLine`), and their links aren't
-  backlinks. Properties are read only from there, apart from `id::` in any
-  block for now.
+  backlinks. Properties are read only from there.
 - **A tag is a link, and a valueless inline property.** `read_block` is the
   one reading of a block's text for the index: `#a` is a link to `a`, and each
   name in a `##tag` line of a properties block (`tags::expand`) becomes the same

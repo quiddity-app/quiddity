@@ -1,6 +1,6 @@
 use quiddity_syntax::{
-    MetaProperty, Property, Value, format_property_line, normalise_name, parse_block,
-    parse_properties_block,
+    MetaProperty, Property, Value, format_meta_line, format_property_line, normalise_name,
+    parse_block, parse_properties_block,
 };
 
 use crate::{BlockId, Error, Graph, Result};
@@ -143,22 +143,15 @@ impl Graph {
         Ok(parse_block(&self.text(block)?).properties)
     }
 
-    /// Returns the block's `id` property, adding a new one if it has none, so
-    /// that it can be referred to as `((id))`.
+    /// Returns the block's ID, adding a `##id` line with a new one if it has
+    /// none, so that it can be referred to as `((id))`.
     pub fn ensure_ref_id(&self, block: BlockId) -> Result<String> {
         let text = self.text(block)?;
-        let existing = parse_block(&text)
-            .properties
-            .into_iter()
-            .find_map(|p| match p.value {
-                Some(Value::Text(id)) if p.key.eq_ignore_ascii_case("id") => Some(id),
-                _ => None,
-            });
-        if let Some(id) = existing {
-            return Ok(id);
+        if let Some(id) = crate::ref_id::of(&parse_block(&text).meta) {
+            return Ok(id.to_owned());
         }
         let id = uuid::Uuid::now_v7().to_string();
-        let line = format_property_line("id", Some(&Value::Text(id.clone())));
+        let line = format_meta_line(crate::ref_id::KEY, Some(&id));
         let sep = if text.is_empty() || text.ends_with('\n') {
             ""
         } else {
@@ -365,16 +358,24 @@ mod tests {
         let block = graph.create_block(Some(page), None, "Quotable")?;
         let id = graph.ensure_ref_id(block)?;
         assert_eq!(graph.ensure_ref_id(block)?, id);
-        assert_eq!(graph.text(block)?, format!("Quotable\nid:: {id}"));
+        assert_eq!(graph.text(block)?, format!("Quotable\n##id({id})"));
 
         let other = graph.create_block(Some(page), None, "status:: done")?;
         let id = graph.ensure_ref_id(other)?;
-        assert_ne!(id, "done", "only an `id` property is an ID");
-        assert_eq!(graph.text(other)?, format!("status:: done\nid:: {id}"));
+        assert_ne!(id, "done", "only an `##id` line is an ID");
+        assert_eq!(graph.text(other)?, format!("status:: done\n##id({id})"));
+
+        // `id::` is an ordinary property, so it isn't one, and a line with no
+        // ID in it isn't one either.
+        let old = graph.create_block(Some(page), None, "old\nid:: abc\n##id")?;
+        let id = graph.ensure_ref_id(old)?;
+        assert_ne!(id, "abc");
+        assert_eq!(graph.text(old)?, format!("old\nid:: abc\n##id\n##id({id})"));
+        assert_eq!(graph.ensure_ref_id(old)?, id, "the line it added is read");
 
         let empty = graph.create_block(Some(page), None, "")?;
         let id = graph.ensure_ref_id(empty)?;
-        assert_eq!(graph.text(empty)?, format!("id:: {id}"));
+        assert_eq!(graph.text(empty)?, format!("##id({id})"));
         Ok(())
     }
 }
