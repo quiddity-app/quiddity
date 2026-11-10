@@ -28,7 +28,7 @@
 	- Merged duplicates of a journal move their blocks into one entity, and a move counts.
 	- Created dates are lost when history is compacted. Modified dates are only known for edits made afterwards.
 - Tags
-	- What a tag is, and that the definition is a reading rather than a decision, is on [[tags]].
+	- What a tag is is on [[tags]]. An entity's tags are those of its properties block, in either form, and any `#tag` written in its other blocks.
 	- They are shown only where two entities have the same title, ignoring case. For each such entity the fewest tags are picked, greedily, that every other entity with the title lacks at least one of. Entities that cannot be told apart show none.
 - Where it comes from
 	- The view crate's `summaries()` answers the whole table in one query, in the order of `entities()`, so it is a whole-graph cost paid once per revision. The UI reads it as `graph.summaries()`.

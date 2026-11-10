@@ -3,12 +3,12 @@ alias:: property
 - A property is a `key:: value` line, and a tag is a `#key` anywhere in running text, which is a property with no value for now. Both are read from a [[Block]]'s Markdown, which is the source of truth. A `(value)` after a tag is ordinary text. [[Syntax]] [[Model redesign]]
 	- An [[Entity]]'s own properties are in its properties block, its first child, and only there: a `key:: value` line in another block has no effect and is flagged, except `id::` until block references have a `##` property of their own. [[Block]]
 	- A block's `type` property is its type. [[type]]
-	- A property with no value is written `#key`, in a properties block and in prose. In prose that is a tag. [[tags]]
+	- A property with no value is written `key::`. `#key` is a tag, which is a link to an entity and not a property. [[tags]]
 - One value or several
 	- Two `tag:: a` and `tag:: b` lines are two instances of `tag`, with one value each.
 	- `steps:: [a, b, c]` is one instance holding an ordered list.
 - Property entities
-	- Every key can have an entity that defines it (a property entity), named for the key, with `type:: property`. The built-in ones are documented that way: [[type]], [[alias]], [[date]], [[favourite]], [[id]], [[title]] and [[tags]].
+	- Every key can have an entity that defines it (a property entity), named for the key, with `type:: property`. The built-in ones are documented that way: [[type]], [[alias]], [[date]], [[favourite]], [[id]] and [[title]].
 	- Property names are unique, matched as names are, ignoring case and spacing. If two devices make the same property entity, the two are merged. [[Duplicates]]
 	- A property entity describes the property in prose, and can give it a schema.
 	- It can't be renamed, because its name is what identifies it. [[Renaming]]

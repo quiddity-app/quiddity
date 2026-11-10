@@ -6,7 +6,7 @@ mod common;
 use proptest::collection::vec;
 use proptest::prelude::*;
 use proptest::sample::Index as Pick;
-use quiddity_core::syntax::{Link, Qualifier, Value, format_link, normalise_name};
+use quiddity_core::syntax::{Link, Qualifier, Value, format_link, format_tag, normalise_name};
 use quiddity_core::{Backlink, BlockId, Graph, Index, Resolution};
 
 // Small pools, so that names, keys and values collide often. Names and
@@ -179,13 +179,16 @@ proptest! {
     }
 }
 
-/// Text for a note: some words and links, to the entities' names and
+/// Text for a note: some words, links and tags, to the entities' names and
 /// qualified, so that a block links to the same entity more than once, and
 /// some links are ambiguous and some are not.
 fn note_text() -> impl Strategy<Value = String> {
     let part = prop_oneof![
         2 => Just("words ".to_owned()),
         2 => (0..NAMES.len()).prop_map(|i| format!("[[{}]] ", NAMES[i])),
+        // A tag is a link too. With words before it, so the block isn't all
+        // tags, which would make it a properties block.
+        1 => (0..NAMES.len()).prop_map(|i| format!("see {} ", format_tag(NAMES[i]))),
         1 => (0..NAMES.len()).prop_map(|i| {
             let link = Link {
                 name: NAMES[i].to_owned(),
@@ -334,4 +337,87 @@ fn a_block_that_starts_with_prose_is_not_a_properties_block() {
     let index = Index::build(&graph).unwrap();
     let info = index.entity(jane).unwrap();
     assert!(info.properties.is_empty() && info.stray.is_empty());
+}
+
+/// A tag is a link to the entity it names, wherever it is written: in prose,
+/// as `#a` in a properties block, or as a value of `##tag`. Each is one
+/// backlink from its block, however it is written there.
+#[test]
+fn tags_are_links() {
+    let graph = Graph::new();
+    let person = graph.create_block(None, None, "person").unwrap();
+    let org = graph.create_block(None, None, "org").unwrap();
+    let team = graph.create_block(None, None, "Team").unwrap();
+    let jane = graph.create_block(None, None, "Jane").unwrap();
+    let props = graph
+        .create_block(Some(jane), None, "#person\n##tag:: [org, [[Team]], person]")
+        .unwrap();
+    let note = graph
+        .create_block(Some(jane), None, "met a #person and a #[[Team]] here")
+        .unwrap();
+    graph.commit();
+    let index = Index::build(&graph).unwrap();
+    let from =
+        |entity| -> Vec<BlockId> { index.backlinks(entity).iter().map(|b| b.source).collect() };
+    // Twice from the properties block: as `#person` and as a `##tag` value.
+    assert_eq!(from(person), [props, props, note]);
+    assert_eq!(from(org), [props]);
+    assert_eq!(
+        from(team),
+        [props, note],
+        "a link value is one link, not two"
+    );
+    assert!(from(jane).is_empty());
+}
+
+/// `#a` and `##tag:: a` are the same tag: the entity has it either way, and
+/// a link qualifier can ask for it.
+#[test]
+fn both_forms_of_a_tag_are_the_entity_s_tag() {
+    let graph = Graph::new();
+    let short = graph.create_block(None, None, "Mercury").unwrap();
+    graph.create_block(Some(short), None, "#planet").unwrap();
+    let long = graph.create_block(None, None, "Mercury").unwrap();
+    graph
+        .create_block(Some(long), None, "##tag:: [planet, hot]")
+        .unwrap();
+    let other = graph.create_block(None, None, "Mercury").unwrap();
+    graph
+        .create_block(Some(other), None, "tags:: [planet]")
+        .unwrap();
+    graph.commit();
+    let index = Index::build(&graph).unwrap();
+    let keys = |e| -> Vec<String> {
+        index
+            .entity(e)
+            .unwrap()
+            .properties
+            .iter()
+            .map(|p| p.key.clone())
+            .collect()
+    };
+    assert_eq!(keys(short), ["planet"]);
+    assert_eq!(keys(long), ["planet", "hot"]);
+    assert_eq!(
+        keys(other),
+        ["tags"],
+        "`tags::` is an ordinary property now"
+    );
+    let ask = |tag: &str| {
+        let link = Link {
+            name: "Mercury".into(),
+            qualifiers: vec![Qualifier {
+                key: tag.into(),
+                value: None,
+            }],
+        };
+        match index.resolve(&link) {
+            Resolution::Unique(id) => vec![id],
+            Resolution::Ambiguous(ids) => ids,
+            Resolution::Missing => vec![],
+        }
+    };
+    assert_eq!(ask("planet"), [short, long]);
+    assert_eq!(ask("hot"), [long]);
+    assert!(ask("cold").is_empty());
 }

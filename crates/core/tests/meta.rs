@@ -499,3 +499,32 @@ fn builtins_can_be_overridden() -> Result<()> {
     assert_eq!(index.schema("favourite").value_type, ValueType::Boolean);
     Ok(())
 }
+
+/// `##tag` is for any entity, a property's included, and says nothing about
+/// the property. It needs a value.
+#[test]
+fn tag_lines_are_flagged_only_when_they_have_no_value() -> Result<()> {
+    let graph = Graph::new();
+    let tagged = entity(&graph, "Tagged", "##tag:: [a, b]")?;
+    let bare = entity(&graph, "Bare", "##tag\n##tag(x)")?;
+    let property = entity(
+        &graph,
+        "rating",
+        "type:: property\n##tag:: [kind]\n##value-type(number)",
+    )?;
+    graph.commit();
+    let index = Index::build(&graph)?;
+    assert_eq!(index.flags(tagged), []);
+    let missing = Flag::BadMeta {
+        key: "tag".into(),
+        message: "needs a value: ##tag:: [a, b]".into(),
+    };
+    assert_eq!(index.flags(bare), [missing.clone(), missing]);
+    assert_eq!(index.flags(property), [], "not an unknown meta-property");
+    assert_eq!(
+        index.schema("rating").value_type,
+        ValueType::Number,
+        "the rest of its schema is read"
+    );
+    Ok(())
+}

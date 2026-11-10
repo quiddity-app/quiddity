@@ -3,13 +3,56 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use jiff::civil::Date;
 use quiddity_syntax::{
-    Link, MetaProperty, Property, Qualifier, Value, normalise_name, parse_block,
-    parse_properties_block,
+    Block, Link, MetaProperty, Property, PropertyStyle, Qualifier, Value, normalise_name,
+    parse_block, parse_properties_block,
 };
 
 use crate::effective::Effective;
 use crate::schema::PropertySchema;
+use crate::tags;
 use crate::{BlockId, Flag, Graph, Result, Scanned};
+
+/// What the index reads from one block's text.
+struct Read {
+    /// Its properties and `##` lines, links and block references, with tags of
+    /// either form among the properties.
+    block: Block,
+    /// Everything it links to: its links, and its tags, which are links.
+    links: Vec<Link>,
+    /// The lines of a properties block that it doesn't read.
+    stray: Vec<String>,
+}
+
+/// Reads a block's text, as a properties block if it is an entity's first
+/// child and starts like one.
+fn read_block(text: &str, first_child: bool) -> Read {
+    let found = first_child.then(|| parse_properties_block(text)).flatten();
+    let (mut block, stray) = match found {
+        Some(found) => {
+            let stray = found
+                .stray
+                .iter()
+                .map(|r| text[r.clone()].trim().to_owned())
+                .collect();
+            (found.block, stray)
+        }
+        None => (parse_block(text), Vec::new()),
+    };
+    let mut links = block.links.clone();
+    links.extend(
+        block
+            .properties
+            .iter()
+            .filter(|p| p.style == PropertyStyle::Inline)
+            .map(|p| tags::link(&p.key)),
+    );
+    links.extend(tags::expand(&mut block));
+    Read {
+        block,
+        links,
+        stray,
+    }
+}
 
 /// What the index knows about one entity.
 #[derive(Debug, Clone)]
@@ -157,18 +200,11 @@ impl Index {
                 let found = blocks
                     .get(at + 1)
                     .filter(|next| next.parent == Some(entity))
-                    .and_then(|next| {
-                        let found = parse_properties_block(&next.text)?;
-                        let stray = found
-                            .stray
-                            .iter()
-                            .map(|r| next.text[r.clone()].trim().to_owned())
-                            .collect();
-                        Some((found.block, stray))
-                    });
+                    .filter(|next| parse_properties_block(&next.text).is_some())
+                    .map(|next| read_block(&next.text, true));
                 let ((properties, meta), stray) = found.map_or_else(
                     || ((Vec::new(), Vec::new()), Vec::new()),
-                    |(block, stray)| ((block.properties, block.meta), stray),
+                    |read| ((read.block.properties, read.block.meta), read.stray),
                 );
                 let info = EntityInfo {
                     id: entity,
@@ -219,17 +255,14 @@ impl Index {
                 .checked_sub(1)
                 .and_then(|before| blocks.get(before))
                 .is_some_and(|before| before.parent.is_none());
-            let parsed = first_child
-                .then(|| parse_properties_block(&scanned.text))
-                .flatten()
-                .map_or_else(|| parse_block(&scanned.text), |found| found.block);
-            for p in &parsed.properties {
+            let read = read_block(&scanned.text, first_child);
+            for p in &read.block.properties {
                 if let (true, Some(Value::Text(id))) = (normalise_name(&p.key) == "id", &p.value) {
                     let entry = index.by_ref_id.entry(id.clone()).or_insert(block);
                     *entry = (*entry).min(block);
                 }
             }
-            references.extend(parsed.links.into_iter().map(|link| (block, link)));
+            references.extend(read.links.into_iter().map(|link| (block, link)));
         }
         for (source, link) in references {
             let Some((targets, ambiguous)) = index.targets(&link) else {
@@ -276,9 +309,10 @@ impl Index {
         if !known || properties_block(old) || properties_block(new) {
             return false;
         }
-        let (old, new) = (parse_block(old), parse_block(new));
+        let (old, new) = (read_block(old, false), read_block(new, false));
         let has_id = |p: &Property| normalise_name(&p.key) == "id";
-        if old.properties.iter().chain(&new.properties).any(has_id) {
+        let properties = old.block.properties.iter().chain(&new.block.properties);
+        if properties.into_iter().any(has_id) {
             return false;
         }
         // Where this block's backlinks go: after those of blocks before it.
@@ -322,7 +356,14 @@ impl Index {
             };
             let id = ids[0];
             let base = PropertySchema::builtin(key).unwrap_or_default();
-            let (schema, problems) = base.with_meta(&self.entities[&id].meta);
+            // `##tag` is for any entity, and isn't about the property.
+            let meta: Vec<_> = self.entities[&id]
+                .meta
+                .iter()
+                .filter(|m| !tags::is_tag(m))
+                .cloned()
+                .collect();
+            let (schema, problems) = base.with_meta(&meta);
             schemas.insert(key.clone(), schema);
             flags.insert(id, problems);
         }

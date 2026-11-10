@@ -160,14 +160,17 @@ function PropertyKey({
       </EntityLink>
     );
   }
-  // Nobody has defined it yet, so following it does.
+  // Nobody has made it yet, so following it does: a tag is a link to the
+  // entity it names, and a property's key goes to the entity that defines it.
   return (
     <a
       href="#"
       className={`${className} hover:underline`}
       onClick={(e) => {
         e.preventDefault();
-        const id = graph.defineProperty(property.key);
+        const id = property.inline
+          ? graph.followLink(property.key)
+          : graph.defineProperty(property.key);
         router.push(e.shiftKey ? view.toSide(id) : view.toMain(id));
       }}
     >

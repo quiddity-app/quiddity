@@ -154,6 +154,12 @@ so the caller must know there is nothing.
   (`EntityInfo::stray`, flagged as `Flag::StrayLine`), and their links aren't
   backlinks. Properties are read only from there, apart from `id::` in any
   block for now.
+- **A tag is a link, and a valueless inline property.** `read_block` is the
+  one reading of a block's text for the index: `#a` is a link to `a`, and each
+  name in a `##tag` line of a properties block (`tags::expand`) becomes the same
+  valueless property, so queries, qualifiers and inheritance see both forms
+  alike. A `##tag` value that is a link is already one of the block's links, so
+  it isn't added twice.
 - **`move_block`'s index is the final position**, so within the same parent
   it counts the siblings other than the block itself.
 - **Duplicates are never deleted.** Entities with the same identity

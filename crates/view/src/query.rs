@@ -196,10 +196,18 @@ fn utf16_at(text: &str, byte: usize) -> usize {
 }
 
 fn property(text: &str, p: &Prop, index: &Index) -> Property {
+    // A property's key goes to the entity that defines it, and a tag to the
+    // entity it names.
+    let definition = if p.style == PropertyStyle::Inline {
+        match index.resolve(&quiddity_core::tags::link(&p.key)) {
+            Resolution::Unique(id) => Some(index.canonical(id)),
+            _ => None,
+        }
+    } else {
+        index.property_entity(&p.key).map(|id| index.canonical(id))
+    };
     Property {
-        definition: index
-            .property_entity(&p.key)
-            .map(|id| index.canonical(id).to_string()),
+        definition: definition.map(|id| id.to_string()),
         key: p.key.clone(),
         value: p.value.as_ref().map(property_value),
         inline: p.style == PropertyStyle::Inline,
@@ -356,6 +364,15 @@ impl View {
             let block = scanned.id;
             if scanned.parent.is_none() {
                 current = Some(index.canonical(block));
+                // The tags of its properties block, in either form.
+                if let (Some(entity), Some(info)) = (current, index.entity(block)) {
+                    tags.entry(entity).or_default().extend(
+                        info.properties
+                            .iter()
+                            .filter(|p| p.style == PropertyStyle::Inline && p.value.is_none())
+                            .map(|p| normalise_name(&p.key)),
+                    );
+                }
             }
             let Some(entity) = current else {
                 continue;
@@ -801,27 +818,16 @@ pub(crate) fn contains_word(text: &str, name: &str) -> bool {
     })
 }
 
-/// The tags written in a block: properties with no value (`#tag`), and the
-/// values of a `tags` property.
+/// The tags written in a block's text, as `#tag`. A tag in a properties block's
+/// `##tag` line is read from the index instead, which knows which block that
+/// is.
 fn tags_in(text: &str) -> Vec<String> {
-    fn push(value: &Value, out: &mut Vec<String>) {
-        match value {
-            Value::Text(t) => out.push(normalise_name(t)),
-            Value::Link(link) => out.push(normalise_name(&link.name)),
-            Value::List(items) => items.iter().for_each(|v| push(v, out)),
-            Value::BlockRef(_) => {}
-        }
-    }
-    let mut out = Vec::new();
-    for p in parse_block(text).properties {
-        match &p.value {
-            None => out.push(normalise_name(&p.key)),
-            Some(v) if normalise_name(&p.key) == "tags" => push(v, &mut out),
-            Some(_) => {}
-        }
-    }
-    out.retain(|t| !t.is_empty());
-    out
+    parse_block(text)
+        .properties
+        .iter()
+        .filter(|p| p.style == PropertyStyle::Inline)
+        .map(|p| normalise_name(&p.key))
+        .collect()
 }
 
 /// Some of `own` that tell it from every one of `rivals`: each rival lacks at

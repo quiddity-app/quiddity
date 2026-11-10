@@ -171,7 +171,9 @@ edit. The UI never writes the `##asset` line or the link: Rust does.
   escaped and qualified by Rust.
 - **A property chip's key goes to the entity that defines the property**
   (`Property.definition`). With none yet it is a button, and following it
-  makes the entity (`graph.defineProperty`), as a link to nowhere does. A block
+  makes the entity (`graph.defineProperty`), as a link to nowhere does. **A
+  tag's chip (`inline`) goes to the entity it names** instead, and with none
+  makes it as a link does (`graph.followLink`): a tag is a link, not a property. A block
   of nothing but properties is drawn as chips with its bullet hidden, not
   removed, so the chips line up with the text around them.
 - **Meta-properties** (`meta-sections.tsx`): flags with no chip go under the
