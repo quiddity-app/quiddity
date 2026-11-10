@@ -1,2 +1,2 @@
 - What Quiddity is built, tested and published with. The references below list them all: they are the entities with `type:: tool`.
-- [[mise]], [[proptest]], [[cargo-mutants]], [[cargo-fuzz]], [[Playwright]], [[mbx]], [[rust-cache]] and [[GitHub Pages]].
+- [[mise]], [[proptest]], [[cargo-mutants]], [[cargo-fuzz]], [[Playwright]], [[mbx]], [[rust-cache]], [[packslip]] and [[GitHub Pages]].

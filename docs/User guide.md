@@ -26,4 +26,4 @@ favourite:: true
 	- [[Graph settings]]: where the app opens, set by a `quiddity.toml`.
 	- [[Add a device]]: share the graph with another computer, or with a node that keeps a copy.
 	- How syncing works is described for developers under [[Sync]].
-- Running it: there is no release yet. Each week's [[Nightly builds]] have the app for Linux, macOS, Windows and Android, or it can be built from source. [[Running the app]]
+- Running it: there is no release yet, though [[Releases]] describes how one is made. Each week's [[Nightly builds]] have the app for Linux, macOS, Windows and Android, or it can be built from source. [[Running the app]]

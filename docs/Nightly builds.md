@@ -1,4 +1,4 @@
-- A build of everything, every Monday at 03:00 UTC, kept as GitHub Actions artifacts. It is not a release: nothing is published, and GitHub deletes the artifacts after 90 days. `.github/workflows/nightly.yml`, which can also be started by hand from the Actions tab. [[Publishing]]
+- A build of everything, every Monday at 03:00 UTC, kept as GitHub Actions artifacts. It is not a release (see [[Releases]]): nothing is published, and GitHub deletes the artifacts after 90 days. `.github/workflows/nightly.yml`, which can also be started by hand from the Actions tab. [[Publishing]]
 - What you get
 	- The desktop app ([[The shell]]) for Linux, macOS and Windows, each on x64 and arm64.
 		- Linux: `.deb`, `.rpm` and `.AppImage`. macOS: `.dmg`. Windows: an `.msi` and a `-setup.exe`.

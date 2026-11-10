@@ -5,7 +5,7 @@ favourite:: true
 	- [[Design]]: the goals, the decisions and the open questions.
 	- [[Architecture]]: the app, the headless node and the crates.
 	- [[Model redesign]]: planned changes to tags, properties, `##`, blobs and the properties block.
-	- [[Running the app]], [[Testing]] and [[Nightly builds]].
+	- [[Running the app]], [[Testing]], [[Nightly builds]] and [[Releases]].
 	- [[Performance]]: what costs time in a large graph, and what is still to do.
 - The parts
 	- Crates: [[quiddity-syntax]], [[quiddity-core]], [[quiddity-sync]], [[quiddity-node]], [[quiddity-view]] and [[quiddity-wasm]].
