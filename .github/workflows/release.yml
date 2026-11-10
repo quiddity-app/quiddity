@@ -1,0 +1,323 @@
+name: Release
+
+# Publish a GitHub release (tag it `v1.2.3`) and this builds everything for the
+# tag, attaches it to the release, attests it, and signs the release manifest
+# that jdx's packslip reads. See docs/Releases.md.
+#
+# Nothing here restores a cache: a poisoned entry could end up in the published
+# binaries, so a release builds from clean and is slower than CI for it.
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+concurrency:
+  group: release-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      # What goes inside the apps and the node: the tag without its `v`.
+      semver: ${{ steps.version.outputs.semver }}
+      # An MSI's version has no pre-release part and stops at 255 in its major
+      # and minor, so it is the release's X.Y.Z.
+      msi: ${{ steps.version.outputs.msi }}
+    steps:
+    - id: version
+      env:
+        TAG: ${{ github.event.release.tag_name }}
+      run: |
+        semver=${TAG#v}
+        # packslip reads the version from the tag, so the tag must be semver 2.0.0
+        # (optionally with a leading `v`), or consumers won't see the release.
+        re='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$'
+        if ! [[ $semver =~ $re ]]; then
+          echo "::error::The tag '$TAG' is not a semantic version such as v1.2.3 or v1.2.3-rc.1"
+          exit 1
+        fi
+        major=${BASH_REMATCH[1]} minor=${BASH_REMATCH[2]} patch=${BASH_REMATCH[3]}
+        # WiX stops the major and minor versions at 255, and Android derives its
+        # version code as major * 1,000,000 + minor * 1,000 + patch.
+        if [ "$major" -gt 255 ] || [ "$minor" -gt 255 ]; then
+          echo "::error::A Windows MSI can't carry a major or minor version above 255"
+          exit 1
+        fi
+        if [ "$minor" -gt 999 ] || [ "$patch" -gt 999 ]; then
+          echo "::error::Android's version code can't carry a minor or patch version above 999"
+          exit 1
+        fi
+        {
+          echo "semver=$semver"
+          echo "msi=$major.$minor.$patch"
+        } >> "$GITHUB_OUTPUT"
+
+  ui:
+    # Every app embeds the same UI, so it is built once.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+    - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+      with:
+        node-version: 22
+        package-manager-cache: false
+    - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      with:
+        toolchain: stable
+        targets: wasm32-unknown-unknown
+    - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2
+      with:
+        tool: wasm-bindgen@0.2.130
+    - run: pnpm install --frozen-lockfile
+    - run: pnpm ui build
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: ui
+        path: apps/ui/out
+        retention-days: 1
+
+  desktop:
+    needs: [version, ui]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - {os: linux, arch: x64, runner: ubuntu-latest, target: x86_64-unknown-linux-gnu}
+        - {os: linux, arch: arm64, runner: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu}
+        # macOS builds both architectures on one (Apple silicon) runner.
+        - {os: macos, arch: x64, runner: macos-latest, target: x86_64-apple-darwin}
+        - {os: macos, arch: arm64, runner: macos-latest, target: aarch64-apple-darwin}
+        - {os: windows, arch: x64, runner: windows-latest, target: x86_64-pc-windows-msvc}
+        - {os: windows, arch: arm64, runner: windows-11-arm, target: aarch64-pc-windows-msvc}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    env:
+      SEMVER: ${{ needs.version.outputs.semver }}
+      MSI_VERSION: ${{ needs.version.outputs.msi }}
+      OS: ${{ matrix.os }}
+      TARGET: ${{ matrix.target }}
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+    - if: matrix.os == 'linux'
+      run: >-
+        sudo apt-get update && sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev rpm xdg-utils
+    - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+      with:
+        node-version: 22
+        package-manager-cache: false
+    - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      with:
+        toolchain: stable
+        targets: ${{ matrix.target }}
+    # The node reports its version from Cargo, so Cargo has to say it.
+    - name: Set the version
+      run: scripts/set-version.sh "$SEMVER"
+    - run: pnpm install --frozen-lockfile --filter @quiddity/app...
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      with:
+        name: ui
+        path: apps/ui/out
+
+    # The command line and headless sync node, as the archives packslip
+    # publishes. The executable sits at the root of each, so that `bin:
+    # quiddity-node` finds it.
+    - run: cargo build --release --locked -p quiddity-node --target "$TARGET"
+    - name: Archive the node
+      run: |
+        mkdir -p dist
+        bin=target/$TARGET/release
+        archive=quiddity-node-$SEMVER-$TARGET
+        if [ "$OS" = windows ]; then
+          pwsh -NoProfile -Command "Compress-Archive -Path '$bin/quiddity-node.exe' -DestinationPath 'dist/$archive.zip'"
+        else
+          # A tarball keeps the executable bit.
+          tar -C "$bin" -czf "dist/$archive.tar.gz" quiddity-node
+        fi
+
+    # The app. The UI is already built, so the build hook is switched off.
+    - name: Build the app
+      working-directory: apps/app
+      run: >-
+        pnpm tauri build --target "$TARGET" --config "{\"version\":\"$SEMVER\",\"build\":{\"beforeBuildCommand\":null},\"bundle\":{\"windows\":{\"wix\":{\"version\":\"$MSI_VERSION\"}}}}"
+    - name: Collect the app
+      run: |
+        # The shell is outside the workspace, so it has its own target directory.
+        bundles=apps/app/src-tauri/target/$TARGET/release/bundle
+        # Installers and disk images, not the unpacked bundles beside them.
+        for ext in deb rpm AppImage dmg msi; do
+          find "$bundles" -type f -name "*.$ext" -exec cp {} dist/ \;
+        done
+        find "$bundles" -type f -name '*-setup.exe' -exec cp {} dist/ \;
+        ls -l dist
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: release-${{ matrix.os }}-${{ matrix.arch }}
+        path: dist/*
+        if-no-files-found: error
+        retention-days: 1
+
+  android:
+    needs: [version, ui]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      SEMVER: ${{ needs.version.outputs.semver }}
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+    - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+      with:
+        distribution: temurin
+        java-version: 25
+    - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+      with:
+        node-version: 22
+        package-manager-cache: false
+    - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      with:
+        toolchain: stable
+        targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+    - name: Set the version
+      run: scripts/set-version.sh "$SEMVER"
+    - run: pnpm install --frozen-lockfile --filter @quiddity/app...
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      with:
+        name: ui
+        path: apps/ui/out
+    - name: Generate the Android project
+      working-directory: apps/app
+      run: |
+        export NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+        pnpm tauri icon src-tauri/icons/icon.png
+        pnpm tauri android init --ci
+    - name: Build the APK
+      working-directory: apps/app
+      run: |
+        export NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+        pnpm tauri android build --apk --ci \
+          --config "{\"version\":\"$SEMVER\",\"build\":{\"beforeBuildCommand\":null}}"
+    # Unlike the nightlies, a release must be signed with the real key: one
+    # signed with a throwaway key can't be updated in place, and a release
+    # can't be taken back.
+    - name: Sign the APK
+      env:
+        KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      run: |
+        if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ]; then
+          echo "::error::Set the secrets ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD and ANDROID_KEY_ALIAS: a release APK needs the real signing key"
+          exit 1
+        fi
+        unsigned=$(find apps/app/src-tauri/gen/android -name '*-unsigned.apk' | head -n 1)
+        test -n "$unsigned"
+        apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -n 1)
+        keystore=$RUNNER_TEMP/release.jks
+        echo "$KEYSTORE_BASE64" | base64 -d > "$keystore"
+        mkdir -p dist
+        "$apksigner" sign --ks "$keystore" --ks-pass env:KEYSTORE_PASSWORD \
+          --ks-key-alias "$KEY_ALIAS" --out "dist/quiddity-$SEMVER-android.apk" "$unsigned"
+        "$apksigner" verify "dist/quiddity-$SEMVER-android.apk"
+        rm -f "$keystore"
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: release-android
+        path: dist/*.apk
+        if-no-files-found: error
+        retention-days: 1
+
+  assets:
+    # Everything is built before anything is attached, so that a failed build
+    # leaves the release without a half-set of files.
+    needs: [desktop, android]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # Attach the files to the release.
+      id-token: write # Sign the attestation with the workflow's identity.
+      attestations: write
+    steps:
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      with:
+        pattern: release-*
+        merge-multiple: true
+        path: dist
+    - run: ls -l dist
+    # SLSA build provenance for every file, so that `gh attestation verify`
+    # works on any of them.
+    - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+      with:
+        subject-path: dist/*
+    - name: Attach the files to the release
+      env:
+        GH_TOKEN: ${{ github.token }}
+        TAG: ${{ github.event.release.tag_name }}
+      run: gh release upload "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+
+  packslip:
+    # Signing is kept apart from the permission to change the release. The
+    # archives are fetched from the release, so what is signed is what was
+    # published.
+    needs: assets
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read # Download the release's assets; cannot change the release.
+      id-token: write # Sign with the workflow's identity.
+      attestations: write
+    steps:
+    - uses: jdx/packslip@44e50e5f64551234b4a382d991bd7f7f7d021d06 # v1.11.3
+      id: packslip
+      with:
+        # Only the node is an archive of a binary. The installers are not
+        # something packslip installs, and the APK is not a tool.
+        download: quiddity-node-*.tar.gz quiddity-node-*.zip
+        bin: quiddity-node
+        upload: false
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: packslip-bundle
+        path: ${{ steps.packslip.outputs.bundle }}
+        if-no-files-found: error
+        retention-days: 1
+
+  publish-packslip:
+    needs: packslip
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # Upload the bundle to the release.
+    steps:
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      with:
+        name: packslip-bundle
+        path: packslip
+    - name: Upload the signed bundle
+      env:
+        GH_TOKEN: ${{ github.token }}
+        TAG: ${{ github.event.release.tag_name }}
+      run: |
+        test -f packslip/packslip.sigstore.json
+        gh release upload "$TAG" packslip/packslip.sigstore.json \
+          --repo "$GITHUB_REPOSITORY" --clobber
