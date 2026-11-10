@@ -3,7 +3,7 @@ alias:: [link, qualifier, backlinks, references]
 - `[[Name]]` links to the [[Entity]] called Name. Names are compared ignoring case and repeated whitespace.
 - Qualifiers
 	- Names are not unique, so a link can say which properties its target has: `[[Jane#type(person)#born(1970-01-01)]]`. [[Properties]]
-	- A qualifier `#key(value)` matches an entity with an instance of `key` whose value is equal to `value`, or contains it, for a list. A bare `#key` matches an entity with any instance of `key`.
+	- A qualifier `#key(value)` matches an entity with an instance of `key` whose value is equal to `value`, or contains it, for a list. A bare `#key` matches an entity with any instance of `key`, a tag included: `[[Mercury#planet]]` is the Mercury tagged `planet`. [[tags]]
 	- A link shows only its name. The qualifiers pick the target, and appear when you hover over it. [[Rendering]]
 	- Inside a link, `#` followed by a key starts a qualifier. Write `\#` for a literal one; `[[C# notes]]` is fine as it is.
 - Writing a link: `[` pairs, and the page's title is completed as you type, with the qualifiers added when the title is shared. [[Editing]]

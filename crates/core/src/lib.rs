@@ -25,6 +25,7 @@ pub mod outline;
 mod query;
 pub mod schema;
 mod settings;
+pub mod tags;
 
 pub use asset::{Asset, AssetError};
 pub use check::Flag;

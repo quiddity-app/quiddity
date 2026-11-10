@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 use quiddity_syntax::normalise_name;
 
 use crate::schema::{Cardinality, Mismatch, coerce};
+use crate::tags;
 use crate::{BlockId, Identity, Index};
 
 /// Something about an entity that doesn't fit the schema of a property.
@@ -126,9 +127,23 @@ impl Index {
                 .map(|text| Flag::StrayLine { text: text.clone() }),
         );
 
+        flags.extend(
+            info.meta
+                .iter()
+                .filter(|m| tags::is_tag(m) && m.value.is_none())
+                .map(|_| Flag::BadMeta {
+                    key: tags::KEY.to_owned(),
+                    message: "needs a value: ##tag:: [a, b]".to_owned(),
+                }),
+        );
+
         let defines = matches!(info.identity(), Some(Identity::Property(_)));
         if !defines {
-            if info.meta.iter().any(|m| !crate::asset::is_asset(m)) {
+            if info
+                .meta
+                .iter()
+                .any(|m| !crate::asset::is_asset(m) && !tags::is_tag(m))
+            {
                 flags.push(Flag::MetaOutsideProperty);
             }
             if let Some(Err(e)) = info.asset() {

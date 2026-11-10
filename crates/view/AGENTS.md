@@ -111,9 +111,10 @@ what the All entities table shows.
 - **Incoming** counts blocks in *other* entities that link to it (a duplicate
   merged into the entity counts as the entity), so it is not the number of
   edges `connections()` draws.
-- **Tags** are properties with no value (`#tag`, anywhere in the entity) and the
-  values of a `tags` property (`tags:: [a, b]`; a bare `tags:: a, b` is one text
-  value), compared by `normalise_name`. They are shown only to tell entities
+- **Tags** are `#tag` written anywhere in the entity and the tags of its
+  properties block, in either form (`#a` or `##tag:: [a]`, which the index holds
+  as the same valueless property), compared by `normalise_name`. A `tags::`
+  property is an ordinary one. They are shown only to tell entities
   with the same title (ignoring case) apart: `distinguishing` picks, greedily,
   the fewest of an entity's tags that every same-titled rival lacks at least
   one of. Entities that are indistinguishable show none.
@@ -159,7 +160,10 @@ A `[[link]]` with no entity is made one in two ways (`links.rs`):
 A property's key goes to the entity that defines it: `Property::definition` is
 that entity's id (found by name as `Index::property_entity` does) or `None`, and
 `define_property(key)` makes one, a property entity with an empty block, when
-there is none. Like a link to nowhere, the UI makes it on following.
+there is none. Like a link to nowhere, the UI makes it on following. A tag's
+chip (`inline`) goes to the entity it names instead, and the UI follows it with
+`follow_link`: a tag is a link, so `links_in` counts it and saving a block that
+gains one makes the entity.
 
 ## Meta-properties
 

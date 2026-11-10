@@ -1,6 +1,14 @@
-type:: property
-
-- A tag is a property with no value, `#tag`, or a value of a `tags` property, written as a list: `tags:: [a, b]`. Without the brackets, `tags:: a, b` is one tag, "a, b". [[Properties]]
+- A tag is a link written `#entity` or `#[[multi-word entity]]`, with no value. It names an [[Entity]] and says something is of that kind: `#person` says that what it is in is a person. [[Properties]]
+	- In an entity's properties block, `#person #employee` and `##tag:: [person, employee]` are the same tag, written two ways. The second takes links and quoted names too, and is how a script would write them. [[Entity]]
+	- In any other block a tag is a link like `[[person]]`: it shows in the references of the entity it names, and saving the block makes that entity if there is none, as for any [[Links to nowhere]]. It also counts as one of the entity's tags, for [[All entities]].
+	- `#key(value)` is the tag `key` followed by the text "(value)": a tag has no value. [[Syntax]]
+- What a tag is for
+	- A link's qualifier can ask for one, to tell apart entities that share a name: `[[Mercury#planet]]`. [[Links]]
+	- A query finds what has one: `#planet`. A bare `#key` matches a tag as well as any instance of the property `key`. [[Queries]]
+	- `##inherits` passes tags on like any other property with no value. [[Meta-properties]]
+	- [[All entities]] shows enough of an entity's tags to tell it from others with the same title.
 - Tags are compared as names are, ignoring case and spacing.
-- [[All entities]] shows enough tags to tell apart entities with the same title.
-- Nothing defined tags before the table needed them, so this is a reading, not a settled part of the model. `tags_in` in `crates/view/src/query.rs` is the one place to change it.
+- Tags replace `tags:: [a, b]`, which is an ordinary property now, and `type:: person`, which is still read for two meanings, `journal` and `property`, until journals and property entities are identified without it. [[type]] [[Model redesign]]
+- How it works
+	- [[quiddity-syntax]] reads `#key` as an inline property with no value and `##tag:: …` as a `##` line with a value. [[quiddity-core]] turns each name in a `##tag` line into the same valueless property, so everything that already treated a bare `#key` as a tag treats both forms alike, and adds a link from the block to each tag's entity.
+	- A tag's chip goes to the entity it names, or makes it if there is none. [[quiddity-view]]

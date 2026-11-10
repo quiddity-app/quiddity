@@ -3,7 +3,7 @@
 
 use std::collections::HashSet;
 
-use quiddity_core::syntax::{Link, Value, parse_block};
+use quiddity_core::syntax::{Link, PropertyStyle, Value, parse_block};
 use quiddity_core::{BlockId, Resolution};
 
 use crate::query::link_key;
@@ -13,9 +13,18 @@ use crate::{Error, Result, View};
 /// key it is looked up by.
 fn links_in(text: &str) -> Vec<(String, Link)> {
     let mut seen = HashSet::new();
-    parse_block(text)
+    let parsed = parse_block(text);
+    // A tag is a link to the entity it names.
+    let tags = parsed
+        .properties
+        .iter()
+        .filter(|p| p.style == PropertyStyle::Inline)
+        .map(|p| quiddity_core::tags::link(&p.key));
+    parsed
         .links
-        .into_iter()
+        .iter()
+        .cloned()
+        .chain(tags)
         .filter_map(|link| {
             let key = link_key(&link);
             seen.insert(key.clone()).then_some((key, link))

@@ -14,6 +14,7 @@ alias:: meta-property
 		  ```
 	- The set is fixed: Quiddity gives each one its meaning, and they can't be defined in the graph. `##` is a namespace of its own, so `##inverse` has nothing to do with a property called `inverse`.
 	- They are drawn as chips, `##key` and the parameter as written. Anywhere else, a `##` line has no effect, and its chip is flagged. The one exception is `##asset`, which goes on an asset's entity instead. [[Binaries]]
+	- `##tag:: [a, b]` is the one that isn't about a property: it goes in the properties block of any entity, and is the long form of `#a #b`. It needs a value, and a bare `##tag` is flagged. [[tags]]
 	- They are meant to be written once, when a property is set up, and seldom touched after. Changing one changes what every use of the property means, and nothing is rewritten.
 - The meta-properties
 	- | Written | Says |

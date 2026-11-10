@@ -564,6 +564,48 @@ mod properties {
         );
     }
 
+    /// A tag's key goes to the entity it names, if there is one; a property's
+    /// goes to the entity that defines it.
+    #[test]
+    fn a_tag_chip_goes_to_the_entity_it_names() {
+        let v = view_with(|g| {
+            g.create_entity("person", &[]).unwrap();
+            // Defines a property of the same name as a tag, which isn't it.
+            g.create_entity("status", &[("type", text("property"))])
+                .unwrap();
+            let page = g.create_entity("Page", &[]).unwrap();
+            note(g, page, "#person #nobody #status\nstatus:: ok\nperson:: x");
+        });
+        let page = id_of(&v, "Page");
+        let chips = v.entity(&page).unwrap().blocks.remove(0).properties;
+        let definition = |i: usize| chips[i].definition.clone();
+        assert_eq!(
+            chips.iter().map(|c| c.key.as_str()).collect::<Vec<_>>(),
+            ["person", "nobody", "status", "status", "person"]
+        );
+        assert_eq!(
+            definition(0),
+            Some(id_of(&v, "person")),
+            "a tag goes to the entity"
+        );
+        assert_eq!(definition(1), None, "nobody has made it");
+        assert_eq!(
+            definition(2),
+            Some(id_of(&v, "status")),
+            "that entity is named for it"
+        );
+        assert_eq!(
+            definition(3),
+            Some(id_of(&v, "status")),
+            "a property goes to its definition"
+        );
+        assert_eq!(
+            definition(4),
+            None,
+            "`person` defines no property, and its tag chip is a different one"
+        );
+    }
+
     #[test]
     fn tags_are_inline_and_have_no_value() {
         let src = "see #urgent and #due(friday) ok";
@@ -1030,6 +1072,19 @@ mod new_links {
         assert!(v.undo().unwrap(), "the correction");
         assert_eq!(v.entity(&id).unwrap().title, "Foo");
     }
+
+    /// A tag is a link to the entity it names, so saving a block that gains one
+    /// makes the entity, as `[[a link]]` does, and following it finds it.
+    #[test]
+    fn a_new_tag_makes_its_entity() {
+        let (v, _page, ids) = page(&["note"]);
+        let made = edit(&v, &ids[0], "note #urgent");
+        assert_eq!(made, [id_of(&v, "urgent")]);
+        // Already there: nothing more is made, by saving or following.
+        assert!(edit(&v, &ids[0], "note #urgent again").is_empty());
+        assert_eq!(v.follow_link("urgent").unwrap(), made[0]);
+        assert_eq!(names(&v).iter().filter(|n| *n == "urgent").count(), 1);
+    }
 }
 
 mod connections {
@@ -1161,10 +1216,10 @@ mod summaries {
         let v = view_with(|g| {
             let a = g.create_entity("Mercury", &[]).unwrap();
             note(g, a, "#planet #hot");
-            // A property that isn't `tags` has a value, but it isn't a tag.
-            note(g, a, "orbit:: fast");
+            // A property has a value, so it isn't a tag, whatever it is called.
+            note(g, a, "orbit:: fast\ntags:: [not, tags]");
             let b = g.create_entity("Mercury", &[]).unwrap();
-            note(g, b, "tags:: [element, cold]");
+            note(g, b, "##tag:: [element, cold]");
             let c = g.create_entity("Venus", &[]).unwrap();
             note(g, c, "#planet");
         });
@@ -1177,6 +1232,28 @@ mod summaries {
             .collect();
         assert_eq!(mercuries, [["hot"], ["cold"]]);
         assert_eq!(row(&v, "Venus").tags, Vec::<String>::new());
+    }
+
+    /// What counts is a tag: a `#tag` in any block, or one of the properties
+    /// block's, in either form. A property with no value, `orbit::`, is not one,
+    /// and its key sorts before the tag so that counting it would show.
+    #[test]
+    fn a_tag_is_a_tag_wherever_it_is_and_a_valueless_property_is_not() {
+        let v = view_with(|g| {
+            let a = g.create_entity("Mercury", &[]).unwrap();
+            note(g, a, "orbit::");
+            note(g, a, "see #planet");
+            let b = g.create_entity("Mercury", &[]).unwrap();
+            note(g, b, "##tag:: [element]");
+        });
+        let mercuries: Vec<_> = v
+            .summaries()
+            .unwrap()
+            .into_iter()
+            .filter(|s| s.title == "Mercury")
+            .map(|s| s.tags)
+            .collect();
+        assert_eq!(mercuries, [["planet"], ["element"]]);
     }
 
     #[test]
