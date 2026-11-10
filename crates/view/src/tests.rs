@@ -1134,10 +1134,10 @@ mod connections {
 
     #[test]
     fn a_duplicate_journals_links_belong_to_the_one_it_is_merged_into() {
-        let props = [("type", text("journal")), ("date", text("2026-10-26"))];
+        let day = "2026-10-26".parse().unwrap();
         let v = view_with(|g| {
-            let kept = g.create_entity("2026-10-26", &props).unwrap();
-            let dup = g.create_entity("2026-10-26", &props).unwrap();
+            let kept = quiddity_core::create_journal(g, day).unwrap();
+            let dup = quiddity_core::create_journal(g, day).unwrap();
             let target = g.create_entity("Target", &[]).unwrap();
             note(g, kept, "kept");
             note(g, dup, "writes [[Target]]");
@@ -1613,10 +1613,10 @@ mod deleting_entities {
 
     #[test]
     fn a_duplicate_journal_goes_with_its_twin() {
-        let props = [("type", text("journal")), ("date", text("2026-10-26"))];
+        let day = "2026-10-26".parse().unwrap();
         let v = view_with(|g| {
-            g.create_entity("2026-10-26", &props).unwrap();
-            g.create_entity("2026-10-26", &props).unwrap();
+            quiddity_core::create_journal(g, day).unwrap();
+            quiddity_core::create_journal(g, day).unwrap();
         });
         let day = id_of(&v, "2026-10-26");
         assert_eq!(v.delete_entities(&[day]).unwrap(), 1);

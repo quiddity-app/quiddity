@@ -36,7 +36,7 @@ fn export_layout() -> Result<()> {
     assert!(out.join("entities/Notes_ misc_other.md").is_file());
     assert_eq!(
         fs::read_to_string(out.join("journals/2026-10-25.md"))?,
-        "title:: 2026-10-25\ntype:: journal\ndate:: 2026-10-25\n\n- Wrote the exporter\n"
+        "title:: 2026-10-25\n##journal(2026-10-25)\n\n- Wrote the exporter\n"
     );
     assert!(export_dir(&graph, &out).is_err(), "refuses to overwrite");
     Ok(())
@@ -117,5 +117,39 @@ fn logseq_namespaces_become_parents() -> Result<()> {
     // A parent the page names itself is left alone.
     assert!(!children.contains(&find("Places/Ireland")));
     assert!(index.property_entity("parent").is_some());
+    Ok(())
+}
+
+/// A file in `journals/` named for a day is that day's journal. One that
+/// already says so, as an export does, isn't given a second line; one from an
+/// export before `##journal` has its old lines left as they are, and the new
+/// one added.
+#[test]
+fn journals_are_marked_with_a_journal_line_once() -> Result<()> {
+    let tmp = tempfile::tempdir()?;
+    let dir = tmp.path();
+    fs::create_dir_all(dir.join("journals"))?;
+    fs::write(dir.join("journals/2026_10_25.md"), "- Met someone\n")?;
+    fs::write(
+        dir.join("journals/2026-10-26.md"),
+        "title:: 2026-10-26\n##journal(2026-10-26)\n\n- Wrote it\n",
+    )?;
+    fs::write(
+        dir.join("journals/2026-10-27.md"),
+        "title:: 2026-10-27\ntype:: journal\ndate:: 2026-10-27\n\n- An old export\n",
+    )?;
+    let graph = Graph::new();
+    import_dir(&graph, dir)?;
+    let index = Index::build(&graph)?;
+    let first_block = |day: &str| -> Result<String> {
+        let id = index.journal(day.parse().unwrap()).expect(day);
+        graph.text(graph.children(id)[0])
+    };
+    assert_eq!(first_block("2026-10-25")?, "##journal(2026-10-25)");
+    assert_eq!(first_block("2026-10-26")?, "##journal(2026-10-26)");
+    assert_eq!(
+        first_block("2026-10-27")?,
+        "##journal(2026-10-27)\ntype:: journal\ndate:: 2026-10-27"
+    );
     Ok(())
 }

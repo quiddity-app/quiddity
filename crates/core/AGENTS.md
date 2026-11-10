@@ -160,6 +160,11 @@ so the caller must know there is nothing.
   valueless property, so queries, qualifiers and inheritance see both forms
   alike. A `##tag` value that is a link is already one of the block's links, so
   it isn't added twice.
+- **A journal is `##journal(day)`** in its properties block (`journal.rs`): the
+  day of the first such line is its identity, so duplicates made on two devices
+  merge, and a bad, missing or second line is a `BadMeta` flag. `type:: journal`
+  and `date::` mean nothing. `create_journal` always makes one, and
+  `ensure_journal` only when the index has none.
 - **`move_block`'s index is the final position**, so within the same parent
   it counts the siblings other than the block itself.
 - **Duplicates are never deleted.** Entities with the same identity

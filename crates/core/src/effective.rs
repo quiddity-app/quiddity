@@ -37,7 +37,7 @@ impl Item {
 type Identity = (Option<BlockId>, Option<String>);
 
 /// Properties never inherited: what identifies an entity.
-const NOT_INHERITED: &[&str] = &["title", "alias", "id", "date"];
+const NOT_INHERITED: &[&str] = &["title", "alias", "id"];
 
 /// An entity's effective properties, by normalised key.
 pub(crate) type Effective = BTreeMap<String, Vec<Item>>;
