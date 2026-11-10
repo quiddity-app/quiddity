@@ -53,8 +53,9 @@ test("a block of nothing but properties is only chips", async ({ page }) => {
   await page.goto("/");
   const day = page.locator("main section").first();
   const block = day.locator("[data-block-text]").first();
-  await expect(block.getByText("journal", { exact: true })).toBeVisible();
-  await expect(block).not.toContainText("type::");
+  // The day's `##journal(…)` line is a chip, not the source.
+  await expect(block.getByText("##journal", { exact: true })).toBeVisible();
+  await expect(block).not.toContainText("##journal(");
 });
 
 test("tags are chips in the text", async ({ page }) => {

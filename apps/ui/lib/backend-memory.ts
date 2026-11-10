@@ -19,7 +19,7 @@ function days(count: number): [string, Seed[]][] {
     return [
       date,
       [
-        b(`type:: journal\ndate:: ${date}`),
+        b(`##journal(${date})`),
         b(i % 3 === 0 ? "Worked on [[Quiddity]]." : "A quiet day."),
         ...(i % 5 === 0 ? [b("Read about loro again")] : []),
       ],

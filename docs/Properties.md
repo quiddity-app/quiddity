@@ -8,7 +8,7 @@ alias:: property
 	- Two `tag:: a` and `tag:: b` lines are two instances of `tag`, with one value each.
 	- `steps:: [a, b, c]` is one instance holding an ordered list.
 - Property entities
-	- Every key can have an entity that defines it (a property entity), named for the key, with `type:: property`. The built-in ones are documented that way: [[type]], [[alias]], [[date]], [[favourite]], [[id]] and [[title]].
+	- Every key can have an entity that defines it (a property entity), named for the key, with `type:: property`. The built-in ones are documented that way: [[type]], [[alias]], [[favourite]], [[id]] and [[title]].
 	- Property names are unique, matched as names are, ignoring case and spacing. If two devices make the same property entity, the two are merged. [[Duplicates]]
 	- A property entity describes the property in prose, and can give it a schema.
 	- It can't be renamed, because its name is what identifies it. [[Renaming]]

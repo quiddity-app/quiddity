@@ -137,13 +137,20 @@ impl Index {
                 }),
         );
 
+        flags.extend(
+            crate::journal::problems(&info.meta)
+                .into_iter()
+                .map(|message| Flag::BadMeta {
+                    key: crate::journal::KEY.to_owned(),
+                    message: message.to_owned(),
+                }),
+        );
+
         let defines = matches!(info.identity(), Some(Identity::Property(_)));
         if !defines {
-            if info
-                .meta
-                .iter()
-                .any(|m| !crate::asset::is_asset(m) && !tags::is_tag(m))
-            {
+            if info.meta.iter().any(|m| {
+                !crate::asset::is_asset(m) && !tags::is_tag(m) && !crate::journal::is_journal(m)
+            }) {
                 flags.push(Flag::MetaOutsideProperty);
             }
             if let Some(Err(e)) = info.asset() {

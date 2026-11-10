@@ -211,7 +211,6 @@ const BUILTIN: &[(&str, PropertySchema)] = {
     &[
         ("type", PropertySchema::of(Ref, C::ANY)),
         ("alias", PropertySchema::of(Text, C::ANY)),
-        ("date", PropertySchema::of(Date, C::OPTIONAL)),
         ("favourite", PropertySchema::of(Boolean, C::OPTIONAL)),
         ("id", PropertySchema::of(Text, C::OPTIONAL)),
         ("title", PropertySchema::of(Text, C::OPTIONAL)),
@@ -418,7 +417,7 @@ mod tests {
 
     #[test]
     fn builtin_types() {
-        let date = PropertySchema::builtin("date").unwrap();
+        let date = PropertySchema::of(ValueType::Date, Cardinality::OPTIONAL);
         assert_eq!(
             coerce(&t("2026-10-25"), &date),
             Ok(Typed::Date("2026-10-25".parse().unwrap()))

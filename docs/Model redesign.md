@@ -20,7 +20,7 @@
 	- Any other `##` property in a regular block is flagged and has no effect, as a misplaced one is now.
 	- `##` properties in a properties block: `##journal`, `##tag`, and the schema ones on an entity named for a property, as now. They can be written `##key(parameter)`, as now, or `##key:: value` when the value is a list or links, as `##tag` is.
 - Journals
-	- A [[Journal]] has `##journal(2026-10-09)` in its properties block. The date is what identifies it, so `type:: journal` and `date::` go, and so does the [[date]] property.
+	- A [[Journal]] has `##journal(2026-10-09)` in its properties block. The date is what identifies it, so `type:: journal` and `date::` go, and so does the `date` property.
 	- Everything else about journals stays: made on start, merged when two devices make the same day, the first of the references, renamed never. [[Duplicates]]
 - Blobs are blocks
 	- A blob is a block, in whichever entity it is wanted, whose first line is `##blob(hash, mime, size, name)`. Any further text in the block is its caption. It replaces `##asset`, with the same fields and escaping, and it is not an entity: it is not in [[All entities]] or the [[Graph view]], and nothing can be renamed or tagged but the entity that holds it. [[Binaries]]
@@ -49,7 +49,7 @@
 	- 2. Built: [[quiddity-syntax]] reads `#entity` and `#[[entity]]` as tags with no value, `#key(value)` in text is a tag and then text, and `##key:: value` is read. A tag is still a valueless property in the index until step 4.
 	- 3. Built: [[quiddity-core]] and [[quiddity-view]] know a properties block by its first line. Only its property, tag and `##` lines are read, prose in it is flagged under the entity's title, and a `key:: value` line in another block is flagged on its chip and read as nothing, apart from `id::` until step 6. A link in a properties block's prose is not a backlink, though following it or typing it still makes the entity.
 	- 4. Built, in part: `##tag` and the `#a` shorthand are the same tags, a tag is a link in any block, and `tags::` is an ordinary property. [[tags]] `type` is not gone: it still gives journals and property entities their identity, so it and its built-in schema stay until they are identified without it, in step 5 for journals and when property entities are found by name.
-	- 5. `##journal` replaces `type:: journal` and `date`, in identity, creation, import and merging of journals.
+	- 5. Built: `##journal(2026-10-25)` replaces `type:: journal` and `date::` in identity, creation, import and merging of journals, and the `date` property and its page are gone. [[Journal]]
 	- 6. `##id` replaces `id::`, and blobs become blocks with `##blob`: the index, [[quiddity-view]], [[quiddity-wasm]], the shell and [[Blob transfer]].
 	- 7. Virtual entities, so that a name nobody has made behaves as an empty entity. Links defined by properties, the weak links to the defining entity, and the graph view and property page that show them.
 	- 8. The UI: the properties block's background and completion, the offer to make one, tags in place of chips for `##` lines, and the chips that remain.

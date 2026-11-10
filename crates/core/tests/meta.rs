@@ -298,7 +298,7 @@ fn what_is_not_inherited() -> Result<()> {
     entity(
         &graph,
         "plant",
-        "kind of:: living thing\nid:: p1\ndate:: 2026-11-01\nalias:: flora\ntitle:: Plants\nleaves:: yes",
+        "kind of:: living thing\nid:: p1\nalias:: flora\ntitle:: Plants\nleaves:: yes",
     )?;
     let tree = entity(&graph, "tree", "kind of:: plant")?;
     entity(&graph, "living thing", "")?;
@@ -487,14 +487,14 @@ fn builtins_can_be_overridden() -> Result<()> {
     let graph = Graph::new();
     entity(
         &graph,
-        "date",
-        "type:: property\n##value-type(text)\n##cardinality(*)",
+        "title",
+        "type:: property\n##value-type(number)\n##cardinality(*)",
     )?;
     let index = Index::build(&graph)?;
-    let date = index.schema("Date");
+    let title = index.schema("Title");
     assert_eq!(
-        (date.value_type, date.cardinality),
-        (ValueType::Text, Cardinality::ANY)
+        (title.value_type, title.cardinality),
+        (ValueType::Number, Cardinality::ANY)
     );
     assert_eq!(index.schema("favourite").value_type, ValueType::Boolean);
     Ok(())
@@ -526,5 +526,51 @@ fn tag_lines_are_flagged_only_when_they_have_no_value() -> Result<()> {
         ValueType::Number,
         "the rest of its schema is read"
     );
+    Ok(())
+}
+
+/// `##journal` is for any entity, and is flagged when it can't be read, so
+/// that what is flagged is exactly what isn't read as a day.
+#[test]
+fn journal_lines_are_flagged_when_they_are_not_a_day() -> Result<()> {
+    let graph = Graph::new();
+    let day = entity(&graph, "A day", "##journal(2026-10-25)")?;
+    let bare = entity(&graph, "Bare", "##journal")?;
+    let soon = entity(&graph, "Soon", "##journal(soon)")?;
+    let twice = entity(
+        &graph,
+        "Twice",
+        "##journal(2026-10-27)\n##journal(2026-10-28)",
+    )?;
+    let property = entity(
+        &graph,
+        "rating",
+        "type:: property\n##journal(soon)\n##value-type(number)",
+    )?;
+    graph.commit();
+    let index = Index::build(&graph)?;
+    let bad = |message: &str| Flag::BadMeta {
+        key: "journal".into(),
+        message: message.into(),
+    };
+    assert_eq!(index.flags(day), []);
+    assert_eq!(
+        index.flags(bare),
+        [bad("needs a day: ##journal(2026-10-25)")]
+    );
+    assert_eq!(
+        index.flags(soon),
+        [bad("must be a day written like 2026-10-25")]
+    );
+    assert_eq!(
+        index.flags(twice),
+        [bad("an entity is the journal of one day only")]
+    );
+    assert_eq!(
+        index.flags(property),
+        [bad("must be a day written like 2026-10-25")],
+        "flagged for its date, not as an unknown meta-property"
+    );
+    assert_eq!(index.schema("rating").value_type, ValueType::Number);
     Ok(())
 }

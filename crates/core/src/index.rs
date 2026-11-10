@@ -96,17 +96,10 @@ impl EntityInfo {
 
     /// For entities fully identified by their properties, that identity.
     pub fn identity(&self) -> Option<Identity> {
-        let types = self.types();
-        if types.contains("journal") {
-            let date = self.values("date").find_map(|v| match v {
-                Value::Text(s) => s.parse::<Date>().ok(),
-                _ => None,
-            });
-            if let Some(date) = date {
-                return Some(Identity::Journal(date));
-            }
+        if let Some(date) = crate::journal::date(&self.meta) {
+            return Some(Identity::Journal(date));
         }
-        types
+        self.types()
             .contains("property")
             .then(|| Identity::Property(normalise_name(&self.name)))
     }
@@ -360,7 +353,7 @@ impl Index {
             let meta: Vec<_> = self.entities[&id]
                 .meta
                 .iter()
-                .filter(|m| !tags::is_tag(m))
+                .filter(|m| !tags::is_tag(m) && !crate::journal::is_journal(m))
                 .cloned()
                 .collect();
             let (schema, problems) = base.with_meta(&meta);
@@ -572,18 +565,16 @@ mod tests {
     #[test]
     fn identities() -> Result<()> {
         let graph = Graph::new();
-        let day = graph.create_entity(
-            "2026-10-25",
-            &[("type", text("journal")), ("date", text("2026-10-25"))],
-        )?;
-        let dup = graph.create_entity(
-            "2026-10-25",
-            &[("type", text("journal")), ("date", text("2026-10-25"))],
-        )?;
+        let on = "2026-10-25".parse().unwrap();
+        let day = crate::create_journal(&graph, on)?;
+        let dup = crate::create_journal(&graph, on)?;
         let status = graph.create_entity("Status", &[("type", text("property"))])?;
+        let broken = graph.create_entity("Not a date", &[])?;
+        graph.create_block(Some(broken), None, "##journal(soon)")?;
+        // `type:: journal` and `date::` mean nothing now.
         graph.create_entity(
-            "Not a date",
-            &[("type", text("journal")), ("date", text("soon"))],
+            "Old style",
+            &[("type", text("journal")), ("date", text("2026-10-25"))],
         )?;
         let index = Index::build(&graph)?;
 

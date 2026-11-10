@@ -16,7 +16,10 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use jiff::civil::Date;
-use quiddity_syntax::{Link, Value, format_property_line, normalise_name, parse_property_line};
+use quiddity_syntax::{
+    Link, Value, format_meta_line, format_property_line, normalise_name, parse_meta_line,
+    parse_property_line,
+};
 use tracing::{debug, instrument, trace, warn};
 
 use crate::merge::is_spent_duplicate;
@@ -119,12 +122,9 @@ pub fn import_dir(graph: &Graph, dir: &Path) -> Result<Vec<BlockId>> {
             .and_then(Path::file_name)
             .is_some_and(|n| n == "journals");
         if in_journals && let Ok(date) = stem.replace('_', "-").parse::<Date>() {
-            if !has_property(&outline, "type") {
+            if !has_journal_line(&outline) {
                 let date = date.to_string();
-                let mut lines = vec![
-                    format_property_line("type", Some(&Value::Text("journal".into()))),
-                    format_property_line("date", Some(&Value::Text(date.clone()))),
-                ];
+                let mut lines = vec![format_meta_line(crate::journal::KEY, Some(&date))];
                 lines.extend(outline.properties.take());
                 outline.properties = Some(lines.join("\n"));
                 outline.title.get_or_insert(date);
@@ -148,6 +148,15 @@ pub fn import_dir(graph: &Graph, dir: &Path) -> Result<Vec<BlockId>> {
     }
     debug!(entities = ids.len(), "imported");
     Ok(ids)
+}
+
+/// Whether the outline's properties block says it is a day's journal.
+fn has_journal_line(outline: &Outline) -> bool {
+    outline.properties.as_deref().is_some_and(|p| {
+        p.lines().any(|l| {
+            parse_meta_line(l).is_some_and(|(k, _)| normalise_name(&k) == crate::journal::KEY)
+        })
+    })
 }
 
 /// Whether the outline's properties block has a line for `key`.
