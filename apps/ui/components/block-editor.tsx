@@ -237,7 +237,17 @@ export function BlockEditor({ id, caret }: { id: string; caret: Caret }) {
       }),
     });
     view.current = editor;
-    editor.focus();
+    // The editor is new, so focusing it would have the browser scroll to it by
+    // its own rules (engines differ, and some jump). Take focus quietly and
+    // have CodeMirror bring the caret into view in whatever scrolls the page,
+    // with room below so the caret isn't left against the edge.
+    editor.contentDOM.focus({ preventScroll: true });
+    editor.dispatch({
+      effects: EditorView.scrollIntoView(editor.state.selection.main, {
+        y: "nearest",
+        yMargin: 48,
+      }),
+    });
     return () => {
       editor.destroy();
       view.current = null;
