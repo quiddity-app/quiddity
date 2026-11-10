@@ -203,6 +203,11 @@ impl View {
     /// Splits a block at `at` (UTF-16 units): the text after it moves to a new
     /// block, which is the first child if the block has children and the next
     /// sibling if not. Returns the new block.
+    ///
+    /// Splitting at the very start of a block with text moves nothing: the
+    /// new block is an empty one *before* it, so the block keeps its text,
+    /// children and place, rather than all of it becoming a child or sibling
+    /// of an empty block.
     pub fn split(&self, id: &str, at: usize) -> Result<String> {
         self.structural();
         let block = self.block_id(id)?;
@@ -215,6 +220,11 @@ impl View {
             .parent(block)
             .ok_or(Error::NotABlock(id.to_owned()))?;
         let created = (|| {
+            if at == 0 && !text.is_empty() {
+                let siblings = self.graph.children(parent);
+                let here = siblings.iter().position(|&s| s == block).unwrap_or(0);
+                return self.graph.create_block(Some(parent), Some(here), "");
+            }
             self.graph.splice_text(block, at, tail_len, "")?;
             if self.graph.children(block).is_empty() {
                 let siblings = self.graph.children(parent);

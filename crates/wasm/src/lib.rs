@@ -302,7 +302,8 @@ impl Replica {
         Ok(self.view.commit_block(id, before)?)
     }
 
-    /// Splits a block at `at`; returns the new block.
+    /// Splits a block at `at`; returns the new block (an empty one before it
+    /// if `at` is the start of a block with text).
     pub fn split(&self, id: &str, at: usize) -> Result<String, JsError> {
         Ok(self.view.split(id, at)?)
     }
