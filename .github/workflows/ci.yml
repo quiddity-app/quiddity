@@ -223,7 +223,11 @@ jobs:
     needs: changes
     if: github.event_name != 'merge_group' && needs.changes.outputs.fuzz != '[]'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # The minute of fuzzing is the small part. With no cache to restore, the
+    # dependencies are built under the sanitizer first: `block` took over
+    # three and a half minutes that way, and `peer`, which reaches more
+    # crates, ran out of five.
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
