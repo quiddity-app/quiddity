@@ -16,6 +16,20 @@
       ],
       "depNameTemplate": "wasm-bindgen",
       "datasourceTemplate": "crate"
+    },
+    {
+      "description": "The nightly toolchain that CI's fuzz jobs build with",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/ci\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "FUZZ_TOOLCHAIN: nightly-(?<currentValue>\\d{4}-\\d{2}-\\d{2})"
+      ],
+      "depNameTemplate": "rust-nightly",
+      "datasourceTemplate": "custom.rust-nightly",
+      "extractVersionTemplate": "^static\\.rust-lang\\.org/dist/(?<version>\\d{4}-\\d{2}-\\d{2})/channel-rust-nightly\\.toml$",
+      "versioningTemplate": "loose"
     }
   ],
   "packageRules": [
@@ -29,6 +43,22 @@
         "wasm-bindgen-cli"
       ],
       "groupName": "wasm-bindgen"
+    },
+    {
+      "description": "The nightly toolchain only needs to move now and then, and each move rebuilds the fuzz jobs' cache",
+      "matchDepNames": [
+        "rust-nightly"
+      ],
+      "schedule": [
+        "before 6am on monday"
+      ]
     }
-  ]
+  ],
+  "customDatasources": {
+    "rust-nightly": {
+      "description": "The dated nightly toolchains rustup can install, from the list of manifests Rust publishes",
+      "defaultRegistryUrlTemplate": "https://static.rust-lang.org/manifests.txt",
+      "format": "plain"
+    }
+  }
 }

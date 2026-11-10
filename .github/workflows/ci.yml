@@ -20,6 +20,10 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -D warnings
+  # What cargo-fuzz builds with. Pinned to a day so that the fuzz jobs'
+  # cache, which keys on rustc's version, stays valid between bumps; Renovate
+  # moves it weekly.
+  FUZZ_TOOLCHAIN: nightly-2026-11-10
 
 jobs:
   lint:
@@ -240,14 +244,14 @@ jobs:
       with:
         tools: cargo-binstall rust cargo:cargo-fuzz
         mbx: "false"
-    - run: rustup toolchain install nightly --profile minimal
+    - run: rustup toolchain install "${FUZZ_TOOLCHAIN}" --profile minimal
     # mbx bypasses almost every compilation under cargo-fuzz's sanitizer flags,
     # so it never has anything to save. rust-cache keeps the dependencies'
     # build instead; main saves it and pull requests restore it. It keys on
     # rustc's version, so it must see the nightly that cargo-fuzz builds with.
     - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       env:
-        RUSTUP_TOOLCHAIN: nightly
+        RUSTUP_TOOLCHAIN: ${{ env.FUZZ_TOOLCHAIN }}
       with:
         workspaces: fuzz
         key: ${{ matrix.target }}
@@ -259,7 +263,7 @@ jobs:
     - env:
         MATRIX_TARGET: ${{ matrix.target }}
       run: >-
-        cargo +nightly fuzz run --target x86_64-unknown-linux-gnu "${MATRIX_TARGET}" "fuzz/corpus/${MATRIX_TARGET}" "fuzz/seeds/${MATRIX_TARGET}" -- -max_total_time=60
+        cargo "+${FUZZ_TOOLCHAIN}" fuzz run --target x86_64-unknown-linux-gnu "${MATRIX_TARGET}" "fuzz/corpus/${MATRIX_TARGET}" "fuzz/seeds/${MATRIX_TARGET}" -- -max_total_time=60
     - if: failure()
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
