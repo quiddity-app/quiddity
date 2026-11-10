@@ -63,7 +63,12 @@ function outlinerKeys(id: string, latest: { current: Editing }): KeyBinding[] {
           edit(id, 0);
           if (graph.outdent(id)) return true;
         }
-        edit(graph.split(id, head(view)), "start");
+        // At the start of a block with text the new block is an empty one
+        // before it, so the caret stays where it is.
+        const atStart = head(view) === 0 && view.state.doc.length > 0;
+        if (atStart) edit(id, 0);
+        const created = graph.split(id, head(view));
+        if (!atStart) edit(created, "start");
         return true;
       },
     },

@@ -349,6 +349,25 @@ mod edits {
     }
 
     #[test]
+    fn splitting_at_the_start_adds_an_empty_block_before() {
+        let (v, page, ids) = page(&["first", "parent"]);
+        let kid = v.create_block(&ids[1], None, "kid").unwrap();
+        let new = v.split(&ids[1], 0).unwrap();
+        let e = v.entity(&page).unwrap();
+        assert_eq!(texts(&e.blocks), ["first", "", "parent"]);
+        assert_eq!(e.blocks[1].id, new);
+        assert_eq!(e.blocks[2].id, ids[1], "the block itself stays put");
+        assert_eq!(e.blocks[2].children[0].id, kid, "and keeps its children");
+        let empty = v.split(&new, 0).unwrap();
+        assert_eq!(
+            texts(&v.entity(&page).unwrap().blocks),
+            ["first", "", "", "parent"],
+            "an empty block splits as before"
+        );
+        assert_ne!(empty, new);
+    }
+
+    #[test]
     fn splitting_must_land_between_characters() {
         let (v, page, ids) = page(&["a😀b"]);
         assert!(matches!(v.split(&ids[0], 2), Err(Error::BadOffset(2))));
