@@ -2,7 +2,7 @@ alias:: [page, properties block]
 
 - An entity is what other tools call a page: a root [[Block]] whose text is its name, with the page's body as its children.
 - Properties block
-	- If the first child is nothing but property lines, it is the entity's properties block, and holds the entity's own [[Properties]].
+	- If the first child starts with a property line, a line of tags or a `##` line, it is the entity's properties block, and holds the entity's own [[Properties]]. Its later lines must be of those kinds too: any other line is read as nothing, and flagged under the entity's title. A first child that starts with prose is an ordinary block. [[Model redesign]]
 	- This mirrors the properties at the top of a [[Logseq]] page.
 	- ```
 	  Jane                         ← root block: the name

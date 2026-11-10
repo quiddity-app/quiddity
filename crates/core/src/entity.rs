@@ -1,6 +1,6 @@
 use quiddity_syntax::{
-    MetaProperty, Property, Value, format_property_line, is_properties_block, normalise_name,
-    parse_block,
+    MetaProperty, Property, Value, format_property_line, normalise_name, parse_block,
+    parse_properties_block,
 };
 
 use crate::{BlockId, Error, Graph, Result};
@@ -109,10 +109,11 @@ impl Graph {
         Ok(out)
     }
 
-    /// The entity's initial properties block, if its first child is one.
+    /// The entity's initial properties block, if its first child is one: one
+    /// that starts with a property, a tag or a `##` line. [`parse_properties_block`]
     pub fn properties_block(&self, entity: BlockId) -> Result<Option<BlockId>> {
         match self.children(entity).first() {
-            Some(&first) if is_properties_block(&self.text(first)?) => Ok(Some(first)),
+            Some(&first) if parse_properties_block(&self.text(first)?).is_some() => Ok(Some(first)),
             _ => Ok(None),
         }
     }
@@ -120,7 +121,9 @@ impl Graph {
     /// The entity's own properties, from its initial properties block.
     pub fn entity_properties(&self, entity: BlockId) -> Result<Vec<Property>> {
         match self.properties_block(entity)? {
-            Some(block) => self.block_properties(block),
+            Some(block) => Ok(parse_properties_block(&self.text(block)?)
+                .map(|p| p.block.properties)
+                .unwrap_or_default()),
             None => Ok(Vec::new()),
         }
     }
@@ -128,7 +131,9 @@ impl Graph {
     /// The meta-properties in the entity's properties block.
     pub fn entity_meta(&self, entity: BlockId) -> Result<Vec<MetaProperty>> {
         match self.properties_block(entity)? {
-            Some(block) => Ok(parse_block(&self.text(block)?).meta),
+            Some(block) => Ok(parse_properties_block(&self.text(block)?)
+                .map(|p| p.block.meta)
+                .unwrap_or_default()),
             None => Ok(Vec::new()),
         }
     }
@@ -187,9 +192,42 @@ mod tests {
             ["type", "born"]
         );
 
+        // What the block starts with decides whether it is a properties block.
         let plain = graph.create_entity("Plain", &[])?;
-        graph.create_block(Some(plain), None, "not:: only\nproperties")?;
+        graph.create_block(Some(plain), None, "prose first\nnot:: a property")?;
         assert_eq!(graph.properties_block(plain)?, None);
+        assert_eq!(graph.entity_properties(plain)?, []);
+        Ok(())
+    }
+
+    #[test]
+    fn prose_after_properties_is_not_read() -> Result<()> {
+        let graph = Graph::new();
+        let jane = graph.create_entity("Jane", &[])?;
+        let block = graph.create_block(
+            Some(jane),
+            None,
+            "born:: 1970\nMet at [[Summit]] #event\n#person\n##journal",
+        )?;
+        assert_eq!(graph.properties_block(jane)?, Some(block));
+        let keys: Vec<_> = graph
+            .entity_properties(jane)?
+            .into_iter()
+            .map(|p| p.key)
+            .collect();
+        assert_eq!(
+            keys,
+            ["born", "person"],
+            "the prose line and its tag aren't read"
+        );
+        assert_eq!(
+            graph
+                .entity_meta(jane)?
+                .iter()
+                .map(|m| m.key.as_str())
+                .collect::<Vec<_>>(),
+            ["journal"]
+        );
         Ok(())
     }
 

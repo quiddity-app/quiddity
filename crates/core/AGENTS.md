@@ -32,8 +32,8 @@ outline text format.
 - **`Index::update_text` brings the index up to date for one block's text
   changing, and says whether it could.** Only an ordinary block's backlinks
   depend on its text: names, properties, schemas and effective properties are
-  read from roots and properties blocks. So it declines a root, a properties
-  block either side of the edit, a block with an `id` property either side
+  read from roots and properties blocks. So it declines a root, a block that
+  starts like a properties block either side of the edit, a block with an `id` property either side
   (`((id))` would refer to another block) and a block it hasn't seen, and
   changes nothing when it does; the caller builds the index again. It keeps each
   list of backlinks in document order (`position`), which is what a fresh build
@@ -149,7 +149,11 @@ so the caller must know there is nothing.
   parsed from block text. The `Index` is derived, rebuilt from the graph,
   and never synced.
 - An entity is a root block; its text is its name. Its first child, if it
-  holds only property lines, is its properties block.
+  starts with a property, tag or `##` line, is its properties block
+  (`parse_properties_block`). Only those lines are read: others are `stray`
+  (`EntityInfo::stray`, flagged as `Flag::StrayLine`), and their links aren't
+  backlinks. Properties are read only from there, apart from `id::` in any
+  block for now.
 - **`move_block`'s index is the final position**, so within the same parent
   it counts the siblings other than the block itself.
 - **Duplicates are never deleted.** Entities with the same identity

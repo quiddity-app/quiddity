@@ -486,6 +486,65 @@ mod properties {
         assert_eq!(&src[props[1].start..props[1].end], "rating:: 4");
     }
 
+    /// The first block starts like a properties block, so only its property,
+    /// tag and `##` lines are chips; the prose is text, and the entity says so.
+    #[test]
+    fn a_properties_block_has_chips_for_its_lines_only() {
+        let src = "kind:: a\nMet [[Bob]] #summit\n#friend";
+        let (v, page, _) = page(&[src]);
+        let entity = v.entity(&page).unwrap();
+        let keys: Vec<_> = entity.blocks[0]
+            .properties
+            .iter()
+            .map(|p| p.key.as_str())
+            .collect();
+        assert_eq!(keys, ["kind", "friend"]);
+        assert!(
+            entity.blocks[0]
+                .properties
+                .iter()
+                .all(|p| p.flags.is_empty())
+        );
+        assert_eq!(
+            entity.flags,
+            ["Not a property or a tag, so it is only text: Met [[Bob]] #summit"]
+        );
+        assert!(entity.links.is_empty(), "no link is read from the prose");
+    }
+
+    /// A property line in an ordinary block still has a chip, but says it
+    /// does nothing there. A tag is fine, and so is `id` for now.
+    #[test]
+    fn property_lines_in_ordinary_blocks_are_flagged() {
+        let (v, page, _) = page(&["first\nkind:: a", "role:: b\nid:: abc\n#tag"]);
+        let blocks = v.entity(&page).unwrap().blocks;
+        let flags = |b: usize| -> Vec<(String, usize)> {
+            blocks[b]
+                .properties
+                .iter()
+                .map(|p| (p.key.clone(), p.flags.len()))
+                .collect()
+        };
+        assert_eq!(
+            flags(0),
+            [("kind".to_owned(), 1)],
+            "even in the first block"
+        );
+        assert_eq!(
+            flags(1),
+            [
+                ("role".to_owned(), 1),
+                ("id".to_owned(), 0),
+                ("tag".to_owned(), 0)
+            ],
+            "a later block isn't a properties block, however it starts"
+        );
+        assert_eq!(
+            blocks[0].properties[0].flags,
+            ["Has no effect outside an entity's properties block"]
+        );
+    }
+
     #[test]
     fn tags_are_inline_and_have_no_value() {
         let src = "see #urgent and #due(friday) ok";

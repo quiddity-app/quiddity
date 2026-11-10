@@ -3,8 +3,8 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use jiff::civil::Date;
 use quiddity_syntax::{
-    Link, MetaProperty, Property, Qualifier, Value, is_properties_block, normalise_name,
-    parse_block,
+    Link, MetaProperty, Property, Qualifier, Value, normalise_name, parse_block,
+    parse_properties_block,
 };
 
 use crate::effective::Effective;
@@ -20,6 +20,9 @@ pub struct EntityInfo {
     /// Meta-property lines in its properties block. They mean something
     /// only on a property entity, or, for `##asset`, on an asset.
     pub meta: Vec<MetaProperty>,
+    /// Lines of its properties block that are no property, tag or `##` line,
+    /// as written. They are read as nothing, and flagged.
+    pub stray: Vec<String>,
 }
 
 impl EntityInfo {
@@ -151,17 +154,28 @@ impl Index {
                 root = Some(block.id);
                 let entity = block.id;
                 // The properties block is the first child, if it is one.
-                let properties = blocks
+                let found = blocks
                     .get(at + 1)
-                    .filter(|next| next.parent == Some(entity) && is_properties_block(&next.text))
-                    .map(|next| parse_block(&next.text));
-                let (properties, meta) =
-                    properties.map_or((Vec::new(), Vec::new()), |p| (p.properties, p.meta));
+                    .filter(|next| next.parent == Some(entity))
+                    .and_then(|next| {
+                        let found = parse_properties_block(&next.text)?;
+                        let stray = found
+                            .stray
+                            .iter()
+                            .map(|r| next.text[r.clone()].trim().to_owned())
+                            .collect();
+                        Some((found.block, stray))
+                    });
+                let ((properties, meta), stray) = found.map_or_else(
+                    || ((Vec::new(), Vec::new()), Vec::new()),
+                    |(block, stray)| ((block.properties, block.meta), stray),
+                );
                 let info = EntityInfo {
                     id: entity,
                     name: block.text.lines().next().unwrap_or("").trim().to_owned(),
                     properties,
                     meta,
+                    stray,
                 };
                 if let Some(identity) = info.identity() {
                     index.by_identity.entry(identity).or_default().push(entity);
@@ -194,12 +208,21 @@ impl Index {
         }
 
         let mut references = Vec::new();
-        for scanned in blocks {
+        for (at, scanned) in blocks.iter().enumerate() {
             if scanned.parent.is_none() {
                 continue;
             }
             let block = scanned.id;
-            let parsed = parse_block(&scanned.text);
+            // An entity's first child comes straight after it, and if it is a
+            // properties block only its own lines are read.
+            let first_child = at
+                .checked_sub(1)
+                .and_then(|before| blocks.get(before))
+                .is_some_and(|before| before.parent.is_none());
+            let parsed = first_child
+                .then(|| parse_properties_block(&scanned.text))
+                .flatten()
+                .map_or_else(|| parse_block(&scanned.text), |found| found.block);
             for p in &parsed.properties {
                 if let (true, Some(Value::Text(id))) = (normalise_name(&p.key) == "id", &p.value) {
                     let entry = index.by_ref_id.entry(id.clone()).or_insert(block);
@@ -249,7 +272,8 @@ impl Index {
     /// on that for their order.
     pub fn update_text(&mut self, block: BlockId, old: &str, new: &str) -> bool {
         let known = self.root_of.get(&block).is_some_and(|&root| root != block);
-        if !known || is_properties_block(old) || is_properties_block(new) {
+        let properties_block = |text| parse_properties_block(text).is_some();
+        if !known || properties_block(old) || properties_block(new) {
             return false;
         }
         let (old, new) = (parse_block(old), parse_block(new));

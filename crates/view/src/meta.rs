@@ -93,6 +93,10 @@ fn describe(index: &Index, flag: &Flag) -> (Option<(String, bool)>, String) {
             "Meta-properties mean something only on a property's entity, with type:: property"
                 .to_owned(),
         ),
+        Flag::StrayLine { text } => (
+            None,
+            format!("Not a property or a tag, so it is only text: {text}"),
+        ),
         Flag::InverseClash { label, property } => (
             None,
             format!("{label} is also the inverse of {property}, which queries for it will mean"),

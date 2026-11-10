@@ -270,6 +270,10 @@ fn update_declines_what_changes_more_than_backlinks() {
     assert!(!index.update_text(props, "kind:: a", "kind:: a [[Jane]]"));
     assert!(!index.update_text(note, "see [[Jane]]", "kind:: b"));
     assert!(!index.update_text(note, "kind:: b", "see [[Jane]]"));
+    // What makes a properties block is its first line, whatever follows it.
+    assert!(!index.update_text(note, "see [[Jane]]", "kind:: b\nsee [[Jane]]"));
+    assert!(!index.update_text(note, "see [[Jane]]", "#tag"));
+    assert!(index.update_text(note, "see [[Jane]]", "see [[Jane]] #tag"));
     // An `id` property, which `((id))` refers to, either side.
     assert!(!index.update_text(referred, "quotable\nid:: abc", "quotable [[Jane]]"));
     assert!(!index.update_text(note, "see [[Jane]]", "see\nid:: abc"));
@@ -279,4 +283,55 @@ fn update_declines_what_changes_more_than_backlinks() {
 
     assert_eq!(index.backlinks(jane), before, "declining changes nothing");
     assert_eq!(index.resolve_block_ref("abc"), Some(referred));
+}
+
+/// Prose in a properties block is read as nothing: it adds no property and
+/// no link, and is said to be stray so that it can be flagged.
+#[test]
+fn prose_in_a_properties_block_is_stray() {
+    use quiddity_core::Flag;
+    let graph = Graph::new();
+    let jane = graph.create_block(None, None, "Jane").unwrap();
+    graph
+        .create_block(
+            Some(jane),
+            None,
+            "kind:: a\nMet [[Bob]] at #summit\n#friend\n\nrole:: b",
+        )
+        .unwrap();
+    let bob = graph.create_block(None, None, "Bob").unwrap();
+    graph.create_block(Some(bob), None, "kind:: a").unwrap();
+    graph.commit();
+    let index = Index::build(&graph).unwrap();
+    let info = index.entity(jane).unwrap();
+    let keys: Vec<_> = info.properties.iter().map(|p| p.key.as_str()).collect();
+    assert_eq!(keys, ["kind", "friend", "role"]);
+    assert_eq!(info.stray, ["Met [[Bob]] at #summit"]);
+    assert!(
+        index.backlinks(bob).is_empty(),
+        "a stray line's link isn't read"
+    );
+    assert_eq!(
+        index.flags(jane),
+        [Flag::StrayLine {
+            text: "Met [[Bob]] at #summit".into()
+        }]
+    );
+    assert!(index.entity(bob).unwrap().stray.is_empty());
+    assert_eq!(index.flags(bob), []);
+}
+
+/// A first block that starts with prose is an ordinary block, whatever else
+/// it holds: its entity has no properties.
+#[test]
+fn a_block_that_starts_with_prose_is_not_a_properties_block() {
+    let graph = Graph::new();
+    let jane = graph.create_block(None, None, "Jane").unwrap();
+    graph
+        .create_block(Some(jane), None, "see below\nkind:: a")
+        .unwrap();
+    graph.commit();
+    let index = Index::build(&graph).unwrap();
+    let info = index.entity(jane).unwrap();
+    assert!(info.properties.is_empty() && info.stray.is_empty());
 }
