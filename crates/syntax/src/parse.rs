@@ -112,7 +112,8 @@ pub struct PropertiesBlock {
 
 /// Reads `text` as a properties block, or says it isn't one: a block is one
 /// when its first line that isn't blank is a `key:: value` line, a line of
-/// nothing but tags (`#a #b`) or a `##` line. Any later line that is none of
+/// nothing but tags (`#a #b`) or a `##` line, except a `##blob` line, which
+/// makes a block a blob and nothing else. Any later line that is none of
 /// those is stray, so prose typed into a properties block neither becomes a
 /// property nor hides the others.
 pub fn parse_properties_block(text: &str) -> Option<PropertiesBlock> {
@@ -123,6 +124,9 @@ pub fn parse_properties_block(text: &str) -> Option<PropertiesBlock> {
         let content = line.strip_suffix('\n').unwrap_or(line);
         let content = content.strip_suffix('\r').unwrap_or(content);
         if !content.trim().is_empty() {
+            if !started && starts_a_blob(content) {
+                return None;
+            }
             if is_properties_line(content) {
                 parse_line(content, offset, &mut found.block);
             } else if started {
@@ -135,6 +139,15 @@ pub fn parse_properties_block(text: &str) -> Option<PropertiesBlock> {
         offset += line.len();
     }
     started.then_some(found)
+}
+
+/// Whether a line is a `##blob` line, in either form, which is what makes its
+/// block a blob.
+fn starts_a_blob(line: &str) -> bool {
+    let key = parse_meta_line(line)
+        .map(|(key, _)| key)
+        .or_else(|| parse_meta_value_line(line).map(|(key, _)| key));
+    key.is_some_and(|key| crate::normalise_name(&key) == "blob")
 }
 
 /// Whether a line belongs in a properties block.
@@ -1242,6 +1255,19 @@ mod tests {
         assert!(!yes(""));
         assert!(!yes(" \n\t\n"));
         assert!(!yes("- bullet:: no"));
+    }
+
+    #[test]
+    fn a_blob_line_first_makes_a_blob_not_a_properties_block() {
+        let yes = |text: &str| parse_properties_block(text).is_some();
+        assert!(!yes("##blob(abc, image/png, 1)"));
+        assert!(!yes("\n  ##Blob(x)\ncaption"));
+        assert!(!yes("##blob:: x"));
+        assert!(!yes("##blob"));
+        // Anywhere else, or another key, it is as any `##` line is.
+        assert!(yes("kind:: a\n##blob(abc, image/png, 1)"));
+        assert!(yes("##blobs(x)"));
+        assert!(yes("##block(x)"));
     }
 
     #[test]

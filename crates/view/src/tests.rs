@@ -2221,102 +2221,109 @@ mod revisions {
 
 const HASH: &str = "ea8f163db38682925e4491c5e58d4bb3506ef8c14eb78a86e908c5624a67200f";
 
-/// An entity made for a file says what the file is, and an ordinary one says
-/// nothing of the kind. The UI is told this, not left to read the line.
+/// A file added to a page is a block at its end that says what the file is,
+/// and an ordinary block says nothing of the kind. The UI is told this, not
+/// left to read the line. Nothing else is made: it has no page of its own.
 #[test]
-fn an_assets_page_says_what_the_file_is() {
-    let v = view_with(|_| {});
+fn a_blob_block_says_what_the_file_is() {
+    let (v, page, _) = page(&["first"]);
+    let entities = v.entities().unwrap().len();
     let id = v
-        .create_asset(HASH, "Image/PNG", 12_345, Some("cat.png"))
+        .attach_blob(&page, HASH, "Image/PNG", 12_345, Some("cat.png"))
         .unwrap();
-    let entity = v.entity(&id).unwrap();
-    assert_eq!(entity.title, "cat.png");
+    let blocks = v.entity(&page).unwrap().blocks;
+    let (plain, blob) = (&blocks[0], blocks.last().unwrap());
+    assert_eq!(blob.id, id);
     assert_eq!(
-        entity.asset,
-        Some(AssetInfo {
+        blob.blob,
+        Some(BlobInfo {
             hash: HASH.into(),
             mime: "image/png".into(),
             size: 12_345,
             name: Some("cat.png".into()),
         })
     );
-    assert_eq!(entity.flags, Vec::<String>::new());
-    // The line is in the properties block, drawn as a chip like any other.
-    let chips: Vec<_> = entity.blocks[0]
-        .properties
-        .iter()
-        .map(|p| p.key.as_str())
-        .collect();
-    assert_eq!(chips, ["asset"]);
-    assert!(entity.blocks[0].properties[0].flags.is_empty());
-
-    let plain = v.create_entity("Not a file").unwrap();
-    assert_eq!(v.entity(&plain).unwrap().asset, None);
+    assert_eq!(plain.blob, None);
+    assert_eq!(v.entities().unwrap().len(), entities, "no entity is made");
+    // Its line is a chip, unflagged: the UI draws the file and leaves it out.
+    assert_eq!(blob.properties.len(), 1);
+    assert_eq!(blob.properties[0].key, "blob");
+    assert!(blob.properties[0].meta && blob.properties[0].flags.is_empty());
+    assert_eq!(v.entity(&page).unwrap().flags, Vec::<String>::new());
 }
 
-/// A file with no name is called by the start of its hash, and the page
-/// that can't be read says so on the chip rather than claiming a file.
+/// A file with no name has none, and a block whose line can't be read is not
+/// a file: it says so on its chip.
 #[test]
 fn a_file_with_no_name_and_a_line_that_is_wrong() {
-    let v = view_with(|_| {});
-    let id = v.create_asset(HASH, "application/pdf", 0, None).unwrap();
-    let entity = v.entity(&id).unwrap();
-    assert_eq!(entity.title, &HASH[..12]);
-    assert_eq!(entity.asset.unwrap().name, None);
+    let (v, page, ids) = page(&["words"]);
+    let id = v
+        .attach_blob(&page, HASH, "application/pdf", 0, None)
+        .unwrap();
+    let nameless = v.entity(&page).unwrap().blocks.pop().unwrap();
+    assert_eq!(nameless.id, id);
+    assert_eq!(nameless.blob.unwrap().name, None);
 
-    let broken = v.create_entity("broken.png").unwrap();
-    let first = v.entity(&broken).unwrap().blocks[0].id.clone();
-    v.splice_text(&first, 0, 0, "##asset(not a hash)").unwrap();
-    let entity = v.entity(&broken).unwrap();
-    assert_eq!(entity.asset, None);
-    let chip = &entity.blocks[0].properties[0];
-    assert_eq!(chip.key, "asset");
-    assert_eq!(chip.flags, ["the hash must be 64 hexadecimal digits"]);
+    v.splice_text(&ids[0], 0, 0, "##blob(not a hash)\n")
+        .unwrap();
+    let broken = v.entity(&page).unwrap().blocks.remove(0);
+    assert_eq!(broken.blob, None);
+    assert_eq!(broken.properties[0].key, "blob");
+    assert_eq!(
+        broken.properties[0].flags,
+        ["the hash must be 64 hexadecimal digits"]
+    );
+}
+
+/// A blob's line has to be first in its block: anywhere else it is flagged,
+/// and the block is not a file.
+#[test]
+fn a_blob_line_that_is_not_first_is_flagged() {
+    let line = format!("##blob({HASH}, image/png, 1)");
+    let (v, page, _) = page(&[&format!("words\n{line}")]);
+    let block = v.entity(&page).unwrap().blocks.remove(0);
+    assert_eq!(block.blob, None);
+    assert_eq!(
+        block.properties[0].flags,
+        ["A blob's line has to be the first line of its block"]
+    );
+}
+
+/// A blob can be the first block of a page, where a properties block would
+/// be: it isn't taken for one.
+#[test]
+fn a_blob_first_on_a_page_is_not_its_properties_block() {
+    let line = format!("##blob({HASH}, image/png, 1)");
+    let (v, page, _) = page(&[&line]);
+    let entity = v.entity(&page).unwrap();
+    assert!(entity.blocks[0].blob.is_some());
+    assert!(entity.blocks[0].properties[0].flags.is_empty());
+    assert_eq!(entity.flags, Vec::<String>::new());
 }
 
 /// A file the UI describes wrongly changes nothing, so a bad answer from the
-/// shell can't leave an entity behind.
+/// shell can't leave a block behind.
 #[test]
-fn a_file_described_wrongly_is_not_made() {
-    let v = view_with(|_| {});
-    let before = v.entities().unwrap().len();
-    for (hash, mime) in [("nope", "image/png"), (HASH, "png")] {
-        assert!(v.create_asset(hash, mime, 1, Some("x.png")).is_err());
-    }
-    assert_eq!(v.entities().unwrap().len(), before);
-}
-
-/// A file added to a page makes its entity and ends the page with a link to
-/// it, and undoing takes both away in one step.
-#[test]
-fn attaching_a_file_links_it_from_the_page_in_one_step() {
+fn a_file_described_wrongly_is_not_added() {
     let (v, page, _) = page(&["first"]);
-    v.graph().enable_undo();
-    let id = v
-        .attach_asset(&page, HASH, "image/png", 9, Some("a [b] c.png"))
-        .unwrap();
-    let on_page = v.entity(&page).unwrap();
-    let last = on_page.blocks.last().unwrap();
-    assert_eq!(last.text, "[[a \\[b\\] c.png]]");
-    let key = last.text.trim_start_matches("[[").trim_end_matches("]]");
-    assert_eq!(
-        on_page.links[key].target,
-        LinkTarget::Entity { id: id.clone() }
+    for (hash, mime) in [("nope", "image/png"), (HASH, "png")] {
+        assert!(v.attach_blob(&page, hash, mime, 1, Some("x.png")).is_err());
+    }
+    assert!(
+        v.attach_blob("not a page", HASH, "image/png", 1, None)
+            .is_err()
     );
-    assert_eq!(v.entity(&id).unwrap().asset.unwrap().size, 9);
-
-    assert!(v.undo().unwrap());
-    assert!(v.entity(&id).is_err(), "the entity went with the link");
     assert_eq!(v.entity(&page).unwrap().blocks.len(), 1);
 }
 
+/// Adding a file is one undo step.
 #[test]
-fn attaching_a_file_wrongly_changes_nothing() {
+fn adding_a_file_is_one_undo_step() {
     let (v, page, _) = page(&["first"]);
-    assert!(v.attach_asset(&page, "nope", "image/png", 1, None).is_err());
-    assert!(
-        v.attach_asset("not a page", HASH, "image/png", 1, None)
-            .is_err()
-    );
+    v.graph().enable_undo();
+    v.attach_blob(&page, HASH, "image/png", 9, Some("a.png"))
+        .unwrap();
+    assert_eq!(v.entity(&page).unwrap().blocks.len(), 2);
+    assert!(v.undo().unwrap());
     assert_eq!(v.entity(&page).unwrap().blocks.len(), 1);
 }

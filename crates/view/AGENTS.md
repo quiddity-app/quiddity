@@ -174,6 +174,10 @@ gains one makes the entity.
   So is a `key:: value` line outside it, whose chip stays (`id::` included: a block's ID is
   `##id(…)`, which is allowed in any block and flagged only when it has no ID). In a properties block only its own lines are chips: prose is stray, and
   is flagged under the entity's title.
+- **A blob block says what file it is** (`Block::blob`, from `Asset::in_block`),
+  and its `##blob` chip stays, unflagged, for the UI to leave out. An unreadable
+  line is flagged with why, and one that isn't the block's first line is flagged
+  as such. `attach_blob` adds one at the end of a page, as one undo step.
 - **Flags go on their chips** (`Property::flags`), matched by normalised key
   and by whether the chip is a meta-property; only the properties block's
   chips are candidates. What has no chip goes in `Entity::flags`. The words

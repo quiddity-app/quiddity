@@ -28,7 +28,7 @@ pub mod schema;
 mod settings;
 pub mod tags;
 
-pub use asset::{Asset, AssetError};
+pub use asset::{Asset, AssetError, KEY as BLOB_KEY};
 pub use check::Flag;
 pub use devices::Device;
 pub use effective::Item;

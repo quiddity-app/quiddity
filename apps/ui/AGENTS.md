@@ -100,11 +100,12 @@ refuses it. The memory backend plays such a device with `?blank`.
 
 ## Files
 
-Dropping or pasting a file on the main pane keeps it and links it from the page.
+Dropping or pasting a file on the main pane keeps it and adds it to the page as
+a blob block, with no page of its own.
 **A backend may have `putBlob` and `getBlob`**, which only the app does
 (`Graph.canKeepFiles()`): `Graph.addFile` hands the bytes to the shell, gets
-their hash back, and then `attachAsset` makes the entity and the link as one
-edit. The UI never writes the `##asset` line or the link: Rust does.
+their hash back, and then `attachBlob` adds the block as one edit. The UI
+never writes the `##blob` line: Rust does.
 
 - **`useFileDrop` puts its handlers on the `<article>` itself**, not a wrapper:
   the specs, and the outline's styling, find the blocks as `article > ul`. They
@@ -112,14 +113,17 @@ edit. The UI never writes the `##asset` line or the link: Rust does.
   a dropped file as text and put it in the block. Text has no files, so it is
   left alone. The graph is fetched when a file arrives (`bootGraph()`), so the
   article doesn't suspend on it.
-- **`AssetFile` draws an asset's file** from an object URL, made when the bytes
-  are read and revoked when the page moves on. `getBlob` rejects if this device
+- **`BlobFile` draws a blob block's file** (`Block.blob`) from an object URL,
+  made when the bytes are read and revoked when the page moves on.
+  `RenderedBlock` draws it above the block's caption, which is the text after
+  its first line, and leaves the block's own `##blob` chip out; a block with a
+  file keeps its bullet. `getBlob` rejects if this device
   doesn't have the bytes yet, and the page says so with a Try again; they
   arrive from other devices by themselves, but nothing tells the page.
 - **The memory backend keeps files in a map by SHA-256**, not the BLAKE3 the
   app uses: nothing outside the page checks, and the browser has no BLAKE3.
-  `__quiddityRemote.createAsset` plays another device that has a file this one
-  doesn't, and `kept` lists the hashes kept, for `e2e/files.spec.ts`.
+  `__quiddityRemote.createBlob` plays another device that has added a file to a
+  page whose bytes this one doesn't have, and `kept` lists the hashes kept, for `e2e/files.spec.ts`.
 - Playwright's `dispatchEvent("paste", …)` doesn't make a `ClipboardEvent`:
   make one in the page. A `drop` works as it is.
 

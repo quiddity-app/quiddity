@@ -230,23 +230,11 @@ impl Replica {
         Ok(self.view.create_entity(name)?)
     }
 
-    /// Creates an entity for a file the shell has kept: `hash` is the shell's
-    /// answer for its bytes, and `size` a `BigInt`. Returns the entity's ID.
-    #[wasm_bindgen(js_name = createAsset)]
-    pub fn create_asset(
-        &self,
-        hash: &str,
-        mime: &str,
-        size: u64,
-        name: Option<String>,
-    ) -> Result<String, JsError> {
-        Ok(self.view.create_asset(hash, mime, size, name.as_deref())?)
-    }
-
-    /// Adds a file the shell has kept to a page: makes its entity and ends the
-    /// page with a link to it, as one undo step. Returns the entity's ID.
-    #[wasm_bindgen(js_name = attachAsset)]
-    pub fn attach_asset(
+    /// Adds a file the shell has kept to a page, as a block at its end that is
+    /// the file: `hash` is the shell's answer for its bytes, and `size` a
+    /// `BigInt`. One undo step. Returns the block's ID.
+    #[wasm_bindgen(js_name = attachBlob)]
+    pub fn attach_blob(
         &self,
         page: &str,
         hash: &str,
@@ -256,7 +244,7 @@ impl Replica {
     ) -> Result<String, JsError> {
         Ok(self
             .view
-            .attach_asset(page, hash, mime, size, name.as_deref())?)
+            .attach_blob(page, hash, mime, size, name.as_deref())?)
     }
 
     /// Renames an entity, keeping the old name as an alias. False if the name
@@ -358,20 +346,25 @@ mod tests {
         assert_eq!(replica.block_text(&id).unwrap(), "hi!");
     }
 
-    /// A file the shell kept becomes an entity whose page says what it is,
-    /// in an edit the UI can undo.
+    /// A file the shell kept becomes a block that says what it is, at the end
+    /// of its page, in an edit the UI can undo. It makes no entity.
     #[test]
-    fn a_kept_file_becomes_an_entity_that_can_be_undone() {
-        let replica = Replica::empty().unwrap();
+    fn a_kept_file_becomes_a_block_that_can_be_undone() {
+        let shell = Graph::new();
+        let page = shell.create_entity("Page", &[]).unwrap();
+        let replica = Replica::new(&shell.snapshot().unwrap()).unwrap();
+        let page = page.to_string();
         let hash = "ea8f163db38682925e4491c5e58d4bb3506ef8c14eb78a86e908c5624a67200f";
-        let before = replica.view.entities().unwrap().len();
+        let entities = replica.view.entities().unwrap().len();
         let id = replica
-            .create_asset(hash, "image/png", 12, Some("cat.png".into()))
+            .attach_blob(&page, hash, "image/png", 12, Some("cat.png".into()))
             .unwrap();
-        assert!(replica.view.entities().unwrap().len() > before);
-        assert_eq!(replica.view.entity(&id).unwrap().asset.unwrap().hash, hash);
+        let blocks = replica.view.entity(&page).unwrap().blocks;
+        assert_eq!(blocks.last().unwrap().id, id);
+        assert_eq!(blocks.last().unwrap().blob.as_ref().unwrap().hash, hash);
+        assert_eq!(replica.view.entities().unwrap().len(), entities);
         assert!(replica.undo().unwrap());
-        assert_eq!(replica.view.entities().unwrap().len(), before);
+        assert!(replica.view.entity(&page).unwrap().blocks.is_empty());
     }
 
     #[test]

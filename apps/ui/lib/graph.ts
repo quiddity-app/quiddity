@@ -189,10 +189,11 @@ export class Graph {
    * made-up graph outside the app have nowhere to put the bytes. */
   canKeepFiles = () => this.backend.putBlob !== undefined && this.backend.getBlob !== undefined;
 
-  /** Adds a file to a page: the shell keeps its bytes, and the page gets an
-   * entity for the file, linked at the end, as one edit. Returns the entity.
+  /** Adds a file to a page: the shell keeps its bytes, and the page gets a
+   * block at its end that is the file, as one edit. Returns the block. It
+   * makes no entity: the file shows inline, on the page it was added to.
    * Rejects with a message the user can read. */
-  async addFile(page: EntityId, file: File): Promise<EntityId> {
+  async addFile(page: EntityId, file: File): Promise<string> {
     let hash: string;
     try {
       hash = await this.backend.putBlob!(new Uint8Array(await file.arrayBuffer()));
@@ -201,7 +202,7 @@ export class Graph {
     }
     const mime = file.type || "application/octet-stream";
     return this.edited(
-      this.replica.attachAsset(page, hash, mime, BigInt(file.size), file.name || undefined),
+      this.replica.attachBlob(page, hash, mime, BigInt(file.size), file.name || undefined),
     );
   }
 

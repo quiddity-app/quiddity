@@ -39,30 +39,33 @@ async function openAll(page: Page) {
 
 const heading = (page: Page) => page.locator("main article h1");
 
-test("a dropped file becomes an entity, linked from the page, with its bytes kept", async ({ page }) => {
+const article = (page: Page) => page.locator("main article");
+
+/** The id of the entity open in the main pane, from the address. */
+const openId = (page: Page) => new URL(page.url()).searchParams.get("id")!;
+
+test("a dropped file is shown inline in the page, with its bytes kept, and makes no page", async ({ page }) => {
   await openEntity(page, "Reading list");
   await heading(page).dispatchEvent("drop", { dataTransfer: await transfer(page, [text("notes.txt", "hello")]) });
 
-  const link = page.locator("main article").getByRole("link", { name: "notes.txt" });
-  await expect(link).toBeVisible();
-  expect(await page.evaluate(() => window.__quiddityRemote?.kept.length)).toBe(1);
-
-  await link.click();
-  await expect(page.getByRole("heading", { level: 1, name: "notes.txt" })).toBeVisible();
-  const download = page.getByRole("link", { name: "Download notes.txt" });
+  const download = article(page).getByRole("link", { name: "Download notes.txt" });
   await expect(download).toHaveAttribute("href", /^blob:/);
   await expect(download).toHaveAttribute("download", "notes.txt");
-  await expect(page.getByText("5 bytes, text/plain")).toBeVisible();
+  await expect(article(page).getByText("5 bytes, text/plain")).toBeVisible();
+  expect(await page.evaluate(() => window.__quiddityRemote?.kept.length)).toBe(1);
+
+  // It is a block of the page, not an entity of its own.
+  await openAll(page);
+  await expect(page.locator("main").getByRole("link", { name: "notes.txt" })).toHaveCount(0);
 });
 
-test("an image is shown, from its own bytes", async ({ page }) => {
+test("an image is shown inline, from its own bytes", async ({ page }) => {
   await openEntity(page, "Reading list");
   await heading(page).dispatchEvent("drop", {
     dataTransfer: await transfer(page, [{ name: "dot.png", type: "image/png", data: dot }]),
   });
-  await page.locator("main article").getByRole("link", { name: "dot.png" }).click();
 
-  const image = page.getByRole("img", { name: "dot.png" });
+  const image = article(page).getByRole("img", { name: "dot.png" });
   await expect(image).toBeVisible();
   await expect(image).toHaveJSProperty("naturalWidth", 1);
 });
@@ -76,56 +79,78 @@ test("pasting a file works like dropping one", async ({ page }) => {
       el.dispatchEvent(new ClipboardEvent("paste", { clipboardData, bubbles: true, cancelable: true })),
     clipboardData,
   );
-  await expect(page.locator("main article").getByRole("link", { name: "pasted.txt" })).toBeVisible();
+  await expect(article(page).getByRole("link", { name: "Download pasted.txt" })).toBeVisible();
 });
 
-test("several files at once each get an entity", async ({ page }) => {
+test("several files at once each get a block", async ({ page }) => {
   await openEntity(page, "Reading list");
   await heading(page).dispatchEvent("drop", {
     dataTransfer: await transfer(page, [text("one.txt", "1"), text("two.txt", "22")]),
   });
-  const article = page.locator("main article");
-  await expect(article.getByRole("link", { name: "one.txt" })).toBeVisible();
-  await expect(article.getByRole("link", { name: "two.txt" })).toBeVisible();
+  await expect(article(page).getByRole("link", { name: "Download one.txt" })).toBeVisible();
+  await expect(article(page).getByRole("link", { name: "Download two.txt" })).toBeVisible();
   expect(await page.evaluate(() => window.__quiddityRemote?.kept.length)).toBe(2);
 });
 
 test("adding a file is one undo step", async ({ page }) => {
   await openEntity(page, "Reading list");
   await heading(page).dispatchEvent("drop", { dataTransfer: await transfer(page, [text("undo.txt", "u")]) });
-  const link = page.locator("main article").getByRole("link", { name: "undo.txt" });
-  await expect(link).toBeVisible();
+  const download = article(page).getByRole("link", { name: "Download undo.txt" });
+  await expect(download).toBeVisible();
 
   await page.keyboard.press("ControlOrMeta+z");
-  await expect(link).toHaveCount(0);
-  // Its entity went with the link.
-  await openAll(page);
-  await expect(page.locator("main").getByRole("link", { name: "undo.txt" })).toHaveCount(0);
+  await expect(download).toHaveCount(0);
+});
+
+test("text after a file's line is its caption", async ({ page }) => {
+  await openEntity(page, "Reading list");
+  await heading(page).dispatchEvent("drop", { dataTransfer: await transfer(page, [text("cap.txt", "c")]) });
+  const download = article(page).getByRole("link", { name: "Download cap.txt" });
+  await expect(download).toBeVisible();
+
+  // Editing shows the line, and what is typed after it is the caption.
+  // `has` is relative to the block, so it can't be the page-rooted `download`.
+  const block = article(page)
+    .locator("[data-block-text]")
+    .filter({ has: page.getByRole("link", { name: "Download cap.txt" }) });
+  // By keyboard: a click anywhere near the top would land on the download link,
+  // which does its own thing and doesn't start editing.
+  await block.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".cm-content")).toContainText("##blob(");
+  await page.keyboard.press("ControlOrMeta+End");
+  await page.keyboard.press("Shift+Enter");
+  await page.keyboard.type("a note on the file");
+  await page.keyboard.press("Escape");
+
+  await expect(article(page).getByText("a note on the file")).toBeVisible();
+  await expect(download).toBeVisible();
+  await expect(article(page).getByText("##blob(")).toHaveCount(0);
 });
 
 test("a file another device has says it isn't here yet, and arrives when asked for again", async ({ page }) => {
   const bytes = text("far.txt", "far away");
   await openEntity(page, "Reading list");
-  // Another device describes a file this one has no bytes for.
-  await page.evaluate(async (data) => {
-    const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
-    const digest = await crypto.subtle.digest("SHA-256", bytes);
-    const hash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
-    window.__quiddityRemote!.createAsset("far.txt", hash, "text/plain", bytes.length);
-  }, bytes.data);
+  // Another device adds a file to this page whose bytes this one doesn't have.
+  await page.evaluate(
+    async ({ data, id }) => {
+      const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
+      const digest = await crypto.subtle.digest("SHA-256", bytes);
+      const hash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+      window.__quiddityRemote!.createBlob(id, "far.txt", hash, "text/plain", bytes.length);
+    },
+    { data: bytes.data, id: openId(page) },
+  );
 
-  await openAll(page);
-  await page.locator("main").getByRole("link", { name: "far.txt", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "far.txt", level: 1 })).toBeVisible();
-  await expect(page.getByText("isn’t on this device yet")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Download far.txt" })).toHaveCount(0);
+  await expect(article(page).getByText("isn’t on this device yet")).toBeVisible();
+  await expect(article(page).getByRole("link", { name: "Download far.txt" })).toHaveCount(0);
 
   // Asking again with nothing new changes nothing.
-  await page.getByRole("button", { name: "Try again" }).click();
-  await expect(page.getByText("isn’t on this device yet")).toBeVisible();
+  await article(page).getByRole("button", { name: "Try again" }).click();
+  await expect(article(page).getByText("isn’t on this device yet")).toBeVisible();
 
   // The same bytes turn up here: dropped on this page, as any file is.
   await heading(page).dispatchEvent("drop", { dataTransfer: await transfer(page, [bytes]) });
-  await page.getByRole("button", { name: "Try again" }).click();
-  await expect(page.getByRole("link", { name: "Download far.txt" }).first()).toBeVisible();
+  await article(page).getByRole("button", { name: "Try again" }).click();
+  await expect(article(page).getByRole("link", { name: "Download far.txt" }).first()).toBeVisible();
 });

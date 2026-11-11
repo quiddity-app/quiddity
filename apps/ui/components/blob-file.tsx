@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Asset, EntityId } from "@/lib/model";
-import { useGraph, useRead } from "@/lib/use-graph";
+import type { BlobInfo } from "@/lib/model";
+import { useGraph } from "@/lib/use-graph";
 import { Button, linkClass } from "./ui";
 
 type Loaded = { key: string } & ({ url: string } | { reason: string });
@@ -51,7 +51,7 @@ export function formatSize(bytes: number): string {
   return `${shown} ${units[unit]}`;
 }
 
-function File({ asset }: { asset: Asset }) {
+function File({ blob: asset }: { blob: BlobInfo }) {
   const graph = useGraph();
   const [attempt, setAttempt] = useState(0);
   const file = useFileUrl(asset.hash, asset.mime, attempt);
@@ -90,13 +90,12 @@ function File({ asset }: { asset: Asset }) {
   );
 }
 
-/** What an asset's entity is a file of, drawn from its bytes. Nothing for any
- * other entity. */
-export function AssetFile({ id }: { id: EntityId }) {
-  const asset = useRead((g) => g.entity(id)).asset;
-  return asset ? (
-    <section aria-label="File" className="mb-4">
-      <File asset={asset} />
+/** A blob block's file, drawn from its bytes, where the block is. The caption
+ * is drawn by the block, after it. */
+export function BlobFile({ blob }: { blob: BlobInfo }) {
+  return (
+    <section aria-label="File" className="mb-1">
+      <File blob={blob} />
     </section>
-  ) : null;
+  );
 }

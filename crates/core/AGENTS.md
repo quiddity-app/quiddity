@@ -164,6 +164,12 @@ so the caller must know there is nothing.
   merge, and a bad, missing or second line is a `BadMeta` flag. `type:: journal`
   and `date::` mean nothing. `create_journal` always makes one, and
   `ensure_journal` only when the index has none.
+- **A blob is a block whose first line is `##blob(…)`** (`asset.rs`), read from
+  the text by `Asset::in_block` and listed by `Index::assets()` in document
+  order, with `blob_lines()` listing every such line as written for garbage
+  collection. It is no entity. `parse_properties_block` never takes a block that
+  starts with one for a properties block, and `update_text` declines it either
+  side. `create_blob` adds one.
 - **`move_block`'s index is the final position**, so within the same parent
   it counts the siblings other than the block itself.
 - **Duplicates are never deleted.** Entities with the same identity

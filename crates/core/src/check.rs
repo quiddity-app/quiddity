@@ -147,21 +147,12 @@ impl Index {
         );
 
         let defines = matches!(info.identity(), Some(Identity::Property(_)));
-        if !defines {
-            if info.meta.iter().any(|m| {
-                !crate::asset::is_asset(m)
-                    && !tags::is_tag(m)
-                    && !crate::journal::is_journal(m)
-                    && !crate::ref_id::is_id(m)
-            }) {
-                flags.push(Flag::MetaOutsideProperty);
-            }
-            if let Some(Err(e)) = info.asset() {
-                flags.push(Flag::BadMeta {
-                    key: crate::asset::KEY.to_owned(),
-                    message: e.to_string(),
-                });
-            }
+        if !defines
+            && info.meta.iter().any(|m| {
+                !tags::is_tag(m) && !crate::journal::is_journal(m) && !crate::ref_id::is_id(m)
+            })
+        {
+            flags.push(Flag::MetaOutsideProperty);
         }
         if defines {
             flags.extend(self.meta_flags.get(&id).into_iter().flatten().cloned());

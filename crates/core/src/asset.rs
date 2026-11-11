@@ -1,16 +1,19 @@
-//! The `##asset` line: how a binary is described in the graph.
+//! The `##blob` line: how a binary is described in the graph.
 //!
-//! An asset is an entity whose properties block holds
-//! `##asset(hash, mime, size, name)`. The hash is the BLAKE3 hash of the
+//! A blob is a block whose first line is `##blob(hash, mime, size, name)`; any
+//! text after it is the blob's caption. The hash is the BLAKE3 hash of the
 //! bytes, in hex, and the bytes themselves are kept outside the graph. The
-//! name, the file name, may be left off.
+//! name, the file name, may be left off. A blob is a block, not an entity: it
+//! has no page of its own, and sits in whichever page it was added to.
+//!
+//! The type is called [`Asset`], for what the line describes.
 
-use quiddity_syntax::{MetaProperty, format_meta_line, normalise_name};
+use quiddity_syntax::{format_meta_line, normalise_name, parse_meta_line};
 
 use crate::{BlockId, Graph, Result as GraphResult};
 
-/// The meta-property that says an entity is an asset.
-pub const KEY: &str = "asset";
+/// The `##` property that makes a block a blob.
+pub const KEY: &str = "blob";
 
 /// What the graph says about a binary.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -35,8 +38,6 @@ pub enum AssetError {
     Mime,
     #[error("the size must be a whole number of bytes")]
     Size,
-    #[error("an entity can describe only one asset")]
-    Several,
 }
 
 impl Asset {
@@ -52,7 +53,7 @@ impl Asset {
         })
     }
 
-    /// Reads the parameter of an `##asset` line. The file name is whatever
+    /// Reads the parameter of a `##blob` line. The file name is whatever
     /// follows the third comma, so it may contain commas.
     pub fn parse(parameter: &str) -> Result<Self, AssetError> {
         let mut parts = parameter.splitn(4, ',');
@@ -107,7 +108,7 @@ impl Asset {
         })
     }
 
-    /// The parameter of the `##asset` line that says this.
+    /// The parameter of the `##blob` line that says this.
     pub fn parameter(&self) -> String {
         let mut p = format!("{}, {}, {}", self.hash, self.mime, self.size);
         if let Some(name) = &self.name {
@@ -117,26 +118,41 @@ impl Asset {
         p
     }
 
-    /// The `##asset` line that says this.
+    /// The `##blob` line that says this.
     pub fn line(&self) -> String {
         format_meta_line(KEY, Some(&self.parameter()))
     }
 
-    /// Reads an entity's `##asset` line, if it has one.
-    pub fn of(meta: &[MetaProperty]) -> Option<Result<Self, AssetError>> {
-        let mut lines = meta.iter().filter(|m| is_asset(m));
-        let first = lines.next()?;
-        if lines.next().is_some() {
-            return Some(Err(AssetError::Several));
-        }
+    /// Reads the blob a block's text says it is, if its first line is a
+    /// `##blob` line: `None` for any other block, an error for a line that
+    /// can't be read.
+    pub fn in_block(text: &str) -> Option<Result<Self, AssetError>> {
+        let parameter = blob_line(text)?;
         Some(
-            first
-                .parameter
+            parameter
                 .as_deref()
                 .ok_or(AssetError::Missing)
                 .and_then(Self::parse),
         )
     }
+
+    /// The parameter of the `##blob` line a block starts with, as written,
+    /// whether or not it can be read: the outer `None` is a block that is no
+    /// blob, the inner one a line with no parameter.
+    pub fn line_of(text: &str) -> Option<Option<String>> {
+        blob_line(text)
+    }
+
+    /// The caption of the blob in `text`: what follows its first line.
+    pub fn caption(text: &str) -> &str {
+        text.split_once('\n').map_or("", |(_, rest)| rest).trim()
+    }
+}
+
+/// The parameter of a first line that is a `##blob` line.
+fn blob_line(text: &str) -> Option<Option<String>> {
+    let (key, parameter) = parse_meta_line(text.lines().next()?)?;
+    (normalise_name(&key) == KEY).then_some(parameter)
 }
 
 fn check_hash(hash: &str) -> Result<String, AssetError> {
@@ -173,11 +189,6 @@ fn clean_name(name: &str) -> Option<String> {
         .collect();
     let name = name.trim_matches([' ', '\t']);
     (!name.is_empty()).then(|| name.to_owned())
-}
-
-/// Whether a meta-property line is an `##asset`.
-pub(crate) fn is_asset(m: &MetaProperty) -> bool {
-    normalise_name(&m.key) == KEY
 }
 
 /// What a meta-property parameter reads as a backslash escape.
@@ -217,16 +228,10 @@ fn unescape(name: &str) -> String {
 }
 
 impl Graph {
-    /// Creates an entity for a binary: named for its file, or, with no name,
-    /// for the start of its hash, with the `##asset` line in its properties
-    /// block.
-    pub fn create_asset(&self, asset: &Asset) -> GraphResult<BlockId> {
-        let title = asset
-            .name
-            .clone()
-            .unwrap_or_else(|| asset.hash[..12].to_owned());
-        let entity = self.create_block(None, None, &title)?;
-        self.create_block(Some(entity), None, &asset.line())?;
-        Ok(entity)
+    /// Adds a blob to the end of `parent`'s children: a block whose first line
+    /// says what the file is. It makes no entity, and has no caption until
+    /// someone types one.
+    pub fn create_blob(&self, parent: BlockId, asset: &Asset) -> GraphResult<BlockId> {
+        self.create_block(Some(parent), None, &asset.line())
     }
 }

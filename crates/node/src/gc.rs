@@ -18,7 +18,6 @@ use std::io;
 use std::path::Path;
 
 use jiff::{SignedDuration, Timestamp};
-use quiddity_core::syntax::normalise_name;
 use quiddity_core::{Graph, Index, Version};
 
 use crate::blobs::{BlobError, Blobs, Hash, sweep};
@@ -175,33 +174,21 @@ pub struct Collected {
     pub removed: BTreeSet<Hash>,
 }
 
-/// The hashes the graph refers to. A `##asset` line that can't be read as a
+/// The hashes the graph refers to. A `##blob` line that can't be read as a
 /// whole still counts for the hash it begins with: a damaged line is a reason
 /// to look, not to delete.
 fn referenced(index: &Index) -> BTreeSet<Hash> {
     let mut hashes = BTreeSet::new();
-    for entity in index.entities() {
-        for line in entity
-            .meta
-            .iter()
-            .filter(|m| normalise_name(&m.key) == "asset")
+    for parameter in index.blob_lines() {
+        let first = parameter.split(',').next().unwrap_or("");
+        // `Hash` reads lower-case hex only, and a 64-character name only as
+        // hex, so a line written in capitals is lowered first, and a name of
+        // another length, which it would try as base32, is not tried.
+        let first = first.trim().to_ascii_lowercase();
+        if first.len() == 64
+            && let Ok(hash) = first.parse::<Hash>()
         {
-            let first = line
-                .parameter
-                .as_deref()
-                .unwrap_or("")
-                .split(',')
-                .next()
-                .unwrap_or("");
-            // `Hash` reads lower-case hex only, and a 64-character name only as
-            // hex, so a line written in capitals is lowered first, and a name of
-            // another length, which it would try as base32, is not tried.
-            let first = first.trim().to_ascii_lowercase();
-            if first.len() == 64
-                && let Ok(hash) = first.parse::<Hash>()
-            {
-                hashes.insert(hash);
-            }
+            hashes.insert(hash);
         }
     }
     hashes

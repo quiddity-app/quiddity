@@ -29,4 +29,4 @@
 	- Memory: a made-up graph, built through the same replica, for development and tests. Its ids differ on every load, so anything remembered by id has to cope with the entity no longer existing. Recents do.
 - Looks: named colours over Tailwind's slate palette (light and dark, following the system), IBM Plex Sans for text and JetBrains Mono for code. [[Design language]]
 - Running it: [[Running the app]].
-- Files: dropping or pasting one on the main pane keeps it, through the shell, and the pane shows an asset's file from an object URL. The memory backend keeps them for the life of the page. [[Add a file]] [[Binaries]]
+- Files: dropping or pasting one on the main pane keeps it, through the shell, and adds a block that shows the file from an object URL. The memory backend keeps them for the life of the page. [[Add a file]] [[Binaries]]

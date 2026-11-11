@@ -22,8 +22,8 @@ holds its own replica and answers its own queries (see `apps/ui` and
   another device in (see `docs/App sync.md`); the Devices page calls them.
   `put_blob` takes a file as the request body and returns its hash, and
   `get_blob` returns the bytes for a hash: the shell only keeps bytes, and the
-  UI says in the graph what a file is, with an `##asset` line, as an ordinary
-  edit pushed with `push_updates`.
+  UI says in the graph what a file is, with a block that starts with a `##blob`
+  line, as an ordinary edit pushed with `push_updates`.
 - **A graph that won't open doesn't stop the app.** `setup` records the
   problem in `Startup` (always managed) and manages no `Session`; the UI asks
   `startup_problem` first and shows the recovery screen instead of calling
