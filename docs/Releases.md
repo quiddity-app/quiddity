@@ -17,10 +17,13 @@
 	- Only the node is in the manifest: packslip installs archives of binaries, and never picks an installer such as `.deb`, `.dmg` or `.msi`.
 - No caches
 	- Nothing in the workflow restores a cache, not Rust's, and not the one `setup-node` would make for pnpm: a release builds from clean, so that a poisoned cache entry can't reach the published files. The zizmor and jactionlint checks insist on it for any workflow triggered by a release. Releases are slower than CI for it.
+- Updates
+	- The release also makes what the apps' updater needs: a signed update bundle per platform and `latest.json`, which names them. The build fails without the update signing key. [[Updates]]
 - Signing
 	- The Android APK must be signed with the real key, from the repository secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD` and `ANDROID_KEY_ALIAS`. Unlike a nightly, a release fails without them: a throwaway key would make the release impossible to update in place.
 	- The macOS and Windows installers are not signed or notarised. Those need an Apple developer account and a code-signing certificate, which the repository has none of. If they're added, sign before the `assets` job: packslip records digests, and any later change to a file fails verification.
 - Not tried yet
+	- The update feed, for the same reason: see [[Updates]].
 	- None of this has run: there has been no release. The first is the real test, and a pre-release tag (`v0.1.0-rc.1`) is the way to make it.
 	- packslip reads each archive's platform from its file name, and these use Rust target triples. If it doesn't understand them, pass `release.toml` or flags to describe the artifacts. Whether `bin: quiddity-node` finds `quiddity-node.exe` inside the Windows archives is untested too.
 	- With immutable releases turned on in the repository, a published release's assets can't be added to, and this workflow would fail on its first upload. It would have to build against a draft and publish it last.
