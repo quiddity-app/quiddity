@@ -51,7 +51,7 @@
 	- 4. Built, in part: `##tag` and the `#a` shorthand are the same tags, a tag is a link in any block, and `tags::` is an ordinary property. [[tags]] `type` is not gone: it still gives journals and property entities their identity, so it and its built-in schema stay until they are identified without it, in step 5 for journals and when property entities are found by name.
 	- 5. Built: `##journal(2026-10-25)` replaces `type:: journal` and `date::` in identity, creation, import and merging of journals, and the `date` property and its page are gone. [[Journal]]
 	- 6a. Built: `##id(…)` replaces `id::` as a block's ID, in any block, and the built-in `id` property is gone. [[id]] [[Block references]]
-	- 6b. Blobs become blocks with `##blob`: the index, [[quiddity-view]], [[quiddity-wasm]], the shell and [[Blob transfer]].
+	- 6b. Built: blobs are blocks that start with `##blob(…)`, with no entity and no page of their own, and a caption after the line. `##asset` and the asset entity are gone: the index, [[quiddity-view]], [[quiddity-wasm]], garbage collection, the UI and the docs follow. [[Binaries]]
 	- 7. Virtual entities, so that a name nobody has made behaves as an empty entity. Links defined by properties, the weak links to the defining entity, and the graph view and property page that show them.
 	- 8. The UI: the properties block's background and completion, the offer to make one, tags in place of chips for `##` lines, and the chips that remain.
 	- 9. Rename [[Meta-properties]] to match what it now covers, and remove this page.

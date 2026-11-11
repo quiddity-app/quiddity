@@ -4,7 +4,6 @@ import { useEffect } from "react";
 import type { EntityId } from "@/lib/model";
 import { recordVisit } from "@/lib/recents";
 import { useRead } from "@/lib/use-graph";
-import { AssetFile } from "./asset-file";
 import { Region, Skeleton } from "./boundary";
 import { EditableTitle } from "./entity-title";
 import { EntityBody } from "./entity-view";
@@ -54,7 +53,6 @@ export function MainEntity({ id }: { id: EntityId }) {
             <EditableTitle id={id} />
           </h1>
           <EntityFlags id={id} />
-          <AssetFile id={id} />
           <EntityBody id={id} />
           <MetaSections id={id} />
         </Region>

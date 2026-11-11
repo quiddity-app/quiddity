@@ -6,7 +6,6 @@
 use std::collections::BTreeSet;
 
 use quiddity_core::BlockId;
-use quiddity_core::syntax::{Link, format_link};
 use serde::Serialize;
 
 use crate::{Change, Error, Result, View};
@@ -116,26 +115,12 @@ impl View {
         self.edited(made.map(|e| e.to_string()).map_err(Error::from))
     }
 
-    /// Creates an entity for a binary the shell has kept, named for its file,
-    /// and returns its ID. `hash` is the shell's answer for the bytes. The
-    /// parts are checked before anything is changed.
-    pub fn create_asset(
-        &self,
-        hash: &str,
-        mime: &str,
-        size: u64,
-        name: Option<&str>,
-    ) -> Result<String> {
-        let asset = quiddity_core::Asset::new(hash, mime, size, name)?;
-        self.structural();
-        let made = self.graph.create_asset(&asset);
-        self.edited(made.map(|e| e.to_string()).map_err(Error::from))
-    }
-
-    /// Adds a file the shell has kept to `page`: makes its entity (see
-    /// [`View::create_asset`]) and ends the page with a link to it. One undo
-    /// step. Returns the new entity's ID. The parts are checked first.
-    pub fn attach_asset(
+    /// Adds a file the shell has kept to `page`, as a block at its end whose
+    /// first line says what the file is: a blob. `hash` is the shell's answer
+    /// for the bytes, and the parts are checked before anything is changed.
+    /// The block is the file's place in the graph, with no page of its own.
+    /// One undo step. Returns the new block's ID.
+    pub fn attach_blob(
         &self,
         page: &str,
         hash: &str,
@@ -146,16 +131,8 @@ impl View {
         let asset = quiddity_core::Asset::new(hash, mime, size, name)?;
         self.structural();
         let page = self.entity_id(page)?;
-        let attached = self.graph.create_asset(&asset).and_then(|entity| {
-            let link = Link {
-                name: self.graph.entity_name(entity)?,
-                qualifiers: Vec::new(),
-            };
-            self.graph
-                .create_block(Some(page), None, &format_link(&link))?;
-            Ok(entity)
-        });
-        self.edited(attached.map(|e| e.to_string()).map_err(Error::from))
+        let attached = self.graph.create_blob(page, &asset);
+        self.edited(attached.map(|b| b.to_string()).map_err(Error::from))
     }
 
     /// Renames an entity, keeping the old name as an alias so that links to it

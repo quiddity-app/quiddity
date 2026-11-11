@@ -8,6 +8,7 @@ import Link from "next/link";
 import { appPage } from "@/lib/nav";
 import { isExternal, openExternal } from "@/lib/open-external";
 import { PROP_CLOSE, PROP_OPEN, remarkQuiddity } from "@/lib/remark-quiddity";
+import { BlobFile } from "./blob-file";
 import { BlockRefLink, LinkOrNot, PropertyChip } from "./property-chip";
 import { linkClass } from "./ui";
 
@@ -116,13 +117,22 @@ export const RenderedBlock = memo(function RenderedBlock({
   block,
   links,
 }: {
-  block: Pick<Block, "text" | "properties">;
+  block: Pick<Block, "text" | "properties" | "blob">;
   links: Record<string, ResolvedLink>;
 }): ReactNode {
-  const { prose, lineProps, inlineProps } = useMemo(() => splitBlock(block), [block]);
+  const { prose, lineProps, inlineProps } = useMemo(() => {
+    const split = splitBlock(block);
+    // A blob's own line is the file, drawn above: not a chip as well. What
+    // follows it is the caption.
+    if (block.blob) {
+      split.lineProps = split.lineProps.filter((p) => !(p.meta && p.key === "blob"));
+    }
+    return split;
+  }, [block]);
   const map = useMemo(() => components(links, inlineProps), [links, inlineProps]);
   return (
     <>
+      {block.blob && <BlobFile blob={block.blob} />}
       {prose.trim() !== "" && (
         <ReactMarkdown remarkPlugins={[remarkGfm, remarkQuiddity]} components={map}>
           {prose}

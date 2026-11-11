@@ -1,6 +1,6 @@
 - How a device gets the bytes of a binary ([[Binaries]]) the graph names, from another device that has them. Built in [[quiddity-node]], over [[iroh-blobs]].
 - The idea
-	- The graph says what binaries exist: an entity with an `##asset` line names the hash of its bytes. The bytes themselves are not in the graph, so a device can know of a file before it has it. [[Binaries]]
+	- The graph says what binaries exist: a block that starts with a `##blob` line names the hash of its bytes. The bytes themselves are not in the graph, so a device can know of a file before it has it. [[Binaries]]
 	- Every device keeps every blob, so a device that sees a hash it lacks asks a device it is connected to. Nothing is added to the sync protocol: the graph is already the list of what is wanted.
 - Who may fetch
 	- Blobs travel on iroh-blobs' own protocol, on the same endpoint as [[Sync]] and so with the same device key. Its connections are accepted under the same rule as sync's: a device may connect if the graph lists it, if it was allowed on the command line, or if it is trusted for now. [[Device list]]
@@ -17,5 +17,4 @@
 	- `quiddity-node serve` opens the store in the graph's directory, so the headless node keeps every blob. [[Storage]]
 - Not built yet
 	- `quiddity-node sync`, which syncs with one device and stops, does not fetch blobs.
-	- Nothing in the UI writes an `##asset` line or calls `put_blob` yet.
 	- Per-device options to fetch on demand or to cap the cache, for a phone. Removing blobs nothing refers to. [[Compaction]]

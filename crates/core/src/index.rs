@@ -61,7 +61,7 @@ pub struct EntityInfo {
     pub name: String,
     pub properties: Vec<Property>,
     /// Meta-property lines in its properties block. They mean something
-    /// only on a property entity, or, for `##asset`, on an asset.
+    /// only on a property entity.
     pub meta: Vec<MetaProperty>,
     /// Lines of its properties block that are no property, tag or `##` line,
     /// as written. They are read as nothing, and flagged.
@@ -69,11 +69,6 @@ pub struct EntityInfo {
 }
 
 impl EntityInfo {
-    /// The binary this entity describes, if it has an `##asset` line.
-    pub fn asset(&self) -> Option<std::result::Result<crate::Asset, crate::AssetError>> {
-        crate::Asset::of(&self.meta)
-    }
-
     /// The other names it answers to: the items of every `alias` property,
     /// which may each be a single name or a list of them.
     pub fn aliases(&self) -> Vec<&Value> {
@@ -166,6 +161,11 @@ pub struct Index {
     /// Duplicates, mapped to the entity they are merged into.
     canonical: HashMap<BlockId, BlockId>,
     by_ref_id: HashMap<String, BlockId>,
+    /// The blocks that are blobs, in document order.
+    blobs: Vec<(BlockId, crate::Asset)>,
+    /// The `##blob` line of every block that starts with one, as written,
+    /// whether or not it can be read.
+    blob_lines: Vec<String>,
     backlinks: HashMap<BlockId, Vec<Backlink>>,
     /// The entity (root block) each block is in, itself for a root.
     root_of: HashMap<BlockId, BlockId>,
@@ -256,6 +256,12 @@ impl Index {
                 .and_then(|before| blocks.get(before))
                 .is_some_and(|before| before.parent.is_none());
             let read = read_block(&scanned.text, first_child);
+            if let Some(line) = crate::Asset::line_of(&scanned.text) {
+                index.blob_lines.push(line.unwrap_or_default());
+                if let Some(Ok(asset)) = crate::Asset::in_block(&scanned.text) {
+                    index.blobs.push((block, asset));
+                }
+            }
             if let Some(id) = crate::ref_id::of(&read.block.meta) {
                 let entry = index.by_ref_id.entry(id.to_owned()).or_insert(block);
                 *entry = (*entry).min(block);
@@ -304,7 +310,9 @@ impl Index {
     pub fn update_text(&mut self, block: BlockId, old: &str, new: &str) -> bool {
         let known = self.root_of.get(&block).is_some_and(|&root| root != block);
         let properties_block = |text| parse_properties_block(text).is_some();
-        if !known || properties_block(old) || properties_block(new) {
+        // A blob is listed by what its first line says.
+        let blob = |text: &str| crate::Asset::in_block(text).is_some();
+        if !known || properties_block(old) || properties_block(new) || blob(old) || blob(new) {
             return false;
         }
         let (old, new) = (read_block(old, false), read_block(new, false));
@@ -314,6 +322,7 @@ impl Index {
         {
             return false;
         }
+
         // Where this block's backlinks go: after those of blocks before it.
         let at = self.position[&block];
         for link in &old.links {
@@ -391,14 +400,21 @@ impl Index {
         self.entities.get(&id)
     }
 
-    /// All entities, duplicates excluded.
-    /// The entities that describe a binary, with what they say about it.
-    /// One whose `##asset` line can't be read is flagged, not listed.
+    /// The blobs in the graph, in document order: the blocks whose first line
+    /// is a `##blob` line, with what it says. A line that can't be read is
+    /// not listed: the view flags it on its chip.
     pub fn assets(&self) -> impl Iterator<Item = (BlockId, crate::Asset)> + '_ {
-        self.entities()
-            .filter_map(|e| Some((e.id, e.asset()?.ok()?)))
+        self.blobs.iter().cloned()
     }
 
+    /// The parameter of every `##blob` line, as written, including the ones
+    /// that can't be read, so that a damaged line can still be told from no
+    /// line at all.
+    pub fn blob_lines(&self) -> impl Iterator<Item = &str> {
+        self.blob_lines.iter().map(String::as_str)
+    }
+
+    /// All entities, duplicates excluded.
     pub fn entities(&self) -> impl Iterator<Item = &EntityInfo> {
         self.entities
             .values()

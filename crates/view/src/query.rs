@@ -90,6 +90,9 @@ pub struct Block {
     pub text: String,
     /// The properties written in `text`, in order, for rendering as chips.
     pub properties: Vec<Property>,
+    /// The file this block is, if its first line is a `##blob` line that can
+    /// be read. The rest of `text` is its caption.
+    pub blob: Option<BlobInfo>,
     pub children: Vec<Block>,
 }
 
@@ -279,14 +282,12 @@ pub struct Entity {
     /// What doesn't fit a schema and has no chip of its own to show on, in
     /// words.
     pub flags: Vec<String>,
-    /// The binary this entity describes, if its `##asset` line can be read.
-    pub asset: Option<AssetInfo>,
 }
 
-/// A binary kept in the graph: what its entity says about it.
+/// A binary kept in the graph: what its block says about it.
 #[derive(Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub struct AssetInfo {
+pub struct BlobInfo {
     /// The BLAKE3 hash of the bytes, in hex: what to ask the shell for.
     pub hash: String,
     pub mime: String,
@@ -589,16 +590,6 @@ impl View {
         let flags = self.flag(id, chips)?;
         let inherited = self.inherited(id, &mut links)?;
         let inverses = self.inverses(id)?;
-        let asset = self
-            .index()?
-            .entity(id)
-            .and_then(|e| e.asset()?.ok())
-            .map(|a| AssetInfo {
-                hash: a.hash,
-                mime: a.mime,
-                size: a.size,
-                name: a.name,
-            });
         Ok(Entity {
             id: id.to_string(),
             title: self.graph.entity_name(id)?,
@@ -608,7 +599,6 @@ impl View {
             inherited,
             inverses,
             flags,
-            asset,
         })
     }
 
@@ -625,6 +615,7 @@ impl View {
             None
         };
         let here = props_block.is_some();
+        let blob = quiddity_core::Asset::in_block(&text);
         let parsed = match props_block {
             Some(found) => found.block,
             None => parse_block(&text),
@@ -651,10 +642,18 @@ impl View {
         if !parsed.meta.is_empty() {
             properties.extend(parsed.meta.iter().map(|m| {
                 let mut chip = meta_property(&text, m);
-                // `##id` belongs to the block it is in, so it goes anywhere.
+                // `##id` and `##blob` belong to the block they are in, so they
+                // go anywhere, and a blob's line goes first.
                 if quiddity_core::ref_id::is_id(m) {
                     if m.parameter.is_none() {
                         chip.flags.push("Needs an ID: ##id(abc)".into());
+                    }
+                } else if normalise_name(&m.key) == quiddity_core::BLOB_KEY {
+                    if text[..m.span.start].contains('\n') {
+                        chip.flags
+                            .push("A blob's line has to be the first line of its block".into());
+                    } else if let Some(Err(e)) = &blob {
+                        chip.flags.push(e.to_string());
                     }
                 } else if !here {
                     chip.flags
@@ -670,10 +669,17 @@ impl View {
             .into_iter()
             .map(|child| self.block(child, links))
             .collect::<Result<_>>()?;
+        let blob = blob.and_then(|b| b.ok()).map(|a| BlobInfo {
+            hash: a.hash,
+            mime: a.mime,
+            size: a.size,
+            name: a.name,
+        });
         Ok(Block {
             id: id.to_string(),
             text,
             properties,
+            blob,
             children,
         })
     }

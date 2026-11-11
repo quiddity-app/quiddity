@@ -16,7 +16,8 @@ fn describe(graph: &Graph, name: &str, bytes: &[u8]) -> Asset {
         Some(name),
     )
     .unwrap();
-    graph.create_asset(&asset).unwrap();
+    let page = graph.create_block(None, None, name).unwrap();
+    graph.create_blob(page, &asset).unwrap();
     graph.commit();
     asset
 }

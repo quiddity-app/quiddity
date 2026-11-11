@@ -38,6 +38,9 @@ export interface Block {
   text: string;
   /** The properties written in `text`, in order, for rendering as chips. */
   properties: Property[];
+  /** The file this block is, if its first line is a `##blob` line that can be
+   * read. The rest of `text` is its caption. */
+  blob: BlobInfo | null;
   children: Block[];
 }
 
@@ -138,13 +141,11 @@ export interface Entity extends EntityRef {
   inverses: Inverse[];
   /** What doesn't fit a schema and has no chip to show on, in words. */
   flags: string[];
-  /** The file this entity describes, if its `##asset` line can be read. */
-  asset: Asset | null;
 }
 
-/** A file kept in the graph: what its entity says about it. The bytes are not
+/** A file kept in the graph: what its block says about it. The bytes are not
  * in the graph; the shell has them, by `hash`. */
-export interface Asset {
+export interface BlobInfo {
   /** The BLAKE3 hash of the bytes, in hex. */
   hash: string;
   mime: string;

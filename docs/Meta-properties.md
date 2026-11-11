@@ -13,7 +13,7 @@ alias:: meta-property
 		     ##inverse(children)
 		  ```
 	- The set is fixed: Quiddity gives each one its meaning, and they can't be defined in the graph. `##` is a namespace of its own, so `##inverse` has nothing to do with a property called `inverse`.
-	- They are drawn as chips, `##key` and the parameter as written. Anywhere else, a `##` line has no effect, and its chip is flagged. The one exception is `##asset`, which goes on an asset's entity instead. [[Binaries]]
+	- They are drawn as chips, `##key` and the parameter as written. Anywhere else, a `##` line has no effect, and its chip is flagged. `##id` goes in any block, and so does `##blob`, as a block's first line. [[Binaries]]
 	- `##id(0198f0c4-…)` gives a block an ID to be referred to by, and unlike the rest goes in any block. [[id]]
 	- `##journal(2026-10-25)` is another that isn't about a property: it makes an entity that day's [[Journal]]. It needs a day, and is flagged without one.
 	- `##tag:: [a, b]` is the one that isn't about a property: it goes in the properties block of any entity, and is the long form of `#a #b`. It needs a value, and a bare `##tag` is flagged. [[tags]]

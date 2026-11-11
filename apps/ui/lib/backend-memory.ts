@@ -94,8 +94,8 @@ let started: Uint8Array | undefined;
  * shell's updates do. */
 interface Remote {
   createEntity(name: string): void;
-  /** A file another device has the bytes of, and this one doesn't. */
-  createAsset(name: string, hash: string, mime: string, size: number): void;
+  /** A file another device has added to a page, whose bytes this one doesn't have. */
+  createBlob(page: string, name: string, hash: string, mime: string, size: number): void;
   /** The hashes of the files this page has kept. */
   kept: string[];
   /** The blocks the page last said it was editing. */
@@ -197,9 +197,9 @@ export const memoryBackend: Backend = {
         onUpdates(before ? other.exportUpdates(before) : other.snapshot());
         before = other.version();
       },
-      createAsset(name: string, hash: string, mime: string, size: number) {
+      createBlob(page: string, name: string, hash: string, mime: string, size: number) {
         const before = other.version();
-        other.createAsset(hash, mime, BigInt(size), name);
+        other.attachBlob(page, hash, mime, BigInt(size), name);
         onUpdates(other.exportUpdates(before));
       },
     });
@@ -211,7 +211,7 @@ function remote(): Remote {
   const w = window as unknown as { __quiddityRemote?: Remote };
   w.__quiddityRemote ??= {
     createEntity() {},
-    createAsset() {},
+    createBlob() {},
     kept: [],
     focus: [],
     typed: [],

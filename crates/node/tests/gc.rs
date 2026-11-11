@@ -133,6 +133,12 @@ struct World {
     dropped_entity: BlockId,
 }
 
+/// Adds a file to the graph: a blob block on a page of its own.
+fn file(graph: &Graph, asset: &Asset) -> BlockId {
+    let page = graph.create_block(None, None, "file").unwrap();
+    graph.create_blob(page, asset).unwrap()
+}
+
 impl World {
     async fn new() -> Self {
         let dir = tempfile::tempdir().unwrap();
@@ -143,7 +149,7 @@ impl World {
             let hash = blobs.put(bytes).await.unwrap();
             let asset =
                 Asset::new(&hash.to_string(), "text/plain", bytes.len() as u64, None).unwrap();
-            entities.push((hash, graph.create_asset(&asset).unwrap()));
+            entities.push((hash, file(&graph, &asset)));
         }
         blobs.shutdown().await.unwrap();
         graph.commit();
@@ -288,7 +294,7 @@ async fn a_file_referred_to_again_is_kept_and_forgotten() {
     let w = World::new().await;
     w.collect(t0(), DAY, false).await;
     let asset = Asset::new(&w.dropped.to_string(), "text/plain", 13, None).unwrap();
-    w.graph.create_asset(&asset).unwrap();
+    file(&w.graph, &asset);
     w.graph.commit();
     w.everyone_stores(t0() + DAY * 2);
     let report = w.collect(t0() + DAY * 2, DAY, false).await;
@@ -325,14 +331,14 @@ async fn a_dry_run_changes_nothing() {
 /// A line that can't be read whole still names the file it began with: a
 /// damaged line is a reason to look, not to delete.
 #[tokio::test]
-async fn a_damaged_asset_line_still_protects_its_file() {
+async fn a_damaged_blob_line_still_protects_its_file() {
     let w = World::new().await;
     let entity = w.graph.create_block(None, None, "damaged").unwrap();
     w.graph
         .create_block(
             Some(entity),
             None,
-            &format!("##asset({}, nonsense)", w.dropped),
+            &format!("##blob({}, nonsense)", w.dropped),
         )
         .unwrap();
     w.graph.commit();
@@ -352,18 +358,14 @@ async fn a_damaged_asset_line_still_protects_its_file() {
 }
 
 /// The hash in a damaged line protects its file however it is written. `Hash`
-/// reads only lower-case hex, and an `##asset` line may have it in capitals.
+/// reads only lower-case hex, and a `##blob` line may have it in capitals.
 #[tokio::test]
 async fn a_damaged_line_with_a_capitalised_hash_still_protects_its_file() {
     let w = World::new().await;
     let entity = w.graph.create_block(None, None, "damaged").unwrap();
     let shouting = w.dropped.to_string().to_uppercase();
     w.graph
-        .create_block(
-            Some(entity),
-            None,
-            &format!("##asset({shouting}, nonsense)"),
-        )
+        .create_block(Some(entity), None, &format!("##blob({shouting}, nonsense)"))
         .unwrap();
     w.graph.commit();
     w.collect(t0(), DAY, false).await;
@@ -408,7 +410,7 @@ async fn the_command_notes_and_then_deletes() {
     let kept = blobs.put(&b"in use"[..]).await.unwrap();
     let loose = blobs.put(&b"loose"[..]).await.unwrap();
     let asset = Asset::new(&kept.to_string(), "text/plain", 6, Some("in use.txt")).unwrap();
-    graph.create_asset(&asset).unwrap();
+    file(&graph, &asset);
     graph.commit();
     store.save(&graph).unwrap();
     blobs.shutdown().await.unwrap();
