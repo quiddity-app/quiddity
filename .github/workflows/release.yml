@@ -153,11 +153,22 @@ jobs:
           tar -C "$bin" -czf "dist/$archive.tar.gz" quiddity-node
         fi
 
-    # The app. The UI is already built, so the build hook is switched off.
+    # The app. The UI is already built, so the build hook is switched off. It
+    # also signs an update bundle for each platform, which the apps' updater
+    # checks against the public key built into them (see docs/Releases.md): a
+    # release without the key pair would ship apps that can never update.
     - name: Build the app
       working-directory: apps/app
-      run: >-
-        pnpm tauri build --target "$TARGET" --config "{\"version\":\"$SEMVER\",\"build\":{\"beforeBuildCommand\":null},\"bundle\":{\"windows\":{\"wix\":{\"version\":\"$MSI_VERSION\"}}}}"
+      env:
+        TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        UPDATER_PUBKEY: ${{ vars.UPDATER_PUBKEY }}
+      run: |
+        if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ] || [ -z "$UPDATER_PUBKEY" ]; then
+          echo "::error::Set the secret TAURI_SIGNING_PRIVATE_KEY (and TAURI_SIGNING_PRIVATE_KEY_PASSWORD, if it has one) and the variable UPDATER_PUBKEY: a release's apps need them to update"
+          exit 1
+        fi
+        pnpm tauri build --target "$TARGET" --config "{\"version\":\"$SEMVER\",\"build\":{\"beforeBuildCommand\":null},\"bundle\":{\"createUpdaterArtifacts\":true,\"windows\":{\"wix\":{\"version\":\"$MSI_VERSION\"}}},\"plugins\":{\"updater\":{\"pubkey\":\"$UPDATER_PUBKEY\"}}}"
     - name: Collect the app
       run: |
         # The shell is outside the workspace, so it has its own target directory.
@@ -167,6 +178,19 @@ jobs:
           find "$bundles" -type f -name "*.$ext" -exec cp {} dist/ \;
         done
         find "$bundles" -type f -name '*-setup.exe' -exec cp {} dist/ \;
+        # What the updater downloads, with the signature made for it: the
+        # AppImage and the setup program are installers too. macOS updates from
+        # a tarball of the app, which has the same name on both architectures,
+        # so it is named for its own.
+        find "$bundles" -type f \( -name '*.AppImage.sig' -o -name '*-setup.exe.sig' \) -exec cp {} dist/ \;
+        if [ "$OS" = macos ]; then
+          arch=x64
+          [ "$TARGET" = aarch64-apple-darwin ] && arch=aarch64
+          tarball=$(find "$bundles" -type f -name '*.app.tar.gz' | head -n 1)
+          test -n "$tarball"
+          cp "$tarball" "dist/Quiddity_${SEMVER}_${arch}.app.tar.gz"
+          cp "$tarball.sig" "dist/Quiddity_${SEMVER}_${arch}.app.tar.gz.sig"
+        fi
         ls -l dist
     - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
@@ -250,7 +274,7 @@ jobs:
   assets:
     # Everything is built before anything is attached, so that a failed build
     # leaves the release without a half-set of files.
-    needs: [desktop, android]
+    needs: [version, desktop, android]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -258,11 +282,26 @@ jobs:
       id-token: write # Sign the attestation with the workflow's identity.
       attestations: write
     steps:
+    # Before the download: a checkout may clean the workspace it finds.
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+        sparse-checkout: scripts
     - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
       with:
         pattern: release-*
         merge-multiple: true
         path: dist
+    # The feed the apps' updater reads, from the signatures the builds left.
+    # It is made before the attestation, so that it is attested too.
+    - name: Make the update feed
+      env:
+        SEMVER: ${{ needs.version.outputs.semver }}
+        TAG: ${{ github.event.release.tag_name }}
+        NOTES: ${{ github.event.release.body }}
+        DATE: ${{ github.event.release.published_at }}
+      run: >-
+        node scripts/updater-manifest.mjs --dir dist --version "$SEMVER" --tag "$TAG" --repo "$GITHUB_REPOSITORY" --notes "$NOTES" --date "$DATE"
     - run: ls -l dist
     # SLSA build provenance for every file, so that `gh attestation verify`
     # works on any of them.

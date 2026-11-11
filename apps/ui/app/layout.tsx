@@ -14,6 +14,7 @@ import { Search } from "@/components/search";
 import { SyncIndicator } from "@/components/sync-indicator";
 import { Shell } from "@/components/shell";
 import { UndoKeys } from "@/components/undo-keys";
+import { UpdateNotice } from "@/components/update-notice";
 
 export const metadata: Metadata = { title: "Quiddity" };
 
@@ -53,6 +54,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           actions={
             <ClientOnly>
               {/* Each waits alone: search takes Ctrl-K before the graph has loaded. */}
+              <UpdateNotice />
               <Suspense fallback={null}>
                 <SyncIndicator />
               </Suspense>

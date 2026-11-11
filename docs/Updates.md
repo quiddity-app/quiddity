@@ -1,0 +1,19 @@
+- The desktop app can update itself from the releases [[Releases]] publishes, using [[tauri-plugin-updater]]. It is built and untested against a real release: there has been none. A user needs to do nothing until one exists, and Android has no in-app update.
+- What the user sees
+	- When the app opens it asks the release feed whether there is a newer version. If there is, an **Update to X.Y.Z** button appears above the page, beside search, with the release's notes as its tooltip. Nothing is downloaded or installed until it is pressed.
+	- Pressing it downloads the update, checks its signature, installs it and restarts the app. If that fails the button says so and can be pressed again.
+	- A browser tab and the published site show nothing: they are always the latest build.
+	- Having no release yet, or no network, is the same as nothing newer: the check fails quietly.
+- How it works
+	- `apps/app/src-tauri/src/updates.rs` has two commands. `check_for_update` asks the feed and keeps what it found; `install_update` installs that and restarts. [[The shell]] never installs what the UI hasn't asked for. Neither mobile platform lets an app replace itself, so there the commands say there is nothing to install.
+	- The feed is `latest.json` on the latest release: `https://github.com/quiddity-app/quiddity/releases/latest/download/latest.json`. GitHub's "latest" skips pre-releases, so a `v1.2.3-rc.1` isn't offered to anyone.
+	- `scripts/updater-manifest.mjs` makes `latest.json` in the release workflow from the signatures the builds leave, working out each bundle's platform from its name, and fails if a platform has none. The `assets` job runs it before the attestation, so the feed is attested too.
+	- Each platform updates from: the `.AppImage` on Linux, a tarball of the `.app` on macOS (renamed for its architecture, as both build the same name) and the `-setup.exe` on Windows. A `.deb` or `.rpm` install is not updated in place.
+- Signing
+	- Every update is signed with a key pair made once by `pnpm tauri signer generate` in `apps/app`, and the app refuses one that doesn't match the public key built into it. This is separate from code signing: the macOS and Windows installers are still not signed or notarised, and the OS will still warn about them.
+	- The repository needs the secret `TAURI_SIGNING_PRIVATE_KEY` (with `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, if the key has a password) and the variable `UPDATER_PUBKEY`, the public key's contents. The release fails at once without them, because an app built without them could never update.
+	- `tauri.conf.json` has an empty `pubkey`: the plugin won't start without the setting, and the release supplies the real one with `--config`. Builds of anything else (CI, [[Nightly builds]]) therefore can't install an update, and don't create the update bundles.
+	- **Losing the private key strands every installed app**: nothing signed with another key will be accepted, and the apps would have to be reinstalled by hand. Keep it somewhere that isn't only the repository's secrets.
+- Not tried yet
+	- No release has been made, so the feed, the bundle names `updater-manifest.mjs` expects (Tauri's `_amd64`, `_x64` and `_arm64` forms) and the install itself are untested. A pre-release tag cannot test the update, since the feed ignores it: the first real check is a second release, installed over the first.
+	- The notice has no browser test: it draws nothing outside the app.

@@ -18,11 +18,17 @@ tauri-build = { version = "2", features = [] }
 quiddity-core = { path = "../../../crates/core" }
 quiddity-node = { path = "../../../crates/node" }
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 thiserror = "2"
 tracing = "0.1"
 tracing-subscriber = "0.3"
+
+# The updater replaces the running binary, which neither Android nor iOS lets
+# an app do: they update through a store, or by installing the new APK.
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-updater = "2"
 
 [dev-dependencies]
 iroh = "=1.4.1"

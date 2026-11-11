@@ -8,6 +8,7 @@
 
 mod appearance;
 mod session;
+mod updates;
 
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -205,9 +206,15 @@ pub fn run() {
         .with_max_level(level)
         .with_writer(std::io::stderr)
         .init();
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         // Opens links from the text of a block in the system's browser.
-        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_opener::init());
+    // Updates replace the running binary, which a phone doesn't allow.
+    #[cfg(desktop)]
+    let builder = builder
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(updates::Pending::default());
+    builder
         .setup(|app| {
             let session = Session::open(&graph_dir(app)?)?;
             // Before the network, which gives and fetches what this keeps. A
@@ -231,7 +238,9 @@ pub fn run() {
             device_id,
             allow_device,
             put_blob,
-            get_blob
+            get_blob,
+            updates::check_for_update,
+            updates::install_update
         ])
         .run(tauri::generate_context!())
         .expect("error while running the Quiddity app");
