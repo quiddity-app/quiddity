@@ -31,7 +31,7 @@
 	- A full stop at the end isn't part of a bare key: `see #todo.` is `todo`.
 	- Inside a link, `#` followed by a key starts a qualifier. Write `\#` for a literal one; `[[C# notes]]` is fine as it is.
 - Property lines
-	- A key starts with a letter, digit or underscore, may contain spaces, and may not contain `:`, `#`, brackets or parentheses.
+	- A key starts with a letter, digit or underscore, may contain spaces, and may not contain `:`, `#`, backticks, brackets or parentheses, so prose that mentions a `key:: value` code span stays prose.
 	- A line of nothing but `#key` is the same as a property line with no value, and is how one is written.
 	- In a property line a comma means nothing special: `note:: a, b` is the text "a, b".
 - Meta-property lines

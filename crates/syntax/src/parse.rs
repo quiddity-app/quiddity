@@ -291,7 +291,7 @@ fn split_property_line(line: &str) -> Option<(String, Option<&str>)> {
     let (key, rest) = (&trimmed[..sep], &trimmed[sep + 2..]);
     let key_ok = key.chars().next().is_some_and(is_key_start)
         && !key.ends_with(char::is_whitespace)
-        && !key.contains([':', '#', '[', ']', '(', ')']);
+        && !key.contains([':', '#', '[', ']', '(', ')', '`']);
     if !key_ok || !(rest.is_empty() || rest.starts_with([' ', '\t'])) {
         return None;
     }
@@ -835,9 +835,16 @@ mod tests {
             "#tag:: no",
             "key :: no",
             ":: no",
+            // Prose with a code span that holds `::` (issue 91).
+            "An entity with `favourite:: true` is listed on the left.",
+            "`code` then key:: value",
         ] {
             assert!(parse_property_line(line).is_none(), "{line}");
         }
+        assert!(props("An entity with `favourite:: true` is listed.").is_empty());
+        assert!(!is_properties_block(
+            "An entity with `favourite:: true` is listed."
+        ));
     }
 
     #[test]

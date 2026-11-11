@@ -26,7 +26,7 @@ fn inline_key() -> impl Strategy<Value = String> {
 
 /// A key usable in a `key:: value` line.
 fn line_key() -> impl Strategy<Value = String> {
-    r"[\p{L}\p{N}_][^:#\[\]()\n\r]{0,10}".prop_filter("no trailing space", |k| k.trim_end() == k)
+    r"[\p{L}\p{N}_][^:#`\[\]()\n\r]{0,10}".prop_filter("no trailing space", |k| k.trim_end() == k)
 }
 
 /// A link name, weighted towards the characters that need escaping. Names

@@ -14,7 +14,7 @@
 	- An entity's first child, if its first line is a property line, a tag or a `##` line. Everything in it must be one of those: properties, tags and `##` properties, and no prose. A line that is not is flagged and read as plain text, not as a property. [[Entity]]
 	- It is edited differently: a different background, completion of property names from the graph and of values from the property's schema or from the values already used, and the same completion for tags. [[Editing]]
 	- If an entity has none, the page offers to make one, in the same way as the "add a block" link. Making it opens an empty block in this mode; left empty, it is not kept, since an empty first child means nothing. [[Undo]]
-	- Properties are only read from here. `key:: value` in a regular block is text, flagged ("properties go in the properties block"). That is the rule that lets a property be a statement about an entity and not about a paragraph.
+	- Properties are only read from here. `key:: value` in a regular block is plain prose, not flagged and not drawn as a chip, so prose that mentions one can't be misread as a property. That is the rule that lets a property be a statement about an entity and not about a paragraph.
 - Regular blocks and `##`
 	- A regular block holds prose, links, tags and block references. It may hold `##` properties only in two cases: `##id(…)`, which makes the block referable with `((id))` and replaces the `id::` line, and `##blob(…)`, below.
 	- Any other `##` property in a regular block is flagged and has no effect, as a misplaced one is now.
