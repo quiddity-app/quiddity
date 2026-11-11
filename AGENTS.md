@@ -49,10 +49,6 @@ Pages as the UI showing its own documentation (see
   meaning of its own here gets a page, or an `alias::` on the page that
   explains it. Each built-in property has a page with `type:: property`. Link
   the first mention on a page.
-- **A prose line with a `` `key:: value` `` code span is still a property
-  line** if nothing before the `::` stops it being a key (a `:`, `#`, bracket
-  or parenthesis does), and is drawn as a chip. Word such lines so one comes
-  first.
 - **Add a journal entry in the commit message**, not in `docs/journals/`:
   those files are made from commit messages by `scripts/journals.mjs`, and a
   scheduled job saves them, so that changes don't conflict over the day's
