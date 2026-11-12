@@ -9,6 +9,8 @@
 
 use serde::Serialize;
 
+use quiddity_core::syntax::{fold, is_word_char};
+
 use crate::query::EntityRef;
 use crate::{Result, View};
 
@@ -31,7 +33,7 @@ fn term_score(idf: f64, tf: f64, length: f64) -> f64 {
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct Token {
-    /// Lower case.
+    /// Folded, so that case and Unicode form don't matter.
     pub text: String,
     /// Where it is in the text, in UTF-16 units.
     pub start: usize,
@@ -45,21 +47,28 @@ pub(crate) fn tokens(text: &str) -> Vec<Token> {
     let mut current: Option<Token> = None;
     for c in text.chars() {
         let width = c.len_utf16();
-        if c.is_alphanumeric() {
+        if is_word_char(c) {
             let token = current.get_or_insert_with(|| Token {
                 text: String::new(),
                 start: units,
                 end: units,
             });
-            token.text.extend(c.to_lowercase());
+            token.text.push(c);
             token.end = units + width;
         } else if let Some(token) = current.take() {
-            out.push(token);
+            out.push(finish(token));
         }
         units += width;
     }
-    out.extend(current);
+    out.extend(current.map(finish));
     out
+}
+
+/// Replaces a token's text, as written, with the form it is indexed and
+/// matched in. Its place in the original text stays as it was.
+fn finish(mut token: Token) -> Token {
+    token.text = fold(&token.text);
+    token
 }
 
 /// Whether a query word matches `token`; the last may be just its start.

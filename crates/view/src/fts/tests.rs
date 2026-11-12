@@ -28,8 +28,22 @@ fn texts(hits: &[BlockHit]) -> Vec<&str> {
     hits.iter().map(|h| h.text.as_str()).collect()
 }
 
+#[test]
+fn search_ignores_unicode_form_and_case() {
+    let v = page_with(&["Caf\u{e9} in Stra\u{df}e".to_owned()]);
+    for query in ["Cafe\u{301}", "STRASSE", "cafe\u{301} in"] {
+        let hits = v.search_text(query, 10).unwrap();
+        assert_eq!(hits.len(), 1, "{query:?}");
+    }
+    // A decomposed block is found by the composed query, and its range covers
+    // the accent too.
+    let v = page_with(&["Cafe\u{301}".to_owned()]);
+    let hits = v.search_text("caf\u{e9}", 10).unwrap();
+    assert_eq!(hits.len(), 1);
+}
+
 proptest! {
-    /// Words are letters and digits, lower-cased, and the offsets are UTF-16.
+    /// Words are letters, digits and marks, folded, and the offsets are UTF-16.
     #[test]
     fn tokens_cover_their_words(text in "[a-cA-C1 ,.🦀é-]{0,20}") {
         let units: Vec<u16> = text.encode_utf16().collect();
@@ -38,11 +52,11 @@ proptest! {
             prop_assert!(last <= t.start && t.start < t.end && t.end <= units.len());
             last = t.end;
             let word = String::from_utf16(&units[t.start..t.end]).unwrap();
-            prop_assert!(word.chars().all(char::is_alphanumeric));
-            prop_assert_eq!(word.to_lowercase(), t.text);
+            prop_assert!(word.chars().all(is_word_char));
+            prop_assert_eq!(fold(&word), t.text);
         }
         let all: usize = tokens(&text).iter().map(|t| t.end - t.start).sum();
-        let alnum: usize = text.chars().filter(|c| c.is_alphanumeric()).map(char::len_utf16).sum();
+        let alnum: usize = text.chars().filter(|&c| is_word_char(c)).map(char::len_utf16).sum();
         prop_assert_eq!(all, alnum);
     }
 

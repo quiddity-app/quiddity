@@ -11,7 +11,7 @@ favourite:: true
 	- [[Properties]]: `key:: value` and `#tag`s, with [[tags]] and the built-in properties.
 	- [[Add a file]]: drop or paste an image or any file onto a page.
 	- [[Meta-properties]]: `##values(…)`, `##transitive`, `##inverse(…)` and the rest, to give properties types and build taxonomies, written in [[Queries]].
-	- [[Links]]: `[[Name]]`, with qualifiers to pick between entities with one name, and the references at the foot of each page.
+	- [[Links]]: `[[Name]]`, with qualifiers to pick between entities with one name, and the references at the foot of each page. Names match whatever their case or [[Unicode normalisation]].
 	- [[Links to nowhere]]: how a link makes the entity it names.
 	- [[Block references]]: `((id))`.
 	- [[Renaming]], and the [[alias]] it leaves behind.
