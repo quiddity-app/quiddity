@@ -1,0 +1,13 @@
+- What the app does when the graph on this device can't be opened, and how to go on from it.
+	- **What you see.** Instead of the graph, a screen that says where the graph is and why it couldn't be read. The app doesn't exit: before, a bad file left no window at all. Nothing on the screen deletes anything.
+	- **The first fallback is automatic.** Each save keeps the one before as `graph.loro.bak`, and opening uses it if `graph.loro` can't be decoded, with a warning in the log. This screen is for when that failed too, or the file couldn't be read at all. [[Storage]]
+	- **Three ways to go on**
+		- *Try again*: look again, for a file you have put right, or a backup you have moved into place.
+		- *Start empty and sync*: sets the damaged files aside, starts a [[Graph]] with nothing in it, and waits to be filled by [[Sync]]. Let this device in from another that has the graph, using the ID on the Devices page: [[Add a device]]. This is the one that gets your graph back, if another device has it.
+		- *Start a new graph*: sets the damaged files aside and starts a graph of its own. It is not the same graph as your other devices', and won't merge with theirs.
+	- **The damaged files are kept**, beside the new ones as `graph.loro.damaged-<time>` and `graph.loro.bak.damaged-<time>`, for anyone who can still use them. The device's key stays, so this is the same device afterwards.
+- How it works
+	- The shell's `setup` no longer fails when the graph won't open: it records the problem (`Startup`) and carries on without a graph. The UI asks `startup_problem` before anything else, and covers the page with the `Recovery` component if there is one. [[The shell]]
+	- `recover` takes `retry`, `blank` or `fresh`, and only acts while there is a problem: starting again sets the files aside, and a graph that opened must never be treated so. It opens the graph as `setup` would have, then the UI reloads.
+	- `Store::set_aside` does the moving, and renames rather than deleting. [[quiddity-node]]
+	- Not built: choosing a backup by hand from more than one, and saying how much of the damaged file could still be read.

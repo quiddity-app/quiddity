@@ -1,11 +1,18 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import type { Backend } from "./graph";
 import type { SyncState } from "./model";
+import type { Problem } from "./recovery";
 
 /** The shell holds the graph on disk; bytes cross as raw IPC bodies. */
 export const tauriBackend: Backend = {
   async load() {
     return new Uint8Array(await invoke<ArrayBuffer>("load_graph"));
+  },
+  async startupProblem() {
+    return await invoke<Problem | null>("startup_problem");
+  },
+  async recover(how) {
+    await invoke("recover", { how });
   },
   async push(updates, typed) {
     // Block IDs are digits and an `@`, so a comma can separate them.
