@@ -75,21 +75,6 @@ impl Graph {
         Ok(true)
     }
 
-    /// Corrects an entity's name without keeping the old one as an alias, for
-    /// a name nothing has relied on yet: a mistyped link whose entity was
-    /// made from it a moment ago, say. Anything that may have linked to the
-    /// old name will no longer find the entity, so use [`Graph::rename_entity`]
-    /// unless that is known not to matter. Returns false, and changes nothing,
-    /// if the name is the same.
-    pub fn correct_entity_name(&self, entity: BlockId, name: &str) -> Result<bool> {
-        let name = one_line_name(name)?;
-        if name == self.entity_name(entity)? {
-            return Ok(false);
-        }
-        self.set_text(entity, name)?;
-        Ok(true)
-    }
-
     /// The entity's aliases, as names are matched.
     fn aliases(&self, entity: BlockId) -> Result<Vec<String>> {
         fn names(value: &Value, out: &mut Vec<String>) {
@@ -301,22 +286,6 @@ mod tests {
         assert!(graph.rename_entity(page, "My Page")?);
         assert_eq!(graph.entity_name(page)?, "My Page");
         assert_eq!(graph.properties_block(page)?, None, "nothing to alias");
-        Ok(())
-    }
-
-    #[test]
-    fn correcting_a_name_leaves_no_alias() -> Result<()> {
-        let graph = Graph::new();
-        let page = graph.create_entity("Fo", &[])?;
-        assert!(graph.correct_entity_name(page, " Foo \nignored")?);
-        assert_eq!(graph.entity_name(page)?, "Foo");
-        assert_eq!(graph.properties_block(page)?, None);
-        assert!(!graph.correct_entity_name(page, "Foo")?, "same name");
-        assert!(matches!(
-            graph.correct_entity_name(page, "  "),
-            Err(Error::EmptyName)
-        ));
-        assert_eq!(graph.entity_name(page)?, "Foo");
         Ok(())
     }
 

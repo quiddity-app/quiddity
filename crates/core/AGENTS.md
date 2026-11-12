@@ -138,11 +138,6 @@ changed. It does not know which entities may be renamed: an entity identified
 by its name or date (a property entity, a journal) must not be, and that is
 the index's to say, so `quiddity-view` checks it.
 
-`correct_entity_name` is the same without the alias, for a name nothing has
-relied on yet (an entity made from a link a moment ago, whose link was then
-mistyped). Anything that linked to the old name would stop finding the entity,
-so the caller must know there is nothing.
-
 ## The model
 
 - **Markdown is the source of truth.** Properties, links and block refs are

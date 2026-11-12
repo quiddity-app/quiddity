@@ -135,25 +135,26 @@ what the All entities table shows.
 
 ## Links to nowhere
 
-A `[[link]]` with no entity is made one in two ways (`links.rs`):
+A name that is linked to (or tagged) and that no entity has is a **virtual
+entity** (`virtual_entity.rs`, `Index::mentions`). It must look in every way
+like an empty entity: it is in `entities`, `summaries`, `connections`,
+`search_titles`, has a page (`entity`) and references. Its ID is `~` and the
+name as names are compared (`id_of`, `name_of`); nothing is stored for it.
 
-- **`follow_link(key)`** when the UI follows it: the entity, named for the
-  link, with the properties its qualifiers ask for and an empty block. An
-  ambiguous link is an error.
-- **`commit_block(id, before)`** when editing a block ends; the UI passes the
-  text it had when editing began. It makes an entity for each link the edit
-  *gained*. Links already in `before` are left alone, so a block that arrived
-  from another device with a dangling link makes nothing until the link is
-  followed.
-- **Correcting a link renames the entity it made.** The links either side of
-  the edit are set aside and the ones in between are paired in order; a pair
-  whose old link goes to an entity that is empty, linked from nothing but this
-  block, and unqualified gets `correct_entity_name` (no alias) instead of a
-  second entity. "Empty" is what rules out journals, property entities and a
-  link that reached its entity by an alias: each has a properties block. Anything
-  more than that (notes written under it, another link to it) makes the
-  entity real, and it keeps its name.
-- Saving is one undo step of its own, apart from the typing before it.
+- **Reading never makes anything.** `follow_link(key)` answers `~name` for an
+  unqualified link that goes nowhere; an ambiguous link is an error.
+- **Writing makes it real, in the same edit.** `create_block` and
+  `rename_entity` call `entity_to_write`, which makes a root block named as
+  the first link wrote it, so it is one undo step. After that the `~` ID goes
+  on answering, for the entity it has become. A rename keeps the old name as
+  an alias like any other.
+- **`delete_entities` does nothing for a virtual entity**: it stays while
+  anything links to it. It goes when the last link does.
+- **A link with qualifiers still makes an entity**, since they have to be
+  written somewhere: when followed, or when `commit_block(id, before)` finds
+  a block gained it (`before` is the text when editing began, so a link that
+  arrived from another device makes nothing). Saving is one undo step of its
+  own. Links without qualifiers make nothing.
 - **`follow_block_ref(id)`** answers a `[text](((id)))` link with the entity
   holding the block, or `NoSuchBlockRef`. It makes nothing.
 

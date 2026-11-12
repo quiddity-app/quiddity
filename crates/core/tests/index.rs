@@ -186,6 +186,10 @@ fn note_text() -> impl Strategy<Value = String> {
     let part = prop_oneof![
         2 => Just("words ".to_owned()),
         2 => (0..NAMES.len()).prop_map(|i| format!("[[{}]] ", NAMES[i])),
+        // Names nobody has made, spelt differently, linked and as a tag.
+        1 => Just("[[Nowhere]] ".to_owned()),
+        1 => Just("[[ no  where ]] ".to_owned()),
+        1 => Just("see #nowhere ".to_owned()),
         // A tag is a link too. With words before it, so the block isn't all
         // tags, which would make it a properties block.
         1 => (0..NAMES.len()).prop_map(|i| format!("see {} ", format_tag(NAMES[i]))),
@@ -244,6 +248,11 @@ proptest! {
             for &entity in ids.iter().chain([&page]) {
                 prop_assert_eq!(index.backlinks(entity), fresh.backlinks(entity), "backlinks of {}", entity);
             }
+            prop_assert_eq!(
+                index.mentions().collect::<Vec<_>>(),
+                fresh.mentions().collect::<Vec<_>>(),
+                "mentions"
+            );
         }
     }
 }
@@ -441,4 +450,71 @@ fn aliases_are_the_items_of_every_alias_property() {
     let info = index.entities().next().unwrap();
     let aliases: Vec<String> = info.aliases().into_iter().map(canonical_value).collect();
     assert_eq!(aliases, ["quicksilver", "hermes", "messenger"]);
+}
+
+/// A name that is linked to and that no entity has is a mention: wherever the
+/// link is written, a link or a tag, and spelt as it likes. Qualifiers, an
+/// entity of that name or one reached by an alias make it none.
+#[test]
+fn a_name_nobody_has_is_a_mention() {
+    let graph = Graph::new();
+    let jane = graph.create_block(None, None, "Jane").unwrap();
+    graph.create_block(Some(jane), None, "alias:: JD").unwrap();
+    let notes = graph.create_block(None, None, "Notes").unwrap();
+    let first = graph
+        .create_block(Some(notes), None, "see [[Nowhere]] and [[Jane]] and [[JD]]")
+        .unwrap();
+    let second = graph
+        .create_block(
+            Some(notes),
+            None,
+            "again [[ nowhere ]], #Nowhere and #[[also  gone]]",
+        )
+        .unwrap();
+    let qualified = graph
+        .create_block(Some(notes), None, "[[Elsewhere#kind(a)]]")
+        .unwrap();
+    graph.commit();
+    let index = Index::build(&graph).unwrap();
+
+    let names: Vec<_> = index.mentions().map(|(k, _)| k).collect();
+    assert_eq!(names, ["also gone", "nowhere"]);
+    let from = |name: &str| -> Vec<(BlockId, String)> {
+        index
+            .mention(name)
+            .iter()
+            .map(|m| (m.source, m.name.clone()))
+            .collect()
+    };
+    assert_eq!(
+        from("NOWHERE"),
+        [
+            (first, "Nowhere".to_owned()),
+            (second, "nowhere".to_owned()),
+            (second, "Nowhere".to_owned()),
+        ],
+        "in document order, each as it was written"
+    );
+    assert_eq!(from("also gone").len(), 1);
+    assert!(from("Jane").is_empty() && from("JD").is_empty());
+    assert!(
+        from("Elsewhere").is_empty(),
+        "a link with qualifiers makes no mention"
+    );
+    let _ = qualified;
+}
+
+/// Making the entity ends the mention, and a name with no links to it isn't one.
+#[test]
+fn a_mention_ends_when_the_entity_is_made() {
+    let graph = Graph::new();
+    let notes = graph.create_block(None, None, "Notes").unwrap();
+    graph
+        .create_block(Some(notes), None, "see [[Nowhere]]")
+        .unwrap();
+    graph.commit();
+    assert_eq!(Index::build(&graph).unwrap().mentions().count(), 1);
+    graph.create_block(None, None, "nowhere").unwrap();
+    graph.commit();
+    assert_eq!(Index::build(&graph).unwrap().mentions().count(), 0);
 }

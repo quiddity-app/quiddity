@@ -91,7 +91,11 @@ mod queries {
             .into_iter()
             .map(|e| e.title)
             .collect();
-        assert_eq!(names, ["apple", "Mango", "Quiddity", "Zebra"]);
+        assert_eq!(
+            names,
+            ["apple", "Mango", "Nope", "Quiddity", "Zebra"],
+            "and the name linked to that nobody has made"
+        );
     }
 
     #[test]
@@ -115,7 +119,11 @@ mod queries {
         assert_eq!(e.blocks[1].children[0].text, "nested");
         let apple = v.entities().unwrap().remove(0).id;
         assert_eq!(e.links["apple"].target, LinkTarget::Entity { id: apple });
-        assert_eq!(e.links["Nope"].target, LinkTarget::Missing);
+        assert_eq!(
+            e.links["Nope"].target,
+            LinkTarget::Entity { id: "~nope".into() },
+            "a name nobody has made is an entity all the same"
+        );
     }
 
     #[test]
@@ -191,7 +199,10 @@ mod queries {
         assert_eq!(beta.blocks[0].children[0].text, "and again [[Alpha]]");
         let gamma = &refs[1];
         assert_eq!(gamma.blocks.len(), 2, "its property and its note");
-        assert_eq!(gamma.links["Nope"].target, LinkTarget::Missing);
+        assert_eq!(
+            gamma.links["Nope"].target,
+            LinkTarget::Entity { id: "~nope".into() }
+        );
         assert!(matches!(
             gamma.links["Alpha"].target,
             LinkTarget::Entity { .. }
@@ -809,7 +820,7 @@ mod rename {
     }
 }
 
-mod new_links {
+mod nowhere {
     use super::*;
 
     /// Replaces a block's text as if typed, and saves it. Returns what saving
@@ -836,38 +847,288 @@ mod new_links {
         made.into_iter().next().unwrap()
     }
 
+    /// A page with a block that links to a name nobody has made.
+    fn linking() -> (View, String, String) {
+        let (v, page, ids) = page(&["see [[New York]] and #urgent"]);
+        (v, page, ids[0].clone())
+    }
+
+    /// A name that is linked to and that no entity has is an entity in every way
+    /// the UI can ask: it is listed, it has a page, it has references, it is
+    /// a row in All entities, a node in the graph and a hit in a search.
     #[test]
-    fn following_a_link_makes_the_entity_once() {
-        let (v, _page, _) = page(&[]);
-        let id = v.follow_link("Nowhere").unwrap();
-        let e = v.entity(&id).unwrap();
-        assert_eq!(e.title, "Nowhere");
-        assert_eq!(texts(&e.blocks), [""], "a block to type into");
-        assert_eq!(v.follow_link("Nowhere").unwrap(), id);
-        assert_eq!(v.follow_link("nowhere").unwrap(), id, "names ignore case");
-        assert_eq!(names(&v), ["Nowhere", "Page"]);
+    fn a_name_nobody_has_made_is_an_empty_entity() {
+        let (v, page, _) = linking();
+        let id = "~new york";
+        assert_eq!(names(&v), ["New York", "Page", "urgent"]);
+
+        let e = v.entity(id).unwrap();
+        assert_eq!((e.id.as_str(), e.title.as_str()), (id, "New York"));
+        assert!(e.renamable && e.blocks.is_empty() && e.links.is_empty() && e.flags.is_empty());
+        assert!(e.inherited.is_empty() && e.inverses.is_empty());
+
+        let refs = v.references(id).unwrap();
+        assert_eq!(refs.len(), 1);
+        assert_eq!(refs[0].source.id, page);
+        assert_eq!(refs[0].blocks[0].text, "see [[New York]] and #urgent");
+
+        let row = v
+            .summaries()
+            .unwrap()
+            .into_iter()
+            .find(|s| s.id == id)
+            .unwrap();
+        assert_eq!(
+            (row.title.as_str(), row.incoming, row.words),
+            ("New York", 1, 0)
+        );
+        assert!(row.tags.is_empty() && !row.journal);
+        assert_eq!((row.created, row.modified), (None, None));
+
+        let graph = v.connections().unwrap();
+        assert!(graph.nodes.iter().any(|n| n.id == id));
+        assert!(
+            graph
+                .edges
+                .iter()
+                .any(|edge| edge.source == page && edge.target == id)
+        );
+
+        let hits = v.search_titles("new y", 5).unwrap();
+        assert_eq!(hits[0].entity.id, id);
+        assert_eq!(
+            (hits[0].qualifiers.as_str(), hits[0].link.as_str()),
+            ("", "New York")
+        );
+        assert!(hits[0].properties.is_empty());
+    }
+
+    /// The link to it goes to it, and a tag is a link.
+    #[test]
+    fn links_and_tags_to_it_open_its_page() {
+        let (v, page, _) = linking();
+        let links = v.entity(&page).unwrap().links;
+        assert_eq!(
+            links["New York"].target,
+            LinkTarget::Entity {
+                id: "~new york".into()
+            }
+        );
+        assert_eq!(v.follow_link("New York").unwrap(), "~new york");
+        assert_eq!(
+            v.follow_link("new  york").unwrap(),
+            "~new york",
+            "names ignore case and spacing"
+        );
+        assert_eq!(v.follow_link("urgent").unwrap(), "~urgent");
+        assert!(v.entity("~urgent").is_ok());
+        assert_eq!(
+            names(&v),
+            ["New York", "Page", "urgent"],
+            "following made nothing"
+        );
+    }
+
+    /// Plain mentions of the name, not links, are unlinked references.
+    #[test]
+    fn plain_mentions_of_it_are_unlinked_references() {
+        let (v, _page, _) = page(&["see [[Rome]]"]);
+        let other = v.create_entity("Notes").unwrap();
+        let block = v.entity(&other).unwrap().blocks[0].id.clone();
+        v.splice_text(&block, 0, 0, "I love rome in spring")
+            .unwrap();
+        let refs = v.unlinked_references("~rome").unwrap();
+        assert_eq!(refs.len(), 1);
+        assert_eq!(refs[0].blocks[0].text, "I love rome in spring");
+    }
+
+    /// An ID that is not a name anyone links to is not an entity.
+    #[test]
+    fn a_name_nobody_links_to_is_not_an_entity() {
+        let (v, _page, _) = linking();
+        for id in ["~nobody", "~", "junk"] {
+            assert!(matches!(v.entity(id), Err(Error::NotAnEntity(_))), "{id}");
+            assert!(v.references(id).is_err(), "{id}");
+        }
+    }
+
+    /// It goes when the last link to it does, and there is nothing to clean up.
+    #[test]
+    fn it_goes_when_the_last_link_does() {
+        let (v, _page, block) = linking();
+        assert!(edit(&v, &block, "see nothing now").is_empty());
+        assert!(v.entity("~new york").is_err());
+        assert_eq!(names(&v), ["Page"]);
+    }
+
+    /// Adding a block makes the entity, named as the first link wrote it, in
+    /// the same edit; the ID goes on working and answers for it.
+    #[test]
+    fn writing_to_it_makes_it_real_in_one_step() {
+        let (v, page, _) = linking();
+        v.graph().enable_undo();
+        let block = v.create_block("~new york", None, "a big city").unwrap();
+        let e = v.entity("~new york").unwrap();
+        assert_ne!(e.id, "~new york", "it answers with the entity it now is");
+        assert_eq!(
+            (e.title.as_str(), texts(&e.blocks)),
+            ("New York", vec!["a big city"])
+        );
+        assert_eq!(e.blocks[0].id, block);
+        assert_eq!(
+            names(&v),
+            ["New York", "Page", "urgent"],
+            "still one of each"
+        );
+        let links = v.entity(&page).unwrap().links;
+        assert_eq!(
+            links["New York"].target,
+            LinkTarget::Entity { id: e.id.clone() }
+        );
+        assert_eq!(v.references(&e.id).unwrap().len(), 1);
+        assert_eq!(v.references("~new york").unwrap().len(), 1);
+
+        // One step undoes the entity and the block together, and nothing
+        // visible changes: it is a name nobody has made again.
+        assert!(v.undo().unwrap());
+        let e = v.entity("~new york").unwrap();
+        assert_eq!((e.id.as_str(), e.blocks.len()), ("~new york", 0));
+        assert_eq!(names(&v), ["New York", "Page", "urgent"]);
+        assert!(v.redo().unwrap());
+        assert_eq!(
+            texts(&v.entity("~new york").unwrap().blocks),
+            ["a big city"]
+        );
+    }
+
+    /// Renaming it makes it first, so links to the old name still work.
+    #[test]
+    fn renaming_it_keeps_the_old_name_as_an_alias() {
+        let (v, page, _) = linking();
+        assert!(v.rename_entity("~new york", "Big Apple").unwrap());
+        let e = v.entity("~new york").unwrap();
+        assert_eq!(e.title, "Big Apple");
+        assert_eq!(names(&v), ["Big Apple", "Page", "urgent"]);
+        let links = v.entity(&page).unwrap().links;
+        assert_eq!(links["New York"].target, LinkTarget::Entity { id: e.id });
+    }
+
+    /// There is nothing to delete, so it stays while anything links to it.
+    #[test]
+    fn deleting_it_deletes_nothing() {
+        let (v, _page, _) = linking();
+        let real = v.create_entity("Real").unwrap();
+        assert_eq!(
+            v.delete_entities(&["~new york".to_owned(), real]).unwrap(),
+            1
+        );
+        assert_eq!(names(&v), ["New York", "Page", "urgent"]);
+        assert!(v.delete_entities(&["~nobody".to_owned()]).is_err());
+    }
+
+    /// Saving makes nothing for a link without qualifiers.
+    #[test]
+    fn saving_makes_no_entity_for_a_plain_link_or_tag() {
+        let (v, _page, ids) = page(&["start"]);
+        assert!(edit(&v, &ids[0], "see [[Alpha]] and [[Beta]] and #gamma").is_empty());
+        assert_eq!(names(&v), ["Alpha", "Beta", "Page", "gamma"]);
     }
 
     #[test]
-    fn following_a_link_to_what_exists_changes_nothing() {
-        let (v, page, _) = page(&["x"]);
-        assert_eq!(v.follow_link("Page").unwrap(), page);
-        assert_eq!(top_level(&v, &page), ["x"]);
+    fn saving_without_a_change_does_nothing_at_all() {
+        let (v, _page, ids) = page(&["[[Gone #kind(a)]]"]);
+        v.graph().enable_undo();
+        assert!(
+            v.commit_block(&ids[0], "[[Gone #kind(a)]]")
+                .unwrap()
+                .is_empty()
+        );
+        assert!(!v.undo().unwrap(), "no step was made");
     }
 
     #[test]
-    fn a_made_entity_has_the_properties_the_link_asked_for() {
-        let (v, _page, _) = page(&[]);
-        let id = v.follow_link("Jane #type(person)").unwrap();
-        let e = v.entity(&id).unwrap();
-        assert_eq!(e.title, "Jane");
-        assert_eq!(e.blocks[0].text, "type:: person");
+    fn a_link_with_no_name_makes_nothing() {
+        let (v, _page, ids) = page(&["x"]);
+        assert!(edit(&v, &ids[0], "[[ ]] [[]]").is_empty());
+        assert_eq!(names(&v), ["Page"]);
+    }
+
+    /// Qualifiers have to be written on an entity, so a link with them still
+    /// makes one when it is saved or followed, as the properties they ask for.
+    #[test]
+    fn a_link_with_qualifiers_makes_an_entity_that_matches_it() {
+        let (v, page, ids) = page(&["x"]);
+        let id = only(edit(&v, &ids[0], "[[Jane #type(person)]]"));
+        assert_eq!(v.entity(&id).unwrap().blocks[0].text, "type:: person");
+        let links = v.entity(&page).unwrap().links;
+        assert_eq!(
+            links.into_values().next().unwrap().target,
+            LinkTarget::Entity { id: id.clone() }
+        );
         assert_eq!(
             v.follow_link("Jane #type(person)").unwrap(),
             id,
             "it matches"
         );
         assert_ne!(v.follow_link("Jane #type(cat)").unwrap(), id);
+    }
+
+    /// A link that gains qualifiers needs an entity that matches them, so the
+    /// name's virtual entity is not enough, and no longer the one it names.
+    /// Following a link with qualifiers makes the entity they are written on;
+    /// there is no virtual entity to carry them.
+    #[test]
+    fn following_a_qualified_link_nobody_matches_makes_an_entity() {
+        let v = view_with(|_| {});
+        let id = v.follow_link("Jane #type(person)").unwrap();
+        assert!(!id.starts_with('~'), "{id}");
+        assert_eq!(v.entity(&id).unwrap().blocks[0].text, "type:: person");
+        assert_eq!(v.follow_link("Jane #type(person)").unwrap(), id);
+    }
+
+    /// A qualified link that goes nowhere (it came from another device, say)
+    /// is drawn as unresolved rather than as the entity of its name.
+    #[test]
+    fn a_qualified_link_that_goes_nowhere_is_unresolved() {
+        let (v, page, _) = page(&["see [[Ghost #kind(a)]] and [[Ghost]]"]);
+        let links = v.entity(&page).unwrap().links;
+        let qualified = links.keys().find(|k| k.contains("kind")).unwrap();
+        assert_eq!(links[qualified].target, LinkTarget::Missing);
+        assert_eq!(
+            links["Ghost"].target,
+            LinkTarget::Entity {
+                id: "~ghost".into()
+            }
+        );
+    }
+
+    #[test]
+    fn a_link_that_gains_qualifiers_makes_an_entity() {
+        let (v, _page, ids) = page(&["x"]);
+        assert!(edit(&v, &ids[0], "[[Foo]]").is_empty());
+        let typed = only(edit(&v, &ids[0], "[[Foo #type(person)]]"));
+        assert_eq!(v.entity(&typed).unwrap().title, "Foo");
+        assert_eq!(names(&v), ["Foo", "Page"]);
+    }
+
+    #[test]
+    fn saving_a_link_with_qualifiers_is_a_step_of_its_own_and_undoes_whole() {
+        let (v, page, ids) = page(&["x"]);
+        v.graph().enable_undo();
+        v.splice_text(&ids[0], 1, 0, " [[Foo #kind(a)]]").unwrap();
+        let made = v.commit_block(&ids[0], "x").unwrap();
+        assert_eq!(made.len(), 1);
+        assert!(v.undo().unwrap());
+        assert_eq!(
+            texts(&v.entity(&page).unwrap().blocks),
+            ["x [[Foo #kind(a)]]"]
+        );
+        assert!(
+            v.entity(&made[0]).is_err(),
+            "the entity went, the typing stayed"
+        );
+        assert!(v.undo().unwrap());
+        assert_eq!(texts(&v.entity(&page).unwrap().blocks), ["x"]);
     }
 
     #[test]
@@ -890,6 +1151,13 @@ mod new_links {
     }
 
     #[test]
+    fn following_a_link_to_what_exists_changes_nothing() {
+        let (v, page, _) = page(&["x"]);
+        assert_eq!(v.follow_link("Page").unwrap(), page);
+        assert_eq!(top_level(&v, &page), ["x"]);
+    }
+
+    #[test]
     fn a_block_reference_goes_to_the_entity_holding_the_block() {
         let (v, page, ids) = page(&["parent"]);
         let parent = ids[0].parse().unwrap();
@@ -902,197 +1170,6 @@ mod new_links {
             v.follow_block_ref("nope"),
             Err(Error::NoSuchBlockRef(_))
         ));
-    }
-
-    #[test]
-    fn saving_makes_an_entity_for_each_link_it_gained() {
-        let (v, page, ids) = page(&["start"]);
-        let made = edit(&v, &ids[0], "see [[Alpha]] and [[Beta]] and [[Alpha]]");
-        assert_eq!(made.len(), 2, "Alpha once");
-        assert_eq!(names(&v), ["Alpha", "Beta", "Page"]);
-        let links = v.entity(&page).unwrap().links;
-        assert!(matches!(links["Alpha"].target, LinkTarget::Entity { .. }));
-        assert!(matches!(links["Beta"].target, LinkTarget::Entity { .. }));
-    }
-
-    #[test]
-    fn saving_leaves_alone_links_that_go_somewhere_or_were_already_there() {
-        let (v, _page, ids) = page(&["x"]);
-        v.follow_link("Known").unwrap();
-        assert!(edit(&v, &ids[0], "[[Known]] [[known]]").is_empty());
-        // Written elsewhere, and not touched by this edit.
-        retype(&v, &ids[0], "[[Gone]] x");
-        assert!(v.commit_block(&ids[0], "[[Gone]] x").unwrap().is_empty());
-        assert!(edit(&v, &ids[0], "[[Gone]] xy").is_empty());
-        assert_eq!(names(&v), ["Known", "Page"]);
-    }
-
-    #[test]
-    fn saving_without_a_change_does_nothing_at_all() {
-        let (v, _page, ids) = page(&["[[Gone]]"]);
-        v.graph().enable_undo();
-        assert!(v.commit_block(&ids[0], "[[Gone]]").unwrap().is_empty());
-        assert!(!v.undo().unwrap(), "no step was made");
-    }
-
-    #[test]
-    fn a_link_with_no_name_makes_nothing() {
-        let (v, _page, ids) = page(&["x"]);
-        assert!(edit(&v, &ids[0], "[[ ]] [[]]").is_empty());
-        assert_eq!(names(&v), ["Page"]);
-    }
-
-    #[test]
-    fn a_link_qualified_in_the_text_makes_a_matching_entity() {
-        let (v, page, ids) = page(&["x"]);
-        let id = only(edit(&v, &ids[0], "[[Jane #type(person)]]"));
-        assert_eq!(v.entity(&id).unwrap().blocks[0].text, "type:: person");
-        let links = v.entity(&page).unwrap().links;
-        assert_eq!(links.len(), 1, "{links:?}");
-        assert_eq!(
-            links.into_values().next().unwrap().target,
-            LinkTarget::Entity { id }
-        );
-    }
-
-    #[test]
-    fn correcting_a_new_link_renames_its_entity_without_an_alias() {
-        let (v, page, ids) = page(&["x"]);
-        let id = only(edit(&v, &ids[0], "see [[Foo]]"));
-        assert!(edit(&v, &ids[0], "see [[Fooo]]").is_empty(), "nothing new");
-        let e = v.entity(&id).unwrap();
-        assert_eq!(e.title, "Fooo");
-        assert_eq!(texts(&e.blocks), [""], "and no alias");
-        assert_eq!(names(&v), ["Fooo", "Page"]);
-        let links = v.entity(&page).unwrap().links;
-        assert_eq!(links["Fooo"].target, LinkTarget::Entity { id });
-    }
-
-    #[test]
-    fn only_the_link_that_was_edited_is_corrected() {
-        let (v, _page, ids) = page(&["x"]);
-        let made = edit(&v, &ids[0], "[[A]] [[B]] [[C]]");
-        assert_eq!(made.len(), 3);
-        let (a, b, c) = (&made[0], &made[1], &made[2]);
-        edit(&v, &ids[0], "[[A]] [[Bee]] [[C]]");
-        assert_eq!(v.entity(a).unwrap().title, "A");
-        assert_eq!(v.entity(b).unwrap().title, "Bee");
-        assert_eq!(v.entity(c).unwrap().title, "C");
-        // A link added in front of the others is a new one, not a rename.
-        let d = only(edit(&v, &ids[0], "[[D]] [[A]] [[Bee]] [[C]]"));
-        assert_eq!(v.entity(&d).unwrap().title, "D");
-        assert_eq!(names(&v), ["A", "Bee", "C", "D", "Page"]);
-        // Two edited at once are corrected in the order written.
-        edit(&v, &ids[0], "[[D]] [[AA]] [[Bee]] [[CC]]");
-        assert_eq!(v.entity(a).unwrap().title, "AA");
-        assert_eq!(v.entity(c).unwrap().title, "CC");
-        assert_eq!(names(&v), ["AA", "Bee", "CC", "D", "Page"]);
-    }
-
-    #[test]
-    fn an_entity_that_has_been_used_keeps_its_name_when_the_link_changes() {
-        let (v, _page, ids) = page(&["x"]);
-        let id = only(edit(&v, &ids[0], "[[Foo]]"));
-        let block = v.entity(&id).unwrap().blocks[0].id.clone();
-        v.splice_text(&block, 0, 0, "notes").unwrap();
-        let again = only(edit(&v, &ids[0], "[[Fob]]"));
-        assert_ne!(again, id, "a new entity");
-        assert_eq!(v.entity(&id).unwrap().title, "Foo");
-    }
-
-    #[test]
-    fn an_entity_linked_from_elsewhere_keeps_its_name_when_the_link_changes() {
-        let (v, _page, ids) = page(&["x", "y"]);
-        let id = only(edit(&v, &ids[0], "[[Foo]]"));
-        edit(&v, &ids[1], "[[Foo]]");
-        let again = only(edit(&v, &ids[0], "[[Fob]]"));
-        assert_ne!(again, id);
-        assert_eq!(v.entity(&id).unwrap().title, "Foo");
-    }
-
-    #[test]
-    fn a_property_value_linking_to_it_counts_as_use() {
-        let (v, _page, ids) = page(&["x", "state:: [[Foo]]"]);
-        let id = only(edit(&v, &ids[0], "[[Foo]]"));
-        let again = only(edit(&v, &ids[0], "[[Fob]]"));
-        assert_ne!(again, id);
-        assert_eq!(v.entity(&id).unwrap().title, "Foo");
-    }
-
-    #[test]
-    fn a_link_that_reached_its_entity_by_an_alias_does_not_rename_it() {
-        let mut block = String::new();
-        let v = view_with(|g| {
-            let real = g.create_entity("Real", &[("alias", text("Nick"))]).unwrap();
-            g.create_block(Some(real), None, "").unwrap();
-            let host = g.create_entity("Host", &[]).unwrap();
-            block = note(g, host, "[[Nick]]").to_string();
-        });
-        let made = only(edit(&v, &block, "[[Nik]]"));
-        assert_ne!(made, id_of(&v, "Real"));
-        assert_eq!(names(&v), ["Host", "Nik", "Real"]);
-    }
-
-    #[test]
-    fn qualified_links_make_entities_but_are_not_corrected_in_place() {
-        let (v, _page, ids) = page(&["x"]);
-        let id = only(edit(&v, &ids[0], "[[Jane #type(person)]]"));
-        let again = only(edit(&v, &ids[0], "[[Jan #type(person)]]"));
-        assert_ne!(again, id);
-        assert_eq!(v.entity(&id).unwrap().title, "Jane");
-    }
-
-    #[test]
-    fn a_link_that_gains_a_qualifier_makes_an_entity_that_matches_it() {
-        let (v, page, ids) = page(&["x"]);
-        let plain = only(edit(&v, &ids[0], "[[Foo]]"));
-        let typed = only(edit(&v, &ids[0], "[[Foo #type(person)]]"));
-        assert_ne!(typed, plain, "the plain Foo can't match the qualifier");
-        let links = v.entity(&page).unwrap().links;
-        assert_eq!(
-            links.into_values().next().unwrap().target,
-            LinkTarget::Entity { id: typed }
-        );
-        assert_eq!(v.entity(&plain).unwrap().title, "Foo");
-    }
-
-    #[test]
-    fn saving_is_a_step_of_its_own_and_undoes_whole() {
-        let (v, page, ids) = page(&["x"]);
-        v.graph().enable_undo();
-        v.splice_text(&ids[0], 1, 0, " [[Foo]]").unwrap();
-        let made = v.commit_block(&ids[0], "x").unwrap();
-        assert_eq!(made.len(), 1);
-        assert!(v.undo().unwrap());
-        assert_eq!(names(&v), ["Page"], "the entity went");
-        assert_eq!(top_level(&v, &page), ["x [[Foo]]"], "the typing stayed");
-        assert!(v.undo().unwrap());
-        assert_eq!(top_level(&v, &page), ["x"]);
-        assert!(v.redo().unwrap() && v.redo().unwrap());
-        assert_eq!(names(&v), ["Foo", "Page"]);
-    }
-
-    #[test]
-    fn a_correction_undoes_whole() {
-        let (v, _page, ids) = page(&["x"]);
-        v.graph().enable_undo();
-        let id = only(edit(&v, &ids[0], "[[Foo]]"));
-        edit(&v, &ids[0], "[[Fooo]]");
-        assert!(v.undo().unwrap(), "the correction");
-        assert_eq!(v.entity(&id).unwrap().title, "Foo");
-    }
-
-    /// A tag is a link to the entity it names, so saving a block that gains one
-    /// makes the entity, as `[[a link]]` does, and following it finds it.
-    #[test]
-    fn a_new_tag_makes_its_entity() {
-        let (v, _page, ids) = page(&["note"]);
-        let made = edit(&v, &ids[0], "note #urgent");
-        assert_eq!(made, [id_of(&v, "urgent")]);
-        // Already there: nothing more is made, by saving or following.
-        assert!(edit(&v, &ids[0], "note #urgent again").is_empty());
-        assert_eq!(v.follow_link("urgent").unwrap(), made[0]);
-        assert_eq!(names(&v).iter().filter(|n| *n == "urgent").count(), 1);
     }
 }
 
@@ -1132,13 +1209,21 @@ mod connections {
             .collect();
         assert_eq!(
             nodes,
-            ["A", "B", "C"],
-            "as `entities`, and Nowhere isn't one"
+            ["A", "B", "C", "Nowhere"],
+            "as `entities`, and a name nobody has made is one"
         );
         let mut edges = edges(&v);
         edges.sort();
         let pair = |a: &str, b: &str| (a.to_owned(), b.to_owned());
-        assert_eq!(edges, [pair("A", "B"), pair("A", "C"), pair("B", "A")]);
+        assert_eq!(
+            edges,
+            [
+                pair("A", "B"),
+                pair("A", "C"),
+                pair("B", "A"),
+                pair("B", "Nowhere")
+            ]
+        );
     }
 
     #[test]

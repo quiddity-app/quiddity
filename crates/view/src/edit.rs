@@ -94,10 +94,15 @@ impl View {
         self.edited_by(result.map_err(Error::from), Change::Text(block))
     }
 
-    /// Creates a block under `parent` at `index`, or at the end.
+    /// Creates a block under `parent` at `index`, or at the end. A `parent`
+    /// that is a name nobody has made makes the entity, in the same edit.
     pub fn create_block(&self, parent: &str, index: Option<usize>, text: &str) -> Result<String> {
         self.structural();
-        let parent = self.block_id(parent)?;
+        let parent = if crate::virtual_entity::name_of(parent).is_some() {
+            self.entity_to_write(parent)?
+        } else {
+            self.block_id(parent)?
+        };
         let created = self.graph.create_block(Some(parent), index, text);
         self.edited_by(
             created.map(|b| b.to_string()).map_err(Error::from),
@@ -140,7 +145,16 @@ impl View {
     /// property entity is identified by its date or name and can't be renamed.
     pub fn rename_entity(&self, id: &str, name: &str) -> Result<bool> {
         self.structural();
-        let entity = self.entity_id(id)?;
+        // A name nobody has made is renamed by making it first, so its old
+        // name is kept as an alias like any other, and links to it still work.
+        let entity = if crate::virtual_entity::name_of(id).is_some() {
+            let made = self.entity_to_write(id)?;
+            // The index has to see the entity before it can be asked about it.
+            self.changed();
+            made
+        } else {
+            self.entity_id(id)?
+        };
         let renamable = self
             .index()?
             .entity(entity)
@@ -159,10 +173,20 @@ impl View {
     /// Returns how many entities went.
     pub fn delete_entities(&self, ids: &[String]) -> Result<usize> {
         self.structural();
-        let targets = ids
-            .iter()
-            .map(|id| self.entity_id(id))
-            .collect::<Result<BTreeSet<_>>>()?;
+        // A name nobody has made has nothing to delete: it stays while
+        // anything links to it, as a deleted entity's links go nowhere.
+        let mut targets = BTreeSet::new();
+        for id in ids {
+            match self.named(id)? {
+                Some(crate::virtual_entity::Named::Virtual(_)) => {}
+                Some(crate::virtual_entity::Named::Real(entity)) => {
+                    targets.insert(entity);
+                }
+                None => {
+                    targets.insert(self.entity_id(id)?);
+                }
+            }
+        }
         let doomed: Vec<_> = {
             let index = self.index()?;
             self.graph

@@ -7,5 +7,5 @@ alias:: rename
 - Journals and property entities cannot be renamed.
 	- They are identified by their date or name, so a rename would make them a different entity. The index says which, and the view checks. [[Properties]]
 - The name is one line, the first line of what is given, and cannot be empty.
-- A name nothing has relied on is corrected without an alias. `correct_entity_name` is the rename for when the caller knows that, such as an entity made from a link a moment ago. [[Links to nowhere]]
+- A name nobody has made yet is renamed by making it first, so the old name is kept as an alias and links to it still work. [[Links to nowhere]]
 - Undoing a rename takes back the name and the alias together. [[Undo]]

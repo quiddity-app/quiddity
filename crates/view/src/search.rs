@@ -408,13 +408,18 @@ impl View {
         let mut hits: Vec<(EntityRef, Match, Option<String>)> = Vec::new();
         let index = self.index()?;
         for entity in self.entities()? {
-            let id = self.entity_id(&entity.id)?;
+            // A name nobody has made has no aliases.
+            let aliases = if crate::virtual_entity::name_of(&entity.id).is_some() {
+                Vec::new()
+            } else {
+                let id = self.entity_id(&entity.id)?;
+                index
+                    .entity(id)
+                    .map(EntityInfo::aliases)
+                    .unwrap_or_default()
+            };
             let mut best = fuzzy_match(query, &entity.title).map(|m| (m, None));
-            for alias in index
-                .entity(id)
-                .map(EntityInfo::aliases)
-                .unwrap_or_default()
-            {
+            for alias in aliases {
                 let alias = plain(alias);
                 let Some(m) = fuzzy_match(query, &alias) else {
                     continue;
@@ -430,9 +435,16 @@ impl View {
         // Stable, and `entities` is in title order.
         hits.sort_by_key(|(_, m, _)| Reverse(m.score));
         hits.truncate(limit);
+        // A name nobody has made has no properties and no rivals to tell apart.
         let ids = hits
             .iter()
-            .map(|(e, ..)| self.entity_id(&e.id))
+            .map(|(e, ..)| {
+                if crate::virtual_entity::name_of(&e.id).is_some() {
+                    Ok(None)
+                } else {
+                    self.entity_id(&e.id).map(Some)
+                }
+            })
             .collect::<Result<Vec<_>>>()?;
         let index = self.index()?;
         Ok(hits
@@ -441,10 +453,11 @@ impl View {
             .map(|((entity, m, alias), id)| {
                 let link = Link {
                     name: entity.title.clone(),
-                    qualifiers: qualifiers_for(&index, id, &entity.title),
+                    qualifiers: id
+                        .map_or_else(Vec::new, |id| qualifiers_for(&index, id, &entity.title)),
                 };
                 TitleHit {
-                    properties: properties_of(&index, id),
+                    properties: id.map_or_else(Vec::new, |id| properties_of(&index, id)),
                     qualifiers: link_qualifiers(&link),
                     link: link_key(&link),
                     entity,

@@ -54,6 +54,15 @@ fn read_block(text: &str, first_child: bool) -> Read {
     }
 }
 
+/// A block that links to a name no entity has.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Mention {
+    pub source: BlockId,
+    /// The name as that block wrote it, trimmed. The first in document order
+    /// is the one an entity made for the name would take.
+    pub name: String,
+}
+
 /// What the index knows about one entity.
 #[derive(Debug, Clone)]
 pub struct EntityInfo {
@@ -163,6 +172,8 @@ pub struct Index {
     by_ref_id: HashMap<String, BlockId>,
     /// The blocks that are blobs, in document order.
     blobs: Vec<(BlockId, crate::Asset)>,
+    /// Names that are linked to and that no entity has, by normalised name.
+    mentions: BTreeMap<String, Vec<Mention>>,
     /// The `##blob` line of every block that starts with one, as written,
     /// whether or not it can be read.
     blob_lines: Vec<String>,
@@ -268,6 +279,7 @@ impl Index {
             }
             references.extend(read.links.into_iter().map(|link| (block, link)));
         }
+        let references_for_mentions = references.clone();
         for (source, link) in references {
             let Some((targets, ambiguous)) = index.targets(&link) else {
                 continue;
@@ -280,9 +292,51 @@ impl Index {
                     .push(Backlink { source, ambiguous });
             }
         }
+        for &(source, ref link) in &references_for_mentions {
+            index.add_mention(source, link, None);
+        }
         index.read_schemas();
         index.compute_effective();
         index
+    }
+
+    /// Notes a link to a name nobody has made, if `link` is one: no qualifiers,
+    /// since qualifiers have to be written on an entity of their own, and no
+    /// entity of that name. `at` is where the block is in document order, when
+    /// the index is being kept up to date and so the list has to stay in it.
+    fn add_mention(&mut self, source: BlockId, link: &Link, at: Option<usize>) {
+        if !link.qualifiers.is_empty() || !matches!(self.resolve(link), Resolution::Missing) {
+            return;
+        }
+        let list = self.mentions.entry(normalise_name(&link.name)).or_default();
+        let mention = Mention {
+            source,
+            name: link.name.trim().to_owned(),
+        };
+        match at {
+            None => list.push(mention),
+            Some(at) => {
+                let position = &self.position;
+                let after = list.partition_point(|m| position[&m.source] <= at);
+                list.insert(after, mention);
+            }
+        }
+    }
+
+    /// The names that are linked to and that no entity has, with where each is
+    /// linked from, in document order. They are entities in all but being
+    /// written: see `quiddity-view`.
+    pub fn mentions(&self) -> impl Iterator<Item = (&str, &[Mention])> {
+        self.mentions
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_slice()))
+    }
+
+    /// Where the name `name` is linked from, if no entity has it.
+    pub fn mention(&self, name: &str) -> &[Mention] {
+        self.mentions
+            .get(&normalise_name(name))
+            .map_or(&[], Vec::as_slice)
     }
 
     /// What a link refers to, and whether it is ambiguous. `None` if nothing.
@@ -332,7 +386,12 @@ impl Index {
                 }
             }
         }
+        self.mentions.retain(|_, list| {
+            list.retain(|m| m.source != block);
+            !list.is_empty()
+        });
         for link in &new.links {
+            self.add_mention(block, link, Some(at));
             let Some((targets, ambiguous)) = self.targets(link) else {
                 continue;
             };
