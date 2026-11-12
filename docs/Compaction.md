@@ -6,7 +6,7 @@ alias:: [vouching, eviction]
 	- A device compacts at what every active device has stored, once it holds everything any of them has stored.
 	- The device that creates a graph records itself from the start, and a device vouches for each newcomer it gives the graph to.
 - Why it is safe
-	- Each device writes only its own entry, just before saving, so the entry is saved with what it describes and entries never conflict. The entries are sync metadata, kept beside the blocks rather than in them, and never exported.
+	- Each device writes only its own entry, when saving, so entries never conflict. The entry says what the file held *before* that save, so it is never ahead of what the device has even if the write fails; the save still compacts as if the entry were up to date. [[Storage]] The entries are sync metadata, kept beside the blocks rather than in them, and never exported.
 	- A device handing the graph to one it hasn't heard of records the newcomer at the newcomer's own version, until the newcomer records itself. So any device that might compact past a newcomer's history has heard of it: records made before the vouch are in what the newcomer received, and later ones arrive with it.
 	- An edit can be made on history a device has dropped only if it was made before its author recorded storing it, and by then the compacting device has it.
 	- Compacting replaces the stored document with a [[Loro]] shallow snapshot taken at that point.

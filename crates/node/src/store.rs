@@ -88,15 +88,17 @@ pub const ACTIVE: SignedDuration = SignedDuration::from_hours(24 * 30);
 pub struct Store {
     dir: PathBuf,
     /// Serialises saves, which come from the command thread and the
-    /// save-on-change task at once. Clones share it.
-    saving: Arc<Mutex<()>>,
+    /// save-on-change task at once, and holds the version the snapshot on
+    /// disk is known to hold: what a save may say this device has stored.
+    /// Clones share it.
+    durable: Arc<Mutex<Version>>,
 }
 
 impl Store {
     pub fn new(dir: impl Into<PathBuf>) -> Self {
         Self {
             dir: dir.into(),
-            saving: Arc::default(),
+            durable: Arc::default(),
         }
     }
 
@@ -127,8 +129,12 @@ impl Store {
             Err(e) => return Err(e.into()),
         };
         debug!(bytes = bytes.len(), "loading the snapshot");
+        let mut durable = self.durable();
         match Graph::from_snapshot(&bytes) {
-            Ok(graph) => Ok(graph),
+            Ok(graph) => {
+                *durable = graph.version();
+                Ok(graph)
+            }
             Err(e) => {
                 // A snapshot that can't be decoded is never replaced by an
                 // empty graph, but the previous generation is better than
@@ -139,31 +145,45 @@ impl Store {
                 };
                 let graph = Graph::from_snapshot(&previous).map_err(|_| e)?;
                 warn!("the snapshot couldn't be loaded: using the previous one");
+                *durable = graph.version();
                 Ok(graph)
             }
         }
     }
 
+    fn durable(&self) -> std::sync::MutexGuard<'_, Version> {
+        self.durable.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
     /// Saves atomically and durably: a crash mid-save, even a power loss,
     /// leaves the previous snapshot, which is also kept as `graph.loro.bak`.
     ///
-    /// The saved graph records that this device has stored it, and keeps
-    /// only the history some device might still need. A blank replica
-    /// records nothing: it has yet to join.
+    /// The saved graph records that this device has stored what the snapshot
+    /// held before this save, and keeps only the history some device might
+    /// still need. Recording what is being written instead would tell other
+    /// devices, which act on it at once, about a version this device might
+    /// never have if the write fails. The record lags one save, then; the
+    /// history kept doesn't. A blank replica records nothing: it has yet to
+    /// join.
     #[instrument(level = "debug", skip_all, fields(dir = %self.dir.display()))]
     pub fn save(&self, graph: &Graph) -> Result<(), crate::StoreError> {
-        let snapshot = if graph.version() == Version::default() {
-            graph.snapshot()?
+        let mut durable = self.durable();
+        let (snapshot, saved) = if graph.version() == Version::default() {
+            (graph.snapshot()?, Version::default())
         } else {
             let now = Timestamp::now();
-            graph.record_stored(&self.key()?.public().to_string(), now)?;
-            match graph.compaction_point(now, ACTIVE) {
+            let id = self.key()?.public().to_string();
+            graph.record_stored_at(&id, &durable, now)?;
+            // The version before the snapshot is taken: the snapshot holds
+            // at least that, and holds the record just made.
+            let saved = graph.version();
+            let snapshot = match graph.compaction_point_as(now, ACTIVE, &id, &saved) {
                 Some(at) => graph.shallow_snapshot(&at)?,
                 None => graph.snapshot()?,
-            }
+            };
+            (snapshot, saved)
         };
         debug!(bytes = snapshot.len(), "saving the snapshot");
-        let _saving = self.saving.lock().unwrap_or_else(|e| e.into_inner());
         let path = self.dir.join(SNAPSHOT);
         // Best effort: the current file is intact whatever happens to the copy.
         if path.exists()
@@ -172,6 +192,7 @@ impl Store {
             warn!(error = %e, "couldn't keep the previous snapshot");
         }
         write_durably(&self.dir, &path, &snapshot)?;
+        *durable = saved;
         Ok(())
     }
 
@@ -251,6 +272,69 @@ mod tests {
             let start = store.load().unwrap().history_start();
             assert_eq!(start != Version::default(), compacted, "after {days} days");
         }
+    }
+
+    /// What a device says it has stored is only ever what is already on disk,
+    /// so a save that fails can't leave the graph (and so other devices)
+    /// believing in a version this device doesn't have.
+    #[test]
+    fn a_failed_save_claims_nothing_new() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = Store::new(tmp.path());
+        let graph = store.init(false).unwrap();
+        let id = store.key().unwrap().public().to_string();
+        let claim = |graph: &Graph| {
+            graph
+                .devices()
+                .into_iter()
+                .find(|d| d.id == id)
+                .unwrap()
+                .stored
+        };
+        let on_disk = store.load().unwrap().version();
+
+        // Make the write fail: the snapshot's place is taken by a directory.
+        fs::remove_file(tmp.path().join(SNAPSHOT)).unwrap();
+        fs::create_dir(tmp.path().join(SNAPSHOT)).unwrap();
+        graph.create_block(None, None, "unsaved").unwrap();
+        graph.commit();
+        let edited = graph.version();
+        store.save(&graph).unwrap_err();
+
+        assert!(!claim(&graph).includes(&edited));
+        assert_eq!(claim(&graph), on_disk);
+    }
+
+    /// A save records what the snapshot held before it, whether that was
+    /// written by the previous save or found by `load`.
+    #[test]
+    fn a_save_records_what_the_file_held_before() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = Store::new(tmp.path());
+        let id = store.key().unwrap().public().to_string();
+        let claim = |graph: &Graph| {
+            graph
+                .devices()
+                .into_iter()
+                .find(|d| d.id == id)
+                .unwrap()
+                .stored
+        };
+        let graph = store.init(false).unwrap();
+        let first = store.load().unwrap().version();
+        graph.create_block(None, None, "second").unwrap();
+        graph.commit();
+        store.save(&graph).unwrap();
+        assert_eq!(claim(&graph), first);
+
+        // A fresh handle that loads the file records what it found there.
+        let loaded = Store::new(tmp.path());
+        let graph = loaded.load().unwrap();
+        let found = graph.version();
+        graph.create_block(None, None, "third").unwrap();
+        graph.commit();
+        loaded.save(&graph).unwrap();
+        assert_eq!(claim(&graph), found);
     }
 
     /// A blank replica saves as it is, and doesn't record itself: that
