@@ -14,7 +14,8 @@ it with `@AGENTS.md`, so Claude Code loads it too.
   depends on another goes in a PR stacked on top of it.
 - **Fix-ups are squashed** into the commit (and PR) they fix, not added as
   new commits.
-- **Rebase, never merge.** History is linear: no merge commits on branches.
+- **Rebase, never merge.** History is linear: no merge commits on branches,
+  and PRs are rebase-merged, never squash-merged.
   Fetch `main` immediately before rebasing onto it, since it moves often, and
   push with `--force-with-lease`.
 - Commit messages say why, not just what, in plain prose.
@@ -55,7 +56,8 @@ Pages as the UI showing its own documentation (see
   file. Put a `Journal:` block after the prose, with a blank line either
   side: `- ` bullets, children indented with a tab, saying what changed and
   why and what the next person should know, linking to the pages it touches.
-  If the PR is squashed, keep the block in the squash message. Don't edit
+  PRs are rebase-merged, so the commit message lands as written; if you
+  squash commits yourself, keep the block in the message you write. Don't edit
   `docs/journals/` by hand, except to correct a saved day. The format is in
   [Journal entries](docs/Journal%20entries.md).
 - Check it imports and builds with `mise run docs`. The scripts in `scripts/`
