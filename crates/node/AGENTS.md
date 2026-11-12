@@ -15,7 +15,7 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
   `exported N entities to DIR` when done: the signal can't report that, so
   callers wait for the line. Without `--export` the signal is logged and
   ignored (the default action would kill the process).
-- `Store::save` is atomic (write then rename). The device key is created
+- `Store::save` is atomic and durable: a uniquely named temporary is flushed, renamed over the snapshot, and the directory flushed; saves are serialised by a mutex shared by clones, and the previous snapshot is kept as `graph.loro.bak`, which `load` falls back to if the snapshot can't be decoded. The device key is written whole then hard-linked into place, so a crash can't leave a partial one. It is created
   once with mode 0600; an unreadable key is reported, never replaced.
 - **Saving records and compacts.** `Store::save` records this device (its
   endpoint ID) in the graph's device list, then writes a shallow snapshot

@@ -1,7 +1,7 @@
 - What a device keeps on disk, and what it works out again.
 - The [[Loro]] document is the only source of truth.
 	- A graph on disk is a directory, made by `quiddity-node init`. It holds `graph.loro`, the graph's snapshot, and `device.key`, the device's secret key. [[quiddity-node]]
-	- Saving writes the whole snapshot atomically, by writing a new file and renaming it over the old. It records this device in the graph's device list first, and compacts what it writes. [[Compaction]]
+	- Saving writes the whole snapshot atomically and durably: a uniquely named file is written and flushed, renamed over the old, and the directory flushed, with saves serialised. The previous snapshot is kept as `graph.loro.bak`, and loading falls back to it if `graph.loro` can't be decoded. Not yet done: the "I have stored this" record goes into the graph before the write, so a failed write still claims it. It records this device in the graph's device list first, and compacts what it writes. [[Compaction]]
 	- [[The shell]] keeps its graph the same way, in the app's data directory, or wherever `QUIDDITY_GRAPH` says. It saves after each batch of updates from the UI.
 - Blobs, the bytes of [[Binaries]], are kept by hash in `blobs/` beside the snapshot, in an [[iroh-blobs]] store. They are not derived and not in the document. `unreferenced-blobs.txt` beside them is the node's record of when it first saw each file that nothing refers to, for deleting them.
 - Everything else is derived.
