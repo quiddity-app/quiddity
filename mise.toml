@@ -1,6 +1,6 @@
 # Dev tooling for working on quiddity itself.
 [tools]
-rust = { version = "1.99.1", profile = "default", targets = "wasm32-unknown-unknown" }
+rust = { version = "1.100.0", profile = "default", targets = "wasm32-unknown-unknown" }
 node = "22"
 pnpm = "12.18.0"
 jj = "0.47.1"
