@@ -10,5 +10,6 @@
 	- Full-text search reads every block when asked, from the text the view keeps. [[Text search]]
 	- What costs time at start and after an edit, and what is planned about it. [[Performance]]
 - Planned, not built
+	- The device key moves out of the graph's directory, which gains a graph ID and a node ID, and the app keeps a map of where its graphs are. [[Identity]] [[Copied graphs]]
 	- A snapshot plus an append-only log of updates, compacted now and then, so that a save doesn't rewrite everything. The shell's `AGENTS.md` says when that will be needed.
 	- The derived indexes and full-text search in SQLite tables, which can be rebuilt from the document at any time and are never synced.

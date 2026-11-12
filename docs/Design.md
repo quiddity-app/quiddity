@@ -27,6 +27,7 @@
 - Open questions
 	- **Unsynced edits on eviction.** What happens to edits made on a device that was evicted: diff and re-apply, or keep them as a separate entity to sort out by hand? [[Compaction]]
 	- **Encryption at rest on the headless node.** Is the user's own node trusted with plaintext, or should it eventually run "blind" and store only encrypted snapshots?
+	- **Identity.** A device key that is never used directly, a graph ID in the graph and a node ID per replica, written as checksummed, prefixed tokens that secret scanning can find. [[Identity]] [[Copied graphs]]
 	- **Concurrent edits to one property value.** Since properties are text, two devices editing the same value offline get a character-level merge. Is that acceptable, or should the UI notice a value that changed on both sides and ask?
 - Designed but not built yet. This page was written before the code, and these parts of it are still to come.
 	- Storage as a snapshot plus an update log, with indexes and full-text search in SQLite. [[Storage]]
