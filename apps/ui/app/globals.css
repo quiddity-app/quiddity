@@ -10,6 +10,7 @@
 :root {
   --surface: #f8fafc; /* slate 50 */
   --surface-pane: #f1f5f9; /* slate 100 */
+  --surface-properties: #eef2ff; /* indigo 50: an entity's properties block */
   --surface-hover: #e2e8f0; /* slate 200 */
   --ink: #1e293b; /* slate 800 */
   --ink-secondary: #475569; /* slate 600 */
@@ -50,6 +51,7 @@
   :root {
     --surface: #0f172a; /* slate 900 */
     --surface-pane: #1e293b; /* slate 800 */
+    --surface-properties: #1e1b4b; /* indigo 950 */
     --surface-hover: #334155; /* slate 700 */
     --ink: #e2e8f0; /* slate 200 */
     --ink-secondary: #cbd5e1; /* slate 300 */
@@ -109,6 +111,7 @@
   --container-measure-table: 72rem;
   --color-surface: var(--surface);
   --color-surface-pane: var(--surface-pane);
+  --color-surface-properties: var(--surface-properties);
   --color-surface-hover: var(--surface-hover);
   --color-ink: var(--ink);
   --color-ink-secondary: var(--ink-secondary);

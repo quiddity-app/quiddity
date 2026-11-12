@@ -54,5 +54,5 @@
 	- 6b. Built: blobs are blocks that start with `##blob(…)`, with no entity and no page of their own, and a caption after the line. `##asset` and the asset entity are gone: the index, [[quiddity-view]], [[quiddity-wasm]], garbage collection, the UI and the docs follow. [[Binaries]]
 	- 7a. Built: a name nobody has made is a virtual entity, empty in every way, made by writing to it. A link or tag to a name with no entity no longer makes one; a link with qualifiers still does. [[Links to nowhere]]
 	- 7b. Built in part: the graph draws weak links from each end of a property to the entity that defines it, and a property's page lists its uses grouped by entity. Planned: a property key nobody defines does not yet have a virtual entity, so it makes no weak link and has no page. [[Graph view]] [[Properties]]
-	- 8. The UI: the properties block's background and completion, the offer to make one, tags in place of chips for `##` lines, and the chips that remain.
+	- 8. Built in part: the properties block has its own background and an "+ Add properties" offer. Planned: completion of property names and values in it, dropping an empty one, and tags in place of chips for `##` lines. [[Entity]]
 	- 9. Rename [[Meta-properties]] to match what it now covers, and remove this page.

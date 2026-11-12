@@ -205,6 +205,10 @@ never writes the `##blob` line: Rust does.
   makes it as a link does (`graph.followLink`): a tag is a link, not a property. A block
   of nothing but properties is drawn as chips with its bullet hidden, not
   removed, so the chips line up with the text around them.
+- **An entity's properties block** (`Block.propertiesBlock`, from Rust) is
+  drawn on `bg-surface-properties` with `data-properties-block`, and
+  `EditableOutline` offers `AddProperties` (an empty first block) while there
+  is none. Completion in it, and dropping an empty one, are not built.
 - **Meta-properties** (`meta-sections.tsx`): flags with no chip go under the
   title, and Inherited and the inverse trees go below the body. A chip with
   `flags` is ringed and carries `data-flagged`, with the reasons as its

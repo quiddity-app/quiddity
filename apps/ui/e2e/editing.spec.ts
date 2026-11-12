@@ -189,3 +189,23 @@ test("leaving a block never shows its old text", async ({ page }) => {
   // Sampled straight away, before any pause could have caught it up.
   expect(await mainBlocks(page)).toEqual([`${DDIA}!`, NOTES]);
 });
+
+test("a properties block has its own ground, and one can be added", async ({ page }) => {
+  // Loro starts with one, as the first block of the entity.
+  await openEntity(page, "Loro");
+  const ground = page.locator("main article [data-properties-block]");
+  await expect(ground).toHaveCount(1);
+  await expect(ground).toContainText("kind of");
+  await expect(page.getByRole("button", { name: "+ Add properties" })).toHaveCount(0);
+
+  // iroh has none, so it is offered, and what is typed in it becomes one.
+  await openEntity(page, "iroh");
+  await expect(page.locator("main article [data-properties-block]")).toHaveCount(0);
+  await page.getByRole("button", { name: "+ Add properties" }).click();
+  await page.keyboard.type("status:: open");
+  await page.keyboard.press("Escape");
+  await expect(page.locator("main article [data-properties-block]")).toContainText("status");
+  await expect(page.getByRole("button", { name: "+ Add properties" })).toHaveCount(0);
+  // It went in front of what was there.
+  expect((await mainBlocks(page))[0]).toContain("status");
+});

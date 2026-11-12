@@ -19,7 +19,10 @@ function BlockRow({ block, links }: { block: Block; links: Record<string, Resolv
   // A file has its bullet like any block: it is not only chips.
   const chipsOnly = !isEditing && !block.blob && prose.trim() === "" && lineProps.length > 0;
   return (
-    <li className="flex gap-2">
+    <li
+      className={`flex gap-2 ${block.propertiesBlock ? "rounded bg-surface-properties px-2" : ""}`}
+      data-properties-block={block.propertiesBlock ? "" : undefined}
+    >
       <span
         aria-hidden
         data-bullet

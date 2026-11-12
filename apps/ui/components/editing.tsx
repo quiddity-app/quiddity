@@ -30,6 +30,23 @@ function AddBlock({ empty }: { empty: boolean }) {
   );
 }
 
+/** Offered while an entity has no properties block: a first block to type
+ * properties into. Until it holds one it is an ordinary empty block. */
+function AddProperties() {
+  const editing = useEditing()!;
+  return (
+    <AddRow
+      empty={false}
+      emptyLabel=""
+      label="+ Add properties"
+      onAdd={() => {
+        const id = editing.graph.createBlock(editing.entityId, 0, "");
+        editing.edit(id, "start");
+      }}
+    />
+  );
+}
+
 /** An entity's blocks, which can be edited in place. */
 export function EditableOutline({
   entityId,
@@ -95,6 +112,9 @@ export function EditableOutline({
     <EditingContext.Provider value={editing}>
       <Outline blocks={blocks} links={links} />
       <AddBlock empty={blocks.length === 0} />
+      {!blocks.some((b) => b.propertiesBlock) && !(blocks[0]?.text === "") && (
+        <AddProperties />
+      )}
     </EditingContext.Provider>
   );
 }

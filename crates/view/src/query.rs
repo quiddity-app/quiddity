@@ -99,6 +99,9 @@ pub struct Block {
     /// The file this block is, if its first line is a `##blob` line that can
     /// be read. The rest of `text` is its caption.
     pub blob: Option<BlobInfo>,
+    /// Whether this is its entity's properties block, which the UI draws and
+    /// edits differently.
+    pub properties_block: bool,
     pub children: Vec<Block>,
 }
 
@@ -862,6 +865,7 @@ impl View {
             text,
             properties,
             blob,
+            properties_block: here,
             children,
         })
     }

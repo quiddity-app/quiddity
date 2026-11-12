@@ -1173,6 +1173,32 @@ mod nowhere {
     }
 }
 
+mod properties_block {
+    use super::*;
+
+    #[test]
+    fn only_an_entitys_first_child_that_starts_like_one_is_its_properties_block() {
+        let v = view_with(|g| {
+            let page = g.create_entity("Page", &[]).unwrap();
+            let first = note(g, page, "status:: open\n#urgent");
+            note(g, first, "later:: x");
+            note(g, page, "also:: y");
+            let prose = g.create_entity("Prose", &[]).unwrap();
+            note(g, prose, "no properties here");
+            note(g, prose, "key:: value");
+        });
+        let flags = |title: &str| {
+            let e = v.entity(&id_of(&v, title)).unwrap();
+            let mut all = vec![e.blocks[0].properties_block];
+            all.extend(e.blocks[0].children.iter().map(|c| c.properties_block));
+            all.extend(e.blocks[1..].iter().map(|b| b.properties_block));
+            all
+        };
+        assert_eq!(flags("Page"), [true, false, false]);
+        assert_eq!(flags("Prose"), [false, false]);
+    }
+}
+
 mod connections {
     use super::*;
 

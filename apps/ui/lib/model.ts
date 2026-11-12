@@ -41,6 +41,9 @@ export interface Block {
   /** The file this block is, if its first line is a `##blob` line that can be
    * read. The rest of `text` is its caption. */
   blob: BlobInfo | null;
+  /** Whether this is its entity's properties block, drawn and edited
+   * differently from the blocks around it. */
+  propertiesBlock: boolean;
   children: Block[];
 }
 
