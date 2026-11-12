@@ -3,15 +3,82 @@
 
 use std::fs;
 use std::io;
+use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 
 use iroh::SecretKey;
 use jiff::{SignedDuration, Timestamp};
 use quiddity_core::{Graph, Version};
-use tracing::{debug, info, instrument};
+use tracing::{debug, info, instrument, warn};
 
 const SNAPSHOT: &str = "graph.loro";
+const BACKUP: &str = "graph.loro.bak";
 const KEY: &str = "device.key";
+
+/// Makes temporary names unique within the process; the process ID covers
+/// other processes sharing a directory.
+static TEMPORARIES: AtomicU64 = AtomicU64::new(0);
+
+fn temporary(dir: &Path, name: &str) -> PathBuf {
+    let n = TEMPORARIES.fetch_add(1, Ordering::Relaxed);
+    dir.join(format!("{name}.{}.{n}.tmp", std::process::id()))
+}
+
+/// Writes `bytes` to `path` so that, after a crash, `path` holds either what
+/// it held before or all of `bytes`: the data is flushed before the rename,
+/// and the directory after it.
+fn write_durably(dir: &Path, path: &Path, bytes: &[u8]) -> io::Result<()> {
+    let tmp = temporary(dir, &path.file_name().unwrap_or_default().to_string_lossy());
+    let written = (|| {
+        let mut file = fs::File::create(&tmp)?;
+        file.write_all(bytes)?;
+        file.sync_all()?;
+        fs::rename(&tmp, path)
+    })();
+    if written.is_err() {
+        let _ = fs::remove_file(&tmp);
+    }
+    written?;
+    sync_dir(dir)
+}
+
+/// Creates `path` holding `bytes`, only if it doesn't exist: written whole
+/// under another name, then hard-linked into place, so a crash leaves no file
+/// or a complete one, and a second creator can't replace the first's. Says
+/// whether it created it.
+fn write_new(dir: &Path, path: &Path, bytes: &[u8]) -> io::Result<bool> {
+    let tmp = temporary(dir, &path.file_name().unwrap_or_default().to_string_lossy());
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+    let mut file = options.open(&tmp)?;
+    let linked = file
+        .write_all(bytes)
+        .and_then(|()| file.sync_all())
+        .and_then(|()| fs::hard_link(&tmp, path));
+    let _ = fs::remove_file(&tmp);
+    match linked {
+        Ok(()) => {
+            sync_dir(dir)?;
+            Ok(true)
+        }
+        Err(e) if e.kind() == io::ErrorKind::AlreadyExists => Ok(false),
+        Err(e) => Err(e),
+    }
+}
+
+/// Flushes a directory's entries, so a rename survives power loss. Windows
+/// can't open a directory to do so, and doesn't need it to.
+fn sync_dir(dir: &Path) -> io::Result<()> {
+    #[cfg(unix)]
+    fs::File::open(dir)?.sync_all()?;
+    #[cfg(not(unix))]
+    let _ = dir;
+    Ok(())
+}
 
 /// How long a device can go without saving before it stops holding back
 /// other devices' compaction.
@@ -20,11 +87,17 @@ pub const ACTIVE: SignedDuration = SignedDuration::from_hours(24 * 30);
 #[derive(Debug, Clone)]
 pub struct Store {
     dir: PathBuf,
+    /// Serialises saves, which come from the command thread and the
+    /// save-on-change task at once. Clones share it.
+    saving: Arc<Mutex<()>>,
 }
 
 impl Store {
     pub fn new(dir: impl Into<PathBuf>) -> Self {
-        Self { dir: dir.into() }
+        Self {
+            dir: dir.into(),
+            saving: Arc::default(),
+        }
     }
 
     pub fn dir(&self) -> &Path {
@@ -54,10 +127,25 @@ impl Store {
             Err(e) => return Err(e.into()),
         };
         debug!(bytes = bytes.len(), "loading the snapshot");
-        Ok(Graph::from_snapshot(&bytes)?)
+        match Graph::from_snapshot(&bytes) {
+            Ok(graph) => Ok(graph),
+            Err(e) => {
+                // A snapshot that can't be decoded is never replaced by an
+                // empty graph, but the previous generation is better than
+                // refusing to start. It may be behind what peers know this
+                // device stored: they will say so.
+                let Ok(previous) = fs::read(self.dir.join(BACKUP)) else {
+                    return Err(e.into());
+                };
+                let graph = Graph::from_snapshot(&previous).map_err(|_| e)?;
+                warn!("the snapshot couldn't be loaded: using the previous one");
+                Ok(graph)
+            }
+        }
     }
 
-    /// Saves atomically: a crash mid-save leaves the previous snapshot.
+    /// Saves atomically and durably: a crash mid-save, even a power loss,
+    /// leaves the previous snapshot, which is also kept as `graph.loro.bak`.
     ///
     /// The saved graph records that this device has stored it, and keeps
     /// only the history some device might still need. A blank replica
@@ -75,9 +163,15 @@ impl Store {
             }
         };
         debug!(bytes = snapshot.len(), "saving the snapshot");
-        let tmp = self.dir.join(format!("{SNAPSHOT}.tmp"));
-        fs::write(&tmp, snapshot)?;
-        fs::rename(tmp, self.dir.join(SNAPSHOT))?;
+        let _saving = self.saving.lock().unwrap_or_else(|e| e.into_inner());
+        let path = self.dir.join(SNAPSHOT);
+        // Best effort: the current file is intact whatever happens to the copy.
+        if path.exists()
+            && let Err(e) = fs::copy(&path, self.dir.join(BACKUP))
+        {
+            warn!(error = %e, "couldn't keep the previous snapshot");
+        }
+        write_durably(&self.dir, &path, &snapshot)?;
         Ok(())
     }
 
@@ -96,12 +190,12 @@ impl Store {
             Err(e) if e.kind() == io::ErrorKind::NotFound => {
                 info!(path = %path.display(), "creating this device's key");
                 let key = SecretKey::generate();
-                let mut options = fs::OpenOptions::new();
-                options.write(true).create_new(true);
-                #[cfg(unix)]
-                std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
-                io::Write::write_all(&mut options.open(&path)?, &key.to_bytes())?;
-                Ok(key)
+                if write_new(&self.dir, &path, &key.to_bytes())? {
+                    Ok(key)
+                } else {
+                    // Another creator got there first: theirs stands.
+                    self.key()
+                }
             }
             Err(e) => Err(e),
         }
@@ -181,6 +275,62 @@ mod tests {
         assert!(message.contains("init"));
     }
 
+    /// Each save leaves the one before it beside the snapshot, no temporary
+    /// files are left behind, and a snapshot that can't be read falls back
+    /// to the previous one.
+    #[test]
+    fn a_save_keeps_the_previous_snapshot() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = Store::new(tmp.path());
+        let graph = store.init(false).unwrap();
+        let block = graph.create_block(None, None, "first").unwrap();
+        graph.commit();
+        store.save(&graph).unwrap();
+        graph.set_text(block, "second").unwrap();
+        graph.commit();
+        store.save(&graph).unwrap();
+
+        let mut names: Vec<_> = fs::read_dir(tmp.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name().into_string().unwrap())
+            .collect();
+        names.sort();
+        assert_eq!(names, [KEY, SNAPSHOT, BACKUP]);
+
+        fs::write(tmp.path().join(SNAPSHOT), b"").unwrap();
+        let loaded = store.load().unwrap();
+        assert_eq!(loaded.text(block).unwrap(), "first");
+    }
+
+    /// Without a previous generation a bad snapshot is an error, not an
+    /// empty graph.
+    #[test]
+    fn a_bad_snapshot_is_an_error() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = Store::new(tmp.path());
+        store.init(false).unwrap();
+        fs::write(tmp.path().join(SNAPSHOT), b"").unwrap();
+        assert!(store.load().is_err());
+    }
+
+    /// Savers on separate threads don't trample each other.
+    #[test]
+    fn concurrent_saves_all_succeed() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = Store::new(tmp.path());
+        let graph = store.init(false).unwrap();
+        std::thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(|| {
+                    for _ in 0..10 {
+                        store.save(&graph).unwrap();
+                    }
+                });
+            }
+        });
+        store.load().unwrap();
+    }
+
     #[test]
     fn the_device_key_is_kept() {
         let tmp = tempfile::tempdir().unwrap();
@@ -190,6 +340,21 @@ mod tests {
 
         fs::write(tmp.path().join(KEY), b"short").unwrap();
         assert_eq!(store.key().unwrap_err().kind(), io::ErrorKind::InvalidData);
+    }
+
+    /// A file that exists is left alone, and says so; nothing else is left
+    /// behind. Other failures are errors, not "it exists".
+    #[test]
+    fn a_new_file_never_replaces_one() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("file");
+        assert!(write_new(tmp.path(), &path, b"first").unwrap());
+        assert!(!write_new(tmp.path(), &path, b"second").unwrap());
+        assert_eq!(fs::read(&path).unwrap(), b"first");
+        assert_eq!(fs::read_dir(tmp.path()).unwrap().count(), 1);
+
+        let missing = tmp.path().join("no such dir").join("file");
+        assert!(write_new(tmp.path(), &missing, b"x").is_err());
     }
 
     /// A key that can't be read is reported as it is, and never replaced.
