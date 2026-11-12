@@ -241,7 +241,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("graph");
         let session = Session::open(&path).unwrap();
-        assert!(path.join("graph.loro").exists());
+        assert!(path.join("graph.quiddity").exists());
         Graph::from_snapshot(&session.snapshot().unwrap()).unwrap();
     }
 
@@ -451,14 +451,15 @@ mod tests {
     fn a_damaged_graph_can_be_recovered_from() {
         let damaged = |dir: &Path| {
             Store::new(dir).init(false).unwrap();
-            std::fs::write(dir.join("graph.loro"), b"not a snapshot").unwrap();
+            std::fs::write(dir.join("graph.quiddity"), b"not a snapshot").unwrap();
         };
         let kept = |dir: &Path| {
             std::fs::read_dir(dir)
                 .unwrap()
                 .filter(|e| {
                     let name = e.as_ref().unwrap().file_name();
-                    name.to_string_lossy().starts_with("graph.loro.damaged-")
+                    name.to_string_lossy()
+                        .starts_with("graph.quiddity.damaged-")
                 })
                 .count()
         };

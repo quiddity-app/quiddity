@@ -21,7 +21,7 @@ use tracing::{debug, error, warn};
 #[derive(Parser, Debug)]
 #[command(version, about)]
 struct Cli {
-    /// The graph's directory.
+    /// The graph's directory, which holds `graph.quiddity`.
     #[arg(long, short, default_value = ".")]
     graph: PathBuf,
     #[command(subcommand)]
@@ -42,6 +42,10 @@ enum Command {
     Import { dir: PathBuf },
     /// Export the graph as a directory of Markdown.
     Export { dir: PathBuf },
+    /// Write the graph's snapshot, and nothing else, to a file: what a static
+    /// site publishes. The graph's own file also holds this device's
+    /// endpoint key, so it must never be published.
+    Snapshot { file: PathBuf },
     /// Delete the files that nothing in the graph refers to any more. A file
     /// goes only after it has gone unreferenced for the grace period, and
     /// only once every active device has stored a version of the graph from
@@ -216,6 +220,10 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
                 }
                 println!();
             }
+        }
+        Command::Snapshot { file } => {
+            std::fs::write(&file, store.load()?.snapshot()?)?;
+            println!("wrote {}", file.display());
         }
         Command::Gc {
             dry_run,

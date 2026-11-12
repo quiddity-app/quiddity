@@ -1,6 +1,6 @@
 - What costs time in a large graph, what has been done about it, and what hasn't. Measured with `cargo run --release -p quiddity-view --example scale`, which builds a made-up graph and times each whole-graph answer. [[quiddity-view]]
 - The case that prompted it
-	- A [[Logseq]] import of 3,150 pages (mostly journals) has a 3.3 MB `graph.loro`. The example's default is the same size: 3,150 pages of 11 blocks, 38,000 blocks, a 3.7 MB snapshot.
+	- A [[Logseq]] import of 3,150 pages (mostly journals) has a 3.3 MB snapshot. The example's default is the same size: 3,150 pages of 11 blocks, 38,000 blocks, a 3.7 MB snapshot.
 	- The app took a while to start, and every pause in typing was followed by a stall.
 - Where the time went
 	- Not in parsing: reading the text of every block is 23 ms. It is in asking [[Loro]] for blocks one at a time, which costs about 7 µs a block however it is asked: 200 ms to walk the tree with `children`, and 330 ms to read every block's text.

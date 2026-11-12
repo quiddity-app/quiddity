@@ -32,8 +32,9 @@ the current entity in the middle, open secondaries on the right.
   replica, and reset on reload. **Its IDs differ on every load**, so tests
   can't keep an ID across a reload, and anything remembered by ID (Recents)
   must cope with it no longer existing.
-- **A published build** (`QUIDDITY_STATIC_GRAPH=<graph dir>`, read by
-  `next.config.ts`) copies the directory's `graph.loro` into `public/` and
+- **A published build** (`QUIDDITY_STATIC_GRAPH=<snapshot file>`, written by
+  `quiddity-node snapshot`, read by `next.config.ts`) copies it into `public/`
+  as `graph.loro` and
   picks `backend-static.ts`, which fetches it; `QUIDDITY_BASE_PATH` is where the
   site is served from (GitHub Pages uses `/quiddity`). It is gated on a
   build-time `NEXT_PUBLIC_` variable, so without it the static backend isn't in

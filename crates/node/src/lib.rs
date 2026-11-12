@@ -93,8 +93,13 @@ pub enum StoreError {
     /// There is no graph to load: `init` makes one.
     #[error("{} holds no graph: create one with `init`", .0.display())]
     Missing(PathBuf),
+    /// A file is there, but it isn't a graph this build can read.
+    #[error("{} is not a graph this build can read: {}", .0.display(), .1)]
+    Unreadable(PathBuf, String),
     #[error(transparent)]
     Io(#[from] std::io::Error),
+    #[error("the graph's file: {0}")]
+    Sqlite(#[from] rusqlite::Error),
     #[error(transparent)]
     Graph(#[from] quiddity_core::Error),
 }

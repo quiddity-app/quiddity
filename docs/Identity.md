@@ -2,7 +2,7 @@ alias:: [device key, device ID, graph ID, node ID, identifiers]
 
 - Planned, not built. How a replica, a device and a graph are told apart, and how the secret one is kept from being misused. Today a device is its [[iroh]] key and nothing else, and the [[Loro]] peer ID is chosen at random each time a replica starts. [[Design]]
 - What there is now
-	- One secret: `device.key`, 32 raw bytes, in the graph's directory. It is an Ed25519 secret key, so asymmetric. Its public half is the endpoint ID, which the UI, the CLI and the graph's [[Device list]] call the device ID. [[Storage]] [[Sync]]
+	- One secret: the endpoint key, 32 raw bytes, in the graph's file (the `endpoint_key` table of `graph.quiddity`; before that, a `device.key` beside it). It is an Ed25519 secret key, so asymmetric. Its public half is the endpoint ID, which the UI, the CLI and the graph's [[Device list]] call the device ID. [[Storage]] [[Sync]]
 	- Nothing else is a key. Sync, [[Blob transfer]] and [[Presence]] all use the endpoint. The updater's signing key belongs to releases and is not in the app. [[Updates]]
 	- Because the key lives in the graph's directory, device IDs are per graph, and copying the directory copies the identity: two directories would then answer to one device ID. [[Copied graphs]]
 	- Loro's own peer ID, a 64-bit number, is left to Loro. Nothing keeps it between runs, so every launch of the UI's replica adds a peer to the graph's version. [[App sync]]
@@ -25,7 +25,7 @@ alias:: [device key, device ID, graph ID, node ID, identifiers]
 	- The device key is the input to a key derivation (HKDF or BLAKE3's `derive_key`), with a context string for each use and the graph ID as salt, so that one use can never be passed off as another.
 	- **Endpoint key**: an Ed25519 key per graph, derived. It is what iroh is bound to, and what makes a device ID per graph, as now, but without keeping a key in each graph's directory. One device key backs up every graph, and a device's IDs in two graphs can't be linked.
 	- **Node mask**: 64 bits, derived the same way. A node ID is stored XORed with it, together with a check of the plain value, so that it is only readable on the device that made it. Read on another, the check fails and the replica knows it was copied. The mask is not secrecy: a copy that takes the device key too is the same device. It is there to tell, not to prevent.
-	- Existing graphs keep their `device.key` as their endpoint key, so that device IDs already in other devices' lists stay valid. Moving them to derived keys would change the ID, so it is a re-pairing and is not forced.
+	- Existing graphs keep their endpoint key (converted from `device.key` when the file is first opened), so that device IDs already in other devices' lists stay valid. Moving them to derived keys would change the ID, so it is a re-pairing and is not forced.
 - Keeping a key from being misused
 	- Each identifier is its own type, and none converts to another. A secret has no `Display`, no `Serialize` and a `Debug` that prints nothing; it is wiped when dropped and can't be cloned by accident. There is one function that turns it into its stored form, in the module that writes keys, and one that reads it.
 	- It is kept in the device's own configuration directory, not in a graph's and so not copied with one, with mode 0600, or in the platform's keychain where there is one. It is never put in a graph, an export, a log, a URL, a pairing ticket, an argument on the command line (visible to every process) or anything the UI is sent. The UI only ever has public IDs.

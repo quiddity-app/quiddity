@@ -220,3 +220,27 @@ fn sigusr1_exports_the_running_graph() {
     assert!(!tmp.path().join("out.new").exists());
     assert_eq!(files(&out).keys().collect::<Vec<_>>(), ["entities/Jane.md"]);
 }
+
+/// What a static site publishes is the snapshot alone: the graph's file
+/// holds the endpoint key, and a key must not leave the device.
+#[test]
+fn a_published_snapshot_has_no_key_in_it() {
+    let tmp = tempfile::tempdir().unwrap();
+    let graph = tmp.path().join("graph");
+    run(node(&graph).arg("init"));
+    let secret = {
+        let store = quiddity_node::store::Store::new(&graph);
+        store.key().unwrap().to_bytes()
+    };
+    let out = tmp.path().join("graph.loro");
+    run(node(&graph).arg("snapshot").arg(&out));
+
+    let bytes = fs::read(&out).unwrap();
+    assert!(quiddity_core::Graph::from_snapshot(&bytes).is_ok());
+    assert!(!bytes.windows(secret.len()).any(|w| w == secret));
+    // The graph's own file is not a snapshot.
+    assert!(
+        quiddity_core::Graph::from_snapshot(&fs::read(graph.join("graph.quiddity")).unwrap())
+            .is_err()
+    );
+}
