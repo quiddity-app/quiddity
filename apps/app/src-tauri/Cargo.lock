@@ -5050,14 +5050,17 @@ name = "quiddity-node"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bao-tree",
  "bytes",
  "clap",
  "clap-verbosity-flag",
  "iroh",
  "iroh-blobs",
+ "irpc",
  "jiff",
  "quiddity-core",
  "quiddity-sync",
+ "range-collections",
  "rusqlite",
  "thiserror 2.0.21",
  "tokio",

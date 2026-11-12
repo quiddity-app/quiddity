@@ -30,6 +30,40 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
   mode). Journal mode is `DELETE`, deliberately: WAL leaves `-wal`/`-shm`, which
   breaks "one file" and copying it. The key is made inside a transaction, so two
   processes starting together agree on it.
+- **`blob_store` is an iroh-blobs store on SQLite, not yet used by `Blobs`.**
+  iroh-blobs' `Store` is a client of a command channel, and `FsStore` and
+  `MemStore` are actors serving it. `blob_store::spawn` is a third, built from
+  `MemStore::from_sender`, which is `pub` but not a documented extension point,
+  so **a new iroh-blobs release may break it: pin the version and read its
+  `store/mem.rs` first.** It is modelled on that file and tested against
+  `MemStore` as an oracle (`tests/blob_store.rs`): the encoding of any part of
+  any blob must match byte for byte. Things that aren't obvious:
+  - **Deleting is `SqliteBlobs::delete`, not the protocol's.** iroh-blobs hides
+    deletion from clients (only its own collector sends `DeleteBlobs`).
+  - **Only whole blobs are rows, and only bytes are imported.** Taking a blob
+    in piece by piece (a fetch from another device) is refused for now, as are
+    importing a stream or a path and exporting to a path: the node reads and
+    writes files itself.
+  - **No tags are kept, temp tags protect nothing, and every batch is in
+    `Scope::GLOBAL`** (a `Scope` can't be made outside iroh-blobs): nothing is
+    deleted for being untagged, so nothing needs protecting. Asking for a tag
+    works and listing tags finds none. Don't build on them. Keeping them cost a
+    fifth of this file's mutants for nothing that reads them.
+  - **The size limit is `open_limited`'s argument** (`MAX_BLOB`, SQLite's limit
+    on one value, by default), so tests reach it without a gigabyte.
+  - **A PR's mutants must finish within the CI job's timeout** (`ci.yml`),
+    at about 14 seconds each. It was 20 minutes, roughly 60 mutants, when this
+    store was written, which is why it came in two PRs, and why code that
+    nothing reads (tags, other import paths) isn't written.
+  - **`outboard` comes before `data` in the table**, so reading the small one
+    doesn't walk the overflow pages of the large one. Data is read through
+    SQLite's incremental blob I/O, under the connection's lock, in blocking
+    code inside async tasks: fine at this size, not for many large concurrent
+    exports.
+  - **A write waits for the graph's own saves, and the other way round**, both
+    being transactions on one file; `BUSY` bounds the wait.
+  - **The test data must not repeat**: a short period made a read at the wrong
+    offset return the right bytes, and a mutant survived because of it.
 - **Never publish or copy the graph's file as a snapshot**: it holds the
   endpoint key. `quiddity-node snapshot` writes the bare Loro snapshot for the
   static build, and a test checks the key isn't in it.

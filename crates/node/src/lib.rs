@@ -12,6 +12,7 @@
 //! Typing is not sent keystroke by keystroke to devices that can't see it:
 //! see [`Peer::edited`].
 
+pub mod blob_store;
 pub mod blobs;
 pub mod gc;
 pub mod store;

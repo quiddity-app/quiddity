@@ -61,14 +61,21 @@ const PREVIOUS: i64 = 2;
 
 const APPLICATION_ID: i32 = 0x5144_4459;
 /// SQLite's `user_version`: the layout of the tables below.
-const LAYOUT: i32 = 1;
+const LAYOUT: i32 = 2;
 
 /// Exactly the schema, as SQLite stores it (its `sql` column is the statement
 /// as written), so that a file with anything else in it is refused. One row
 /// each, enforced by the key, so there is no question which is current.
 /// The snapshot has two: row 1 is the current one, and row 2 the one before
 /// it, which `load` falls back to if row 1 can't be decoded.
-const TABLES: [(&str, &str); 2] = [
+const TABLES: [(&str, &str); 3] = [
+    // Complete blobs by BLAKE3 hash. `outboard` (the hashes iroh-blobs needs
+    // to prove parts of the blob) comes before `data` so that reading it
+    // never walks the pages `data` overflows into.
+    (
+        "blob",
+        "CREATE TABLE blob (id INTEGER PRIMARY KEY, hash BLOB NOT NULL UNIQUE CHECK (length(hash) = 32), size INTEGER NOT NULL CHECK (size >= 0), outboard BLOB NOT NULL, data BLOB NOT NULL CHECK (length(data) = size)) STRICT",
+    ),
     (
         "snapshot",
         "CREATE TABLE snapshot (id INTEGER PRIMARY KEY CHECK (id IN (1, 2)), data BLOB NOT NULL) STRICT",
@@ -389,6 +396,11 @@ impl Store {
         }
     }
 
+    /// A connection to the checked file, for what else is kept in it.
+    pub(crate) fn connection(&self) -> Result<Connection, StoreError> {
+        self.open()
+    }
+
     /// Opens the file, checking that it is ours. A directory laid out as it
     /// was before the graph was one file is converted first.
     fn open(&self) -> Result<Connection, StoreError> {
@@ -403,6 +415,14 @@ impl Store {
         let layout: i32 = db.pragma_query_value(None, "user_version", |r| r.get(0))?;
         if id != APPLICATION_ID {
             return Err(self.not_ours("it is not a Quiddity graph".into()));
+        }
+        if layout == 1 {
+            // Layout 1 had no blobs; the table is the only difference.
+            db.execute_batch(&format!(
+                "BEGIN; {}; PRAGMA user_version = {LAYOUT}; COMMIT;",
+                TABLES[0].1
+            ))?;
+            return self.open();
         }
         if layout != LAYOUT {
             return Err(self.not_ours(format!(
@@ -823,7 +843,7 @@ mod tests {
     fn a_file_that_is_not_ours_is_refused() {
         let cases: [(&str, &str); 6] = [
             ("another application", "PRAGMA application_id = 7"),
-            ("a later layout", "PRAGMA user_version = 2"),
+            ("a later layout", "PRAGMA user_version = 3"),
             (
                 "a trigger",
                 "CREATE TRIGGER t AFTER UPDATE ON snapshot BEGIN SELECT 1; END",
@@ -1009,6 +1029,35 @@ mod tests {
             store.load().unwrap_err(),
             crate::StoreError::Missing(_)
         ));
+    }
+
+    /// A file of the first layout, which had no blobs, is upgraded in place:
+    /// what it held is kept and it gains the table.
+    #[test]
+    fn layout_one_gains_the_blob_table() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = Store::new(tmp.path());
+        let graph = store.init(false).unwrap();
+        let block = graph.create_block(None, None, "kept").unwrap();
+        graph.commit();
+        store.save(&graph).unwrap();
+        store
+            .connect()
+            .unwrap()
+            .execute_batch("DROP TABLE blob; PRAGMA user_version = 1;")
+            .unwrap();
+
+        assert_eq!(store.load().unwrap().text(block).unwrap(), "kept");
+        let db = store.connection().unwrap();
+        let layout: i32 = db
+            .pragma_query_value(None, "user_version", |r| r.get(0))
+            .unwrap();
+        assert_eq!(layout, LAYOUT);
+        db.execute(
+            "INSERT INTO blob (hash, size, outboard, data) VALUES (zeroblob(32), 1, x'', x'00')",
+            [],
+        )
+        .unwrap();
     }
 
     /// Making a graph where one is already refuses, in either layout.
