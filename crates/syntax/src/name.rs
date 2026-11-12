@@ -47,10 +47,11 @@ pub fn fold(word: &str) -> String {
 /// `[[jane doe]]` refer to the same names, and so do a composed and a
 /// decomposed `Café`.
 pub fn normalise_name(name: &str) -> String {
-    // Invisible characters go before splitting, so that they can't hide or
-    // make a boundary.
-    let name: String = name.chars().filter(|&c| !is_invisible(c)).collect();
-    fold(&name.split_whitespace().collect::<Vec<_>>().join(" "))
+    // Fold before splitting: invisible characters can't hide or make a
+    // boundary, and NFKC can itself make whitespace (`¯` is a space and a
+    // combining macron), which must be collapsed too or a second pass would
+    // find more to do.
+    fold(name).split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 #[cfg(test)]
@@ -74,6 +75,15 @@ mod tests {
         assert_eq!(normalise_name("\u{fb01}x"), "fix");
         assert_eq!(normalise_name("\u{ff21}"), "a");
         assert_eq!(normalise_name("İ"), normalise_name("i\u{307}"));
+    }
+
+    #[test]
+    fn whitespace_made_by_folding_is_collapsed_too() {
+        // NFKC turns a spacing accent such as `¯` into a space and a combining
+        // mark, so the space has to be dealt with after folding, not before.
+        assert_eq!(normalise_name("\u{af}"), "\u{304}");
+        assert_eq!(normalise_name("a\u{a8} "), "a \u{308}");
+        assert_eq!(normalise_name("\u{a8}\u{b4}"), "\u{308} \u{301}");
     }
 
     #[test]
