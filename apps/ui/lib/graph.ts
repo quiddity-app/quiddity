@@ -1,4 +1,5 @@
 import init, { Replica, mergeVersions } from "./wasm/quiddity_wasm";
+import type { Problem, Recovery } from "./recovery";
 import type {
   BlockHit,
   Connections,
@@ -41,6 +42,12 @@ export interface Backend {
   /** The bytes with this hash. Rejects if this device doesn't have them (yet):
    * another device may have them, and they arrive when it is reached. */
   getBlob?(hash: string): Promise<Uint8Array>;
+  /** Why the graph on this device couldn't be opened, if it couldn't. Only
+   * the app has a graph on disk to fail to open. */
+  startupProblem?(): Promise<Problem | null>;
+  /** Goes on after `startupProblem`, as the user chose. Rejects with the
+   * reason if that didn't work either. */
+  recover?(how: Recovery): Promise<void>;
 }
 
 /** Views catch up this long after typing stops; structure changes at once. */
@@ -403,16 +410,21 @@ export class Graph {
 
 let booted: Promise<Graph> | undefined;
 
+/** Where the graph lives: the app's shell, a published build, or memory. */
+export async function chooseBackend(): Promise<Backend> {
+  const inTauri = "__TAURI_INTERNALS__" in window;
+  return process.env.NEXT_PUBLIC_QUIDDITY_STATIC_GRAPH
+    ? (await import("./backend-static")).staticBackend
+    : inTauri
+      ? (await import("./backend-tauri")).tauriBackend
+      : (await import("./backend-memory")).memoryBackend;
+}
+
 /** Loads the replica from wherever the graph lives. Once per page. */
 export function bootGraph(): Promise<Graph> {
   booted ??= (async () => {
     await init();
-    const inTauri = "__TAURI_INTERNALS__" in window;
-    const backend: Backend = process.env.NEXT_PUBLIC_QUIDDITY_STATIC_GRAPH
-      ? (await import("./backend-static")).staticBackend
-      : inTauri
-        ? (await import("./backend-tauri")).tauriBackend
-        : (await import("./backend-memory")).memoryBackend;
+    const backend = await chooseBackend();
     const graph = new Graph(new Replica(await backend.load()), backend);
     // Before today's page is made, so nothing that arrives is missed.
     backend

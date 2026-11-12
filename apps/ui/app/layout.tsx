@@ -8,6 +8,7 @@ import "./globals.css";
 import { Skeleton } from "@/components/boundary";
 import { ClientOnly } from "@/components/client-only";
 import { HistoryKeys } from "@/components/history-keys";
+import { Recovery } from "@/components/recovery";
 import { LeftSidebar } from "@/components/left-sidebar";
 import { RightPane } from "@/components/right-pane";
 import { Search } from "@/components/search";
@@ -45,6 +46,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en-GB">
       <body>
         <ClientOnly>
+          <Recovery />
           <Suspense fallback={null}>
             <UndoKeys />
             <HistoryKeys />

@@ -14,7 +14,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use quiddity_core::{Graph, Version};
 use quiddity_node::store::Store;
 use quiddity_node::{Allowed, Peer, SyncState};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -32,6 +32,8 @@ pub enum Error {
     Blob(#[from] quiddity_node::blobs::BlobError),
     #[error("this device keeps no binaries")]
     NoBlobs,
+    #[error("the graph opened, so there is nothing to recover from")]
+    NothingToRecover,
     #[error("{0:?} is not a hash")]
     NotAHash(String),
 }
@@ -40,6 +42,21 @@ impl Serialize for Error {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         s.serialize_str(&self.to_string())
     }
+}
+
+/// What to do when the graph on disk can't be opened. The damaged files are
+/// never deleted: starting again sets them aside first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Recovery {
+    /// Try again as it is, for a file that has been put right meanwhile.
+    Retry,
+    /// Start with nothing, to be filled by syncing with another device that
+    /// has the graph.
+    Blank,
+    /// Start a new graph of its own, which is not the same graph as the
+    /// other devices' and won't merge with it.
+    Fresh,
 }
 
 /// The open graph. Cloning shares it.
@@ -72,6 +89,16 @@ impl Session {
             peer,
             ui: Arc::default(),
         })
+    }
+
+    /// Opens the graph in `dir` after it couldn't be opened, as `how` says.
+    pub fn recover(dir: &Path, how: Recovery) -> Result<Self, Error> {
+        if how != Recovery::Retry {
+            let store = Store::new(dir);
+            store.set_aside()?;
+            store.init(how == Recovery::Blank)?;
+        }
+        Self::open(dir)
     }
 
     /// Opens the store for the bytes of the graph's binaries and has the peer
@@ -416,6 +443,54 @@ mod tests {
         let blank = Session::open(dir.path()).unwrap();
         blank.allow(&id).unwrap();
         assert!(blank.peer().graph().devices().is_empty());
+    }
+
+    /// A graph that can't be read stops the session opening, and each way of
+    /// going on does what it says without deleting what is there.
+    #[test]
+    fn a_damaged_graph_can_be_recovered_from() {
+        let damaged = |dir: &Path| {
+            Store::new(dir).init(false).unwrap();
+            std::fs::write(dir.join("graph.loro"), b"not a snapshot").unwrap();
+        };
+        let kept = |dir: &Path| {
+            std::fs::read_dir(dir)
+                .unwrap()
+                .filter(|e| {
+                    let name = e.as_ref().unwrap().file_name();
+                    name.to_string_lossy().starts_with("graph.loro.damaged-")
+                })
+                .count()
+        };
+
+        let dir = tempfile::tempdir().unwrap();
+        damaged(dir.path());
+        assert!(Session::open(dir.path()).is_err());
+        assert!(Session::recover(dir.path(), Recovery::Retry).is_err());
+        assert_eq!(kept(dir.path()), 0, "retrying changes nothing");
+
+        let blank = Session::recover(dir.path(), Recovery::Blank).unwrap();
+        assert_eq!(blank.peer().graph().version(), Version::default());
+        assert_eq!(kept(dir.path()), 1);
+        assert_eq!(
+            std::fs::read(
+                std::fs::read_dir(dir.path())
+                    .unwrap()
+                    .map(|e| e.unwrap().path())
+                    .find(|p| p.to_string_lossy().contains(".damaged-"))
+                    .unwrap()
+            )
+            .unwrap(),
+            b"not a snapshot"
+        );
+
+        let dir = tempfile::tempdir().unwrap();
+        damaged(dir.path());
+        let fresh = Session::recover(dir.path(), Recovery::Fresh).unwrap();
+        assert_ne!(fresh.peer().graph().version(), Version::default());
+        assert_eq!(kept(dir.path()), 1);
+        // And it opens as any graph does now.
+        Session::open(dir.path()).unwrap();
     }
 
     #[test]

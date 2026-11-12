@@ -13,12 +13,65 @@ mod updates;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-use session::{Error, Session};
+use serde::Serialize;
+
+use session::{Error, Recovery, Session};
 use tauri::ipc::{Channel, InvokeBody, InvokeResponseBody, Request, Response};
 use tauri::{Manager, State};
 use tracing::{error, warn};
 
 type Shared<'a> = State<'a, Mutex<Session>>;
+
+/// Why the graph couldn't be opened, and where it is, while it can't be: the
+/// UI shows this instead of the graph, and offers a way on (`recover`).
+#[derive(Debug, Clone, Serialize)]
+struct Problem {
+    dir: PathBuf,
+    message: String,
+}
+
+/// Empty unless the graph couldn't be opened at startup. Always managed, so
+/// the UI can ask.
+#[derive(Default)]
+struct Startup(Mutex<Option<Problem>>);
+
+/// What stopped the graph opening, if anything did. The UI asks first, and
+/// shows it in place of the graph.
+#[tauri::command]
+async fn startup_problem(startup: State<'_, Startup>) -> Result<Option<Problem>, Error> {
+    Ok(startup.0.lock().expect("startup lock poisoned").clone())
+}
+
+/// Goes on after `startup_problem`, as the user chose. It does nothing to a
+/// graph that opened: starting again sets the files aside, and only a graph
+/// that has already failed to open may be treated so.
+#[tauri::command]
+async fn recover(
+    app: tauri::AppHandle,
+    startup: State<'_, Startup>,
+    how: Recovery,
+) -> Result<(), Error> {
+    let dir = {
+        let problem = startup.0.lock().expect("startup lock poisoned");
+        problem.as_ref().ok_or(Error::NothingToRecover)?.dir.clone()
+    };
+    match Session::recover(&dir, how) {
+        Ok(session) => {
+            let session = begin(session).await;
+            app.manage(Mutex::new(session));
+            *startup.0.lock().expect("startup lock poisoned") = None;
+            Ok(())
+        }
+        Err(e) => {
+            error!(error = %e, "still can't open the graph");
+            *startup.0.lock().expect("startup lock poisoned") = Some(Problem {
+                dir,
+                message: e.to_string(),
+            });
+            Err(e)
+        }
+    }
+}
 
 /// The whole graph, for the UI to start from.
 ///
@@ -185,6 +238,17 @@ fn start_network(session: &Session) {
     });
 }
 
+/// Gets an opened graph going: keeps its binaries, then puts it on the network.
+async fn begin(session: Session) -> Session {
+    // Before the network, which gives and fetches what this keeps. A
+    // store that won't open leaves the app without binaries, no more.
+    if let Err(e) = session.keep_blobs().await {
+        warn!(error = %e, "not keeping binaries");
+    }
+    start_network(&session);
+    session
+}
+
 /// `QUIDDITY_GRAPH` names the graph's directory, for working on a graph made
 /// with `quiddity-node`; otherwise there is one graph in the app's data
 /// directory.
@@ -216,20 +280,31 @@ pub fn run() {
         .manage(updates::Pending::default());
     builder
         .setup(|app| {
-            let session = Session::open(&graph_dir(app)?)?;
-            // Before the network, which gives and fetches what this keeps. A
-            // store that won't open leaves the app without binaries, no more.
-            if let Err(e) = tauri::async_runtime::block_on(session.keep_blobs()) {
-                warn!(error = %e, "not keeping binaries");
-            }
-            start_network(&session);
-            app.manage(Mutex::new(session));
+            let dir = graph_dir(app)?;
+            // A graph that can't be opened is the UI's to deal with, with a
+            // window to do it in: exiting here would leave nothing on screen.
+            let problem = match Session::open(&dir) {
+                Ok(session) => {
+                    app.manage(Mutex::new(tauri::async_runtime::block_on(begin(session))));
+                    None
+                }
+                Err(e) => {
+                    error!(error = %e, dir = %dir.display(), "can't open the graph");
+                    Some(Problem {
+                        dir,
+                        message: e.to_string(),
+                    })
+                }
+            };
+            app.manage(Startup(Mutex::new(problem)));
             if let Some(window) = app.get_webview_window("main") {
                 appearance::follow_theme(&window);
             }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            startup_problem,
+            recover,
             load_graph,
             push_updates,
             set_focus,

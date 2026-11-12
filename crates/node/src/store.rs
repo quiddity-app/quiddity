@@ -151,6 +151,29 @@ impl Store {
         }
     }
 
+    /// Moves the snapshot and its previous generation out of the way, without
+    /// deleting them, so a new graph can be made where they were. Returns where
+    /// they went (nothing, if there were none). For a graph that can't be
+    /// loaded, when someone has chosen to start again: the bytes stay, for
+    /// anyone who can still make use of them.
+    #[instrument(level = "debug", skip_all, fields(dir = %self.dir.display()))]
+    pub fn set_aside(&self) -> io::Result<Vec<PathBuf>> {
+        let mut durable = self.durable();
+        let stamp = Timestamp::now().as_millisecond();
+        let mut moved = Vec::new();
+        for name in [SNAPSHOT, BACKUP] {
+            let to = self.dir.join(format!("{name}.damaged-{stamp}"));
+            match fs::rename(self.dir.join(name), &to) {
+                Ok(()) => moved.push(to),
+                Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+                Err(e) => return Err(e),
+            }
+        }
+        sync_dir(&self.dir)?;
+        *durable = Version::default();
+        Ok(moved)
+    }
+
     fn durable(&self) -> std::sync::MutexGuard<'_, Version> {
         self.durable.lock().unwrap_or_else(|e| e.into_inner())
     }
@@ -335,6 +358,39 @@ mod tests {
         graph.commit();
         loaded.save(&graph).unwrap();
         assert_eq!(claim(&graph), found);
+    }
+
+    /// Setting a graph aside keeps every byte, and leaves nothing to load.
+    #[test]
+    fn setting_aside_keeps_the_bytes() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = Store::new(tmp.path());
+        assert!(store.set_aside().unwrap().is_empty());
+
+        let graph = store.init(false).unwrap();
+        store.save(&graph).unwrap();
+        let (snapshot, backup) = (
+            fs::read(tmp.path().join(SNAPSHOT)).unwrap(),
+            fs::read(tmp.path().join(BACKUP)).unwrap(),
+        );
+        let moved = store.set_aside().unwrap();
+
+        assert_eq!(moved.len(), 2);
+        assert_eq!(fs::read(&moved[0]).unwrap(), snapshot);
+        assert_eq!(fs::read(&moved[1]).unwrap(), backup);
+        assert!(matches!(
+            store.load().unwrap_err(),
+            crate::StoreError::Missing(_)
+        ));
+        // The device's identity isn't part of the graph that was set aside.
+        assert!(tmp.path().join(KEY).exists());
+
+        // What the old file held says nothing about the new one: a graph
+        // started now has stored nothing yet.
+        let fresh = store.init(false).unwrap();
+        let id = store.key().unwrap().public().to_string();
+        let own = fresh.devices().into_iter().find(|d| d.id == id).unwrap();
+        assert_eq!(own.stored, Version::default());
     }
 
     /// A blank replica saves as it is, and doesn't record itself: that

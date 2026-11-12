@@ -8,7 +8,7 @@ holds its own replica and answers its own queries (see `apps/ui` and
   because it needs Tauri's system packages (webkit) that the core's CI
   shouldn't. It has its own `Cargo.lock`, its own CI job, and its own
   `cargo fmt`, `clippy` and `test` runs (from `src-tauri`).
-- **Nine commands.** `load_graph` returns a snapshot and `push_updates`
+- **Eleven commands.** `load_graph` returns a snapshot and `push_updates`
   takes Loro updates as the request body, imports them, saves and sends them
   to other devices, both as raw bytes rather than JSON arrays. Updates that
   arrive out of order are held by Loro until their causes do.
@@ -24,6 +24,15 @@ holds its own replica and answers its own queries (see `apps/ui` and
   `get_blob` returns the bytes for a hash: the shell only keeps bytes, and the
   UI says in the graph what a file is, with an `##asset` line, as an ordinary
   edit pushed with `push_updates`.
+- **A graph that won't open doesn't stop the app.** `setup` records the
+  problem in `Startup` (always managed) and manages no `Session`; the UI asks
+  `startup_problem` first and shows the recovery screen instead of calling
+  anything else (`docs/Recovery.md`). `recover` takes `retry`, `blank` or
+  `fresh`, refuses unless there is a problem (starting again moves the files
+  aside, so a graph that opened must never reach it), and then does what `setup`
+  would have (`begin`: binaries, then the network) and manages the session.
+  The other commands need a `Session` and aren't called while there is none.
+  Files are set aside, never deleted.
 - **The shell's graph is a `quiddity_node::Peer`, on the network from
   `setup`.** `start_network` binds an endpoint, serves the peer, dials the
   devices the graph lists and saves a moment after any change. It never

@@ -25,6 +25,7 @@ favourite:: true
 	- [[Export and import]]: the graph as Markdown, and importing from [[Logseq]].
 	- [[Graph settings]]: where the app opens, set by a `quiddity.toml`.
 	- [[Add a device]]: share the graph with another computer, or with a node that keeps a copy.
+	- [[Recovery]]: what to do if the app can't open the graph on a device.
 	- How syncing works is described for developers under [[Sync]].
 - [[Updates]]: the desktop app offers a new release when it opens, once there is one.
 - Running it: there is no release yet, though [[Releases]] describes how one is made. Each week's [[Nightly builds]] have the app for Linux, macOS, Windows and Android, or it can be built from source. [[Running the app]]

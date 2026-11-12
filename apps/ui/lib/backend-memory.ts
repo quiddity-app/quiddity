@@ -1,6 +1,7 @@
 import { Replica } from "./wasm/quiddity_wasm";
 import type { Backend } from "./graph";
 import type { SyncState } from "./model";
+import type { Recovery } from "./recovery";
 
 interface Seed {
   text: string;
@@ -103,6 +104,8 @@ interface Remote {
   typed: string[][];
   /** The devices the page asked to let in. */
   allowed: string[];
+  /** How the page asked to go on from a graph that wouldn't open. */
+  recovered: Recovery[];
   /** Plays the shell telling the page how this device stands. */
   setStatus(status: SyncState): void;
 }
@@ -117,6 +120,9 @@ async function hashOf(bytes: Uint8Array): Promise<string> {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+/** What `?damaged` said, once the page has been asked. */
+let damaged: string | false | undefined;
+
 export const memoryBackend: Backend = {
   async load() {
     // `?blank` is a device that has joined nothing yet.
@@ -124,6 +130,24 @@ export const memoryBackend: Backend = {
       ? Replica.blank().snapshot()
       : seeded().snapshot();
     return started;
+  },
+  // `?damaged` is a graph the shell couldn't open, and `?damaged=stubborn`
+  // one that still can't be after trying. It is read once, because the page
+  // redirects from `/` and loses the query; going on then reloads the page
+  // without it, as the shell's cleared problem would.
+  async startupProblem() {
+    damaged ??= new URLSearchParams(window.location.search).get("damaged") ?? false;
+    return damaged === false
+      ? null
+      : { dir: "/home/someone/graph", message: "the snapshot is not valid: unexpected end of data" };
+  },
+  async recover(how) {
+    remote().recovered.push(how);
+    if (damaged === "stubborn") throw new Error("permission denied");
+    // What reloading would otherwise find again.
+    const url = new URL(window.location.href);
+    url.searchParams.delete("damaged");
+    window.history.replaceState(null, "", url);
   },
   // Nothing outlives the page: this is for looking at the UI. What the
   // shell would be told is kept for tests to read.
@@ -192,6 +216,7 @@ function remote(): Remote {
     focus: [],
     typed: [],
     allowed: [],
+    recovered: [],
     setStatus() {},
   };
   return w.__quiddityRemote;

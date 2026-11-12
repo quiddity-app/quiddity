@@ -26,6 +26,8 @@ declare global {
       typed: string[][];
       /** The devices the page asked to let in. */
       allowed: string[];
+      /** How the page asked to go on from a graph that wouldn't open. */
+      recovered: string[];
       /** Plays the shell telling the page how this device stands. */
       setStatus(status: string): void;
     };
