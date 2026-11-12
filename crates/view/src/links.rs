@@ -1,5 +1,7 @@
-//! Links to entities that don't exist yet: following one makes the entity, and
-//! so does saving a block that has just gained one.
+//! Links to entities that don't exist yet. A name nobody has made is a virtual
+//! entity and following it makes nothing; a link with
+//! qualifiers makes its entity when followed, or when a block that has just
+//! gained it is saved.
 
 use std::collections::HashSet;
 
@@ -33,9 +35,12 @@ fn links_in(text: &str) -> Vec<(String, Link)> {
 }
 
 impl View {
-    /// The entity a link goes to, made first if there is none. `key` is the
-    /// text between the brackets, as [`crate::Entity::links`] has it. A link
-    /// that matches several entities is an error: there is no one to open.
+    /// The entity a link goes to. `key` is the text between the brackets, as
+    /// [`crate::Entity::links`] has it. A name nobody has made goes to its
+    /// virtual entity, which is made by being written to, not by being
+    /// followed; a link with qualifiers makes its entity, since they have to be
+    /// written somewhere. A link that matches several entities is an error:
+    /// there is no one to open.
     pub fn follow_link(&self, key: &str) -> Result<String> {
         let (_, link) = links_in(&format!("[[{key}]]"))
             .into_iter()
@@ -50,14 +55,15 @@ impl View {
             }
         };
         let id = match found {
-            Some(id) => id,
+            Some(id) => id.to_string(),
+            None if link.qualifiers.is_empty() => crate::virtual_entity::id_of(&link.name),
             None => {
                 self.structural();
                 let made = self.make_linked_entity(&link);
-                self.edited(made)?
+                self.edited(made)?.to_string()
             }
         };
-        Ok(id.to_string())
+        Ok(id)
     }
 
     /// The entity that holds the block whose `##id` is `id`, which is where a
@@ -92,14 +98,11 @@ impl View {
     }
 
     /// Settles a block after it has been edited, with `before` as its text
-    /// when editing began. Every link it gained that goes nowhere gets an
-    /// entity, and the ids of those entities are returned.
-    ///
-    /// If an entity is all that a link in the block made, and the link has
-    /// been edited, the entity takes the link's new name rather than a second
-    /// being made: its old name was never relied on, so no alias is kept. That
-    /// is when the entity is empty, nothing but this block links to it, and
-    /// neither link has qualifiers (the entity's properties would be wrong).
+    /// when editing began. Every link with qualifiers that it gained and that
+    /// goes nowhere gets an entity, with the properties the qualifiers ask for,
+    /// and the ids of those entities are returned. A link without qualifiers
+    /// makes nothing: a name nobody has made is an entity already, until it is
+    /// written to (a virtual entity).
     ///
     /// All of it is one step to undo, separate from the typing.
     pub fn commit_block(&self, id: &str, before: &str) -> Result<Vec<String>> {
@@ -108,44 +111,18 @@ impl View {
         if after == before {
             return Ok(Vec::new());
         }
-        let old = links_in(before);
-        let new = links_in(&after);
-        // What is left once the links either side of the edit are set aside:
-        // the ones that were edited, in the order they were written.
-        let start = old.iter().zip(&new).take_while(|(a, b)| a.0 == b.0).count();
-        let end = old[start..]
-            .iter()
-            .rev()
-            .zip(new[start..].iter().rev())
-            .take_while(|(a, b)| a.0 == b.0)
-            .count();
-        let old = &old[start..old.len() - end];
-        let new = &new[start..new.len() - end];
-
+        let had: HashSet<String> = links_in(before).into_iter().map(|(key, _)| key).collect();
         self.structural();
         let mut made = Vec::new();
-        let mut changed = false;
-        for (i, (_, link)) in new.iter().enumerate() {
-            if !matches!(self.index()?.resolve(link), Resolution::Missing) {
+        for (key, link) in links_in(&after) {
+            if had.contains(&key)
+                || link.qualifiers.is_empty()
+                || !matches!(self.index()?.resolve(&link), Resolution::Missing)
+            {
                 continue;
             }
-            let mistyped = match old.get(i) {
-                Some((_, previous)) if link.qualifiers.is_empty() => {
-                    self.unrelied_on(previous, block)?
-                }
-                _ => None,
-            };
-            match mistyped {
-                Some(entity) => {
-                    self.graph.correct_entity_name(entity, &link.name)?;
-                }
-                None => made.push(self.make_linked_entity(link)?.to_string()),
-            }
-            changed = true;
+            made.push(self.make_linked_entity(&link)?.to_string());
             self.changed();
-        }
-        if changed {
-            self.edited(Ok(()))?;
         }
         Ok(made)
     }
@@ -172,33 +149,5 @@ impl View {
         let entity = self.graph.create_entity(&link.name, &properties)?;
         self.graph.create_block(Some(entity), None, "")?;
         Ok(entity)
-    }
-
-    /// The entity `link` goes to, if it can still be renamed freely: it is
-    /// empty, and nothing but `block` links to it. Being empty also rules out
-    /// the entities a name must not change (a journal, a property) and one the
-    /// link reached by an alias, as each has a properties block.
-    fn unrelied_on(&self, link: &Link, block: BlockId) -> Result<Option<BlockId>> {
-        if !link.qualifiers.is_empty() {
-            return Ok(None);
-        }
-        let entity = {
-            let index = self.index()?;
-            let Resolution::Unique(entity) = index.resolve(link) else {
-                return Ok(None);
-            };
-            let alone = index.backlinks(entity).iter().all(|b| b.source == block);
-            if !alone {
-                return Ok(None);
-            }
-            entity
-        };
-        for child in self.graph.children(entity) {
-            if !self.graph.text(child)?.trim().is_empty() || !self.graph.children(child).is_empty()
-            {
-                return Ok(None);
-            }
-        }
-        Ok(Some(entity))
     }
 }

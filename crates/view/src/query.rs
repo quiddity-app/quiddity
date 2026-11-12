@@ -12,6 +12,8 @@ use quiddity_core::syntax::{
 use quiddity_core::{BlockId, Home, Identity, Index, Resolution, ensure_journal};
 use serde::Serialize;
 
+use crate::virtual_entity::Named;
+
 use crate::meta::{Inherited, Inverse};
 use crate::{Error, Facts, Result, TextFacts, View};
 
@@ -147,6 +149,11 @@ pub(crate) fn add_link(index: &Index, link: &Link, links: &mut BTreeMap<String, 
         },
         Resolution::Ambiguous(ids) => LinkTarget::Ambiguous {
             ids: ids.iter().map(ToString::to_string).collect(),
+        },
+        // A name nobody has made is an entity all the same, until it is
+        // written to. One with qualifiers has nothing to carry them.
+        Resolution::Missing if link.qualifiers.is_empty() => LinkTarget::Entity {
+            id: crate::virtual_entity::id_of(&link.name),
         },
         Resolution::Missing => LinkTarget::Missing,
     };
@@ -324,16 +331,24 @@ impl View {
         })
     }
 
-    /// Entities that are not merged into another, by name.
+    /// Entities that are not merged into another, by name, and the names that
+    /// are linked to and have none, which are entities in all but being
+    /// written (a virtual entity).
     pub fn entities(&self) -> Result<Vec<EntityRef>> {
-        let index = self.index()?;
-        let mut refs: Vec<_> = index
-            .entities()
-            .map(|e| EntityRef {
-                id: e.id.to_string(),
-                title: e.name.clone(),
-            })
-            .collect();
+        let mut refs: Vec<_> = {
+            let index = self.index()?;
+            index
+                .entities()
+                .map(|e| EntityRef {
+                    id: e.id.to_string(),
+                    title: e.name.clone(),
+                })
+                .collect()
+        };
+        refs.extend(self.virtuals()?.into_iter().map(|v| EntityRef {
+            id: v.id,
+            title: v.title,
+        }));
         refs.sort_by_cached_key(|e| (e.title.to_lowercase(), e.id.clone()));
         Ok(refs)
     }
@@ -411,8 +426,11 @@ impl View {
         }
         drop(facts);
         drop(corpus);
-        let rows = self
+        let (named, listed): (Vec<_>, Vec<_>) = self
             .entities()?
+            .into_iter()
+            .partition(|e| crate::virtual_entity::name_of(&e.id).is_some());
+        let rows = listed
             .into_iter()
             .map(|e| Ok((self.entity_id(&e.id)?, e)))
             .collect::<Result<Vec<_>>>()?;
@@ -451,13 +469,44 @@ impl View {
                 ),
             });
         }
+        // A name nobody has made is a row like an empty entity's.
+        let virtuals: BTreeMap<_, _> = self
+            .virtuals()?
+            .into_iter()
+            .map(|v| (v.id.clone(), v))
+            .collect();
+        summaries.extend(named.into_iter().filter_map(|e| {
+            let v = virtuals.get(&e.id)?;
+            Some(Summary {
+                id: e.id,
+                title: e.title,
+                tags: Vec::new(),
+                words: 0,
+                incoming: v.sources.len(),
+                created: None,
+                modified: None,
+                journal: false,
+            })
+        }));
+        summaries.sort_by_cached_key(|s| (s.title.to_lowercase(), s.id.clone()));
         Ok(summaries)
     }
 
-    /// Every entity, and the links between them. Links to nowhere, and an
-    /// entity's links to itself, are left out.
+    /// Every entity, and the links between them, those to a name nobody has
+    /// made included. An entity's links to itself are left out.
     pub fn connections(&self) -> Result<Connections> {
         let mut edges = BTreeSet::new();
+        for v in self.virtuals()? {
+            let index = self.index()?;
+            for &block in &v.sources {
+                if let Some(source) = index.entity_of(block).map(|e| index.canonical(e)) {
+                    edges.insert(Edge {
+                        source: source.to_string(),
+                        target: v.id.clone(),
+                    });
+                }
+            }
+        }
         {
             let index = self.index()?;
             for target in index.entities() {
@@ -569,6 +618,22 @@ impl View {
     }
 
     pub fn entity(&self, id: &str) -> Result<Entity> {
+        match self.named(id)? {
+            Some(Named::Real(entity)) => return self.entity(&entity.to_string()),
+            Some(Named::Virtual(v)) => {
+                return Ok(Entity {
+                    id: v.id,
+                    title: v.title,
+                    renamable: true,
+                    blocks: Vec::new(),
+                    links: BTreeMap::new(),
+                    inherited: Vec::new(),
+                    inverses: Vec::new(),
+                    flags: Vec::new(),
+                });
+            }
+            None => {}
+        }
         let id = self.entity_id(id)?;
         let mut links = BTreeMap::new();
         let blocks = self
@@ -686,6 +751,11 @@ impl View {
 
     /// Blocks that link to the entity, by the entity they are in.
     pub fn references(&self, id: &str) -> Result<Vec<Reference>> {
+        match self.named(id)? {
+            Some(Named::Real(entity)) => return self.references(&entity.to_string()),
+            Some(Named::Virtual(v)) => return self.grouped(None, View::sources_of(&v)),
+            None => {}
+        }
         let target = self.entity_id(id)?;
         let sources = self
             .index()?
@@ -693,12 +763,23 @@ impl View {
             .iter()
             .map(|b| b.source)
             .collect();
-        self.grouped(target, sources)
+        self.grouped(Some(target), sources)
     }
 
     /// Blocks that mention the entity's name or an alias in plain text,
     /// without linking to it.
     pub fn unlinked_references(&self, id: &str) -> Result<Vec<Reference>> {
+        match self.named(id)? {
+            Some(Named::Real(entity)) => return self.unlinked_references(&entity.to_string()),
+            Some(Named::Virtual(v)) => {
+                return self.unlinked(
+                    vec![v.title.trim().to_lowercase()],
+                    View::sources_of(&v),
+                    None,
+                );
+            }
+            None => {}
+        }
         let target = self.entity_id(id)?;
         let (names, linked) = {
             let index = self.index()?;
@@ -727,6 +808,17 @@ impl View {
             let linked: BTreeSet<_> = index.backlinks(target).iter().map(|b| b.source).collect();
             (names, linked)
         };
+        self.unlinked(names, linked, Some(target))
+    }
+
+    /// Blocks that have one of `names`, lower-cased, as a word of their prose
+    /// and are not in `linked`, grouped as references are.
+    fn unlinked(
+        &self,
+        names: Vec<String>,
+        linked: BTreeSet<BlockId>,
+        target: Option<BlockId>,
+    ) -> Result<Vec<Reference>> {
         let mut found = BTreeSet::new();
         for block in self.graph.blocks() {
             // Entity names aren't prose, and property values are structured.
@@ -746,15 +838,19 @@ impl View {
     }
 
     /// Groups blocks by entity, leaving out the target's own and any block
-    /// already shown inside another.
-    fn grouped(&self, target: BlockId, blocks: BTreeSet<BlockId>) -> Result<Vec<Reference>> {
+    /// already shown inside another. A target that is nobody's has none.
+    fn grouped(
+        &self,
+        target: Option<BlockId>,
+        blocks: BTreeSet<BlockId>,
+    ) -> Result<Vec<Reference>> {
         let mut by_entity: BTreeMap<BlockId, Vec<BlockId>> = BTreeMap::new();
         for &block in &blocks {
             let root = self.graph.entity_of(block);
             let entity = self.index()?.canonical(root);
             let nested = std::iter::successors(self.graph.parent(block), |&p| self.graph.parent(p))
                 .any(|ancestor| blocks.contains(&ancestor));
-            if entity != target && block != root && !nested {
+            if Some(entity) != target && block != root && !nested {
                 by_entity.entry(entity).or_default().push(block);
             }
         }

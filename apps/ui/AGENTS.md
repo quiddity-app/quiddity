@@ -172,11 +172,13 @@ never writes the `##blob` line: Rust does.
 
 - **Leaving a block saves it** (`EditableOutline`): it remembers each block's
   text from when editing began and calls `graph.commitBlock(id, before)` when
-  editing moves on or the page is left. That is what makes an entity for a
-  `[[link]]` the edit added, and renames one a moment-old link made if the
-  link is corrected. A link to nowhere that is already in a block (written on
-  another device, or left by an undo) is a link (`NewEntityLink`, an `<a href="#">` drawn like any other), and
-  following it makes the entity (`graph.followLink`).
+  editing moves on or the page is left. That makes an entity only for a link
+  with qualifiers that the edit added. A link to a name nobody has made is an
+  ordinary link to a virtual entity (`~name`), which looks like an empty one
+  and is made by writing to it (the empty outline's "add a block" does, via
+  `createBlock`). A qualified link with no entity yet is `NewEntityLink`, an
+  `<a href="#">` drawn like any other, and following it makes the entity
+  (`graph.followLink`).
 - **Links are completed in the editor** (`lib/link-completion.ts`, with
   `lib/auto-brackets.ts` pairing `[`). Its keys sit above the outliner's, so
   in a link the arrows and Enter are the list's; **Escape is left to the
@@ -306,7 +308,7 @@ that the filter hides, simply stops counting. Deleting asks first, inline
 webview can't be relied on to show; **changing the selection withdraws the
 question**, so what is confirmed is what was asked about. Deletion
 (`graph.deleteEntities`) is one undo step, and links to a deleted entity stay
-in the text as links to nowhere.
+in the text as links to a virtual entity.
 
 ## Rendering
 

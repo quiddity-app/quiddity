@@ -368,16 +368,18 @@ mod tests {
     }
 
     #[test]
-    fn links_to_nowhere_get_an_entity_when_followed_or_saved() {
+    fn a_name_nobody_has_is_virtual_and_a_qualified_link_makes_an_entity() {
         let shell = Graph::new();
         let page = shell.create_entity("Page", &[]).unwrap();
         let block = shell.create_block(Some(page), None, "").unwrap();
         let replica = Replica::new(&shell.snapshot().unwrap()).unwrap();
         let id = block.to_string();
+        let entities = replica.view.entities().unwrap().len();
 
         let followed = replica.follow_link("Nowhere").unwrap();
         assert_eq!(replica.follow_link("Nowhere").unwrap(), followed);
-        replica.splice_text(&id, 0, 0, "[[Else]]").unwrap();
+        assert_eq!(replica.view.entities().unwrap().len(), entities);
+        replica.splice_text(&id, 0, 0, "[[Else #kind(a)]]").unwrap();
         let made = replica.commit_block(&id, "").unwrap();
         assert_eq!(made.len(), 1);
         assert_ne!(made[0], followed);

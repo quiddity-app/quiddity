@@ -178,8 +178,9 @@ test("selected entities are deleted from the all entities table once confirmed",
   await expect(page.getByRole("alertdialog")).toContainText("Delete “Loro”");
 
   await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click();
-  await expect(rows).toHaveCount(before - 1);
-  await expect(row("Loro")).toHaveCount(0);
+  // Links to Loro are left in the text, so it is still an entity, an empty one.
+  await expect(rows).toHaveCount(before);
+  await expect(row("Loro")).toHaveCount(1);
   await expect(row("Quiddity")).toHaveCount(1);
   await expect(page.getByRole("toolbar", { name: "Selected entities" })).toHaveText("");
   await expect(table.getByRole("checkbox", { name: "Select Quiddity", exact: true })).not.toBeChecked();

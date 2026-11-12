@@ -158,7 +158,8 @@ test("a new entity can be made, written in, and found again", async ({ page }) =
   await page.keyboard.press("Escape");
   await today.getByRole("link", { name: "Fresh page" }).click();
   await expect(page.getByRole("heading", { name: "Fresh page", level: 1 })).toBeVisible();
-  await page.locator("main article > ul [data-block-text]").first().click();
+  // A name nobody has made is an empty entity until it is written to.
+  await page.getByText("Empty. Click to add a block.").click();
   await page.keyboard.type("first thought");
   await page.keyboard.press("Enter");
   await page.keyboard.type("second");

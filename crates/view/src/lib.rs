@@ -357,3 +357,4 @@ impl View {
 
 #[cfg(test)]
 mod tests;
+mod virtual_entity;

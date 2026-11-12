@@ -1,13 +1,12 @@
-- A `[[link]]` to an entity that does not exist yet is active: it makes the entity. [[Rendering]]
-- Saving a block makes an entity for each link the edit gained.
-	- The UI remembers a block's text from when editing began and tells the view when editing moves on. `commit_block(id, before)` compares the links before and after. [[Editing]]
-	- Only links the edit added count. A link already in the block, which may have come from another device, makes nothing until it is followed.
-	- The entity is named for the link, with an empty block to type into. A link with qualifiers, such as `[[Jane #type(person)]]`, makes an entity with those properties, so the link finds it.
-- Following a link to nowhere makes it too. `follow_link(key)` returns the entity a link goes to, making it first if there is none, and an ambiguous link is an error. In the UI a dangling link is an anchor drawn exactly like any other link, since following it makes the entity.
-- Correcting the link renames the entity without keeping an alias.
-	- If you go back into the block and change a link before doing anything with the entity it made, the entity takes the new name and the old one is forgotten. Nothing relied on it. [[Renaming]]
-	- It only happens while the entity is empty and nothing but that block links to it, and neither link has qualifiers. Notes under it, or another link to it, make it real and it keeps its name.
-	- Being empty rules out journals, property entities and a link that reached its entity by an alias, because each has a properties block.
-	- The links either side of the edit are set aside and the ones in between are paired in order, so adding a link in front of the others is a new link and not a rename.
-- Deleting an entity leaves the links to it in the text, and they go nowhere again. [[All entities]]
-- Saving is one step of undo, apart from the typing before it. [[Undo]]
+- A `[[link]]` or `#tag` to a name no entity has goes to a virtual entity, which looks in every way like an empty one. [[Rendering]]
+	- It is listed in [[All entities]], is a node in the graph, turns up in search, has a page and has references.
+	- Nothing is stored for it. It exists while something links to it, and goes when the last link does.
+	- Following the link opens its page and makes nothing. `follow_link(key)` returns an ID made of `~` and the name as names are compared.
+- Writing to it makes it real.
+	- Typing the first block, or renaming it, makes the entity in the same edit, named as the first link wrote it. One step of undo. [[Undo]]
+	- Renaming keeps the old name as an alias, so links to it still work. [[Renaming]]
+- Deleting a virtual entity does nothing while anything links to it. Deleting a real entity leaves the links to it in the text, and they go to a virtual entity again. [[All entities]]
+- A link with qualifiers, such as `[[Jane #type(person)]]`, makes an entity, since the properties have to be written somewhere.
+	- Following it makes the entity if none matches. So does saving a block that gained the link: `commit_block(id, before)` compares the links before and after, and one that was already there, which may have come from another device, makes nothing. [[Editing]]
+	- The entity has an empty block to type into and the properties the qualifiers ask for, so the link finds it.
+	- Saving is one step of undo, apart from the typing before it.
