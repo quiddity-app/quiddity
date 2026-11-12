@@ -42,9 +42,14 @@ test("the graph is painted in the theme's colour for a node", async ({ page }) =
   await page.evaluate(() => document.documentElement.style.setProperty("--graph-node", "rgb(255, 0, 0)"));
   await page.emulateMedia({ colorScheme: "dark" });
 
-  // The view, the node and the pixel are read together, and again on every
+  // The view, the node and the pixels are read together, and again on every
   // poll: the graph may still be gliding to its frame, and a position read once
-  // would be sampled after the node had moved on.
+  // would be sampled after the node had moved on. A node is at least 3px
+  // across, so a 3x3 window around its centre is all fill, except where another
+  // node's label has been drawn over it: the layout starts from random places,
+  // so now and then a glyph lands on the centre and a single pixel there is
+  // blended with the label's colour. Any pixel of the window that is the
+  // theme's colour will do.
   await expect
     .poll(() =>
       page.evaluate(() => {
@@ -54,8 +59,11 @@ test("the graph is painted in the theme's colour for a node", async ({ page }) =
         const [x = 0, y = 0, k = 1] = (canvas.getAttribute("data-view") ?? "").split(",").map(Number);
         const ratio = canvas.width / canvas.clientWidth;
         const at = { x: x + Number(node.getAttribute("data-x")) * k, y: y + Number(node.getAttribute("data-y")) * k };
-        const pixel = canvas.getContext("2d")!.getImageData(Math.round(at.x * ratio), Math.round(at.y * ratio), 1, 1);
-        return [...pixel.data];
+        const window = canvas
+          .getContext("2d")!
+          .getImageData(Math.round(at.x * ratio) - 1, Math.round(at.y * ratio) - 1, 3, 3).data;
+        const pixels = Array.from({ length: 9 }, (_, i) => [...window.slice(i * 4, i * 4 + 4)]);
+        return pixels.find(([r, g, b, a]) => r === 255 && g === 0 && b === 0 && a === 255) ?? pixels[4];
       }),
     )
     .toEqual([255, 0, 0, 255]);
