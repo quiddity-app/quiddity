@@ -33,7 +33,7 @@ repos:
     exclude_types:
     - rust
 - repo: https://github.com/jdx/jactionlint
-  rev: v2.5.0
+  rev: v2.6.0
   hooks:
   - id: jactionlint
 - repo: https://github.com/python-jsonschema/check-jsonschema
