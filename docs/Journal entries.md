@@ -8,7 +8,7 @@
 	  ```
 	- The block is the lines after `Journal:` that begin `- ` or are indented, up to the first blank line or any other line. It must start with a bullet. It is an outline like any page, so link the pages it touches, and say what changed, why, and what the next person should know.
 	- A change that matters to a day's story has one; a change that doesn't may leave it out, and still appears in the day's page with its title and link.
-	- If the pull request is squashed on merge, make sure the squash message keeps the block.
+	- Pull requests are rebase-merged, so the commit message lands as written. If you squash commits yourself, keep the block in the message you write.
 - What the script makes
 	- `scripts/journals.mjs` writes `docs/journals/YYYY-MM-DD.md` for each day after the newest file there that has commits on `main`.
 	- Each commit is a top-level bullet: the pull request's title and link, with the commit's journal block indented under it. Commits are in the order they landed.
