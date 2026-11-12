@@ -1,15 +1,17 @@
-- Finding a page by a few letters of its title, as the "go to" search of a JetBrains IDE does. [[Search]]
+- Finding a page by a few letters of its title or an [[alias]], as the "go to" search of a JetBrains IDE does. [[Search]]
 - The rules
-	- The query's characters must appear in the title in order, ignoring case. `rdng` finds `Reading list`.
+	- The query's characters must appear in the title in order, ignoring case and [[Unicode normalisation]]. `rdng` finds `Reading list`, and `cafe` typed with a separate accent finds `Café`. A letter that folds to two, such as `ß` (`ss`), is matched as both and highlighted whole.
 	- A capital must be the first letter of a word, or that same capital. `QD` finds `Quiddity Design` and not `Quiddity`; `qd` finds both.
 	- A space in the query means the next letter starts a word, so `quid des` finds `Quiddity Design` and `quid ign` doesn't. The space is never matched itself.
 	- A word starts after anything that isn't a letter or digit, at a capital after a lower-case letter (`camelCase`), and at the last capital of a run that a lower-case letter follows (`HTTPServer`).
+- Aliases are matched as well as the title, so a page is found by the name it used to have.
+	- A page is listed once, by whichever of its names scores best; the title wins a tie. When an alias won, the hit says which, the highlight is in the alias, and the link to write is still the title's, which the alias reaches. The search panel and link completion show the alias, then `→` and the title.
 - Of the ways to line the query up, the best scoring wins.
 	- Letters typed together beat the same letters spread out, a word start beats the middle of a word, and the start of the title beats the middle.
 	- Shorter titles beat longer ones that match the same way, so an exact match comes first.
 	- `QD` against `Quiddity Design` picks the `D` that begins a word, not the one inside `Quiddity`.
 	- It is a small dynamic programme over query and title, so a query costs in proportion to the number of titles.
-- The answer says where it matched, as runs in UTF-16 units, because that is what JavaScript counts in, for highlighting. [[quiddity-view]]
+- The answer says where it matched, as runs in UTF-16 units of the name as written, because that is what JavaScript counts in, for highlighting. A name that isn't NFC (from before text was stored composed) is composed a letter and its marks at a time, so a highlight covers whatever was written. [[quiddity-view]]
 - Each hit also carries what is needed to link to it. [[Editing]]
 	- Its properties, each once, to show beside it.
 	- The link to write between the brackets: the title, escaped, and if other entities share the title (or an alias of that name) the fewest qualifiers that rule every one of them out. Each step takes the qualifier that rules out most of those left, preferring `#key(value)` to a bare `#key`, which a rival may later gain. If some entity cannot be told apart, no qualifiers are written.

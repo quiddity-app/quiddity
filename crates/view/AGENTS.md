@@ -191,7 +191,13 @@ case, but **a capital must start a word (or be that same capital)** and so must
 anything typed after a space, as an IDE's "go to" does. Of the possible
 alignments the best scoring wins (adjacent runs, word starts and the start of
 the name count for more). Its ranges are UTF-16 units, for highlighting.
-`search_titles` runs it over every entity's title, and gives each hit its
+It composes both sides to NFC and folds as `fold` does, so `ß` is `ss` and a
+letter can be several characters of the match (`Unit`s); a name that isn't NFC
+is composed a group at a time (`compose`) so the ranges stay in the text as
+written.
+`search_titles` runs it over every entity's title and every alias (an entity
+is found once, by its best name, the title on a tie; `TitleHit::alias` says
+when it was an alias, and the ranges are then in the alias), and gives each hit its
 properties and the `link` to write (title plus the greedy fewest qualifiers
 that rule out every rival `Index::named` finds; none if some can't be told
 apart), so a completion list needs nothing else. Whitespace in a query is

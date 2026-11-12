@@ -26,7 +26,7 @@ fn is_subsequence(needle: &[char], haystack: &[char]) -> bool {
 }
 
 fn lower(s: &str) -> Vec<char> {
-    s.chars().map(fold).collect()
+    fold(s).chars().collect()
 }
 
 /// What `ranges` pick out of `name`.
@@ -384,4 +384,100 @@ fn the_link_to_write_is_the_escaped_title_and_the_qualifiers() {
     let odd = v.search_titles("odd", 10).unwrap();
     assert_eq!(hit(&odd, "#type(a)").link, r"Odd \[name\] \#1#type(a)");
     assert_eq!(v.search_titles("plain", 10).unwrap()[0].link, "Plain");
+}
+
+#[test]
+fn unicode_form_and_expansions_do_not_matter() {
+    // Composed and decomposed, either way round.
+    assert!(fuzzy_match("cafe\u{301}", "Caf\u{e9}").is_some());
+    assert!(fuzzy_match("caf\u{e9}", "Cafe\u{301}").is_some());
+    // `ß` folds to `ss`, and a query's `ß` to the same.
+    assert!(fuzzy_match("strasse", "Stra\u{df}e").is_some());
+    assert!(fuzzy_match("stra\u{df}e", "Strasse").is_some());
+    // Compatibility forms match their plain spellings.
+    assert!(fuzzy_match("fi", "\u{fb01}sh").is_some());
+    // Zero-width characters are not matched, or needed.
+    assert!(fuzzy_match("ab", "a\u{200b}b").is_some());
+    assert!(fuzzy_match("a\u{200b}b", "ab").is_some());
+}
+
+#[test]
+fn ranges_cover_what_was_written_when_it_was_decomposed() {
+    // `é` as `e` and an accent is two UTF-16 units, one character matched.
+    let m = fuzzy_match("caf\u{e9}", "Cafe\u{301}!").unwrap();
+    assert_eq!(m.ranges, vec![(0, 5)]);
+    let m = fuzzy_match("\u{e9}", "Cafe\u{301}").unwrap();
+    assert_eq!(m.ranges, vec![(3, 5)]);
+    // A letter that expands is highlighted whole, once.
+    let m = fuzzy_match("ss", "Stra\u{df}e").unwrap();
+    assert_eq!(m.ranges, vec![(4, 5)]);
+    // `é` is not `e`: the letter either side of it are separate runs.
+    let m = fuzzy_match("ae", "a\u{e9}e").unwrap();
+    assert_eq!(m.ranges, vec![(0, 1), (2, 3)]);
+}
+
+#[test]
+fn a_title_is_found_by_an_alias() {
+    let v = view_with(|g| {
+        g.create_entity(
+            "Quiddity",
+            &[(
+                "alias",
+                Some(Value::List(vec![
+                    Value::Text("Haecceity".into()),
+                    Value::Text("Whatness".into()),
+                ])),
+            )],
+        )
+        .unwrap();
+        g.create_entity("Other", &[]).unwrap();
+    });
+    let hits = v.search_titles("whatn", 10).unwrap();
+    assert_eq!(titles(&hits), ["Quiddity"]);
+    assert_eq!(hits[0].alias.as_deref(), Some("Whatness"));
+    assert_eq!(hits[0].ranges, vec![(0, 5)]);
+    assert_eq!(hits[0].link, "Quiddity", "the link goes to the title");
+}
+
+#[test]
+fn the_title_wins_a_tie_and_an_entity_is_found_once() {
+    let v = view_with(|g| {
+        g.create_entity("Loro", &[("alias", text_value("Loro"))])
+            .unwrap();
+        g.create_entity(
+            "Doc",
+            &[(
+                "alias",
+                Some(Value::List(vec![
+                    Value::Text("loro crdt".into()),
+                    Value::Text("lore".into()),
+                ])),
+            )],
+        )
+        .unwrap();
+    });
+    let hits = v.search_titles("loro", 10).unwrap();
+    assert_eq!(titles(&hits), ["Loro", "Doc"]);
+    assert_eq!(hits[0].alias, None);
+    // `lore` doesn't match `loro`, and the one that does is the better alias.
+    assert_eq!(hits[1].alias.as_deref(), Some("loro crdt"));
+}
+
+#[test]
+fn the_better_scoring_name_is_the_one_shown() {
+    // Both names match `loro`, the one a lot better than the other.
+    let score = |q, n| fuzzy_match(q, n).unwrap().score;
+    assert!(score("loro", "Loro") > score("loro", "Lorem Roo"));
+    let v = view_with(|g| {
+        g.create_entity("Lorem Roo", &[("alias", text_value("Loro"))])
+            .unwrap();
+        g.create_entity("Loro", &[("alias", text_value("Lorem Roo"))])
+            .unwrap();
+    });
+    let hits = v.search_titles("loro", 10).unwrap();
+    let by_title = |t: &str| hits.iter().find(|h| h.entity.title == t).unwrap();
+    assert_eq!(by_title("Lorem Roo").alias.as_deref(), Some("Loro"));
+    assert_eq!(by_title("Lorem Roo").ranges, vec![(0, 4)]);
+    assert_eq!(by_title("Loro").alias, None);
+    assert_eq!(by_title("Loro").ranges, vec![(0, 4)]);
 }

@@ -13,10 +13,15 @@ pub fn nfc(text: &str) -> Cow<'_, str> {
     }
 }
 
+/// Whether `c` is a combining mark: part of the letter before it.
+pub fn is_mark(c: char) -> bool {
+    is_combining_mark(c)
+}
+
 /// Whether `c` is part of a word for names, tags and search: a letter or
 /// digit, or a combining mark, which belongs to the letter before it.
 pub fn is_word_char(c: char) -> bool {
-    c.is_alphanumeric() || is_combining_mark(c)
+    c.is_alphanumeric() || is_mark(c)
 }
 
 /// Characters that take no space and are not part of a name: the zero-width
