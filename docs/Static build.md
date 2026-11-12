@@ -1,7 +1,7 @@
 - How the UI is built around a graph on disk, rather than for the desktop app.
 - The gate is `QUIDDITY_STATIC_GRAPH`, read by `apps/ui/next.config.ts` at build time.
-	- It names a graph directory, as made by `quiddity-node`.
-	- The directory's `graph.loro` is copied into `public/`, so it is published beside the pages.
+	- It names a snapshot file, as written by `quiddity-node snapshot`.
+	- It is copied into `public/` as `graph.loro`, so it is published beside the pages. It is never the graph's own file, which holds the device's endpoint key. [[Storage]]
 	- `NEXT_PUBLIC_QUIDDITY_STATIC_GRAPH` is set to match, so the choice is made when the bundle is built and not when it runs.
 - With it set, the UI loads its replica from that file (`backend-static.ts`) instead of asking the Tauri shell (`backend-tauri.ts`) or building a made-up graph (`backend-memory.ts`).
 - Without it nothing changes: the desktop app's build has no snapshot and the static backend is not in the bundle.

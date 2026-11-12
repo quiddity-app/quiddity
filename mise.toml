@@ -70,7 +70,9 @@ rm -rf target/docs-graph
 node scripts/journals.mjs
 cargo run -p quiddity-node -- -g target/docs-graph init
 cargo run -p quiddity-node -- -g target/docs-graph import docs
-QUIDDITY_STATIC_GRAPH=$PWD/target/docs-graph pnpm ui build
+# Only the snapshot is published: the graph's own file holds this device's key.
+cargo run -p quiddity-node -- -g target/docs-graph snapshot target/docs-graph/graph.loro
+QUIDDITY_STATIC_GRAPH=$PWD/target/docs-graph/graph.loro pnpm ui build
 """
 
 [tasks.node]

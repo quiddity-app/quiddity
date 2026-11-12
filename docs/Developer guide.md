@@ -23,7 +23,7 @@ favourite:: true
 	- [[Compaction]]: what history each device keeps.
 	- [[Duplicates]]: merging what two devices made at once.
 - On disk
-	- [[Storage]]: the graph's directory, and what is derived.
+	- [[Storage]]: the graph's file, and what is derived.
 	- [[Versioning]]: changing the format without breaking stored graphs.
 	- [[Binaries]]: files in the graph, partly built.
 - This site

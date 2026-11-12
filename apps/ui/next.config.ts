@@ -6,10 +6,11 @@ import type { NextConfig } from "next";
 // page is prerendered, and entities are addressed by search params rather than
 // dynamic path segments (which would need every id known at build time).
 //
-// Setting QUIDDITY_STATIC_GRAPH to a graph directory (as made by
-// `quiddity-node`) instead builds a site showing that graph, for hosting
-// somewhere like GitHub Pages: the graph's snapshot is published beside the
-// pages and loaded by the browser. QUIDDITY_BASE_PATH is where the site is
+// Setting QUIDDITY_STATIC_GRAPH to a snapshot file (as written by
+// `quiddity-node snapshot`, never the graph's own file, which holds the
+// device's key) instead builds a site showing that graph, for hosting
+// somewhere like GitHub Pages: the snapshot is published beside the pages
+// and loaded by the browser. QUIDDITY_BASE_PATH is where the site is
 // served from, such as `/quiddity`. Without the variable the build is the
 // one the Tauri shell embeds, and nothing here changes it.
 const graph = process.env.QUIDDITY_STATIC_GRAPH;
@@ -17,7 +18,7 @@ const basePath = process.env.QUIDDITY_BASE_PATH ?? "";
 
 if (graph) {
   mkdirSync("public", { recursive: true });
-  copyFileSync(join(graph, "graph.loro"), join("public", "graph.loro"));
+  copyFileSync(graph, join("public", "graph.loro"));
 }
 
 const config: NextConfig = {

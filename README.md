@@ -38,6 +38,7 @@ quiddity-node -g ~/graph init --blank    # prints this device's id
 quiddity-node -g ~/graph sync <server id>   # join before editing
 quiddity-node -g ~/graph export ~/export
 quiddity-node -g ~/graph devices           # who holds the graph, and when each last saved
+quiddity-node -g ~/graph snapshot out.loro # the snapshot alone, to publish (the graph's file holds a key)
 ```
 
 Each device keeps only the history some device might still need: what

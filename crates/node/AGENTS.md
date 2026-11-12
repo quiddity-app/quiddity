@@ -15,8 +15,27 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
   `exported N entities to DIR` when done: the signal can't report that, so
   callers wait for the line. Without `--export` the signal is logged and
   ignored (the default action would kill the process).
-- `Store::save` is atomic and durable: a uniquely named temporary is flushed, renamed over the snapshot, and the directory flushed; saves are serialised by a mutex shared by clones, and the previous snapshot is kept as `graph.loro.bak`, which `load` falls back to if the snapshot can't be decoded. The device key is written whole then hard-linked into place, so a crash can't leave a partial one. It is created
-  once with mode 0600; an unreadable key is reported, never replaced.
+- **The graph is one SQLite file, `graph.quiddity`**, with a `snapshot` row
+  and an `endpoint_key` row (`store.rs`). `save` is one transaction in a rollback journal with `synchronous=FULL`, so it
+  is atomic and durable, and it keeps the snapshot it replaces as row 2 (the
+  previous generation), which `load` falls back to if row 1 can't be decoded.
+  Saves are serialised in-process by the `durable` mutex shared by clones, and
+  across processes by the file's lock (`BUSY` bounds the wait). **The file
+  is untrusted input**: `open` checks `application_id`, `user_version` and that
+  the schema is *exactly* the `CREATE` statements in `TABLES`, so extend a table
+  by changing both the statement and `LAYOUT`, with a conversion. Connections
+  set defensive mode and turn triggers, views and trusted schema off; don't
+  loosen those to make something convenient work. The file is made 0600 before
+  SQLite touches it (the key is in it, and SQLite gives its journal the file's
+  mode). Journal mode is `DELETE`, deliberately: WAL leaves `-wal`/`-shm`, which
+  breaks "one file" and copying it. The key is made inside a transaction, so two
+  processes starting together agree on it.
+- **Never publish or copy the graph's file as a snapshot**: it holds the
+  endpoint key. `quiddity-node snapshot` writes the bare Loro snapshot for the
+  static build, and a test checks the key isn't in it.
+- **A directory of the old layout (`graph.loro`, `device.key`) is converted on
+  first open** and the old files renamed `*.migrated`, not deleted. It is built
+  in a staging file and renamed, so a crash leaves no half-made graph.
 - **A claim is only ever about what is already durable.** `Store` keeps the
   version the file is known to hold (`durable`, set by `load` and after each
   successful write), and a save records *that* (`record_stored_at`), not the
