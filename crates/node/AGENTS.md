@@ -17,6 +17,14 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
   ignored (the default action would kill the process).
 - `Store::save` is atomic and durable: a uniquely named temporary is flushed, renamed over the snapshot, and the directory flushed; saves are serialised by a mutex shared by clones, and the previous snapshot is kept as `graph.loro.bak`, which `load` falls back to if the snapshot can't be decoded. The device key is written whole then hard-linked into place, so a crash can't leave a partial one. It is created
   once with mode 0600; an unreadable key is reported, never replaced.
+- **A claim is only ever about what is already durable.** `Store` keeps the
+  version the file is known to hold (`durable`, set by `load` and after each
+  successful write), and a save records *that* (`record_stored_at`), not the
+  version it is about to write: peers compact on the record as soon as it
+  arrives, so a failed write must not have run ahead of the file. The record
+  lags one save. Compaction doesn't: it uses `compaction_point_as`, as if this
+  device had already stored what the save writes, which is safe because the
+  file will hold it. A one-shot CLI command therefore records what it loaded.
 - **Saving records and compacts.** `Store::save` records this device (its
   endpoint ID) in the graph's device list, then writes a shallow snapshot
   at the compaction point (devices silent for `ACTIVE`, 30 days, don't

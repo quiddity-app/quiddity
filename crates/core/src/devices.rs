@@ -25,10 +25,17 @@ pub struct Device {
 
 impl Graph {
     /// Records that the device `id` has stored this replica as it is now.
-    /// Call it just before saving: the record is an edit, saved along with
-    /// what it describes. It syncs to other devices like any edit.
+    /// The record is an edit, and syncs to other devices like any edit.
     pub fn record_stored(&self, id: &str, now: Timestamp) -> Result<()> {
-        let stored = self.version();
+        self.record_stored_at(id, &self.version(), now)
+    }
+
+    /// Records that the device `id` has stored `stored`, which the caller
+    /// knows is already durable: other devices act on the record the moment
+    /// it reaches them, by dropping history up to it, so it must never run
+    /// ahead of what the device has. That is why a save records the version
+    /// the file held before it, not the one it is about to write.
+    pub fn record_stored_at(&self, id: &str, stored: &Version, now: Timestamp) -> Result<()> {
         let entry = self.doc().get_map(DEVICES).ensure_mergeable_map(id)?;
         entry.insert(STORED, stored.encode())?;
         entry.insert(SEEN, now.as_millisecond())?;
@@ -93,8 +100,36 @@ impl Graph {
     /// back. If it returns with edits made on history others have dropped,
     /// they can't be applied.
     pub fn compaction_point(&self, now: Timestamp, active: SignedDuration) -> Option<Version> {
-        let stored: Vec<Version> = self
-            .devices()
+        self.compaction_point_of(self.devices(), now, active)
+    }
+
+    /// [`Graph::compaction_point`] as it will be once the device `id` has
+    /// stored `stored`, which it is about to: a save compacts at what the file
+    /// will then hold, though it may record only what it held before.
+    pub fn compaction_point_as(
+        &self,
+        now: Timestamp,
+        active: SignedDuration,
+        id: &str,
+        stored: &Version,
+    ) -> Option<Version> {
+        let mut devices = self.devices();
+        devices.retain(|d| d.id != id);
+        devices.push(Device {
+            id: id.to_owned(),
+            stored: stored.clone(),
+            seen: now,
+        });
+        self.compaction_point_of(devices, now, active)
+    }
+
+    fn compaction_point_of(
+        &self,
+        devices: Vec<Device>,
+        now: Timestamp,
+        active: SignedDuration,
+    ) -> Option<Version> {
+        let stored: Vec<Version> = devices
             .into_iter()
             .filter(|d| now.duration_since(d.seen) <= active)
             .map(|d| d.stored)
@@ -180,6 +215,52 @@ mod tests {
             .unwrap()
             .stored;
         assert_eq!(point("2026-10-27T00:00Z"), Some(stored));
+        Ok(())
+    }
+
+    /// A record says the version it is given, not the one the replica has
+    /// reached since.
+    #[test]
+    fn a_record_says_what_it_is_given() -> Result<()> {
+        let graph = Graph::new();
+        let stored = graph.version();
+        graph.create_block(None, None, "later")?;
+        graph.commit();
+        graph.record_stored_at("me", &stored, at("2026-10-26T00:00Z"))?;
+        assert_eq!(graph.devices()[0].stored, stored);
+        Ok(())
+    }
+
+    /// Compacting as if a device had stored a version takes that in place of
+    /// what it recorded, and leaves the others as they are.
+    #[test]
+    fn compaction_as_if_a_device_had_stored() -> Result<()> {
+        let now = at("2026-10-26T00:00Z");
+        let graph = Graph::new();
+        let old = graph.version();
+        graph.vouch_for("other", &old, now)?;
+        graph.record_stored_at("me", &old, now)?;
+        graph.create_block(None, None, "new")?;
+        graph.commit();
+        let new = graph.version();
+
+        assert_eq!(graph.compaction_point(now, MONTH), Some(old.clone()));
+        assert_eq!(
+            graph.compaction_point_as(now, MONTH, "me", &new),
+            Some(old.clone()),
+            "the other device still holds it back"
+        );
+        graph.record_stored_at("other", &new, now)?;
+        assert_eq!(
+            graph.compaction_point_as(now, MONTH, "me", &new),
+            Some(new.clone())
+        );
+        assert_eq!(graph.compaction_point(now, MONTH), Some(old));
+
+        // A device that has never recorded counts too, and counts as seen now.
+        let fresh = Graph::new();
+        let v = fresh.version();
+        assert_eq!(fresh.compaction_point_as(now, MONTH, "me", &v), Some(v));
         Ok(())
     }
 }
