@@ -1,0 +1,24 @@
+alias:: [node map]
+
+- Planned, not built. How a device notices that a graph has been copied, so that two replicas never edit under one node ID. [[Identity]]
+- Why it matters
+	- A graph is a directory. A person can copy it, back it up, restore a backup over it, or have a file-sync service duplicate it, and nothing stops them. Each copy is a full replica, which is fine, but two replicas that both go on making edits as the same node have two histories under one [[Loro]] peer ID, and Loro cannot hold both. [[Identity]]
+	- The graph can't say this about itself: a copy has all of the original's records, and is the original until the first edit that differs.
+- The map
+	- The app keeps a table beside the device key, in the device's own configuration directory and never in a graph, so that a copied graph doesn't take it along: node ID, graph ID, path, what the node is for (the shell's replica, or the UI's), and when it was last opened. TOML. [[toml]]
+	- The graph's directory keeps its own node ID, stored in the form that only this device can read. [[Identity]]
+- Opening a graph
+	- The shell reads the directory's node ID. Before any edit, three things can be wrong, and it decides which by looking.
+	- **There is none, or it can't be read with this device's key.** The directory was made on another device, or by an earlier version. This replica takes a new node ID and records it. Nothing is lost: the old ID's changes are history like any other's.
+	- **The map has the ID at another path.** The old path is looked at:
+		- Gone, or no longer holding that node ID: the graph was moved. The map is updated.
+		- Still there, holding the same ID: the graph was copied. The directory opened second takes a new node ID, before anything is edited, and both are recorded. Which is the original is whichever the map saw first, so a person who opens the copy first has the original forked. Both are valid replicas and sync as any two do, so this is a nuisance only: the device list shows an extra node.
+	- **The ID isn't in the map.** The map was lost, or this is the first run with it. The path is recorded.
+	- Paths are compared after resolving links, and on a file system that is case-insensitive, case is ignored.
+- Noticing afterwards
+	- The map can't see a copy made while the app was closed and opened on another machine with the same key, or a backup restored over a graph. Both leave a replica that doesn't know that other changes were made under its ID.
+	- A replica that is sent changes from its own node ID, beyond what it has stored, knows it has a twin or has been put back. It stops editing as that node, takes a new node ID, and then imports them. It tells the person, since a twin that kept editing may have made changes that can't be merged.
+	- How Loro treats two changes with the same ID and counter and different content is not yet checked: it may refuse the second or keep one silently. That decides whether this is a way to recover or only a way to report. It needs a test before it is built.
+- Not covered
+	- Someone who copies the device key with the graph is the same device, to this design, and nothing tells them apart. The key is the thing to keep safe. [[Identity]]
+	- The headless [[quiddity-node]] has the same files and the same rules. Its map is in its own configuration directory, and it refuses to start on a copy it can't tell from the original, rather than forking it without being asked.
