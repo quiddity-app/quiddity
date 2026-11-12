@@ -6,6 +6,7 @@ mod common;
 use common::{Op, op};
 use proptest::collection::vec;
 use proptest::prelude::*;
+use quiddity_core::syntax::nfc;
 use quiddity_core::{BlockId, Graph};
 
 #[derive(Debug, Default)]
@@ -84,9 +85,9 @@ proptest! {
                     let parent = parent.as_ref().and_then(pick);
                     let at = at.index(model.siblings(parent).len() + 1);
                     let id = graph.create_block(parent.map(|p| ids[p]), Some(at), text).unwrap();
-                    let made = model.create(parent, at, text.clone());
+                    let made = model.create(parent, at, nfc(text).into_owned());
                     // Making a block with no text writes nothing to its text.
-                    if !text.is_empty() {
+                    if !nfc(text).is_empty() {
                         touched.push(made);
                     }
                     ids.push(id);
@@ -116,6 +117,7 @@ proptest! {
                 Op::SetText { block, text } => {
                     let Some(block) = pick(block) else { continue };
                     graph.set_text(ids[block], text).unwrap();
+                    let text = &nfc(text).into_owned();
                     if model.text[block] != *text {
                         touched.push(block);
                     }

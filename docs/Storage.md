@@ -1,5 +1,6 @@
 - What a device keeps on disk, and what it works out again.
 - The [[Loro]] document is the only source of truth.
+	- Text is stored in Unicode NFC. [[Unicode normalisation]]
 	- A graph on disk is a directory, made by `quiddity-node init`. It holds `graph.loro`, the graph's snapshot, and `device.key`, the device's secret key. [[quiddity-node]]
 	- Saving writes the whole snapshot atomically, by writing a new file and renaming it over the old. It records this device in the graph's device list first, and compacts what it writes. [[Compaction]]
 	- [[The shell]] keeps its graph the same way, in the app's data directory, or wherever `QUIDDITY_GRAPH` says. It saves after each batch of updates from the UI.

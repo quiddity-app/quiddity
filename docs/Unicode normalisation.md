@@ -1,0 +1,13 @@
+- Text is kept in one form and compared in another, so that text which looks the same is the same.
+- Storage is NFC
+	- Block text is composed (NFC) when it is written to the graph: creating a block, setting its text, and the text inserted by an edit. `é` typed as one character or as `e` and an accent is stored the same way, whichever device or input method made it.
+	- NFC changes only canonically equivalent text. Compatibility forms such as `ﬁ` and `Ａ` are stored as written.
+	- An edit is composed on its own, not with the text around it: an accent inserted after an `e` by a separate edit stays decomposed in storage until the block's text is next set. Comparison and search still treat it as `é`. [[Editing]]
+- Comparison and search are NFKC and case folded
+	- Names (links, aliases, property keys, tags) and the words of [[Text search]] are put through NFKC, so compatibility forms match their plain spellings, and then Unicode case folding, so `Straße` matches `STRASSE`. `normalise_name` and `fold` in [[quiddity-syntax]] do it.
+	- Zero-width spaces, word joiners and byte order marks are dropped from names. The zero-width joiner and non-joiner are kept, because emoji sequences and some scripts need them.
+	- Combining marks belong to the letter before them, in tag keys as well as in search words: `#cafe\u0301` is the tag `café`.
+	- What is stored is not changed by this: a name keeps the spelling it was written with, and only the comparison key is folded.
+- Not built
+	- Title completion (`search_titles`) matches titles by characters in order and doesn't fold Unicode form, and doesn't search aliases.
+	- Export file-name comparison (#283) doesn't use these rules yet.

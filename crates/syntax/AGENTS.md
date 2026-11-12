@@ -16,6 +16,11 @@ The reference parser and formatter for block text: `key:: value` lines,
 - **Link escaping is context-free**: `\`, `[` and `]` always, and `#`
   before a key character or `[`. A link reads back the same wherever it
   appears.
+- **Names compare as `normalise_name` makes them**: NFKC, case folded, no
+  zero-width space, word joiner or byte order mark. Storage is NFC (`nfc`,
+  applied by `quiddity-core` when text is written). Don't compare names with
+  `to_lowercase`. `is_word_char` (letters, digits and combining marks) is shared
+  by tag keys and the search tokeniser.
 - **Keys and link names are single lines.** They're titles, written with
   whitespace collapsed (`normalise_name`); the generators exclude `\n` and
   `\r` for that reason.

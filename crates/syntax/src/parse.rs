@@ -478,7 +478,7 @@ pub(crate) fn is_key_start(c: char) -> bool {
 }
 
 fn is_key_char(c: char) -> bool {
-    c.is_alphanumeric() || matches!(c, '_' | '-' | '/' | '.')
+    crate::name::is_word_char(c) || matches!(c, '_' | '-' | '/' | '.')
 }
 
 pub(crate) fn is_escapable(c: char) -> bool {
@@ -878,6 +878,12 @@ mod tests {
                 prop("due date", None),
             ]
         );
+    }
+
+    #[test]
+    fn tag_keys_include_combining_marks() {
+        assert_eq!(props("#cafe\u{301}"), vec![prop("cafe\u{301}", None)]);
+        assert_eq!(props("#caf\u{e9}"), vec![prop("caf\u{e9}", None)]);
     }
 
     #[test]

@@ -10,6 +10,7 @@ use loro::{
     LoroValue, TreeID, TreeParentId, UndoManager, UpdateOptions, ValueOrContainer, VersionVector,
 };
 
+use crate::syntax::nfc;
 use crate::{Error, Result};
 
 const BLOCKS: &str = "blocks";
@@ -524,7 +525,7 @@ impl Graph {
     /// that it merges cleanly with concurrent edits.
     pub fn set_text(&self, id: BlockId, text: &str) -> Result<()> {
         self.text_container(id)?
-            .update(text, UpdateOptions::default())?;
+            .update(&nfc(text), UpdateOptions::default())?;
         Ok(())
     }
 
@@ -537,7 +538,7 @@ impl Graph {
         if end > text.len_utf16() {
             return Err(Error::OutOfRange(id));
         }
-        text.splice_utf16(pos, len, insert)?;
+        text.splice_utf16(pos, len, &nfc(insert))?;
         Ok(())
     }
 
@@ -565,7 +566,7 @@ impl Graph {
         };
         let meta = tree.get_meta(node)?;
         meta.insert_container(TEXT, LoroText::new())?
-            .insert(0, text)?;
+            .insert(0, &nfc(text))?;
         Ok(BlockId(node))
     }
 
@@ -616,6 +617,19 @@ mod tests {
 
     // Tree operations are checked against a model in tests/graph_model.rs,
     // and snapshots and updates in tests/sync.rs.
+
+    #[test]
+    fn text_is_stored_composed() -> Result<()> {
+        let graph = Graph::new();
+        let page = graph.create_block(None, None, "Cafe\u{301}")?;
+        assert_eq!(graph.text(page)?, "Caf\u{e9}");
+        graph.set_text(page, "Nin\u{303}o")?;
+        assert_eq!(graph.text(page)?, "Ni\u{f1}o");
+        let len = graph.text_len_utf16(page)?;
+        graph.splice_text(page, len, 0, " re\u{301}sume\u{301}")?;
+        assert_eq!(graph.text(page)?, "Ni\u{f1}o r\u{e9}sum\u{e9}");
+        Ok(())
+    }
 
     #[test]
     fn deleted_blocks_are_gone() -> Result<()> {

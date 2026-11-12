@@ -5,3 +5,4 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc 359b6d41b242eb0dc2d74a1b3ad3fc12ce0113eda226b55fa531f992290b64af # shrinks to ops = [Create { parent: None, at: Index(0), text: "" }, Create { parent: None, at: Index(0), text: "" }, Create { parent: None, at: Index(0), text: "" }, Create { parent: None, at: Index(3154), text: ")\t-" }, Delete { block: Index(12846446044093094953) }, Create { parent: Some(Index(17965064983340014457)), at: Index(15565836129984240641), text: " [\tl\t\t:n)\t ]" }, Move { block: Index(14309415808988199969), parent: Some(Index(9306215261345054019)), at: Index(13191568365495496364) }]
+cc b5ff2fce928b8c56de9706dedbb6098ff69d9668e63b3a2eb917f0156d9c83e6 # shrinks to ops = [Create { parent: None, at: Index(0), text: "ύ" }]

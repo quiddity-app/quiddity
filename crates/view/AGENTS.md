@@ -199,7 +199,7 @@ never matched itself. Tests use the weights by name, so retuning them doesn't
 break the tests; the ranking tests are the ones to read when changing them.
 
 `search_text` (`fts.rs`) is full-text search over block text: words are runs
-of letters and digits, compared ignoring case; a block is found when every
+of letters, digits and combining marks, compared as `fold` makes them (NFKC, case folded; offsets stay those of the original text); a block is found when every
 query word matches one of its words, **the last also as a prefix** (the query
 is usually still being typed). Blocks are ranked by BM25 with a bonus when a
 multi-word query's words are together and in order. **It tokenises every

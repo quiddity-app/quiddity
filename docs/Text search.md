@@ -1,6 +1,6 @@
 - Finding a block by the words in it. [[Search]]
 - The rules
-	- Words are runs of letters and digits, compared ignoring case. Punctuation and emoji separate words.
+	- Words are runs of letters, digits and combining marks, compared by [[Unicode normalisation]]: ignoring case and Unicode form, so `Cafe\u0301` finds `Café` and `STRASSE` finds `Straße`. Punctuation and emoji separate words.
 	- A block is found when every query word matches one of its words. The last may be unfinished, because the query is usually still being typed: `note` finds `notes`, but `not loro` doesn't find `notes on loro`.
 	- An entity's own name is not text. [[Title matching]] has titles.
 - Ranking is BM25.
