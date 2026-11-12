@@ -256,7 +256,8 @@ function row(hit: TitleHit, selected: boolean, onChoose: () => void): HTMLElemen
   const title = document.createElement("div");
   title.style.cssText = "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
   let at = 0;
-  const label = hit.entity.title;
+  // The ranges are in the alias when that is what matched.
+  const label = hit.alias ?? hit.entity.title;
   for (const [start, end] of hit.ranges) {
     if (start > at) title.append(label.slice(at, start));
     const mark = document.createElement("mark");
@@ -266,6 +267,14 @@ function row(hit: TitleHit, selected: boolean, onChoose: () => void): HTMLElemen
     at = end;
   }
   title.append(label.slice(at));
+  if (hit.alias !== null) {
+    // What it will be written as, when that isn't what was matched.
+    const target = document.createElement("span");
+    target.textContent = `→ ${hit.entity.title}`;
+    target.className = "cm-link-completion-alias";
+    target.style.cssText = "opacity:0.7;margin-left:0.25rem;";
+    title.append(target);
+  }
   if (hit.qualifiers) {
     const qualifiers = document.createElement("span");
     qualifiers.textContent = hit.qualifiers;

@@ -74,6 +74,17 @@ impl EntityInfo {
         crate::Asset::of(&self.meta)
     }
 
+    /// The other names it answers to: the items of every `alias` property,
+    /// which may each be a single name or a list of them.
+    pub fn aliases(&self) -> Vec<&Value> {
+        self.values("alias")
+            .flat_map(|v| match v {
+                Value::List(items) => items.iter().collect(),
+                v => vec![v],
+            })
+            .collect()
+    }
+
     /// Values of every instance of the property `key`.
     pub fn values<'a>(&'a self, key: &str) -> impl Iterator<Item = &'a Value> + 'a {
         let key = normalise_name(key);
@@ -225,12 +236,8 @@ impl Index {
             if index.canonical.contains_key(&info.id) {
                 continue;
             }
-            let aliases = info.values("alias").flat_map(|v| match v {
-                Value::List(items) => items.iter().collect(),
-                v => vec![v],
-            });
-            let names =
-                std::iter::once(normalise_name(&info.name)).chain(aliases.map(canonical_value));
+            let names = std::iter::once(normalise_name(&info.name))
+                .chain(info.aliases().into_iter().map(canonical_value));
             for name in names.filter(|n| !n.is_empty()) {
                 index.by_name.entry(name).or_default().insert(info.id);
             }

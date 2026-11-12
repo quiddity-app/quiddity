@@ -10,7 +10,7 @@
 	- The matching is in `quiddity-view`, so it is property-tested and mutation-tested natively, and reaches the UI through `quiddity-wasm`. The facets in `apps/ui/lib/search` only turn its answers into hits.
 	- Nothing is cached: a query is rarely asked twice, and the panel asks on every keystroke.
 - Not built yet
-	- Page aliases, so that a renamed page is found by its old name.
+	- Page aliases in the full-text search, which has none: titles and aliases are found by [[Title matching]].
 	- An actions facet, which needs a registry of commands.
 	- Ranking across sections, with embeddings and a model for which result matters most. Each facet's scores only mean anything beside its own.
 	- Settings and sync status in the action strip, beside Search.

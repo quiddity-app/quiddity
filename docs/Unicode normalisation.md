@@ -8,6 +8,6 @@
 	- Zero-width spaces, word joiners and byte order marks are dropped from names. The zero-width joiner and non-joiner are kept, because emoji sequences and some scripts need them.
 	- Combining marks belong to the letter before them, in tag keys as well as in search words: `#cafe\u0301` is the tag `café`.
 	- What is stored is not changed by this: a name keeps the spelling it was written with, and only the comparison key is folded.
+- Title matching folds the same way, and matches aliases too. [[Title matching]]
 - Not built
-	- Title completion (`search_titles`) matches titles by characters in order and doesn't fold Unicode form, and doesn't search aliases.
 	- Export file-name comparison (#283) doesn't use these rules yet.

@@ -173,8 +173,12 @@ export interface Reference {
 export interface TitleHit {
   entity: EntityRef;
   score: number;
-  /** The matched text in the title, as ascending `[start, end)` runs of UTF-16 units. */
+  /** The matched text, as ascending `[start, end)` runs of UTF-16 units: in
+   * `alias` if there is one, else in the title. */
   ranges: [number, number][];
+  /** The alias that matched better than the title did, if one did. A link
+   * to it is still written with the title. */
+  alias: string | null;
   /** The entity's properties, each once, in the order written. */
   properties: { key: string; value: string | null }[];
   /** The `#key(value)` qualifiers that pick this entity out from others of

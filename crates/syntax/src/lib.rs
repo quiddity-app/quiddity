@@ -28,7 +28,7 @@ pub use format::{
     format_key, format_link, format_meta_line, format_meta_value_line, format_property_line,
     format_qualifier, format_tag, format_value,
 };
-pub use name::{fold, is_word_char, nfc, normalise_name};
+pub use name::{fold, is_mark, is_word_char, nfc, normalise_name};
 pub use parse::{
     Block, Link, MetaProperty, PropertiesBlock, Property, PropertyStyle, Qualifier, Value,
     is_properties_block, parse_block, parse_line_value, parse_meta_line, parse_meta_value_line,

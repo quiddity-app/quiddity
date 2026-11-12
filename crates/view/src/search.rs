@@ -1,10 +1,13 @@
 //! Search: fuzzy matching of names, and the title search built on it.
 
+use std::borrow::Cow;
 use std::cmp::Reverse;
 use std::collections::BTreeMap;
 
-use quiddity_core::syntax::{Link, Qualifier, Value, format_qualifier};
-use quiddity_core::{BlockId, Index};
+use quiddity_core::syntax::{
+    Link, Qualifier, Value, fold, format_qualifier, is_mark, is_word_char, nfc,
+};
+use quiddity_core::{BlockId, EntityInfo, Index};
 use serde::Serialize;
 
 use crate::query::{EntityRef, link_key, link_qualifiers};
@@ -45,8 +48,68 @@ struct QueryChar {
     word_start: bool,
 }
 
-fn fold(c: char) -> char {
-    c.to_lowercase().next().unwrap_or(c)
+/// Pushes what `c` compares as (see `quiddity_core::syntax::fold`), which is
+/// more than one character for `ß` and `ﬁ` and none for a zero-width space.
+fn push_folded(c: char, out: &mut Vec<char>) {
+    if c.is_ascii() {
+        out.push(c.to_ascii_lowercase());
+    } else {
+        out.extend(fold(c.encode_utf8(&mut [0; 4])).chars());
+    }
+}
+
+/// A character of the name as it is matched. One character of the name is
+/// several when it folds to several, and none when it folds to nothing.
+struct Unit {
+    folded: char,
+    /// The index in the name's characters, which tell what was typed, where
+    /// words start, and where it is in the text.
+    src: usize,
+    /// Whether this is the first of the units of its character: the one that
+    /// can start a word or be the same capital.
+    first: bool,
+}
+
+/// The characters of `name` with where each is in `name`, in UTF-16 units.
+///
+/// A name that isn't NFC, as one made before text was stored composed may not
+/// be, is composed here, a letter with its marks at a time. The characters of
+/// one such group share its span, so a highlight covers whatever was written.
+fn compose(name: &str) -> (Vec<char>, Vec<(usize, usize)>) {
+    let mut chars = Vec::with_capacity(name.len());
+    let mut spans = Vec::with_capacity(name.len());
+    let mut units = 0;
+    if matches!(nfc(name), Cow::Borrowed(_)) {
+        for c in name.chars() {
+            chars.push(c);
+            spans.push((units, units + c.len_utf16()));
+            units += c.len_utf16();
+        }
+        return (chars, spans);
+    }
+    let mut group = String::new();
+    let mut start = 0;
+    let flush = |group: &mut String,
+                 start: usize,
+                 end: usize,
+                 chars: &mut Vec<char>,
+                 spans: &mut Vec<(usize, usize)>| {
+        for c in nfc(group).chars() {
+            chars.push(c);
+            spans.push((start, end));
+        }
+        group.clear();
+    };
+    for c in name.chars() {
+        if !group.is_empty() && !is_mark(c) {
+            flush(&mut group, start, units, &mut chars, &mut spans);
+            start = units;
+        }
+        group.push(c);
+        units += c.len_utf16();
+    }
+    flush(&mut group, start, units, &mut chars, &mut spans);
+    (chars, spans)
 }
 
 /// The characters that must be matched: whitespace separates and is never
@@ -54,16 +117,24 @@ fn fold(c: char) -> char {
 fn query_chars(query: &str) -> Vec<QueryChar> {
     let mut out = Vec::new();
     let mut after_space = false;
-    for c in query.chars() {
+    let mut folded = Vec::new();
+    for c in nfc(query).chars() {
         if c.is_whitespace() {
             after_space = true;
             continue;
         }
-        out.push(QueryChar {
-            folded: fold(c),
-            typed: c,
-            word_start: c.is_uppercase() || (after_space && c.is_alphanumeric() && !out.is_empty()),
-        });
+        let word_start =
+            c.is_uppercase() || (after_space && c.is_alphanumeric() && !out.is_empty());
+        folded.clear();
+        push_folded(c, &mut folded);
+        // Only the first of the characters a letter folds to starts a word.
+        for (k, &f) in folded.iter().enumerate() {
+            out.push(QueryChar {
+                folded: f,
+                typed: c,
+                word_start: word_start && k == 0,
+            });
+        }
         after_space = false;
     }
     out
@@ -80,7 +151,7 @@ fn word_starts(chars: &[char]) -> Vec<bool> {
                 return c.is_alphanumeric();
             };
             c.is_alphanumeric()
-                && (!prev.is_alphanumeric()
+                && (!is_word_char(prev)
                     || (c.is_uppercase() && prev.is_lowercase())
                     || (c.is_uppercase()
                         && prev.is_uppercase()
@@ -103,23 +174,40 @@ fn word_starts(chars: &[char]) -> Vec<bool> {
 #[must_use]
 pub fn fuzzy_match(query: &str, name: &str) -> Option<Match> {
     let query = query_chars(query);
-    let chars: Vec<char> = name.chars().collect();
+    let (chars, spans) = compose(name);
     let starts = word_starts(&chars);
-    let folded: Vec<char> = chars.iter().map(|&c| fold(c)).collect();
-    let (m, n) = (query.len(), chars.len());
+    let mut units = Vec::with_capacity(chars.len());
+    let mut folded = Vec::new();
+    for (src, &c) in chars.iter().enumerate() {
+        folded.clear();
+        push_folded(c, &mut folded);
+        units.extend(folded.iter().enumerate().map(|(k, &folded)| Unit {
+            folded,
+            src,
+            first: k == 0,
+        }));
+    }
+    let (m, n) = (query.len(), units.len());
     if m == 0 || m > n {
         return None;
     }
 
     let fits = |i: usize, j: usize| {
-        let q = &query[i];
-        q.folded == folded[j]
-            && (!q.word_start || starts[j] || (q.typed.is_uppercase() && chars[j] == q.typed))
+        let (q, u) = (&query[i], &units[j]);
+        q.folded == u.folded
+            && (!q.word_start
+                || (u.first
+                    && (starts[u.src] || (q.typed.is_uppercase() && chars[u.src] == q.typed))))
     };
     let here = |i: usize, j: usize| {
+        let u = &units[j];
         MATCH
-            + if starts[j] { WORD_START } else { 0 }
-            + if chars[j] == query[i].typed {
+            + if u.first && starts[u.src] {
+                WORD_START
+            } else {
+                0
+            }
+            + if u.first && chars[u.src] == query[i].typed {
                 SAME_CASE
             } else {
                 0
@@ -175,26 +263,19 @@ pub fn fuzzy_match(query: &str, name: &str) -> Option<Match> {
     }
     Some(Match {
         // Shorter names beat longer ones that match the same way.
-        score: score - n as i32,
-        ranges: utf16_runs(&chars, &at),
+        score: score - chars.len() as i32,
+        ranges: utf16_runs(&at.iter().map(|&u| spans[units[u].src]).collect::<Vec<_>>()),
     })
 }
 
-/// `at` (ascending character indices of `chars`) as runs of UTF-16 units.
-fn utf16_runs(chars: &[char], at: &[usize]) -> Vec<(usize, usize)> {
-    let mut offsets = Vec::with_capacity(chars.len() + 1);
-    let mut units = 0;
-    for c in chars {
-        offsets.push(units);
-        units += c.len_utf16();
-    }
-    offsets.push(units);
-
+/// The spans of the matched characters, in order, as runs: spans that touch
+/// or share text make one.
+fn utf16_runs(matched: &[(usize, usize)]) -> Vec<(usize, usize)> {
     let mut runs: Vec<(usize, usize)> = Vec::new();
-    for (k, &j) in at.iter().enumerate() {
+    for &(start, end) in matched {
         match runs.last_mut() {
-            Some(run) if at[k - 1] + 1 == j => run.1 = offsets[j + 1],
-            _ => runs.push((offsets[j], offsets[j + 1])),
+            Some(run) if start <= run.1 => run.1 = run.1.max(end),
+            _ => runs.push((start, end)),
         }
     }
     runs
@@ -215,8 +296,12 @@ pub struct HitProperty {
 pub struct TitleHit {
     pub entity: EntityRef,
     pub score: i32,
-    /// As [`Match::ranges`], in the title.
+    /// As [`Match::ranges`], in the title, or in `alias` when there is one.
     pub ranges: Vec<(usize, usize)>,
+    /// The alias that matched, when it beat the title: what the entity was
+    /// called, or is also called. The `link` is still to the title, which
+    /// the alias reaches.
+    pub alias: Option<String>,
     /// The entity's properties, without repeats, in the order written.
     pub properties: Vec<HitProperty>,
     /// The `#key(value)` qualifiers that make a link to this title reach this
@@ -315,29 +400,45 @@ fn qualifiers_for(index: &Index, id: BlockId, title: &str) -> Vec<Qualifier> {
 }
 
 impl View {
-    /// The entities whose titles match `query` (see [`fuzzy_match`]), best
-    /// first and at most `limit`. Equal scores are in title order.
+    /// The entities whose titles or aliases match `query` (see
+    /// [`fuzzy_match`]), best first and at most `limit`. An entity is found
+    /// once, by whichever of its names matches best, the title if it ties.
+    /// Equal scores are in title order.
     pub fn search_titles(&self, query: &str, limit: usize) -> Result<Vec<TitleHit>> {
-        let mut hits: Vec<(EntityRef, Match)> = self
-            .entities()?
-            .into_iter()
-            .filter_map(|entity| {
-                let m = fuzzy_match(query, &entity.title)?;
-                Some((entity, m))
-            })
-            .collect();
+        let mut hits: Vec<(EntityRef, Match, Option<String>)> = Vec::new();
+        let index = self.index()?;
+        for entity in self.entities()? {
+            let id = self.entity_id(&entity.id)?;
+            let mut best = fuzzy_match(query, &entity.title).map(|m| (m, None));
+            for alias in index
+                .entity(id)
+                .map(EntityInfo::aliases)
+                .unwrap_or_default()
+            {
+                let alias = plain(alias);
+                let Some(m) = fuzzy_match(query, &alias) else {
+                    continue;
+                };
+                if best.as_ref().is_none_or(|(b, _)| m.score > b.score) {
+                    best = Some((m, Some(alias)));
+                }
+            }
+            if let Some((m, alias)) = best {
+                hits.push((entity, m, alias));
+            }
+        }
         // Stable, and `entities` is in title order.
-        hits.sort_by_key(|(_, m)| Reverse(m.score));
+        hits.sort_by_key(|(_, m, _)| Reverse(m.score));
         hits.truncate(limit);
         let ids = hits
             .iter()
-            .map(|(e, _)| self.entity_id(&e.id))
+            .map(|(e, ..)| self.entity_id(&e.id))
             .collect::<Result<Vec<_>>>()?;
         let index = self.index()?;
         Ok(hits
             .into_iter()
             .zip(ids)
-            .map(|((entity, m), id)| {
+            .map(|((entity, m, alias), id)| {
                 let link = Link {
                     name: entity.title.clone(),
                     qualifiers: qualifiers_for(&index, id, &entity.title),
@@ -349,6 +450,7 @@ impl View {
                     entity,
                     score: m.score,
                     ranges: m.ranges,
+                    alias,
                 }
             })
             .collect())

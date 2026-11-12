@@ -7,7 +7,7 @@ use proptest::collection::vec;
 use proptest::prelude::*;
 use proptest::sample::Index as Pick;
 use quiddity_core::syntax::{Link, Qualifier, Value, format_link, format_tag, normalise_name};
-use quiddity_core::{Backlink, BlockId, Graph, Index, Resolution};
+use quiddity_core::{Backlink, BlockId, Graph, Index, Resolution, canonical_value};
 
 // Small pools, so that names, keys and values collide often. Names and
 // values differ in case and spacing to exercise normalisation, and `alias`
@@ -422,4 +422,23 @@ fn both_forms_of_a_tag_are_the_entity_s_tag() {
     assert_eq!(ask("planet"), [short, long]);
     assert_eq!(ask("hot"), [long]);
     assert!(ask("cold").is_empty());
+}
+
+/// An entity's aliases are the items of every `alias` property, a single name
+/// or a list, and nothing else.
+#[test]
+fn aliases_are_the_items_of_every_alias_property() {
+    let graph = Graph::new();
+    let root = graph.create_block(None, None, "Mercury").unwrap();
+    graph
+        .create_block(
+            Some(root),
+            None,
+            "alias:: Quicksilver\nalias:: [Hermes, Messenger]\nkind:: planet",
+        )
+        .unwrap();
+    let index = Index::build(&graph).unwrap();
+    let info = index.entities().next().unwrap();
+    let aliases: Vec<String> = info.aliases().into_iter().map(canonical_value).collect();
+    assert_eq!(aliases, ["quicksilver", "hermes", "messenger"]);
 }
