@@ -127,7 +127,15 @@ export interface Summary extends EntityRef {
 /** Every entity, and which link to which: one edge per pair, however many links. */
 export interface Connections {
   nodes: EntityRef[];
-  edges: { source: EntityId; target: EntityId }[];
+  /** `weak` ones are made by a property, between each end of it and the
+   * entity that defines it, and are drawn lighter. */
+  edges: { source: EntityId; target: EntityId; weak: boolean }[];
+}
+
+/** An entity that has a property, and the values it has it with. */
+export interface Use {
+  entity: EntityRef;
+  values: string[];
 }
 
 export interface Entity extends EntityRef {

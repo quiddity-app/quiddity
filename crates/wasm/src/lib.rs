@@ -169,6 +169,11 @@ impl Replica {
         js(&self.view.references(id)?)
     }
 
+    /// Who has the property the entity defines, grouped by entity.
+    pub fn uses(&self, id: &str) -> Result<JsValue, JsError> {
+        js(&self.view.uses(id)?)
+    }
+
     #[wasm_bindgen(js_name = unlinkedReferences)]
     pub fn unlinked_references(&self, id: &str) -> Result<JsValue, JsError> {
         js(&self.view.unlinked_references(id)?)

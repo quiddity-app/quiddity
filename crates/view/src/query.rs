@@ -6,8 +6,8 @@ use jiff::Timestamp;
 use jiff::civil::Date;
 use quiddity_core::schema::{Typed, coerce};
 use quiddity_core::syntax::{
-    Link, MetaProperty, Property as Prop, PropertyStyle, Value, format_link, is_properties_block,
-    normalise_name, parse_block, parse_properties_block,
+    Link, MetaProperty, Property as Prop, PropertyStyle, Value, format_link, format_value,
+    is_properties_block, normalise_name, parse_block, parse_properties_block,
 };
 use quiddity_core::{BlockId, Home, Identity, Index, Resolution, ensure_journal};
 use serde::Serialize;
@@ -83,6 +83,10 @@ pub enum Start {
 pub struct Edge {
     pub source: String,
     pub target: String,
+    /// A link made by a property rather than written: from each end of a
+    /// property to the entity that defines it. Drawn lighter, and not a
+    /// reference. A pair that is also linked outright is one strong edge.
+    pub weak: bool,
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
@@ -314,6 +318,25 @@ pub struct Reference {
     pub links: BTreeMap<String, ResolvedLink>,
 }
 
+/// One entity that has a property, with the values it has it with.
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct Use {
+    pub entity: EntityRef,
+    /// Each instance's value as written, in order. An instance with none
+    /// (a tag, say) is an empty string.
+    pub values: Vec<String>,
+}
+
+/// The links in a property's value, which may be a list of them.
+fn links_of(value: &Value) -> Vec<&Link> {
+    match value {
+        Value::Link(link) => vec![link],
+        Value::List(items) => items.iter().flat_map(links_of).collect(),
+        Value::Text(_) | Value::BlockRef(_) => Vec::new(),
+    }
+}
+
 impl View {
     pub(crate) fn entity_id(&self, id: &str) -> Result<BlockId> {
         let bad = || Error::NotAnEntity(id.to_owned());
@@ -503,6 +526,7 @@ impl View {
                     edges.insert(Edge {
                         source: source.to_string(),
                         target: v.id.clone(),
+                        weak: false,
                     });
                 }
             }
@@ -519,15 +543,108 @@ impl View {
                         edges.insert(Edge {
                             source: source.to_string(),
                             target: target.id.to_string(),
+                            weak: false,
                         });
                     }
                 }
             }
         }
+        self.add_weak_edges(&mut edges)?;
         Ok(Connections {
             nodes: self.entities()?,
             edges: edges.into_iter().collect(),
         })
+    }
+
+    /// Who has the property that the entity `id` defines, grouped by entity
+    /// and ordered by title: the property's own page lists these where an
+    /// ordinary entity lists its references. Empty for an entity that defines
+    /// no property.
+    pub fn uses(&self, id: &str) -> Result<Vec<Use>> {
+        let definition = match self.named(id)? {
+            Some(Named::Virtual(_)) => return Ok(Vec::new()),
+            Some(Named::Real(entity)) => entity,
+            None => self.entity_id(id)?,
+        };
+        let found: Vec<(BlockId, Vec<String>)> = {
+            let index = self.index()?;
+            let Some(Identity::Property(key)) = index.entity(definition).and_then(|e| e.identity())
+            else {
+                return Ok(Vec::new());
+            };
+            index
+                .entities()
+                .filter(|e| index.canonical(e.id) == e.id)
+                .filter_map(|e| {
+                    let values: Vec<String> = e
+                        .properties
+                        .iter()
+                        .filter(|p| normalise_name(&p.key) == key)
+                        .map(|p| p.value.as_ref().map_or_else(String::new, format_value))
+                        .collect();
+                    (!values.is_empty()).then_some((e.id, values))
+                })
+                .collect()
+        };
+        let mut uses = Vec::new();
+        for (entity, values) in found {
+            uses.push(Use {
+                entity: self.entity_ref(entity)?,
+                values,
+            });
+        }
+        uses.sort_by_cached_key(|u| (u.entity.title.to_lowercase(), u.entity.id.clone()));
+        Ok(uses)
+    }
+
+    /// Adds the weak edges: for each property with a value, one from the
+    /// entity that has it, and one from each entity it links to, to the entity
+    /// that defines the property, when there is one. A pair already joined by
+    /// a strong edge, in either direction, gets none.
+    fn add_weak_edges(&self, edges: &mut BTreeSet<Edge>) -> Result<()> {
+        let index = self.index()?;
+        let mut weak = BTreeSet::new();
+        for entity in index.entities() {
+            let owner = index.canonical(entity.id);
+            if owner != entity.id {
+                continue;
+            }
+            for property in &entity.properties {
+                let Some(value) = &property.value else {
+                    continue;
+                };
+                let Some(definition) = index.property_entity(&property.key) else {
+                    continue;
+                };
+                let definition = index.canonical(definition);
+                let mut ends = vec![owner];
+                for link in links_of(value) {
+                    if let Resolution::Unique(id) = index.resolve(link) {
+                        ends.push(index.canonical(id));
+                    }
+                }
+                for end in ends.into_iter().filter(|&end| end != definition) {
+                    weak.insert((end.to_string(), definition.to_string()));
+                }
+            }
+        }
+        for (source, target) in weak {
+            let joined = |a: &str, b: &str| {
+                edges.contains(&Edge {
+                    source: a.to_owned(),
+                    target: b.to_owned(),
+                    weak: false,
+                })
+            };
+            if !joined(&source, &target) && !joined(&target, &source) {
+                edges.insert(Edge {
+                    source,
+                    target,
+                    weak: true,
+                });
+            }
+        }
+        Ok(())
     }
 
     /// The devices the graph lists, most recently seen first. They are sync

@@ -32,7 +32,11 @@ interface Node extends SimulationNodeDatum {
   degree: number;
 }
 
-type Link = SimulationLinkDatum<Node>;
+/** A weak link is one a property makes to the entity that defines it. */
+type Link = SimulationLinkDatum<Node> & { weak: boolean };
+
+/** How much fainter a weak link is drawn. */
+const WEAK_ALPHA = 0.35;
 
 const radius = (n: Node) => nodeRadius(n.degree);
 
@@ -129,8 +133,13 @@ function draw(
     const px = 1 / view.k;
     ctx.strokeStyle = colours.link;
     ctx.lineWidth = px;
-    stroke(() => true, focused === null ? 1 : 0.1);
-    if (focused !== null) stroke(touches, 1);
+    const dim = focused === null ? 1 : 0.1;
+    stroke((l) => !l.weak, dim);
+    stroke((l) => l.weak, dim * WEAK_ALPHA);
+    if (focused !== null) {
+      stroke((l) => !l.weak && touches(l), 1);
+      stroke((l) => l.weak && touches(l), WEAK_ALPHA);
+    }
 
     ctx.fillStyle = colours.fill;
     ctx.strokeStyle = colours.stroke;
@@ -411,7 +420,7 @@ function draw(
         unsettled.add(n.id);
       }
       edges = data.edges;
-      links = data.edges.map(({ source, target }) => ({ source, target }));
+      links = data.edges.map(({ source, target, weak }) => ({ source, target, weak }));
 
       items = select(list)
         .selectAll<HTMLAnchorElement, Node>("a")

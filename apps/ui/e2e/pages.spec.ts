@@ -203,3 +203,15 @@ test("the all entities table selects every row at once", async ({ page }) => {
   await everyone.uncheck();
   await expect(table.locator("tbody input:checked")).toHaveCount(0);
 });
+
+test("a property's page lists who has it, with the values", async ({ page }) => {
+  await openEntity(page, "kind of");
+  const uses = page.getByRole("region", { name: "Uses" });
+  await expect(uses).toContainText("Uses (2)");
+  await expect(uses.getByRole("listitem").filter({ hasText: "CRDT" }).first()).toContainText("data structure");
+  await expect(uses.getByRole("link", { name: "Loro" })).toBeVisible();
+  await uses.getByRole("link", { name: "Loro" }).click();
+  await expect(page.getByRole("heading", { name: "Loro", level: 1 })).toBeVisible();
+  // An ordinary entity has no such section.
+  await expect(page.getByRole("region", { name: "Uses" })).toHaveCount(0);
+});
