@@ -22,4 +22,5 @@ alias:: [link, qualifier, backlinks, references]
 	- `[the source](https://example.com)` goes to the web or mail, in the system's browser.
 	- Any other destination is shown as plain text.
 - Property values can be links too: `author:: [[Jane]]`, or bare `type:: person` for a property whose values are references. [[type]]
+- A property's value links its entity to each entity it names, and there is a weaker link from each end to the entity that defines the property. The weak links are in the [[Graph view]] and not in references; the property's own page lists its uses instead, grouped by entity.
 - Block references, `((id))`, point at a block rather than an entity. [[Block references]]

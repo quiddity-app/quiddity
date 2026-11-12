@@ -1226,6 +1226,145 @@ mod connections {
         );
     }
 
+    /// The edges, by title, that are weak or are not.
+    fn by_weight(v: &View, weak: bool) -> Vec<(String, String)> {
+        let connections = v.connections().unwrap();
+        let title = |id: &str| {
+            let node = connections.nodes.iter().find(|n| n.id == id).unwrap();
+            node.title.clone()
+        };
+        let mut found: Vec<_> = connections
+            .edges
+            .iter()
+            .filter(|e| e.weak == weak)
+            .map(|e| (title(&e.source), title(&e.target)))
+            .collect();
+        found.sort();
+        found
+    }
+
+    fn pair(a: &str, b: &str) -> (String, String) {
+        (a.to_owned(), b.to_owned())
+    }
+
+    #[test]
+    fn each_end_of_a_property_is_weakly_linked_to_the_entity_that_defines_it() {
+        let v = view_with(|g| {
+            g.create_entity("author", &[("type", text("property"))])
+                .unwrap();
+            let book = g.create_entity("Book", &[]).unwrap();
+            g.create_entity("Jane", &[]).unwrap();
+            g.create_entity("Joe", &[]).unwrap();
+            note(g, book, "author:: [ [[Jane]], [[Joe]] ]");
+        });
+        assert_eq!(
+            by_weight(&v, true),
+            [
+                pair("Book", "author"),
+                pair("Jane", "author"),
+                pair("Joe", "author")
+            ]
+        );
+        // What is written is still the only strong link.
+        assert_eq!(
+            by_weight(&v, false),
+            [pair("Book", "Jane"), pair("Book", "Joe")]
+        );
+    }
+
+    #[test]
+    fn a_property_nobody_defines_or_that_has_no_value_makes_no_weak_edge() {
+        let v = view_with(|g| {
+            g.create_entity("author", &[("type", text("property"))])
+                .unwrap();
+            let book = g.create_entity("Book", &[]).unwrap();
+            note(g, book, "#fiction\nundefined:: [[Jane]]\nauthor");
+        });
+        assert_eq!(by_weight(&v, true), []);
+    }
+
+    #[test]
+    fn a_pair_that_is_linked_outright_is_one_strong_edge() {
+        let v = view_with(|g| {
+            g.create_entity("author", &[("type", text("property"))])
+                .unwrap();
+            let book = g.create_entity("Book", &[]).unwrap();
+            note(g, book, "see [[author]]");
+            note(g, book, "author:: Jane");
+        });
+        assert_eq!(by_weight(&v, true), []);
+        assert_eq!(by_weight(&v, false), [pair("Book", "author")]);
+    }
+
+    /// A link the other way round counts as joined too.
+    #[test]
+    fn a_link_from_the_definition_to_the_entity_is_one_strong_edge() {
+        let v = view_with(|g| {
+            let author = g
+                .create_entity("author", &[("type", text("property"))])
+                .unwrap();
+            let book = g.create_entity("Book", &[]).unwrap();
+            note(g, book, "author:: Jane");
+            note(g, author, "used by [[Book]]");
+        });
+        assert_eq!(by_weight(&v, true), []);
+        assert_eq!(by_weight(&v, false), [pair("author", "Book")]);
+    }
+
+    #[test]
+    fn a_weak_edge_is_not_a_reference() {
+        let v = view_with(|g| {
+            g.create_entity("author", &[("type", text("property"))])
+                .unwrap();
+            let book = g.create_entity("Book", &[]).unwrap();
+            note(g, book, "author:: Jane");
+        });
+        assert!(v.references(&id_of(&v, "author")).unwrap().is_empty());
+        assert_eq!(by_weight(&v, true), [pair("Book", "author")]);
+    }
+
+    #[test]
+    fn a_property_lists_its_uses_by_entity_with_their_values() {
+        let v = view_with(|g| {
+            g.create_entity("rating", &[("type", text("property"))])
+                .unwrap();
+            let b = g.create_entity("b film", &[]).unwrap();
+            let a = g.create_entity("A film", &[]).unwrap();
+            g.create_entity("Unrated", &[]).unwrap();
+            note(g, b, "Rating:: 3\nrating:: [[Good]]");
+            note(g, a, "rating:: 5");
+            let c = g.create_entity("C film", &[]).unwrap();
+            note(g, c, "#rating");
+        });
+        let uses = v.uses(&id_of(&v, "rating")).unwrap();
+        let shown: Vec<_> = uses
+            .iter()
+            .map(|u| (u.entity.title.as_str(), u.values.clone()))
+            .collect();
+        assert_eq!(
+            shown,
+            [
+                ("A film", vec!["5".to_owned()]),
+                ("b film", vec!["3".to_owned(), "[[Good]]".to_owned()]),
+                ("C film", vec![String::new()]),
+            ],
+            "by title ignoring case, a tag's value being empty"
+        );
+    }
+
+    #[test]
+    fn an_entity_that_defines_no_property_has_no_uses() {
+        let v = view_with(|g| {
+            let a = g.create_entity("A", &[]).unwrap();
+            note(g, a, "rating:: 5");
+            g.create_entity("rating", &[("type", text("property"))])
+                .unwrap();
+        });
+        assert!(v.uses(&id_of(&v, "A")).unwrap().is_empty());
+        assert!(v.uses("junk").is_err());
+        assert_eq!(v.uses(&id_of(&v, "rating")).unwrap().len(), 1);
+    }
+
     #[test]
     fn a_duplicate_journals_links_belong_to_the_one_it_is_merged_into() {
         let day = "2026-10-26".parse().unwrap();

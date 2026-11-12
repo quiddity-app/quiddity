@@ -2,6 +2,9 @@
 - The data
 	- `View::connections()` returns every entity, as the list of entities does, and one edge per pair where one links to the other from anywhere in its blocks, however many links there are.
 	- Property values count. An entity's links to itself, and links to nowhere, make no edge. Links from a merged duplicate count for the entity it was merged into.
+- Weak links
+	- A property with a value joins the entity that has it, and each entity its value links to, to the entity that defines the property: `author:: [[Jane]]` on a book draws a line from the book to `author` and from Jane to `author`. Each edge has `weak: true` and is drawn much fainter. [[Properties]]
+	- They are not references. A pair already joined by a link, in either direction, has only the strong edge. A property with no defining entity, and a tag, make none.
 - The drawing is d3 on a canvas, with React owning only the elements.
 	- `d3-force` lays it out, `d3-zoom` pans and zooms and `d3-drag` moves nodes. d3 owns what is drawn.
 	- It is a canvas because an element for every node and line, moved on every step of the layout, was slow. The page finds the node under the pointer itself.

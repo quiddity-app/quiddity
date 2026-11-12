@@ -101,6 +101,14 @@ entity's links to itself and links to nowhere make no edge. It walks every
 backlink, so like the other queries it is a whole-graph cost the UI pays once
 per revision.
 
+**Weak edges** (`Edge::weak`) join each end of a property with a value (the
+entity, and each entity its value links to) to the entity that defines the
+key, found by name (`Index::property_entity`). A pair already joined by a
+strong edge in either direction has no weak one, and a key nobody defines has
+none, since only links make virtual entities. `uses(id)` is the same
+relation from the property's side, grouped by entity, for its page; it is
+empty for anything that defines no property. Neither is in `references`.
+
 ## Summaries
 
 `summaries()` is the list of every entity, in the order of `entities()`, with

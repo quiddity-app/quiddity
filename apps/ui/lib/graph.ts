@@ -10,6 +10,7 @@ import type {
   EntityRef,
   Merged,
   Reference,
+  Use,
   Start,
   Summary,
   TitleHit,
@@ -135,6 +136,8 @@ export class Graph {
     this.read<EntityRef[]>("journals", () => this.replica.journals(today()));
   references = (id: EntityId) =>
     this.read<Reference[]>(`r:${id}`, () => this.replica.references(id));
+  uses = (id: EntityId) => this.read<Use[]>(`use:${id}`, () => this.replica.uses(id));
+
   unlinkedReferences = (id: EntityId) =>
     this.read<Reference[]>(`u:${id}`, () => this.replica.unlinkedReferences(id));
 

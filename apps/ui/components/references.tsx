@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { EntityId, Reference } from "@/lib/model";
+import type { EntityId, Reference, Use } from "@/lib/model";
 import { useRead } from "@/lib/use-graph";
 import { Region, Skeleton } from "./boundary";
 import { EntityLink } from "./entity-link";
@@ -39,6 +39,32 @@ function Linked({ id }: { id: EntityId }) {
     <section aria-label="Linked references">
       <h2 className={`${sectionHeading} mb-3`}>Linked references ({count(references)})</h2>
       <Groups references={references} />
+    </section>
+  );
+}
+
+/** On a property's page: who has it, with what, a row per entity. */
+function Uses({ id }: { id: EntityId }) {
+  const uses = useRead((g) => g.uses(id));
+  if (uses.length === 0) return null;
+  return (
+    <section aria-label="Uses">
+      <h2 className={`${sectionHeading} mb-3`}>Uses ({uses.length})</h2>
+      <ul className="space-y-1">
+        {uses.map(({ entity, values }) => (
+          <li key={entity.id}>
+            <EntityLink id={entity.id} className={linkClass}>
+              {entity.title}
+            </EntityLink>
+            {values.some((v) => v !== "") && (
+              <span className="text-ink-secondary">
+                {": "}
+                {values.filter((v) => v !== "").join("; ")}
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
@@ -84,6 +110,7 @@ export function References({ id }: { id: EntityId }) {
           <ErrorLine className="text-sm">{error.message}</ErrorLine>
         )}
       >
+        <Uses id={id} />
         <Linked id={id} />
       </Region>
       <Unlinked key={`unlinked:${id}`} id={id} />
