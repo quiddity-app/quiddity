@@ -199,7 +199,11 @@ jobs:
     needs: changes
     if: github.event_name == 'pull_request' && needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # A baseline build and test of about two minutes, then about 14 seconds a
+    # mutant: 20 minutes held only about 60, which a PR that adds a store
+    # exceeds on its own (105 for the SQLite blob store, which was cancelled,
+    # not failed). An hour is room for about 230.
+    timeout-minutes: 60
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
