@@ -251,7 +251,7 @@ fn encoding_what_is_absent_is_an_error() {
 }
 
 /// Observing a whole blob says it is whole, and how big; one that isn't here
-/// ends the stream, which is an error to the client.
+/// says that none of it is, as `MemStore` does.
 #[test]
 fn observing_a_whole_blob_says_so() {
     runtime().block_on(async {
@@ -261,6 +261,8 @@ fn observing_a_whole_blob_says_so() {
         let seen = blobs.observe(hash).await.unwrap();
         assert!(seen.is_complete());
         assert_eq!(seen.size(), 5000);
-        assert!(blobs.observe(Hash::new(b"absent")).await.is_err());
+        let absent = blobs.observe(Hash::new(b"absent")).await.unwrap();
+        assert!(!absent.is_complete());
+        assert_eq!(absent.size(), 0);
     });
 }

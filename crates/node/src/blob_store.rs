@@ -8,9 +8,11 @@
 //! after iroh-blobs' `MemStore` (MIT OR Apache-2.0), which is the shortest
 //! complete implementation, with these differences:
 //!
-//! - **Only whole blobs are in the file**, and for now only whole blobs are
-//!   served: taking a blob in from another device piece by piece is not here
-//!   yet.
+//! - **Only complete blobs are in the file.** One being fetched is kept in
+//!   memory, grown as verified data arrives, and written in one transaction
+//!   when it is whole. A crash mid-fetch loses it, and it is fetched again.
+//!   Nothing is allocated ahead of data that has been verified, so a peer
+//!   can't make a device reserve memory by claiming a size.
 //! - **Reads are incremental.** The outboard (the hashes that let a part of a
 //!   blob be proved) is read whole, being small, and the data is read as far
 //!   as is asked for, through SQLite's incremental blob I/O.
@@ -24,23 +26,25 @@
 //!   opened with another, which is SQLite's limit on one value, so that no
 //!   import fails halfway through writing.
 
+use std::collections::HashMap;
 use std::io;
+use std::num::NonZeroU64;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use bao_tree::io::mixed::{EncodedItem, ReadBytesAt, traverse_ranges_validated};
 use bao_tree::io::outboard::PreOrderMemOutboard;
 use bao_tree::io::sync::Outboard;
-use bao_tree::io::{EncodeError, Leaf};
-use bao_tree::{BaoTree, ChunkRanges, TreeNode, blake3};
+use bao_tree::io::{BaoContentItem, EncodeError, Leaf};
+use bao_tree::{BaoTree, ChunkNum, ChunkRanges, TreeNode, blake3};
 use bytes::Bytes;
 use iroh_blobs::api::blobs::{AddProgressItem, Bitfield, BlobStatus, ExportProgressItem};
 use iroh_blobs::api::proto::{
     BatchMsg, BatchResponse, BlobDeleteRequest, BlobStatusMsg, BlobStatusRequest, Command,
     CreateTagMsg, CreateTempTagMsg, DeleteBlobsMsg, DeleteTagsMsg, ExportBaoMsg, ExportBaoRequest,
     ExportPathMsg, ExportRangesItem, ExportRangesMsg, ExportRangesRequest, ImportBaoMsg,
-    ImportByteStreamMsg, ImportBytesMsg, ImportBytesRequest, ImportPathMsg, ListBlobsMsg,
-    ListTagsMsg, ObserveMsg, ObserveRequest, RenameTagMsg, Scope, SetTagMsg, ShutdownMsg,
-    SyncDbMsg, WaitIdleMsg,
+    ImportBaoRequest, ImportByteStreamMsg, ImportBytesMsg, ImportBytesRequest, ImportPathMsg,
+    ListBlobsMsg, ListTagsMsg, ObserveMsg, ObserveRequest, RenameTagMsg, Scope, SetTagMsg,
+    ShutdownMsg, SyncDbMsg, WaitIdleMsg,
 };
 use iroh_blobs::api::{self, Tag, TempTag};
 use iroh_blobs::protocol::ChunkRangesExt;
@@ -50,8 +54,9 @@ use iroh_blobs::{BlobFormat, Hash, HashAndFormat};
 use irpc::channel::{mpsc, oneshot};
 use range_collections::range_set::RangeSetRange;
 use rusqlite::{Connection, OptionalExtension, params};
+use tokio::sync::watch;
 use tokio::task::JoinSet;
-use tracing::{error, trace};
+use tracing::{debug, error, trace};
 
 /// The largest blob kept, unless the store is opened with another limit:
 /// SQLite's limit on the length of one value, a billion bytes by default,
@@ -77,8 +82,8 @@ impl std::ops::Deref for SqliteBlobs {
 }
 
 impl SqliteBlobs {
-    /// Removes these blobs from the file. Naming one that isn't there is not
-    /// an error.
+    /// Removes these blobs from the file, and what is held of them in memory.
+    /// Naming one that isn't there is not an error.
     pub async fn delete(&self, hashes: Vec<Hash>) -> io::Result<()> {
         self.shared.delete(hashes).await
     }
@@ -105,6 +110,7 @@ pub fn spawn(connection: Connection, max_blob: u64) -> SqliteBlobs {
     let (sender, commands) = tokio::sync::mpsc::channel(32);
     let shared = Arc::new(Shared {
         db: Db(Arc::new(Mutex::new(connection))),
+        partials: Mutex::default(),
         max_blob,
     });
     tokio::spawn(
@@ -161,15 +167,44 @@ fn store_error(e: io::Error) -> api::Error {
     api::Error::io(e.kind(), e.to_string())
 }
 
+/// What is not whole yet: kept in memory, in the shape the store protocol
+/// builds it in.
+#[derive(Debug, Default)]
+struct Partial {
+    size: u64,
+    data: Vec<u8>,
+    outboard: Vec<u8>,
+    bitfield: Bitfield,
+}
+
+type PartialHandle = Arc<watch::Sender<Partial>>;
+
 #[derive(Debug)]
 struct Shared {
     db: Db,
+    partials: Mutex<HashMap<Hash, PartialHandle>>,
     /// The largest blob kept.
     max_blob: u64,
 }
 
 impl Shared {
+    fn partial(&self, hash: Hash) -> Option<PartialHandle> {
+        let partials = self.partials.lock().unwrap_or_else(PoisonError::into_inner);
+        partials.get(&hash).cloned()
+    }
+
+    fn partial_or_new(&self, hash: Hash) -> PartialHandle {
+        let mut partials = self.partials.lock().unwrap_or_else(PoisonError::into_inner);
+        partials
+            .entry(hash)
+            .or_insert_with(|| Arc::new(watch::channel(Partial::default()).0))
+            .clone()
+    }
+
     async fn delete(&self, hashes: Vec<Hash>) -> io::Result<()> {
+        for hash in &hashes {
+            self.forget(hash);
+        }
         self.db
             .with(move |c| {
                 let tx = c.transaction()?;
@@ -184,10 +219,18 @@ impl Shared {
             .await
     }
 
+    fn forget(&self, hash: &Hash) {
+        let mut partials = self.partials.lock().unwrap_or_else(PoisonError::into_inner);
+        partials.remove(hash);
+    }
+
     /// Where a blob is, if it is anywhere.
     async fn source(&self, hash: Hash) -> io::Result<Option<Source>> {
         if hash == Hash::EMPTY {
             return Ok(Some(Source::Empty));
+        }
+        if let Some(partial) = self.partial(hash) {
+            return Ok(Some(Source::Partial(partial)));
         }
         let found = self
             .db
@@ -220,6 +263,7 @@ impl Shared {
 enum Source {
     /// The empty blob, which is always here and never stored.
     Empty,
+    Partial(PartialHandle),
     Complete {
         db: Db,
         id: i64,
@@ -232,6 +276,7 @@ impl Source {
     fn bitfield(&self) -> Bitfield {
         match self {
             Self::Empty => Bitfield::complete(0),
+            Self::Partial(p) => p.borrow().bitfield.clone(),
             Self::Complete { size, .. } => Bitfield::complete(*size),
         }
     }
@@ -239,6 +284,7 @@ impl Source {
     fn size(&self) -> u64 {
         match self {
             Self::Empty => 0,
+            Self::Partial(p) => p.borrow().size,
             Self::Complete { size, .. } => *size,
         }
     }
@@ -251,6 +297,10 @@ impl ReadBytesAt for DataReader {
     fn read_bytes_at(&self, offset: u64, size: usize) -> io::Result<Bytes> {
         match &self.0 {
             Source::Empty => Ok(Bytes::new()),
+            Source::Partial(p) => {
+                let partial = p.borrow();
+                Ok(slice_of(&partial.data, offset, size))
+            }
             Source::Complete {
                 db, id, size: len, ..
             } => {
@@ -300,6 +350,7 @@ impl Outboard for OutboardReader {
         let pair = match &self.source {
             Source::Empty => return Ok(None),
             Source::Complete { outboard, .. } => slice_of(outboard, offset * 64, 64),
+            Source::Partial(p) => slice_of(&p.borrow().outboard, offset * 64, 64),
         };
         if pair.len() != 64 {
             return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "short read"));
@@ -323,15 +374,21 @@ impl bao_tree::io::mixed::Sender for EncodedSender<'_> {
 // ---------------------------------------------------------------------
 // The actor
 
+enum Finished {
+    Nothing,
+    /// A blob that was being fetched is whole and written.
+    Persisted(Hash),
+}
+
 struct Actor {
     commands: tokio::sync::mpsc::Receiver<Command>,
     shared: Arc<Shared>,
-    tasks: JoinSet<()>,
+    tasks: JoinSet<Finished>,
     idle: Vec<oneshot::Sender<()>>,
 }
 
 impl Actor {
-    fn spawn(&mut self, f: impl Future<Output = ()> + Send + 'static) {
+    fn spawn(&mut self, f: impl Future<Output = Finished> + Send + 'static) {
         self.tasks.spawn(f);
     }
 
@@ -346,7 +403,8 @@ impl Actor {
                 }
                 Some(done) = self.tasks.join_next(), if !self.tasks.is_empty() => {
                     match done {
-                        Ok(()) => {}
+                        Ok(Finished::Persisted(hash)) => self.shared.forget(&hash),
+                        Ok(Finished::Nothing) => {}
                         Err(e) if e.is_cancelled() => trace!("task cancelled"),
                         Err(e) => error!(error = %e, "blob task failed"),
                     }
@@ -374,23 +432,29 @@ impl Actor {
                 ..
             }) => self.spawn(async move {
                 import_bytes(&shared, data, format, tx).await;
+                Finished::Nothing
             }),
             Command::ImportByteStream(ImportByteStreamMsg { tx, .. }) => self.spawn(async move {
                 tx.send(AddProgressItem::Error(unsupported("importing a stream")))
                     .await
                     .ok();
+                Finished::Nothing
             }),
             Command::ImportPath(ImportPathMsg { tx, .. }) => self.spawn(async move {
                 tx.send(AddProgressItem::Error(unsupported("importing a path")))
                     .await
                     .ok();
+                Finished::Nothing
             }),
-            Command::ImportBao(ImportBaoMsg { tx, .. }) => self.spawn(async move {
-                let e = api::Error::io(
-                    io::ErrorKind::Unsupported,
-                    unsupported("taking in a blob piece by piece").to_string(),
-                );
-                tx.send(Err(e)).await.ok();
+            Command::ImportBao(ImportBaoMsg {
+                inner: ImportBaoRequest { hash, size },
+                rx,
+                tx,
+                ..
+            }) => self.spawn(async move {
+                let (result, finished) = import_bao(&shared, hash, size, rx).await;
+                tx.send(result).await.ok();
+                finished
             }),
             Command::ExportBao(ExportBaoMsg {
                 inner: ExportBaoRequest { hash, ranges },
@@ -398,12 +462,14 @@ impl Actor {
                 ..
             }) => self.spawn(async move {
                 export_bao(&shared, hash, ranges, &mut tx).await;
+                Finished::Nothing
             }),
             Command::ExportRanges(ExportRangesMsg { inner, mut tx, .. }) => {
                 self.spawn(async move {
                     if let Err(e) = export_ranges(&shared, inner, &mut tx).await {
                         tx.send(ExportRangesItem::Error(e.into())).await.ok();
                     }
+                    Finished::Nothing
                 });
             }
             Command::ExportPath(ExportPathMsg { tx, .. }) => self.spawn(async move {
@@ -412,19 +478,15 @@ impl Actor {
                     unsupported("exporting to a path").to_string(),
                 );
                 tx.send(ExportProgressItem::Error(e)).await.ok();
+                Finished::Nothing
             }),
             Command::Observe(ObserveMsg {
                 inner: ObserveRequest { hash },
                 tx,
                 ..
             }) => self.spawn(async move {
-                // What is here is all of it. A blob that isn't ends the stream
-                // with nothing said, which the client reports.
-                if let Ok(Some(source)) = shared.source(hash).await
-                    && tx.send(source.bitfield()).await.is_ok()
-                {
-                    tx.closed().await;
-                }
+                observe(&shared, hash, tx).await;
+                Finished::Nothing
             }),
             Command::BlobStatus(BlobStatusMsg {
                 inner: BlobStatusRequest { hash },
@@ -447,6 +509,7 @@ impl Actor {
                     }
                 };
                 tx.send(status).await.ok();
+                Finished::Nothing
             }),
             Command::ListBlobs(ListBlobsMsg { tx, .. }) => self.spawn(async move {
                 let hashes = shared
@@ -469,6 +532,7 @@ impl Actor {
                         tx.send(Err(store_error(e))).await.ok();
                     }
                 }
+                Finished::Nothing
             }),
             Command::DeleteBlobs(DeleteBlobsMsg {
                 inner: BlobDeleteRequest { hashes, .. },
@@ -479,6 +543,7 @@ impl Actor {
                 tx.send(shared.delete(hashes).await.map_err(store_error))
                     .await
                     .ok();
+                Finished::Nothing
             }),
 
             // No tags are kept: see the module's notes.
@@ -516,6 +581,7 @@ impl Actor {
                         rx.recv().await
                     {}
                 }
+                Finished::Nothing
             }),
             Command::ClearProtected(msg) => {
                 msg.tx.send(Ok(())).await.ok();
@@ -606,6 +672,118 @@ async fn import_bytes(
     tx.send(AddProgressItem::Done(temp)).await.ok();
 }
 
+fn write_at(into: &mut Vec<u8>, offset: u64, bytes: &[u8], max_blob: u64) -> io::Result<()> {
+    let end = offset
+        .checked_add(bytes.len() as u64)
+        .filter(|end| *end <= max_blob)
+        .ok_or_else(|| {
+            io::Error::new(io::ErrorKind::InvalidInput, "the file is too large to keep")
+        })?;
+    let (start, end) = (offset as usize, end as usize);
+    // Grown to reach the end, never shrunk: what is held beyond stays.
+    into.resize(end.max(into.len()), 0);
+    into[start..end].copy_from_slice(bytes);
+    Ok(())
+}
+
+fn chunk_range(leaf: &Leaf) -> ChunkRanges {
+    let start = ChunkNum::chunks(leaf.offset);
+    let end = ChunkNum::chunks(leaf.offset + leaf.data.len() as u64);
+    (start..end).into()
+}
+
+/// Takes in a blob as verified pieces. Returns what to tell the caller and,
+/// if this made the blob whole and it is now in the file, which one.
+async fn import_bao(
+    shared: &Shared,
+    hash: Hash,
+    size: NonZeroU64,
+    mut items: mpsc::Receiver<BaoContentItem>,
+) -> (api::Result<()>, Finished) {
+    let size = size.get();
+    let max = shared.max_blob;
+    if size > max {
+        let e = api::Error::io(
+            io::ErrorKind::InvalidInput,
+            "the file is too large to keep".to_owned(),
+        );
+        return (Err(e), Finished::Nothing);
+    }
+    // Already whole: take what comes without keeping it.
+    // If the file can't be read, writing what arrives to it will say so.
+    if let Ok(Some(Source::Complete { .. } | Source::Empty)) = shared.source(hash).await {
+        while let Ok(Some(_)) = items.recv().await {}
+        return (Ok(()), Finished::Nothing);
+    }
+    let entry = shared.partial_or_new(hash);
+    entry.send_if_modified(|partial| {
+        partial.size = size;
+        false
+    });
+    let tree = BaoTree::new(size, IROH_BLOCK_SIZE);
+    let mut whole = false;
+    loop {
+        let item = match items.recv().await {
+            Ok(Some(item)) => item,
+            Ok(None) => break,
+            Err(e) => {
+                return (
+                    Err(api::Error::io(io::ErrorKind::Other, e.to_string())),
+                    Finished::Nothing,
+                );
+            }
+        };
+        let mut failed = None;
+        entry.send_if_modified(|partial| match item {
+            BaoContentItem::Parent(parent) => {
+                if let Some(offset) = tree.pre_order_offset(parent.node) {
+                    let mut pair = [0u8; 64];
+                    pair[..32].copy_from_slice(parent.pair.0.as_bytes());
+                    pair[32..].copy_from_slice(parent.pair.1.as_bytes());
+                    if let Err(e) = write_at(&mut partial.outboard, offset * 64, &pair, max) {
+                        failed = Some(e);
+                    }
+                }
+                false
+            }
+            BaoContentItem::Leaf(leaf) => {
+                if let Err(e) = write_at(&mut partial.data, leaf.offset, &leaf.data, max) {
+                    failed = Some(e);
+                    return false;
+                }
+                let update = partial
+                    .bitfield
+                    .update(&Bitfield::new(chunk_range(&leaf), size));
+                whole |= update.new_state().complete;
+                update.changed()
+            }
+        });
+        if let Some(e) = failed {
+            return (Err(store_error(e)), Finished::Nothing);
+        }
+        if whole {
+            break;
+        }
+    }
+    if !whole {
+        return (Ok(()), Finished::Nothing);
+    }
+    // Whole: write it in one transaction. It is read from memory until then.
+    let (outboard, data) = {
+        let partial = entry.borrow();
+        (partial.outboard.clone(), partial.data.clone())
+    };
+    debug!(%hash, size, "a fetched blob is whole: keeping it");
+    match shared
+        .db
+        .with(move |c| persist(c, hash, &outboard, &data))
+        .await
+    {
+        Ok(()) => (Ok(()), Finished::Persisted(hash)),
+        Err(e) => (Err(store_error(e)), Finished::Nothing),
+    }
+}
+
 // ---------------------------------------------------------------------
 // Exporting
 
@@ -617,8 +795,10 @@ async fn export_bao(
 ) {
     let not_found = || EncodeError::Io(io::Error::new(io::ErrorKind::NotFound, "hash not found"));
     let source = match shared.source(hash).await {
-        Ok(Some(source)) => source,
-        Ok(None) => {
+        // An entry with no data, not even a size (one that was only observed),
+        // is answered like one that is missing.
+        Ok(Some(source)) if hash == Hash::EMPTY || source.size() != 0 => source,
+        Ok(_) => {
             tx.send(not_found().into()).await.ok();
             return;
         }
@@ -680,4 +860,35 @@ async fn export_ranges(
         }
     }
     Ok(())
+}
+
+/// Reports what of a blob is here, as it changes, until the caller stops
+/// listening or the blob is whole.
+async fn observe(shared: &Shared, hash: Hash, tx: mpsc::Sender<Bitfield>) {
+    let source = match shared.source(hash).await {
+        Ok(Some(source)) => source,
+        // Not here yet: what is observed is what arrives.
+        Ok(None) => Source::Partial(shared.partial_or_new(hash)),
+        Err(_) => return,
+    };
+    match source {
+        Source::Partial(entry) => {
+            let mut changes = entry.subscribe();
+            loop {
+                let now = changes.borrow().bitfield.clone();
+                if tx.send(now).await.is_err() {
+                    return;
+                }
+                tokio::select! {
+                    _ = tx.closed() => return,
+                    changed = changes.changed() => if changed.is_err() { return },
+                }
+            }
+        }
+        whole => {
+            if tx.send(whole.bitfield()).await.is_ok() {
+                tx.closed().await;
+            }
+        }
+    }
 }
