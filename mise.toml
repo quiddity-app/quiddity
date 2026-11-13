@@ -11,7 +11,7 @@ emsdk = "6.0.13"
 # What CI and the testing in AGENTS.md run. cargo-binstall makes mise fetch
 # these prebuilt rather than compile them.
 cargo-binstall = "1.27.0"
-"cargo:cargo-nextest" = "0.9.151"
+"cargo:cargo-nextest" = "0.9.152"
 "cargo:cargo-mutants" = "27.1.0"
 "cargo:cargo-fuzz" = "0.13.2"
 jactionlint = "v2.6.0"
