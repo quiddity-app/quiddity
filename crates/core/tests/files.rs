@@ -42,6 +42,31 @@ fn export_layout() -> Result<()> {
     Ok(())
 }
 
+/// File systems limit a name to 255 bytes, which 130 CJK characters or 70
+/// emoji are over; the export used to stop at the first such entity.
+#[test]
+fn long_non_ascii_names_export_and_round_trip() -> Result<()> {
+    let graph = Graph::new();
+    let cjk = "日".repeat(130);
+    let emoji = "🦀".repeat(70);
+    graph.create_entity(&cjk, &[])?;
+    graph.create_entity(&emoji, &[])?;
+    // The same long name twice needs a number as well.
+    graph.create_entity(&cjk.to_lowercase(), &[("type", text("copy"))])?;
+    graph.commit();
+
+    let tmp = tempfile::tempdir()?;
+    let out = tmp.path().join("out");
+    assert_eq!(export_dir(&graph, &out)?, 3);
+
+    let copy = Graph::new();
+    import_dir(&copy, &out)?;
+    let index = Index::build(&copy)?;
+    assert_eq!(index.named(&cjk).len(), 2);
+    assert_eq!(index.named(&emoji).len(), 1);
+    Ok(())
+}
+
 #[test]
 fn imports_a_logseq_graph() -> Result<()> {
     let tmp = tempfile::tempdir()?;
