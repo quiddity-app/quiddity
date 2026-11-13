@@ -17,7 +17,7 @@ use std::path::{Path, PathBuf};
 
 use jiff::civil::Date;
 use quiddity_syntax::{
-    Link, Value, format_meta_line, format_property_line, normalise_name, parse_meta_line,
+    Link, Value, fold, format_meta_line, format_property_line, normalise_name, parse_meta_line,
     parse_property_line,
 };
 use tracing::{debug, instrument, trace, warn};
@@ -297,8 +297,10 @@ fn file_stem(name: &str) -> String {
     }
 }
 
-/// `dir/stem.md`, or `dir/stem 2.md` and so on if taken. Compared
-/// case-insensitively, for case-insensitive file systems.
+/// `dir/stem.md`, or `dir/stem 2.md` and so on if taken. Compared as names
+/// are everywhere (`fold`: Unicode form and case), so that two names a file
+/// system may treat as one path, because it ignores case or normalises
+/// `é` composed and decomposed (macOS does both), don't overwrite each other.
 fn unique_path(dir: &Path, stem: &str, used: &mut HashSet<String>) -> PathBuf {
     let mut n = 1;
     loop {
@@ -307,7 +309,7 @@ fn unique_path(dir: &Path, stem: &str, used: &mut HashSet<String>) -> PathBuf {
         } else {
             format!("{stem} {n}")
         };
-        let key = format!("{}/{}", dir.display(), candidate.to_lowercase());
+        let key = format!("{}/{}", dir.display(), fold(&candidate));
         if used.insert(key) {
             return dir.join(format!("{candidate}.md"));
         }
@@ -353,5 +355,73 @@ mod tests {
         assert_eq!(unique_path(dir, "Jane", &mut used), dir.join("Jane.md"));
         assert_eq!(unique_path(dir, "jane", &mut used), dir.join("jane 2.md"));
         assert_eq!(unique_path(dir, "Jane", &mut used), dir.join("Jane 3.md"));
+    }
+
+    /// `Café` composed and decomposed are one path on macOS, so the second
+    /// must not take the first's name.
+    #[test]
+    fn unique_paths_ignore_unicode_form() {
+        let mut used = HashSet::new();
+        let dir = Path::new("x");
+        assert_eq!(
+            unique_path(dir, "Caf\u{e9}", &mut used),
+            dir.join("Caf\u{e9}.md")
+        );
+        assert_eq!(
+            unique_path(dir, "Cafe\u{301}", &mut used),
+            dir.join("Cafe\u{301} 2.md")
+        );
+        assert_eq!(
+            unique_path(dir, "CAF\u{c9}", &mut used),
+            dir.join("CAF\u{c9} 3.md")
+        );
+    }
+
+    /// Different directories don't compete for names.
+    #[test]
+    fn unique_paths_are_per_directory() {
+        let mut used = HashSet::new();
+        let (a, b) = (Path::new("a"), Path::new("b"));
+        assert_eq!(unique_path(a, "Jane", &mut used), a.join("Jane.md"));
+        assert_eq!(unique_path(b, "Jane", &mut used), b.join("Jane.md"));
+    }
+
+    mod props {
+        use proptest::prelude::*;
+
+        use super::*;
+
+        /// Stems weighted towards what differs only in form or case.
+        fn stem() -> impl Strategy<Value = String> {
+            prop::collection::vec(
+                prop::sample::select(vec![
+                    "a", "A", "b", "e", "E", "\u{e9}", "\u{c9}", "\u{301}", "\u{df}", "ss", " ",
+                    "2",
+                ]),
+                1..5,
+            )
+            .prop_map(|parts| parts.concat())
+        }
+
+        proptest! {
+            /// However the stems are spelt, no two get the same path once
+            /// case and Unicode form are ignored, and a stem nobody has taken
+            /// keeps its name.
+            #[test]
+            fn paths_never_collide_by_form_or_case(stems in prop::collection::vec(stem(), 1..8)) {
+                let mut used = HashSet::new();
+                let dir = Path::new("x");
+                let mut seen = HashSet::new();
+                for stem in &stems {
+                    let free = !seen.contains(&fold(stem));
+                    let path = unique_path(dir, stem, &mut used);
+                    let name = path.file_stem().unwrap().to_str().unwrap().to_owned();
+                    prop_assert!(seen.insert(fold(&name)), "{name:?} was already taken");
+                    if free {
+                        prop_assert_eq!(path, dir.join(format!("{stem}.md")));
+                    }
+                }
+            }
+        }
     }
 }
