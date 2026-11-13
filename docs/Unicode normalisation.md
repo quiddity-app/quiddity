@@ -10,5 +10,4 @@
 	- Combining marks belong to the letter before them, in tag keys as well as in search words: `#cafe\u0301` is the tag `café`.
 	- What is stored is not changed by this: a name keeps the spelling it was written with, and only the comparison key is folded.
 - Title matching folds the same way, and matches aliases too. [[Title matching]]
-- Not built
-	- Export file-name comparison (#283) doesn't use these rules yet.
+- Export file names are compared this way too, so two entities whose names differ only in case or Unicode form (`Café` composed and decomposed) are numbered apart (`Café.md`, `Café 2.md`) and can't overwrite each other on a file system, such as macOS's, that treats them as one path. [[Export and import]]
