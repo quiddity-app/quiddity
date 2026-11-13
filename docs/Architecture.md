@@ -9,6 +9,7 @@
 	- [[quiddity-node]] is the core run as a command line tool and daemon, without the UI. It is a full peer owned by the user, not a relay, and follows the same rules as every other device. Being always on, it is what lets devices that are never online together sync.
 - The crates
 	- [[quiddity-syntax]]: block text, parsed and formatted.
+	- [[quiddity-identity]]: device keys and the other identifiers, and how they are written down.
 	- [[quiddity-core]]: the graph on Loro, the index, schemas, journals, merging duplicates and the text format.
 	- [[quiddity-sync]]: the sync protocol, independent of transport.
 	- [[quiddity-node]]: sync over [[iroh]], the on-disk store and the command line.

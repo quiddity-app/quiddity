@@ -11,6 +11,7 @@ cargo-fuzz = true
 libfuzzer-sys = "0.4"
 jiff = "0.2"
 quiddity-core = { path = "../crates/core" }
+quiddity-identity = { path = "../crates/identity" }
 quiddity-sync = { path = "../crates/sync" }
 quiddity-syntax = { path = "../crates/syntax" }
 
@@ -20,6 +21,11 @@ path = "fuzz_targets/block.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "identity"
+path = "fuzz_targets/identity.rs"
+test = false
 
 [[bin]]
 name = "outline"
