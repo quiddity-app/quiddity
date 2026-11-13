@@ -33,15 +33,59 @@ pub const SETTINGS: &str = "quiddity.toml";
 
 /// Writes every entity to `dir`, which must be empty or not yet exist.
 /// Returns the number of files written.
+///
+/// If writing fails part way, what was written is removed (the directory too,
+/// if it was made for this), so that the export can be tried again: it
+/// refuses a directory that isn't empty, which a half-written one would be.
 #[instrument(level = "debug", skip(graph), fields(dir = %dir.display()))]
 pub fn export_dir(graph: &Graph, dir: &Path) -> Result<usize> {
-    if dir.exists() && fs::read_dir(dir)?.next().is_some() {
+    let existed = dir.exists();
+    if existed && fs::read_dir(dir)?.next().is_some() {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
             format!("{} is not empty", dir.display()),
         )
         .into());
     }
+    removing_on_failure(dir, existed, || write_export(graph, dir))
+}
+
+/// Runs `write`, which fills `dir`. If it fails, takes out what it wrote and
+/// returns its error: the directory itself unless it `existed` already, and
+/// then only what is in it, which the caller found empty.
+fn removing_on_failure<T>(
+    dir: &Path,
+    existed: bool,
+    write: impl FnOnce() -> Result<T>,
+) -> Result<T> {
+    let result = write();
+    if result.is_err() {
+        let removed = if existed {
+            empty_dir(dir)
+        } else {
+            fs::remove_dir_all(dir)
+        };
+        if let Err(error) = removed {
+            warn!(dir = %dir.display(), %error, "couldn't remove a failed export");
+        }
+    }
+    result
+}
+
+/// Removes everything in `dir`, and not `dir`.
+fn empty_dir(dir: &Path) -> io::Result<()> {
+    for entry in fs::read_dir(dir)? {
+        let path = entry?.path();
+        if path.is_dir() {
+            fs::remove_dir_all(path)?;
+        } else {
+            fs::remove_file(path)?;
+        }
+    }
+    Ok(())
+}
+
+fn write_export(graph: &Graph, dir: &Path) -> Result<usize> {
     fs::create_dir_all(dir.join("entities"))?;
     fs::create_dir_all(dir.join("journals"))?;
     fs::write(dir.join(MANIFEST), MANIFEST_BODY)?;
@@ -386,6 +430,52 @@ mod tests {
                 prop_assert!(stem.chars().count() <= MAX_STEM_CHARS);
                 prop_assert!(format!("{stem} 99999.md").len() <= 255, "{stem:?}");
             }
+        }
+    }
+
+    /// What a failed write leaves behind: a file and a nested directory.
+    fn half_write(dir: &Path) -> Result<()> {
+        fs::create_dir_all(dir.join("entities"))?;
+        fs::write(dir.join("entities/Jane.md"), "x")?;
+        fs::write(dir.join("quiddity.json"), "{}")?;
+        Err(io::Error::other("disk full").into())
+    }
+
+    #[test]
+    fn a_failed_export_takes_out_the_directory_it_made() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("out");
+        let err = removing_on_failure(&dir, false, || half_write(&dir)).unwrap_err();
+        assert!(err.to_string().contains("disk full"), "{err}");
+        assert!(!dir.exists());
+    }
+
+    #[test]
+    fn a_failed_export_empties_a_directory_that_was_there() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("out");
+        fs::create_dir(&dir).unwrap();
+        assert!(removing_on_failure(&dir, true, || half_write(&dir)).is_err());
+        assert!(dir.is_dir());
+        assert_eq!(fs::read_dir(&dir).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn a_successful_export_is_left_alone() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("out");
+        for existed in [false, true] {
+            let _ = fs::remove_dir_all(&dir);
+            if existed {
+                fs::create_dir(&dir).unwrap();
+            }
+            let n = removing_on_failure(&dir, existed, || {
+                let _ = half_write(&dir);
+                Ok(7)
+            })
+            .unwrap();
+            assert_eq!(n, 7);
+            assert!(dir.join("entities/Jane.md").is_file());
         }
     }
 

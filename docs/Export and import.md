@@ -20,6 +20,7 @@ alias:: text format
 	      ea8f163d…200f.png  a file, named for the BLAKE3 hash of its bytes
 	  ```
 	- [[Binaries]] go in `assets/` as `<hash>.<extension>`, one file for each hash. The extension is the file name's own if it has a short plain one, otherwise the type's, otherwise `bin`; it is for file managers and browsers, and the hash is what identifies the file. So a text export can refer to a file by its path, and a tool that reads Markdown can follow it. The page for the file says what it is in its `##asset` line, which is in its Markdown like anything else. [[Add a file]]
+	- An export that fails part way removes what it wrote, and the directory too if it made it, so the same command can be run again: it refuses a directory that isn't empty. Not covered yet: `quiddity-node export` writes the files of [[Binaries]] after the entities, and a failure there leaves the entities exported.
 - A file is one [[Entity]], as an outline in the style of Logseq's original format.
 	- ```markdown
 	  title:: Jane
