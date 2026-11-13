@@ -40,9 +40,13 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
   any blob must match byte for byte. Things that aren't obvious:
   - **Deleting is `SqliteBlobs::delete`, not the protocol's.** iroh-blobs hides
     deletion from clients (only its own collector sends `DeleteBlobs`).
-  - **Only whole blobs are rows, and only bytes are imported.** Taking a blob
-    in piece by piece (a fetch from another device) is refused for now, as are
-    importing a stream or a path and exporting to a path: the node reads and
+  - **Only whole blobs are rows, and only bytes are imported.** A fetch from
+    another device is in memory, grown by verified data only (never by a size
+    the peer claims, which is checked against the limit first), and written in
+    one transaction when whole; a crash loses it and it is fetched again. A
+    partial blob is served only in whole groups of 16 chunks, as iroh-blobs'
+    own store does (`a_partial_blob_is_served_as_it_is_held`). Importing a
+    stream or a path and exporting to a path are refused: the node reads and
     writes files itself.
   - **No tags are kept, temp tags protect nothing, and every batch is in
     `Scope::GLOBAL`** (a `Scope` can't be made outside iroh-blobs): nothing is
