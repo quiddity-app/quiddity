@@ -8,7 +8,7 @@ favourite:: true
 	- [[Running the app]], [[Testing]], [[Nightly builds]], [[Releases]] and [[Updates]].
 	- [[Performance]]: what costs time in a large graph, and what is still to do.
 - The parts
-	- Crates: [[quiddity-syntax]], [[quiddity-core]], [[quiddity-sync]], [[quiddity-node]], [[quiddity-view]] and [[quiddity-wasm]].
+	- Crates: [[quiddity-syntax]], [[quiddity-identity]], [[quiddity-core]], [[quiddity-sync]], [[quiddity-node]], [[quiddity-view]] and [[quiddity-wasm]].
 	- Apps: [[The UI]] and [[The shell]]. How they look: the [[Design language]].
 	- What they are built on is listed under [[Library]], and what they are built with under [[Tool]].
 - Between devices

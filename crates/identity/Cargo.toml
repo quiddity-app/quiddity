@@ -1,0 +1,21 @@
+[package]
+name = "quiddity-identity"
+description = "Quiddity's identifiers: device keys, device, graph and node IDs, and how they are written down"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+# Key derivation only. No default features: this crate must build for WASM,
+# where there is nothing to gain from the SIMD back ends.
+blake3 = { version = "1", default-features = false }
+thiserror.workspace = true
+zeroize = "1"
+
+[dev-dependencies]
+proptest.workspace = true
+
+[lints]
+workspace = true

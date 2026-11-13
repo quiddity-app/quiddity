@@ -3379,6 +3379,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "quiddity-identity"
+version = "0.1.0"
+dependencies = [
+ "blake3",
+ "proptest",
+ "thiserror 2.0.21",
+ "zeroize",
+]
+
+[[package]]
 name = "quiddity-node"
 version = "0.1.0"
 dependencies = [

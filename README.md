@@ -10,6 +10,8 @@ where to find the notes on each crate.
 
 - `crates/syntax`: the block Markdown syntax (properties, links, block
   references). The reference parser.
+- `crates/identity`: device keys, graph and node IDs, and how they are written
+  down.
 - `crates/core`: the graph model on Loro, the index (names, link resolution,
   backlinks), property schemas, journals, duplicate merging, and text
   export/import.
