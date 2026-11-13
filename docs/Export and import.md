@@ -32,7 +32,7 @@ alias:: text format
 	  - Quotable
 	    ##id(0198f0c4-…)
 	  ```
-	- The lines before the first bullet are the entity's name, as `title::`, followed by its properties block. So names needn't be valid or unique file names. Entities whose names match ignoring case and Unicode form ([[Unicode normalisation]]) get numbered file names. [[title]]
+	- The lines before the first bullet are the entity's name, as `title::`, followed by its properties block. So names needn't be valid or unique file names. Entities whose names match ignoring case and Unicode form ([[Unicode normalisation]]) get numbered file names. A name longer than 120 characters or 200 bytes is cut, on a character, to leave room for a number and `.md` within the 255 bytes file systems allow; the full name is in `title::`. [[title]]
 	- A properties block that has children, or blank lines at either end of its text, is written as the first bullet instead, since the header is trimmed of blank lines when read.
 	- Child bullets are indented with one tab per level. Continuation lines get the bullet's tabs and two spaces.
 	- A block's own properties are part of its text, so they need no special handling.

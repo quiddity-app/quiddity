@@ -247,9 +247,17 @@ fn collect_markdown(dir: &Path, out: &mut Vec<PathBuf>) -> io::Result<()> {
     Ok(())
 }
 
+/// The most characters of an entity's name that go in a file name.
+const MAX_STEM_CHARS: usize = 120;
+/// The most bytes. File systems limit a name's length in bytes (255 on Linux
+/// and APFS), not characters, and CJK characters take three and emoji four.
+/// What is left of 255 holds a number (`Jane 2`) and `.md`.
+const MAX_STEM_BYTES: usize = 200;
+
 /// A file name for an entity. Names needn't be unique or file-system safe;
 /// the real name is kept in the file's `title::`.
 fn file_stem(name: &str) -> String {
+    let mut bytes = 0;
     let safe: String = name
         .chars()
         .map(|c| {
@@ -259,7 +267,11 @@ fn file_stem(name: &str) -> String {
                 c
             }
         })
-        .take(120)
+        .take(MAX_STEM_CHARS)
+        .take_while(|c| {
+            bytes += c.len_utf8();
+            bytes <= MAX_STEM_BYTES
+        })
         .collect();
     let safe = safe
         .trim()
@@ -337,6 +349,44 @@ mod tests {
         assert_eq!(file_stem("..."), "untitled");
         assert_eq!(file_stem(".hidden"), "hidden");
         assert_eq!(file_stem("con"), "con_");
+    }
+
+    /// The names the file system sees are what is limited, so count bytes:
+    /// 130 CJK characters are 390.
+    #[test]
+    fn long_stems_are_cut_by_bytes_on_a_character() {
+        let cjk = file_stem(&"日".repeat(130));
+        assert_eq!(cjk, "日".repeat(MAX_STEM_BYTES / 3));
+        assert_eq!(file_stem(&"a".repeat(300)), "a".repeat(MAX_STEM_CHARS));
+        // Four-byte characters, where the byte limit falls between two.
+        assert_eq!(
+            file_stem(&"🦀".repeat(100)),
+            "🦀".repeat(MAX_STEM_BYTES / 4)
+        );
+        // The cut doesn't leave a trailing space or dot to be trimmed away
+        // into a different name.
+        assert_eq!(
+            file_stem(&format!("{} x", "a".repeat(MAX_STEM_CHARS - 1))),
+            "a".repeat(MAX_STEM_CHARS - 1)
+        );
+    }
+
+    mod stems {
+        use proptest::prelude::*;
+
+        use super::*;
+
+        proptest! {
+            /// Whatever the name, the stem fits with room for a number and
+            /// the extension, and is never empty.
+            #[test]
+            fn stems_fit_in_a_file_name(name in "(.|日|🦀|é|/| |\\.){0,300}") {
+                let stem = file_stem(&name);
+                prop_assert!(!stem.is_empty());
+                prop_assert!(stem.chars().count() <= MAX_STEM_CHARS);
+                prop_assert!(format!("{stem} 99999.md").len() <= 255, "{stem:?}");
+            }
+        }
     }
 
     #[test]
