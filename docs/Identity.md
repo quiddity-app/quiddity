@@ -1,7 +1,7 @@
 alias:: [device key, device ID, graph ID, node ID, identifiers]
 
 - Planned, not built. How a replica, a device and a graph are told apart, and how the secret one is kept from being misused. Today a device is its [[iroh]] key and nothing else, and the [[Loro]] peer ID is chosen at random each time a replica starts. [[Design]]
-- Built so far: the types, their written form and the derivations, in [[quiddity-identity]]; and the graph ID, made with each new graph and kept in its document. The sync handshake checks it; the device key is kept apart from the graphs and a new graph's endpoint key is derived from it. node IDs are kept for the replicas that are kept, sealed so that they open only on the device that made them. a copy of a graph beside the original on one device is noticed by the table of places, and given a node ID of its own. What would notice a twin afterwards is not built; the steps at the end say what comes next.
+- Built so far: the types, their written form and the derivations, in [[quiddity-identity]]; and the graph ID, made with each new graph and kept in its document. The sync handshake checks it; the device key is kept apart from the graphs and a new graph's endpoint key is derived from it. node IDs are kept for the replicas that are kept, sealed so that they open only on the device that made them. a copy of a graph beside the original on one device is noticed by the table of places, and given a node ID of its own. a twin's changes are refused when they arrive, if this replica is the one that is behind; the steps at the end say what comes next.
 - What there is now
 	- Two secrets, and only one of them in use for any graph. Both are 32 bytes. [[Storage]] [[Sync]]
 		- **The device key**, in `device.key` in the device's own configuration directory (`~/.config/quiddity` on Linux; the app's own on a desktop; `--config-dir` or `QUIDDITY_CONFIG_DIR` says otherwise), written as a `qdk_` token. It is a seed that nothing signs or encrypts with directly, so neither asymmetric nor symmetric: it is key material.
@@ -51,7 +51,7 @@ alias:: [device key, device ID, graph ID, node ID, identifiers]
 	- Built: the device key is in the device's own configuration directory, and new graphs' endpoint keys are derived from it and a salt in the graph's file. A file of the old layout gains a salt. [[quiddity-node]]
 	- Built: node IDs, stored sealed with the mask (storage layout 4) and set as Loro's peer ID when the graph is loaded. [[quiddity-node]] [[quiddity-core]]
 	- Built: the map of nodes to places, and forking a copy. [[Copied graphs]]
-	- Planned: noticing a twin, from changes that arrive under this replica's own node ID.
+	- Built: refusing a twin's changes, from changes that arrive under a node ID this replica has edited as, and keeping the new node ID it takes. [[Copied graphs]]
 	- Not in the stack: recording node IDs in the device list, the UI replica's own stable node ID, showing the graph's ID when pairing, and writing device IDs with the `qdi_` prefix in the UI.
 - Open questions
 	- How many nodes the UI has. Two windows on one graph would need an ID each: leased from the shell, and given back when the window closes.
