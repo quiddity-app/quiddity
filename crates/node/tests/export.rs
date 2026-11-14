@@ -1,12 +1,13 @@
 //! Blobs in an export: written to `assets/`, and read back.
 
+mod common;
+
 use std::fs;
 use std::path::Path;
 use std::process::Command;
 
 use quiddity_core::{Asset, Graph, Index};
 use quiddity_node::blobs::{Blobs, Exported, Hash, Imported};
-use quiddity_node::store::Store;
 
 fn describe(graph: &Graph, name: &str, bytes: &[u8]) -> Asset {
     let asset = Asset::new(
@@ -137,7 +138,10 @@ async fn import_keeps_only_files_named_for_their_own_hash() {
 
 fn node(graph: &Path) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_quiddity-node"));
-    command.arg("--graph").arg(graph);
+    command
+        .arg("--graph")
+        .arg(graph)
+        .env("QUIDDITY_CONFIG_DIR", common::keys(graph));
     command
 }
 
@@ -163,7 +167,7 @@ async fn files_survive_an_export_and_an_import_with_the_command_line() {
     );
     let bytes: Vec<u8> = (0..70_000u32).map(|i| (i % 241) as u8).collect();
 
-    let store = Store::new(&a);
+    let store = common::store(&a);
     let graph = store.init(false).unwrap();
     let blobs = Blobs::open(&a).await.unwrap();
     let asset = describe(&graph, "data.bin", &bytes);
@@ -189,7 +193,7 @@ async fn files_survive_an_export_and_an_import_with_the_command_line() {
         run(node(&b).arg("import").arg(&out)),
         "imported 2 entities\nimported 1 files"
     );
-    let loaded = Store::new(&b).load().unwrap();
+    let loaded = common::store(&b).load().unwrap();
     let index = Index::build(&loaded).unwrap();
     let mut assets: Vec<_> = index.assets().map(|(_, a)| a).collect();
     assets.sort_by(|x, y| x.name.cmp(&y.name));
