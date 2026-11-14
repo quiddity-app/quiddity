@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use quiddity_core::Version;
+use quiddity_core::{GraphId, Version};
 
 use crate::Record;
 
@@ -12,6 +12,10 @@ pub enum Message {
     Hello {
         /// The sender's graph schema version, if it has a graph yet.
         schema: Option<i64>,
+        /// Which graph the sender holds, if it knows: a blank replica has
+        /// yet to learn, and a graph from before graphs had IDs has none.
+        /// Either is accepted by any peer, and two that differ are refused.
+        graph: Option<GraphId>,
         /// The sending device's ID, as it appears in the graph's device
         /// list.
         device: String,
@@ -52,6 +56,7 @@ impl Message {
         match self {
             Message::Hello {
                 schema,
+                graph,
                 device,
                 start,
                 version,
@@ -61,6 +66,13 @@ impl Message {
                     Some(s) => {
                         out.push(1);
                         out.extend_from_slice(&s.to_le_bytes());
+                    }
+                    None => out.push(0),
+                }
+                match graph {
+                    Some(id) => {
+                        out.push(1);
+                        out.extend_from_slice(&id.to_bytes());
                     }
                     None => out.push(0),
                 }
@@ -98,6 +110,15 @@ impl Message {
                     }
                     _ => return Err(DecodeError::Malformed),
                 };
+                let (graph, rest) = match rest.split_first() {
+                    Some((0, rest)) => (None, rest),
+                    Some((1, rest)) if rest.len() >= 16 => {
+                        let (id, rest) = rest.split_at(16);
+                        let id = id.try_into().expect("sixteen bytes");
+                        (Some(GraphId::from_bytes(id)), rest)
+                    }
+                    _ => return Err(DecodeError::Malformed),
+                };
                 let (device, rest) = take(rest)?;
                 let device =
                     String::from_utf8(device.to_vec()).map_err(|_| DecodeError::Malformed)?;
@@ -106,6 +127,7 @@ impl Message {
                 let version = Version::decode(rest).map_err(|_| DecodeError::Malformed)?;
                 Ok(Message::Hello {
                     schema,
+                    graph,
                     device,
                     start,
                     version,
