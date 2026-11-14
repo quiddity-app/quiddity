@@ -244,3 +244,67 @@ fn a_published_snapshot_has_no_key_in_it() {
             .is_err()
     );
 }
+
+#[test]
+fn a_graph_has_an_id_that_identify_prints() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (a, blank) = (tmp.path().join("a"), tmp.path().join("blank"));
+    run(node(&a).arg("init"));
+    let id = run(node(&a).arg("identify"));
+    assert!(id.starts_with("qgi_"), "{id}");
+    assert_eq!(
+        run(node(&a).arg("identify")),
+        id,
+        "it is the same each time"
+    );
+
+    // A replica that has yet to join has none to print, and makes none.
+    run(node(&blank).args(["init", "--blank"]));
+    let output = node(&blank).arg("identify").output().unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("blank replica"));
+}
+
+/// A graph from before graphs had IDs (`tests/fixtures/before-graph-ids.loro`,
+/// made by the build that preceded them) is still a graph: it opens, and
+/// `identify` gives it an ID that is kept, and leaves its content as it was.
+#[test]
+fn a_graph_from_before_ids_is_given_one_by_identify() {
+    use quiddity_core::Graph;
+    use quiddity_node::store::Store;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path().join("old");
+    let old = Graph::from_snapshot(include_bytes!("fixtures/before-graph-ids.loro")).unwrap();
+    assert_eq!(old.graph_id(), None);
+    let before = old.snapshot().unwrap();
+    let store = Store::new(&dir);
+    store.init(false).unwrap();
+    store.save(&old).unwrap();
+    assert_eq!(store.load().unwrap().graph_id(), None, "saving gives none");
+
+    let id = run(node(&dir).arg("identify"));
+    assert!(id.starts_with("qgi_"), "{id}");
+    assert_eq!(run(node(&dir).arg("identify")), id, "it is kept");
+
+    let loaded = store.load().unwrap();
+    assert_eq!(loaded.graph_id().unwrap().to_string(), id);
+    let names = |graph: &Graph| {
+        let mut names: Vec<_> = graph
+            .roots()
+            .into_iter()
+            .map(|b| graph.text(b).unwrap())
+            .collect();
+        names.sort();
+        names
+    };
+    assert_eq!(
+        names(&loaded),
+        names(&Graph::from_snapshot(&before).unwrap())
+    );
+    assert!(
+        names(&loaded).contains(&"Jane".to_owned()),
+        "{:?}",
+        names(&loaded)
+    );
+}
