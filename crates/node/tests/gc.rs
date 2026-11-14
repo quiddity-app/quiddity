@@ -38,12 +38,17 @@ fn version_after(n: usize) -> Version {
         .clone()
 }
 
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
 fn hashes(seeds: &[u8]) -> BTreeSet<Hash> {
     seeds.iter().map(|s| Hash::new([*s])).collect()
 }
 
 proptest! {
-    /// What is written reads back, whatever the files, times and versions.
+    /// What is saved reads back from the graph's file, whatever the files,
+    /// times and versions.
     #[test]
     fn the_ledger_reads_back_what_it_wrote(
         entries in vec((any::<u8>(), 0i64..4_000_000_000, 0usize..4), 0..8)
@@ -54,7 +59,9 @@ proptest! {
             all.insert(Hash::new([seed]));
             ledger.observe(&all, Timestamp::from_second(seconds).unwrap(), &version_after(n));
         }
-        prop_assert_eq!(Ledger::from_text(&ledger.to_text()), ledger);
+        let dir = tempfile::tempdir().unwrap();
+        ledger.save(dir.path()).unwrap();
+        prop_assert_eq!(Ledger::load(dir.path()).unwrap(), ledger);
     }
 
     /// A file is due only if the grace has passed *and* the version it was
@@ -114,7 +121,12 @@ fn a_file_keeps_its_first_sighting_and_is_forgotten_when_referenced_again() {
 fn lines_that_cannot_be_read_are_left_out() {
     let mut ledger = Ledger::default();
     ledger.observe(&hashes(&[1]), t0(), &version_after(1));
-    let good = ledger.to_text();
+    let good = format!(
+        "{} {} {}\n",
+        Hash::new([1]),
+        t0().as_second(),
+        hex(&version_after(1).encode())
+    );
     let hash = Hash::new([9]);
     let text = format!(
         "{good}\nnot a hash 1 00\n{hash} soon 00\n{hash} 5\n{hash} 5 0\n{hash} 5 zz\n{hash} 5 00 extra\n"
@@ -314,18 +326,21 @@ async fn a_file_referred_to_again_is_kept_and_forgotten() {
 #[tokio::test]
 async fn a_dry_run_changes_nothing() {
     let w = World::new().await;
-    let ledger = w.path().join("unreferenced-blobs.txt");
     let preview = w.collect(t0(), DAY, true).await;
     assert_eq!(preview.waiting, 1);
-    assert!(!ledger.exists(), "no sighting recorded");
+    assert!(
+        Ledger::load(w.path()).unwrap().is_empty(),
+        "no sighting recorded"
+    );
 
     w.collect(t0(), DAY, false).await;
-    let recorded = fs::read_to_string(&ledger).unwrap();
+    let recorded = Ledger::load(w.path()).unwrap();
+    assert_eq!(recorded.len(), 1);
     w.everyone_stores(t0() + DAY * 2);
     let preview = w.collect(t0() + DAY * 2, DAY, true).await;
     assert_eq!(preview.removed, BTreeSet::from([w.dropped]));
     assert_eq!(w.stored().await.len(), 2, "nothing deleted");
-    assert_eq!(fs::read_to_string(&ledger).unwrap(), recorded);
+    assert_eq!(Ledger::load(w.path()).unwrap(), recorded);
 }
 
 /// A line that can't be read whole still names the file it began with: a
@@ -445,4 +460,86 @@ fn a_blank_replica_is_refused() {
     let output = node(&path).arg("gc").output().unwrap();
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("blank replica"));
+}
+
+/// What was seen is kept in the graph's file, replacing what was there: a file
+/// that has gone from the ledger is gone from the file.
+#[test]
+fn saving_replaces_what_was_kept() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut ledger = Ledger::default();
+    ledger.observe(&hashes(&[1, 2, 3]), t0(), &version_after(1));
+    ledger.save(dir.path()).unwrap();
+    ledger.forget(&hashes(&[2]));
+    ledger.save(dir.path()).unwrap();
+    assert_eq!(Ledger::load(dir.path()).unwrap(), ledger);
+    assert_eq!(ledger.len(), 2);
+}
+
+/// A row that can't be read is left out, as a line of the old text was: it
+/// only starts that file's clock again.
+#[test]
+fn rows_that_cannot_be_read_are_left_out() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut ledger = Ledger::default();
+    ledger.observe(&hashes(&[1]), t0(), &version_after(1));
+    ledger.save(dir.path()).unwrap();
+
+    let db = rusqlite::Connection::open(dir.path().join("graph.quiddity")).unwrap();
+    db.execute(
+        "INSERT INTO unreferenced (hash, seen, version) VALUES (?1, 5, x'ff')",
+        [Hash::new([9]).as_bytes().as_slice()],
+    )
+    .unwrap();
+    db.execute(
+        "INSERT INTO unreferenced (hash, seen, version) VALUES (?1, 9223372036854775807, x'00')",
+        [Hash::new([8]).as_bytes().as_slice()],
+    )
+    .unwrap();
+    assert_eq!(Ledger::load(dir.path()).unwrap(), ledger);
+}
+
+/// A text ledger from before the file kept it is taken in once, and set aside;
+/// what the file already has stands, as the later sighting.
+#[test]
+fn an_old_text_ledger_is_taken_in_and_set_aside() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut kept = Ledger::default();
+    kept.observe(&hashes(&[1]), t0() + DAY, &version_after(2));
+    kept.save(dir.path()).unwrap();
+
+    let line = |seed: u8, at: Timestamp, n: usize| {
+        format!(
+            "{} {} {}\n",
+            Hash::new([seed]),
+            at.as_second(),
+            hex(&version_after(n).encode())
+        )
+    };
+    // Seen before the file knew of it, and a file the file has seen since.
+    fs::write(
+        dir.path().join("unreferenced-blobs.txt"),
+        format!("{}{}", line(1, t0(), 1), line(2, t0(), 1)),
+    )
+    .unwrap();
+
+    let loaded = Ledger::load(dir.path()).unwrap();
+    assert_eq!(loaded.len(), 2);
+    // A day and a half on: the file seen from the text is due, and the one the
+    // file knew of, seen later, is not yet: the file's sighting stood.
+    let later = t0() + SignedDuration::from_hours(36);
+    assert_eq!(loaded.due(later, DAY, &version_after(2)), hashes(&[2]));
+    assert!(!dir.path().join("unreferenced-blobs.txt").exists());
+    assert!(dir.path().join("unreferenced-blobs.txt.migrated").exists());
+    // Taken in once: it is in the file now.
+    assert_eq!(Ledger::load(dir.path()).unwrap(), loaded);
+}
+
+/// An old ledger that can't be read is an error and not an empty ledger: with
+/// nothing to go on, every file would start its clock again.
+#[test]
+fn an_old_ledger_that_cannot_be_read_is_an_error() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::create_dir(dir.path().join("unreferenced-blobs.txt")).unwrap();
+    assert!(Ledger::load(dir.path()).is_err());
 }
