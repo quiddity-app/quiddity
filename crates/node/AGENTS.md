@@ -113,6 +113,15 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
   beside `serve` that edits. `save` keeps the graph's node ID when the graph
   gave one up (`retired_node_ids`, `keep_node_id`) and only then: a graph handed
   to `save` that edits as some other node doesn't change what is stored.
+- **`Store::new` takes the graph as it was named: a directory, or the file** (and the keyring).
+  An existing directory is a directory, an existing file is the file whatever
+  it is called (so a copy can be renamed), and a path that isn't there yet is a
+  file if it ends in `.quiddity` and a directory if not, so every path that has
+  named a directory still does. Pass `store.dir()`, the path as named, to
+  whatever else opens the graph (`Blobs::open`, `gc::collect`): they make their
+  own `Store::file_only`, which never asks for the device's key. **Anything that looks for files of an older layout (`graph.loro`,
+  `device.key`, `blobs/`, the text ledger) must ask `legacy_dir()`**, which is
+  `None` for a graph named by its file: its neighbours' files are not its own.
 - **Never publish or copy a graph's file as a snapshot**: a graph made before the
   device's key was kept apart holds its endpoint key. `quiddity-node snapshot` writes the bare Loro snapshot for the
   static build, and a test checks the key isn't in it.

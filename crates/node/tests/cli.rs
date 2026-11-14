@@ -338,3 +338,28 @@ fn a_graph_from_before_ids_is_given_one_by_identify() {
         names(&loaded)
     );
 }
+
+/// `-g` can name the graph's file: it is made there, and is the only thing
+/// made, and the same name finds it again.
+#[test]
+fn a_graph_can_be_named_by_its_file() {
+    let tmp = tempfile::tempdir().unwrap();
+    // The device's key is kept apart, so that what is beside the file is only
+    // what the graph made.
+    let keys = tempfile::tempdir().unwrap();
+    let node = |file: &Path| {
+        let mut command = node(file);
+        command.env("QUIDDITY_CONFIG_DIR", keys.path());
+        command
+    };
+    let file = tmp.path().join("notes.quiddity");
+    let id = run(node(&file).arg("init"));
+    assert_eq!(run(node(&file).arg("id")), id);
+    assert_eq!(fs::read_dir(tmp.path()).unwrap().count(), 1);
+
+    let out = tmp.path().join("snapshot.loro");
+    run(node(&file).arg("snapshot").arg(&out));
+    assert!(out.exists());
+    let again = node(&file).arg("init").output().unwrap();
+    assert!(!again.status.success());
+}
