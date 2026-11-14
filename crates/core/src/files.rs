@@ -97,7 +97,14 @@ fn write_export(graph: &Graph, dir: &Path) -> Result<usize> {
     let index = Index::build(graph)?;
     let mut used = HashSet::new();
     let mut written = 0;
-    for entity in graph.roots() {
+    // Entities with one name are numbered in the order they are met, so that
+    // order must not depend on where they sit among the roots, which moves,
+    // or the files of one export swap contents in the next. A block's ID is
+    // the same on every device and never changes. Within one device it is
+    // creation order, so the oldest `Jane` is `Jane.md`.
+    let mut roots = graph.roots();
+    roots.sort_unstable();
+    for entity in roots {
         if is_spent_duplicate(graph, &index, entity)? {
             continue;
         }

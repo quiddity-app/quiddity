@@ -1,5 +1,8 @@
+use std::collections::BTreeMap;
 use std::fs;
+use std::path::Path;
 
+use proptest::prelude::*;
 use quiddity_core::files::{export_dir, import_dir};
 use quiddity_core::syntax::{Link, Value};
 use quiddity_core::{Graph, Index, Resolution, Result, ensure_journal};
@@ -40,6 +43,76 @@ fn export_layout() -> Result<()> {
     );
     assert!(export_dir(&graph, &out).is_err(), "refuses to overwrite");
     Ok(())
+}
+
+/// What each file of an export holds, by name.
+fn entity_files(out: &Path) -> BTreeMap<String, String> {
+    fs::read_dir(out.join("entities"))
+        .unwrap()
+        .map(|e| {
+            let path = e.unwrap().path();
+            (
+                path.file_name().unwrap().to_str().unwrap().to_owned(),
+                fs::read_to_string(&path).unwrap(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn same_named_entities_are_numbered_in_creation_order() -> Result<()> {
+    let graph = Graph::new();
+    let janes: Vec<_> = (1..=3)
+        .map(|n| graph.create_entity("Jane", &[("n", text(&n.to_string()))]))
+        .collect::<Result<_>>()?;
+    // Roots can be put in any order; the numbering mustn't follow.
+    graph.move_block(janes[0], None, Some(2))?;
+    graph.move_block(janes[2], None, Some(0))?;
+    graph.commit();
+
+    let tmp = tempfile::tempdir()?;
+    let out = tmp.path().join("out");
+    export_dir(&graph, &out)?;
+    let files = entity_files(&out);
+    for (name, n) in [("Jane.md", "1"), ("Jane 2.md", "2"), ("Jane 3.md", "3")] {
+        assert!(
+            files[name].contains(&format!("n:: {n}")),
+            "{name}: {}",
+            files[name]
+        );
+    }
+    Ok(())
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(32))]
+
+    /// Where entities with one name sit among the roots doesn't change which
+    /// file holds which, so a backup kept in version control shows only what
+    /// changed.
+    #[test]
+    fn numbering_does_not_depend_on_root_order(
+        count in 2usize..6,
+        moves in prop::collection::vec((any::<prop::sample::Index>(), any::<prop::sample::Index>()), 0..8),
+    ) {
+        let graph = Graph::new();
+        let ids: Vec<_> = (0..count)
+            .map(|n| graph.create_entity("Jane", &[("n", text(&n.to_string()))]).unwrap())
+            .collect();
+        graph.commit();
+        let tmp = tempfile::tempdir().unwrap();
+        export_dir(&graph, &tmp.path().join("before")).unwrap();
+
+        for (who, to) in &moves {
+            graph.move_block(ids[who.index(count)], None, Some(to.index(count))).unwrap();
+        }
+        graph.commit();
+        export_dir(&graph, &tmp.path().join("after")).unwrap();
+        prop_assert_eq!(
+            entity_files(&tmp.path().join("before")),
+            entity_files(&tmp.path().join("after"))
+        );
+    }
 }
 
 /// File systems limit a name to 255 bytes, which 130 CJK characters or 70
