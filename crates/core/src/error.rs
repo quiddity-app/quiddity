@@ -26,6 +26,8 @@ pub enum Error {
     GraphIdExists,
     #[error("a blank replica has no graph to give an ID to")]
     BlankReplica,
+    #[error("that node ID can't be used: Loro keeps it for itself")]
+    InvalidNodeId,
     #[error("in quiddity.toml: {0}")]
     Settings(String),
 }

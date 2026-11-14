@@ -35,7 +35,8 @@ use tracing::{debug, info, instrument, warn};
 
 use crate::StoreError;
 use crate::keyring::Keyring;
-use quiddity_identity::Salt;
+use quiddity_core::NodeId;
+use quiddity_identity::{Salt, SealedNodeId};
 
 /// The graph, inside the graph's directory.
 const FILE: &str = "graph.quiddity";
@@ -70,15 +71,22 @@ const APPLICATION_ID: i32 = 0x5144_4459;
 /// SQLite's `user_version`: the layout of the tables below.
 ///
 /// 1: the snapshot, and the device's endpoint key. 2: and the blobs. 3: and the
-/// salt that a new graph's endpoint key is derived with.
-const LAYOUT: i32 = 3;
+/// salt that a new graph's endpoint key is derived with. 4: and this replica's
+/// node ID.
+const LAYOUT: i32 = 4;
 
 /// Exactly the schema, as SQLite stores it (its `sql` column is the statement
 /// as written), so that a file with anything else in it is refused. One row
 /// each, enforced by the key, so there is no question which is current.
 /// The snapshot has two: row 1 is the current one, and row 2 the one before
 /// it, which `load` falls back to if row 1 can't be decoded.
-const TABLES: [(&str, &str); 4] = [BLOB_TABLE, SNAPSHOT_TABLE, ENDPOINT_KEY_TABLE, SLOT_TABLE];
+const TABLES: [(&str, &str); 5] = [
+    BLOB_TABLE,
+    SNAPSHOT_TABLE,
+    ENDPOINT_KEY_TABLE,
+    SLOT_TABLE,
+    NODE_TABLE,
+];
 
 /// Complete blobs by BLAKE3 hash. `outboard` (the hashes iroh-blobs needs to
 /// prove parts of the blob) comes before `data` so that reading it never walks
@@ -103,9 +111,17 @@ const SLOT_TABLE: (&str, &str) = (
     "CREATE TABLE slot (id INTEGER PRIMARY KEY CHECK (id = 1), salt BLOB NOT NULL CHECK (length(salt) = 16)) STRICT",
 );
 
+/// The replica's node ID, sealed (see [`SealedNodeId`]): readable only on the
+/// device that made it, so that a file taken to another is known to have been.
+const NODE_TABLE: (&str, &str) = (
+    "node",
+    "CREATE TABLE node (id INTEGER PRIMARY KEY CHECK (id = 1), sealed BLOB NOT NULL CHECK (length(sealed) = 12)) STRICT",
+);
+
 /// What earlier layouts held, which are converted when they are opened.
 const TABLES_V1: [(&str, &str); 2] = [SNAPSHOT_TABLE, ENDPOINT_KEY_TABLE];
 const TABLES_V2: [(&str, &str); 3] = [BLOB_TABLE, SNAPSHOT_TABLE, ENDPOINT_KEY_TABLE];
+const TABLES_V3: [(&str, &str); 4] = [BLOB_TABLE, SNAPSHOT_TABLE, ENDPOINT_KEY_TABLE, SLOT_TABLE];
 
 /// How long to wait for another process that has the file open before saying
 /// so: a node that is serving, and a command run beside it.
@@ -158,7 +174,14 @@ impl Store {
             return Err(StoreError::Exists(self.dir.clone()));
         }
         self.ensure()?;
-        let graph = if blank { Graph::blank() } else { Graph::new() };
+        let node = self.node_id()?;
+        let graph = if blank {
+            let graph = Graph::blank();
+            graph.set_node_id(node)?;
+            graph
+        } else {
+            Graph::new_as(node)
+        };
         self.save(&graph)?;
         Ok(graph)
     }
@@ -204,8 +227,12 @@ impl Store {
         let bytes = generation(CURRENT)?.ok_or_else(|| StoreError::Missing(self.dir.clone()))?;
         debug!(bytes = bytes.len(), "loading the snapshot");
         let mut durable = self.durable();
+        // The replica that is kept edits as the node it has always been, so that
+        // opening a graph a hundred times doesn't add a hundred peers to it.
+        let node = self.node_id()?;
         match Graph::from_snapshot(&bytes) {
             Ok(graph) => {
+                graph.set_node_id(node)?;
                 *durable = graph.version();
                 Ok(graph)
             }
@@ -218,6 +245,7 @@ impl Store {
                     return Err(e.into());
                 };
                 let graph = Graph::from_snapshot(&previous).map_err(|_| e)?;
+                graph.set_node_id(node)?;
                 warn!("the snapshot couldn't be loaded: using the previous one");
                 *durable = graph.version();
                 Ok(graph)
@@ -287,6 +315,53 @@ impl Store {
     pub fn key(&self) -> Result<SecretKey, StoreError> {
         self.ensure()?;
         self.key_in(&self.open()?)
+    }
+
+    /// The node ID this replica edits as, made on first use and kept.
+    ///
+    /// It is stored sealed with a mask derived from the device's key and the
+    /// file's salt, so it only opens on the device that made it. A file that
+    /// was made on another device, or that has lost its device's key, has one
+    /// that doesn't open: the replica is not that one, and gets a node ID of its
+    /// own. Edits made under the old ID stay as they are, and are the other
+    /// device's.
+    #[instrument(level = "debug", skip_all, fields(dir = %self.dir.display()))]
+    pub fn node_id(&self) -> Result<NodeId, StoreError> {
+        self.ensure()?;
+        self.node_id_in(&mut self.open()?)
+    }
+
+    fn node_id_in(&self, db: &mut Connection) -> Result<NodeId, StoreError> {
+        let mask = self.keyring.key()?.node_mask(&salt_in(db)?);
+        let read = |db: &Connection| -> Result<Option<SealedNodeId>, StoreError> {
+            let sealed: Option<Vec<u8>> = db
+                .query_row("SELECT sealed FROM node WHERE id = 1", [], |r| r.get(0))
+                .optional()?;
+            Ok(sealed.and_then(|bytes| Some(SealedNodeId::from_bytes(bytes.try_into().ok()?))))
+        };
+        if let Some(id) = read(db)?.and_then(|sealed| sealed.open(&mask)) {
+            return Ok(id);
+        }
+        // None, or not made here. Made under a write lock, looking again first,
+        // so that two processes asking together agree on one.
+        let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let stored = read(&tx)?;
+        if let Some(id) = stored.and_then(|sealed| sealed.open(&mask)) {
+            return Ok(id);
+        }
+        let id = Graph::fresh_node_id();
+        tx.execute(
+            "INSERT INTO node (id, sealed) VALUES (1, ?1)
+             ON CONFLICT (id) DO UPDATE SET sealed = excluded.sealed",
+            params![id.seal(&mask).to_bytes().as_slice()],
+        )?;
+        tx.commit()?;
+        if stored.is_some() {
+            warn!("this graph's node ID was made on another device: this replica has a new one");
+        } else {
+            info!("making this replica's node ID");
+        }
+        Ok(id)
     }
 
     fn key_in(&self, db: &Connection) -> Result<SecretKey, StoreError> {
@@ -483,7 +558,7 @@ impl Store {
         }
         match layout {
             LAYOUT => {}
-            1 | 2 => self.upgrade(&mut db)?,
+            1..=3 => self.upgrade(&mut db)?,
             _ => {
                 return Err(self.not_ours(format!(
                     "its layout is version {layout}, and this build reads version {LAYOUT}"
@@ -514,9 +589,10 @@ impl Store {
         Ok(())
     }
 
-    /// Converts a file of an earlier layout: layout 1 gains the blob table, and
-    /// both gain the salt, which only a graph that derives its key uses (one
-    /// made before keeps its own endpoint key).
+    /// Converts a file of an earlier layout: layout 1 gains the blob table;
+    /// layouts 1 and 2 gain the salt, which only a graph that derives its key
+    /// uses (one made before keeps its own endpoint key); and all gain a place
+    /// for the node ID, which is made when it is first wanted.
     ///
     /// The layout is read again, and the file's schema checked against exactly
     /// what that layout held, under the write lock and not before it. Another
@@ -528,17 +604,25 @@ impl Store {
         let layout: i32 = tx.pragma_query_value(None, "user_version", |r| r.get(0))?;
         match layout {
             LAYOUT => {}
-            1 | 2 => {
-                self.check_schema(&tx, if layout == 1 { &TABLES_V1 } else { &TABLES_V2 })?;
+            1..=3 => {
+                let held: &[(&str, &str)] = match layout {
+                    1 => &TABLES_V1,
+                    2 => &TABLES_V2,
+                    _ => &TABLES_V3,
+                };
+                self.check_schema(&tx, held)?;
                 info!(layout, "converting the graph's file to layout {LAYOUT}");
                 if layout == 1 {
                     tx.execute_batch(BLOB_TABLE.1)?;
                 }
-                tx.execute_batch(SLOT_TABLE.1)?;
-                tx.execute(
-                    "INSERT INTO slot (id, salt) VALUES (1, ?1)",
-                    params![new_salt()?.as_slice()],
-                )?;
+                if layout <= 2 {
+                    tx.execute_batch(SLOT_TABLE.1)?;
+                    tx.execute(
+                        "INSERT INTO slot (id, salt) VALUES (1, ?1)",
+                        params![new_salt()?.as_slice()],
+                    )?;
+                }
+                tx.execute_batch(NODE_TABLE.1)?;
                 tx.pragma_update(None, "user_version", LAYOUT)?;
             }
             _ => {
@@ -674,12 +758,13 @@ mod tests {
         Store::new(dir, Keyring::new(dir.join("keys")))
     }
 
-    /// Makes the file what an earlier build made: layout 1 had neither blobs
-    /// nor a salt, and layout 2 had no salt.
+    /// Makes the file what an earlier build made: layout 1 had no blobs, layouts
+    /// 1 and 2 had no salt, and layouts 1 to 3 had no node ID.
     fn as_layout(store: &Store, layout: i32) {
         let tables = match layout {
-            1 => "DROP TABLE blob; DROP TABLE slot;",
-            2 => "DROP TABLE slot;",
+            1 => "DROP TABLE node; DROP TABLE slot; DROP TABLE blob;",
+            2 => "DROP TABLE node; DROP TABLE slot;",
+            3 => "DROP TABLE node;",
             _ => panic!("no such earlier layout"),
         };
         store
@@ -988,7 +1073,7 @@ mod tests {
     fn a_file_that_is_not_ours_is_refused() {
         let cases: [(&str, &str); 6] = [
             ("another application", "PRAGMA application_id = 7"),
-            ("a later layout", "PRAGMA user_version = 4"),
+            ("a later layout", "PRAGMA user_version = 5"),
             (
                 "a trigger",
                 "CREATE TRIGGER t AFTER UPDATE ON snapshot BEGIN SELECT 1; END",
@@ -1186,11 +1271,7 @@ mod tests {
         let block = graph.create_block(None, None, "kept").unwrap();
         graph.commit();
         store.save(&graph).unwrap();
-        store
-            .connect()
-            .unwrap()
-            .execute_batch("DROP TABLE blob; DROP TABLE slot; PRAGMA user_version = 1;")
-            .unwrap();
+        as_layout(&store, 1);
 
         assert_eq!(store.load().unwrap().text(block).unwrap(), "kept");
         let db = store.connection().unwrap();
@@ -1321,8 +1402,9 @@ mod tests {
     }
 
     /// A graph made before the device's key was kept apart (layout 1 or 2) keeps
-    /// its own key, and so its device ID, and doesn't ask for the device's: it is
-    /// only given a salt.
+    /// its own key, and so its device ID, and doesn't ask for the device's to say
+    /// what it is: it is only given a salt. (Loading it does ask, for what the
+    /// replica edits as.)
     #[test]
     fn a_file_of_an_earlier_layout_keeps_its_key_and_gains_a_salt() {
         for old in [1, 2] {
@@ -1351,11 +1433,13 @@ mod tests {
             assert_eq!(store.key().unwrap().public(), own.public(), "layout {old}");
             assert_eq!(layout(&store), LAYOUT);
             assert!(salt_in(&store.connect().unwrap()).is_ok());
-            assert_eq!(store.load().unwrap().text(block).unwrap(), "kept");
             assert!(
                 !store.keyring.dir().exists(),
                 "the device's key was not asked for"
             );
+            // Loading it does ask: what the replica edits as is tied to the device.
+            assert_eq!(store.load().unwrap().text(block).unwrap(), "kept");
+            assert!(store.keyring.dir().exists());
             // And a blob can be kept in it, which layout 1 couldn't.
             store
                 .connect()
@@ -1368,6 +1452,24 @@ mod tests {
         }
     }
 
+    /// A file of layout 3 has a salt already, which it keeps: the key a graph
+    /// derived from it is the same after.
+    #[test]
+    fn a_file_of_layout_3_keeps_its_salt() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = store_at(tmp.path());
+        store.init(false).unwrap();
+        let (key, salt) = (
+            store.key().unwrap().public(),
+            salt_in(&store.connect().unwrap()).unwrap(),
+        );
+        as_layout(&store, 3);
+        assert_eq!(store.key().unwrap().public(), key);
+        assert_eq!(layout(&store), LAYOUT);
+        assert_eq!(salt_in(&store.connect().unwrap()).unwrap(), salt);
+        assert!(store.load().is_ok());
+    }
+
     /// Opening a file of an earlier layout from several threads at once: the
     /// check that it is exactly that layout is made under the lock, so whoever
     /// is second finds it converted and not damaged. (It was made before the
@@ -1376,7 +1478,7 @@ mod tests {
     #[test]
     fn an_earlier_layout_is_converted_once_however_many_open_it() {
         for round in 0..20 {
-            for old in [1, 2] {
+            for old in [1, 2, 3] {
                 let tmp = tempfile::tempdir().unwrap();
                 let store = store_at(tmp.path());
                 store.init(false).unwrap();
@@ -1429,7 +1531,7 @@ mod tests {
     /// An earlier layout is only converted if it is exactly that layout.
     #[test]
     fn an_earlier_layout_with_more_in_it_is_refused_and_left_alone() {
-        for old in [1, 2] {
+        for old in [1, 2, 3] {
             let tmp = tempfile::tempdir().unwrap();
             let store = store_at(tmp.path());
             store.init(false).unwrap();
@@ -1471,5 +1573,195 @@ mod tests {
             StoreError::DeviceKey(..)
         ));
         assert_eq!(fs::read(store.file()).unwrap(), before);
+    }
+
+    /// The replica that is kept is one node, however often the graph is opened:
+    /// opening a graph a hundred times doesn't add a hundred peers to it.
+    #[test]
+    fn a_replica_edits_as_one_node_however_often_it_is_opened() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = store_at(tmp.path());
+        let graph = store.init(false).unwrap();
+        let node = store.node_id().unwrap();
+        assert_eq!(graph.node_id(), node);
+        for i in 0..5 {
+            let graph = store.load().unwrap();
+            assert_eq!(graph.node_id(), node);
+            graph
+                .create_block(None, None, &format!("round {i}"))
+                .unwrap();
+            graph.commit();
+            store.save(&graph).unwrap();
+        }
+        let graph = store.load().unwrap();
+        assert_eq!(graph.version().nodes(), [node], "one peer, not six");
+        assert_eq!(graph.roots().len(), 5);
+        assert_eq!(store.node_id().unwrap(), node);
+    }
+
+    #[test]
+    fn a_blank_replica_edits_as_its_node_too() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = store_at(tmp.path());
+        let graph = store.init(true).unwrap();
+        assert_eq!(graph.node_id(), store.node_id().unwrap());
+        assert_eq!(graph.version().nodes(), []);
+    }
+
+    /// The node ID is what loading applies, from either generation.
+    #[test]
+    fn loading_from_the_previous_generation_applies_it_too() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = store_at(tmp.path());
+        let graph = store.init(false).unwrap();
+        graph.create_block(None, None, "x").unwrap();
+        graph.commit();
+        store.save(&graph).unwrap();
+        store.save(&graph).unwrap();
+        store
+            .connect()
+            .unwrap()
+            .execute("UPDATE snapshot SET data = X'00' WHERE id = 1", [])
+            .unwrap();
+        let loaded = store.load().unwrap();
+        assert_eq!(loaded.node_id(), store.node_id().unwrap());
+    }
+
+    /// A file taken to another device is not that device's replica: it gets a
+    /// node ID of its own, and keeps it, while what the first device wrote
+    /// under its own stays.
+    #[test]
+    fn a_graph_taken_to_another_device_gets_a_node_id_of_its_own() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (first, second) = (tmp.path().join("first"), tmp.path().join("second"));
+        let on_first = Store::new(&first, Keyring::new(tmp.path().join("keys 1")));
+        let graph = on_first.init(false).unwrap();
+        graph.create_block(None, None, "from the first").unwrap();
+        graph.commit();
+        on_first.save(&graph).unwrap();
+        let original = on_first.node_id().unwrap();
+
+        fs::create_dir_all(&second).unwrap();
+        fs::copy(on_first.file(), second.join(FILE)).unwrap();
+        let on_second = Store::new(&second, Keyring::new(tmp.path().join("keys 2")));
+        let moved = on_second.node_id().unwrap();
+        assert_ne!(moved, original);
+        assert_eq!(on_second.node_id().unwrap(), moved, "and it keeps it");
+        assert_eq!(
+            on_first.node_id().unwrap(),
+            original,
+            "the first is as it was"
+        );
+
+        let graph = on_second.load().unwrap();
+        assert_eq!(graph.node_id(), moved);
+        graph.create_block(None, None, "from the second").unwrap();
+        graph.commit();
+        assert_eq!(graph.version().nodes().len(), 2);
+        assert!(graph.version().nodes().contains(&original));
+        assert!(graph.version().nodes().contains(&moved));
+    }
+
+    /// A copy beside the original, on one device, is the same node: nothing in
+    /// the file can say otherwise. Telling them apart is the work of the map of
+    /// where a device's graphs are.
+    #[test]
+    fn a_copy_on_the_same_device_is_the_same_node() {
+        let tmp = tempfile::tempdir().unwrap();
+        let keys = Keyring::new(tmp.path().join("keys"));
+        let one = Store::new(tmp.path().join("one"), keys.clone());
+        one.init(false).unwrap();
+        let copy = Store::new(tmp.path().join("copy"), keys);
+        fs::create_dir_all(copy.dir()).unwrap();
+        fs::copy(one.file(), copy.file()).unwrap();
+        assert_eq!(copy.node_id().unwrap(), one.node_id().unwrap());
+    }
+
+    /// What is in the file is the sealed form: the ID isn't in it as it is.
+    #[test]
+    fn the_node_id_is_kept_sealed() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = store_at(tmp.path());
+        store.init(false).unwrap();
+        let node = store.node_id().unwrap();
+        let stored: Vec<u8> = store
+            .connect()
+            .unwrap()
+            .query_row("SELECT sealed FROM node WHERE id = 1", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(stored.len(), 12);
+        assert!(!stored.windows(8).any(|w| w == node.get().to_be_bytes()));
+        let mask = store
+            .keyring
+            .key()
+            .unwrap()
+            .node_mask(&salt_in(&store.connect().unwrap()).unwrap());
+        assert_eq!(
+            SealedNodeId::from_bytes(stored.try_into().unwrap()).open(&mask),
+            Some(node)
+        );
+    }
+
+    /// A stored value that doesn't open, however it came to be, is not a node
+    /// ID to edit as.
+    #[test]
+    fn a_damaged_node_id_is_replaced_once() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = store_at(tmp.path());
+        store.init(false).unwrap();
+        let before = store.node_id().unwrap();
+        store
+            .connect()
+            .unwrap()
+            .execute(
+                "UPDATE node SET sealed = X'000102030405060708090a0b' WHERE id = 1",
+                [],
+            )
+            .unwrap();
+        let after = store.node_id().unwrap();
+        assert_ne!(after, before);
+        assert_eq!(store.node_id().unwrap(), after);
+    }
+
+    /// Processes asking for it together agree on one.
+    #[test]
+    fn processes_asking_together_agree_on_a_node_id() {
+        let tmp = tempfile::tempdir().unwrap();
+        store_at(tmp.path()).init(false).unwrap();
+        store_at(tmp.path())
+            .connect()
+            .unwrap()
+            .execute("DELETE FROM node", [])
+            .unwrap();
+        let ids: Vec<_> = std::thread::scope(|s| {
+            (0..6)
+                .map(|_| s.spawn(|| patiently(|| store_at(tmp.path()).node_id())))
+                .collect::<Vec<_>>()
+                .into_iter()
+                .map(|t| t.join().unwrap())
+                .collect()
+        });
+        assert!(ids.windows(2).all(|w| w[0] == w[1]), "{ids:?}");
+    }
+
+    /// A graph made before has one too: it needs the device's key for it, and
+    /// still keeps its own endpoint key.
+    #[test]
+    fn a_graph_with_its_own_endpoint_key_has_a_node_id() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = store_at(tmp.path());
+        store.init(false).unwrap();
+        let own = SecretKey::generate();
+        store
+            .connect()
+            .unwrap()
+            .execute(
+                "INSERT INTO endpoint_key (id, secret) VALUES (1, ?1)",
+                params![own.to_bytes().as_slice()],
+            )
+            .unwrap();
+        let node = store.node_id().unwrap();
+        assert_eq!(store.load().unwrap().node_id(), node);
+        assert_eq!(store.key().unwrap().public(), own.public());
     }
 }

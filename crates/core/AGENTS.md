@@ -29,6 +29,17 @@ outline text format.
 - **An ID this build can't read is not an absent one.** `graph_id` says
   `None` for both, but `assign_graph_id` refuses to write over either.
 
+## The node ID
+
+- **A replica's node ID is Loro's peer ID** (`node_id.rs`). `Graph::new` and
+  `blank` start with a random one; a replica that is kept sets its own with
+  `set_node_id`, and `new_as` makes a graph as that node. Loro refuses only
+  `u64::MAX`. **Setting an ID that has edits here carries on after them**, which
+  is the point and the hazard: two replicas editing as one node make different
+  changes with the same ID, and Loro keeps one without a word. Never set one
+  that another replica might be using. Don't derive one; use `fresh_node_id`.
+- `Version::nodes` and `count_of` say who has edited and how much.
+
 ## Reading the whole graph
 
 - **Loro costs about 7 µs for each block it is asked about**, however it is
