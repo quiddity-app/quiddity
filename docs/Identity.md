@@ -1,6 +1,7 @@
 alias:: [device key, device ID, graph ID, node ID, identifiers]
 
 - Planned, not built. How a replica, a device and a graph are told apart, and how the secret one is kept from being misused. Today a device is its [[iroh]] key and nothing else, and the [[Loro]] peer ID is chosen at random each time a replica starts. [[Design]]
+- Built so far: the types, their written form and the derivations, in [[quiddity-identity]]. Nothing uses them yet; the steps at the end say what comes next.
 - What there is now
 	- One secret: the endpoint key, 32 raw bytes, in the graph's file (the `endpoint_key` table of `graph.quiddity`; before that, a `device.key` beside it). It is an Ed25519 secret key, so asymmetric. Its public half is the endpoint ID, which the UI, the CLI and the graph's [[Device list]] call the device ID. [[Storage]] [[Sync]]
 	- Nothing else is a key. Sync, [[Blob transfer]] and [[Presence]] all use the endpoint. The updater's signing key belongs to releases and is not in the app. [[Updates]]
@@ -12,7 +13,7 @@ alias:: [device key, device ID, graph ID, node ID, identifiers]
 	- **Graph ID**: 128 random bits, made when the graph is created and kept in the graph's document, so every replica has it. It is not secret.
 		- Only creating a graph makes one, in its first edit. A blank replica has none until it imports the first update, so two devices can't each invent one and then have to agree.
 		- The hello carries it. A replica refuses a peer with a different one, so unrelated graphs never merge.
-		- It names the graph in the [[Copied graphs]] map and in what is derived from the device key.
+		- It names the graph in the [[Copied graphs]] map.
 		- A blank replica is the one exception to the refusal, and only when it is joining on purpose. Pairing shows the graph's name and ID on both devices before anything is taken, so that nobody joins whatever graph a pasted device ID happens to lead to.
 		- The refusal also stops device lists merging: today two unrelated graphs that both hold full history in memory pass the hello and union their blocks and their device lists, so each graph's devices become trusted by the other. (quiddity-app/quiddity#290)
 		- UI state that belongs to one graph, such as recents, is keyed by it. Today it is keyed by entity ID and title alone.
@@ -22,8 +23,9 @@ alias:: [device key, device ID, graph ID, node ID, identifiers]
 		- It is random, not derived: deriving it would give the same ID to a copy.
 		- Each device records in the graph the node IDs it has used, beside its stored version, so that anyone can say which device made a change.
 - Deriving what is used from the device key
-	- The device key is the input to a key derivation (HKDF or BLAKE3's `derive_key`), with a context string for each use and the graph ID as salt, so that one use can never be passed off as another.
-	- **Endpoint key**: an Ed25519 key per graph, derived. It is what iroh is bound to, and what makes a device ID per graph, as now, but without keeping a key in each graph's directory. One device key backs up every graph, and a device's IDs in two graphs can't be linked.
+	- The device key is the input to a key derivation ([[BLAKE3]]'s `derive_key`), with a context string for each use and a salt, so that one use can never be passed off as another.
+	- **The salt is random, made with each graph's file and kept in it. It is not the graph ID**, which is what this page first said: a blank replica has to give out its device ID, to be let in, before it has met the graph and learned its ID.
+	- **Endpoint key**: an Ed25519 key per graph file, derived. It is what iroh is bound to, and what makes a device ID per graph, as now, but without keeping a key in each graph's file. One device key backs up every graph, and a device's IDs in two graphs can't be linked.
 	- **Node mask**: 64 bits, derived the same way. A node ID is stored XORed with it, together with a check of the plain value, so that it is only readable on the device that made it. Read on another, the check fails and the replica knows it was copied. The mask is not secrecy: a copy that takes the device key too is the same device. It is there to tell, not to prevent.
 	- Existing graphs keep their endpoint key (converted from `device.key` when the file is first opened), so that device IDs already in other devices' lists stay valid. Moving them to derived keys would change the ID, so it is a re-pairing and is not forced.
 - Keeping a key from being misused
@@ -31,17 +33,20 @@ alias:: [device key, device ID, graph ID, node ID, identifiers]
 	- It is kept in the device's own configuration directory, not in a graph's and so not copied with one, with mode 0600, or in the platform's keychain where there is one. It is never put in a graph, an export, a log, a URL, a pairing ticket, an argument on the command line (visible to every process) or anything the UI is sent. The UI only ever has public IDs.
 	- Parsing says what was found: a device ID where a key was wanted is an error that names both, rather than "bad length".
 - How they are written down: GitHub's token format, so a leaked secret can be found. [[Secret scanning]]
-	- `qdk_` then the payload in base62, then a six-character checksum: the CRC-32 of the payload, in base62. Text that begins `qdk_` and does not checksum is a typo, or not ours, and is refused without trying it. A scanner can check the same way and so skip what only looks like a key.
+	- `qdk_` then the payload in base62 at a fixed width (43 characters for a key), then a six-character checksum: the CRC-32 of the payload, in base62. A token has exactly one spelling. Text that begins `qdk_` and does not checksum is a typo, or not ours, and is refused without trying it. A scanner can check the same way and so skip what only looks like a key.
 	- The only secret persisted or shown to a person is a `qdk_` key. A derived key is never stored: it is worked out each time.
 	- Public identifiers have a prefix of their own and the same checksum, so a pasted device ID is checked for typos and never matches a scanner's pattern for a key: `qdi_` for a device ID, `qgi_` for a graph ID and `qni_` for a node ID. Bare endpoint IDs, as printed now, are still accepted.
 	- The prefix also names the format's version, so that a change to the payload is a new prefix and not a guess.
 	- Getting it picked up on GitHub is a separate step: it supports patterns for its own users, and for others through its partner programme. Whatever the requirements are when the format is ready, the prefix and the checksum are what they ask of a token.
-- Steps, so that each is a change on its own
-	- The types and the written form, in [[quiddity-core]] or a crate of their own, with property tests: whatever is written reads back, and no single changed character reads at all.
-	- Graph ID: made at `init`, carried in the hello, checked on import. [[quiddity-sync]]
-	- The device key moves out of the graph's directory and the endpoint key is derived from it. [[quiddity-node]]
-	- Node IDs are stored and set on the Loro document, and recorded in the device list. [[quiddity-core]]
-	- The map of nodes to places, and what to do when a graph is copied. [[Copied graphs]]
+- Steps, a stack of changes each of which builds and passes on its own
+	- Built: the types, the written form and the derivations. [[quiddity-identity]]
+	- Planned: the graph ID, made with the graph and kept in its document. [[quiddity-core]]
+	- Planned: the hello carries it, and a session refuses another graph's. The sync protocol changes, so its ALPN name does. [[quiddity-sync]]
+	- Planned: the device key moves out of the graph's file, into the device's own configuration directory, and new graphs' endpoint keys are derived from it. [[quiddity-node]]
+	- Planned: node IDs, stored sealed with the mask and set as Loro's peer ID.
+	- Planned: the map of nodes to places, and forking a copy. [[Copied graphs]]
+	- Planned: noticing a twin, from changes that arrive under this replica's own node ID.
+	- Not in the stack: recording node IDs in the device list, the UI replica's own stable node ID, showing the graph's ID when pairing, and writing device IDs with the `qdi_` prefix in the UI.
 - Open questions
 	- How many nodes the UI has. Two windows on one graph would need an ID each: leased from the shell, and given back when the window closes.
 	- Whether the device list should be keyed by the device ID or by the node ID. It is by device ID now, which is what authorisation needs; compaction counts versions by peer, which is the node ID.
