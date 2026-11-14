@@ -62,16 +62,27 @@ fn removing_on_failure<T>(
 ) -> Result<T> {
     let result = write();
     if result.is_err() {
-        let removed = if existed {
-            empty_dir(dir)
-        } else {
-            fs::remove_dir_all(dir)
-        };
-        if let Err(error) = removed {
-            warn!(dir = %dir.display(), %error, "couldn't remove a failed export");
-        }
+        discard_export(dir, existed);
     }
     result
+}
+
+/// Takes out an export that [`export_dir`] has written into `dir`, for a
+/// caller whose own later step failed (the files of binaries, say) and that
+/// would leave an export without them: the directory, unless it `existed`
+/// before, and then only what is in it.
+///
+/// Only for a directory `export_dir` has just succeeded in: it removes
+/// everything in it, and `export_dir` refuses one that had anything in it.
+pub fn discard_export(dir: &Path, existed: bool) {
+    let removed = if existed {
+        empty_dir(dir)
+    } else {
+        fs::remove_dir_all(dir)
+    };
+    if let Err(error) = removed {
+        warn!(dir = %dir.display(), %error, "couldn't remove a failed export");
+    }
 }
 
 /// Removes everything in `dir`, and not `dir`.
