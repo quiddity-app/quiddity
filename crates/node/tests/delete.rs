@@ -1,8 +1,9 @@
-//! Deleting blobs from a real store: exactly those named, and no others.
+//! Deleting blobs from a store in a graph's file: exactly those named, and no
+//! others.
 
 use std::collections::BTreeSet;
 
-use quiddity_node::blobs::{Blobs, Hash, sweep};
+use quiddity_node::blobs::{Blobs, Hash};
 
 fn bytes(seed: u8, len: usize) -> Vec<u8> {
     (0..len)
@@ -24,10 +25,10 @@ async fn only_the_doomed_blobs_go_and_the_rest_are_untouched() {
     }
     let doomed: BTreeSet<Hash> = all.iter().step_by(3).map(|(h, _)| *h).collect();
     assert_eq!(doomed.len(), 7);
+    blobs.delete(&doomed).await.unwrap();
     blobs.shutdown().await.unwrap();
 
-    sweep(dir.path(), &doomed).await.unwrap();
-
+    // What was deleted is gone from the file, not only from what was open.
     let blobs = Blobs::open(dir.path()).await.unwrap();
     for (hash, data) in &all {
         if doomed.contains(hash) {
@@ -60,12 +61,12 @@ async fn nothing_doomed_or_nothing_there_changes_nothing() {
     let blobs = Blobs::open(dir.path()).await.unwrap();
     let a = blobs.put(&b"a"[..]).await.unwrap();
     let b = blobs.put(&b"b"[..]).await.unwrap();
-    blobs.shutdown().await.unwrap();
-
-    sweep(dir.path(), &BTreeSet::new()).await.unwrap();
-    sweep(dir.path(), &BTreeSet::from([Hash::new(b"never stored")]))
+    blobs.delete(&BTreeSet::new()).await.unwrap();
+    blobs
+        .delete(&BTreeSet::from([Hash::new(b"never stored")]))
         .await
         .unwrap();
+    blobs.shutdown().await.unwrap();
 
     let blobs = Blobs::open(dir.path()).await.unwrap();
     assert_eq!(blobs.stored().await.unwrap(), BTreeSet::from([a, b]));
@@ -78,9 +79,8 @@ async fn everything_can_be_deleted_when_everything_is_named() {
     let dir = tempfile::tempdir().unwrap();
     let blobs = Blobs::open(dir.path()).await.unwrap();
     let a = blobs.put(&b"a"[..]).await.unwrap();
+    blobs.delete(&BTreeSet::from([a])).await.unwrap();
     blobs.shutdown().await.unwrap();
-
-    sweep(dir.path(), &BTreeSet::from([a])).await.unwrap();
 
     let blobs = Blobs::open(dir.path()).await.unwrap();
     assert!(blobs.stored().await.unwrap().is_empty());
@@ -99,9 +99,8 @@ async fn the_empty_file_is_always_there_and_never_collected() {
     let other = blobs.put(&b"other"[..]).await.unwrap();
     assert_eq!(empty, Hash::new(b""));
     assert_eq!(blobs.stored().await.unwrap(), BTreeSet::from([other]));
+    blobs.delete(&BTreeSet::from([empty])).await.unwrap();
     blobs.shutdown().await.unwrap();
-
-    sweep(dir.path(), &BTreeSet::from([empty])).await.unwrap();
 
     let blobs = Blobs::open(dir.path()).await.unwrap();
     assert!(blobs.has(empty).await.unwrap());
