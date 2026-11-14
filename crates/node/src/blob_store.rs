@@ -43,13 +43,12 @@ use iroh_blobs::api::proto::{
     CreateTagMsg, CreateTempTagMsg, DeleteBlobsMsg, DeleteTagsMsg, ExportBaoMsg, ExportBaoRequest,
     ExportPathMsg, ExportRangesItem, ExportRangesMsg, ExportRangesRequest, ImportBaoMsg,
     ImportBaoRequest, ImportByteStreamMsg, ImportBytesMsg, ImportBytesRequest, ImportPathMsg,
-    ListBlobsMsg, ListTagsMsg, ObserveMsg, ObserveRequest, RenameTagMsg, Scope, SetTagMsg,
-    ShutdownMsg, SyncDbMsg, WaitIdleMsg,
+    ListBlobsItem, ListBlobsMsg, ListTagsItem, ListTagsMsg, ListTempTagsItem, ObserveMsg,
+    ObserveRequest, RenameTagMsg, Scope, SetTagMsg, ShutdownMsg, SyncDbMsg, WaitIdleMsg,
 };
 use iroh_blobs::api::{self, Tag, TempTag};
 use iroh_blobs::protocol::ChunkRangesExt;
 use iroh_blobs::store::IROH_BLOCK_SIZE;
-use iroh_blobs::store::mem::MemStore;
 use iroh_blobs::{BlobFormat, Hash, HashAndFormat};
 use irpc::channel::{mpsc, oneshot};
 use range_collections::range_set::RangeSetRange;
@@ -104,7 +103,7 @@ pub fn open_limited(
 }
 
 /// Starts the store on the file's connection. The `Store` inside is a
-/// `MemStore` handle, which is only a client of the channel the actor serves:
+/// client handle on the channel the actor serves:
 /// it keeps nothing itself.
 pub fn spawn(connection: Connection, max_blob: u64) -> SqliteBlobs {
     let (sender, commands) = tokio::sync::mpsc::channel(32);
@@ -123,7 +122,7 @@ pub fn spawn(connection: Connection, max_blob: u64) -> SqliteBlobs {
         .run(),
     );
     SqliteBlobs {
-        store: MemStore::from_sender(sender.into()).into(),
+        store: api::Store::from_client(sender),
         shared,
     }
 }
@@ -523,13 +522,18 @@ impl Actor {
                 match hashes {
                     Ok(hashes) => {
                         for hash in hashes {
-                            if tx.send(Ok(Hash::from(hash))).await.is_err() {
-                                break;
+                            if tx
+                                .send(ListBlobsItem::Hash(Hash::from(hash)))
+                                .await
+                                .is_err()
+                            {
+                                return Finished::Nothing;
                             }
                         }
+                        tx.send(ListBlobsItem::Done).await.ok();
                     }
                     Err(e) => {
-                        tx.send(Err(store_error(e))).await.ok();
+                        tx.send(ListBlobsItem::Error(store_error(e))).await.ok();
                     }
                 }
                 Finished::Nothing
@@ -562,13 +566,13 @@ impl Actor {
                 tx.send(Err(e)).await.ok();
             }
             Command::ListTags(ListTagsMsg { tx, .. }) => {
-                tx.send(Vec::new()).await.ok();
+                tx.send(ListTagsItem::Done).await.ok();
             }
             Command::CreateTempTag(CreateTempTagMsg { inner, tx, .. }) => {
                 tx.send(TempTag::new(inner.value, None)).await.ok();
             }
             Command::ListTempTags(msg) => {
-                msg.tx.send(Vec::new()).await.ok();
+                msg.tx.send(ListTempTagsItem::Done).await.ok();
             }
 
             // Scopes only matter to what collects garbage for iroh, and

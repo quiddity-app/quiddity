@@ -33,8 +33,8 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
 - **`blob_store` is an iroh-blobs store on SQLite, not yet used by `Blobs`.**
   iroh-blobs' `Store` is a client of a command channel, and `FsStore` and
   `MemStore` are actors serving it. `blob_store::spawn` is a third, built from
-  `MemStore::from_sender`, which is `pub` but not a documented extension point,
-  so **a new iroh-blobs release may break it: pin the version and read its
+  `Store::from_client`, which iroh-blobs documents for this,
+  so **a new iroh-blobs release may still break it: pin the version and read its
   `store/mem.rs` first.** It is modelled on that file and tested against
   `MemStore` as an oracle (`tests/blob_store.rs`): the encoding of any part of
   any blob must match byte for byte. Things that aren't obvious:
