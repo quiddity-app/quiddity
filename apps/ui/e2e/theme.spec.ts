@@ -1,4 +1,4 @@
-import { expect, test, editor, openEntity } from "./fixtures";
+import { expect, test, editor, openEntity, openSearch } from "./fixtures";
 
 // What follows the theme without a component spelling a colour: the floating
 // layers, and the graph's canvas, which can't take a colour from a class.
@@ -20,7 +20,7 @@ test("the link list and the search panel are the same kind of layer", async ({ p
   await page.keyboard.press("Escape");
   await expect(editor(page)).toHaveCount(0);
 
-  await page.keyboard.press("Control+k");
+  await openSearch(page);
   const panel = page.getByRole("dialog");
   await expect(panel).toBeVisible();
   const search = await panel.evaluate((el) => {
