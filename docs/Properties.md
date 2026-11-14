@@ -1,6 +1,6 @@
 alias:: property
 
-- A property is a `key:: value` line, and a tag is a `#key` anywhere in running text, which is a property with no value for now. Both are read from a [[Block]]'s Markdown, which is the source of truth. A `(value)` after a tag is ordinary text. [[Syntax]] [[Model redesign]]
+- A property is a `key:: value` line, and a tag is a `#key` anywhere in running text, which is a property with no value for now. Both are read from a [[Block]]'s Markdown, which is the source of truth. A `(value)` after a tag is ordinary text. [[Syntax]]
 	- An [[Entity]]'s own properties are in its properties block, its first child, and only there: a `key:: value` line in another block has no effect and is flagged. [[Block]]
 	- A block's `type` property is its type. [[type]]
 	- A property's own page, the entity named for its key with `type:: property`, lists its uses under the references, grouped by entity and with each value as written. In the [[Graph view]] it is joined weakly to each entity that has the property and each entity those values link to.
@@ -14,7 +14,7 @@ alias:: property
 	- A property entity describes the property in prose, and can give it a schema.
 	- It can't be renamed, because its name is what identifies it. [[Renaming]]
 - Schemas
-	- A property entity says how its property's values are read, and how it relates entities, with [[Meta-properties]]: `##value-type`, `##values`, `##applies-to` and `##cardinality` for what a property holds, and `##transitive`, `##inherits`, `##inverse` and `##symmetric` for how it relates entities.
+	- A property entity says how its property's values are read, and how it relates entities, with [[Built-in properties]]: `##value-type`, `##values`, `##applies-to` and `##cardinality` for what a property holds, and `##transitive`, `##inherits`, `##inverse` and `##symmetric` for how it relates entities.
 	- Value types: `text`, `number` (a double), `boolean` (`true`, `false`, `yes` or `no`), `date` (an ISO 8601 date), `datetime` (RFC 3339, with an offset) or `ref`. More will come, such as `blob`. [[Binaries]]
 	- A property nobody has described is text, with any number of values. A value may always be a list.
 	- References: for a `ref` property, bare text is a name, so `type:: person` means `type:: [[person]]`. [[Links]]

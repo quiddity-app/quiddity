@@ -1,4 +1,4 @@
-alias:: meta-property
+alias:: [Meta-properties, meta-property, ## properties]
 
 - A meta-property says something about a property itself: which values it takes, what it may be applied to, how many values it may have, and how it relates entities to one another. They are how a graph builds its own taxonomies (parents and children, kinds and subkinds) out of [[Properties]] it defines, with nothing in code.
 - Writing them

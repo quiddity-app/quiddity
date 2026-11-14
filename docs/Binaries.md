@@ -1,6 +1,6 @@
 - Files kept in a graph: images, PDFs and the like. They can be added, shown, moved between devices, exported and deleted when nothing refers to them; what is left is listed under Not built yet. [[Design]]
 - Decided
-	- A binary is a block, a blob: its first line is `##blob(hash, mime, size, name)` and any text after it is its caption. It is not an entity and has no page of its own: it sits in the page it was added to. Nothing about it is stored outside its text, as for everything else. [[Meta-properties]] [[Design]]
+	- A binary is a block, a blob: its first line is `##blob(hash, mime, size, name)` and any text after it is its caption. It is not an entity and has no page of its own: it sits in the page it was added to. Nothing about it is stored outside its text, as for everything else. [[Built-in properties]] [[Design]]
 	- The bytes live in an [[iroh-blobs]] store, not in the [[Loro]] document, and travel on iroh-blobs' own protocol. [[iroh]]
 	- Every device keeps every blob. Options per device, to fetch on demand or to cap the cache on a phone, can come later.
 	- The UI gets bytes through a [[Tauri]] command and shows them from object URLs. The published site has no store, so it shows a placeholder.
@@ -15,7 +15,7 @@
 	- iroh-blobs deletes only by its own garbage collection, which removes whatever is not marked live. So the node opens the store with a collector told to keep everything stored except the files due, lets go of the store's tags, and checks afterwards that every file it meant to keep is still there. The empty file is built into the store and never listed.
 - Built
 	- `Blobs` in [[quiddity-node]] keeps bytes by hash in `blobs/` beside the graph's snapshot: `put`, `get` and `has`. `get` says a blob is missing rather than failing in the store, and the store checks bytes against their hash as it reads them. [[Storage]]
-	- `##blob(hash, mime, size, name)` is read by [[quiddity-core]], from the first line of a block. The hash is the BLAKE3 hash in hex, the MIME type is `type/subtype`, the size is in bytes, and the name, the file name, may be left off. It is whatever follows the third comma, so it may contain commas; parentheses, brackets, quotes, `#` and backslashes in it are escaped with a backslash, as in any meta-property. [[Meta-properties]]
+	- `##blob(hash, mime, size, name)` is read by [[quiddity-core]], from the first line of a block. The hash is the BLAKE3 hash in hex, the MIME type is `type/subtype`, the size is in bytes, and the name, the file name, may be left off. It is whatever follows the third comma, so it may contain commas; parentheses, brackets, quotes, `#` and backslashes in it are escaped with a backslash, as in any meta-property. [[Built-in properties]]
 	- ```
 	  Holiday                                       ← a page
 	  ├─ Day one

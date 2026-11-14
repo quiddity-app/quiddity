@@ -8,6 +8,6 @@
 	- [[Properties]]: `key:: value` lines, and `#tag`s in the text.
 	- [[Links]] to entities, `[[Name]]`, and references to blocks, `((id))`.
 	- So the text exports and imports with nothing lost. [[Export and import]]
-- A property line says something about an entity, not about a paragraph, so properties are read only from an entity's first child, the properties block. A `key:: value` line in any other block keeps its chip but is flagged as having no effect. Tags are fine anywhere, and so is `##id(…)`. [[Entity]] [[Model redesign]]
+- A property line says something about an entity, not about a paragraph, so properties are read only from an entity's first child, the properties block. A `key:: value` line in any other block keeps its chip but is flagged as having no effect. Tags are fine anywhere, and so is `##id(…)`. [[Entity]]
 - Undoing a deletion brings the block back as a new block, with a new ID. [[Undo]]
 - The full syntax is in [[Syntax]].
