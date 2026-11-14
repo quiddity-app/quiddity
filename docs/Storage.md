@@ -1,7 +1,7 @@
 - What a device keeps on disk, and what it works out again.
 - The [[Loro]] document is the only source of truth.
 	- Text is stored in Unicode NFC. [[Unicode normalisation]]
-	- A graph on disk is a directory, made by `quiddity-node init`. The graph is one [[SQLite]] file in it, `graph.quiddity`, holding the graph's snapshot and a random salt, and, for a graph made before the device's key was kept apart, its endpoint key. [[quiddity-node]]
+	- A graph on disk is one [[SQLite]] file, `graph.quiddity`, holding the graph's snapshot, its binaries and a random salt, and, for a graph made before the device's key was kept apart, its endpoint key, made by `quiddity-node init`. It is named by the file (a path that ends in `.quiddity`, or is a file already, so a copy can be renamed) or by a directory that holds it, which is how graphs have always been named. A graph named by its file has no neighbours' old files taken in. [[quiddity-node]]
 		- The graph's binaries are in the file too, in a `blob` table, and so is the node's record of when it first saw each file that nothing refers to (the `unreferenced` table, for deleting them), so what a graph keeps is the one file. The record was a text file, `unreferenced-blobs.txt`, which is taken in once and set aside.
 		- A graph's old `blobs/` directory is moved into the file the first time its blobs are opened, every blob checked, and set aside as `blobs.migrated/`, not deleted. Delete it once the files open.
 		- The `blob` table is served to [[iroh-blobs]] by `blob_store`. It is layout 2, and a file of layout 1 gains the table when opened.

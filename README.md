@@ -32,6 +32,7 @@ where to find the notes on each crate.
 
 ```sh
 cargo run -p quiddity-node -- -g ~/graph init
+# a graph is one file, so -g can name it: ~/graph.quiddity works the same way
 cargo run -p quiddity-node -- -g ~/graph import ~/logseq-graph
 cargo run -p quiddity-node -- -g ~/graph serve --allow <device id>
 
@@ -85,10 +86,11 @@ compiling it). `pnpm ui wasm`
 rebuilds it; `dev`, `build` and `typecheck` do so first.
 
 The shell opens the one graph in the app's data directory, creating it if
-need be. Set `QUIDDITY_GRAPH` to a directory made with `quiddity-node` to work
-on that graph instead. The device's key is kept in the app's configuration
-directory, not in a graph (`QUIDDITY_CONFIG_DIR` says where, for a second
-instance on one machine). Favourites are the entities with `favourite:: true`.
+need be. Set `QUIDDITY_GRAPH` to a graph made with `quiddity-node` (a directory, or
+its `.quiddity` file) to work on that graph instead. The device's key is kept in
+the app's configuration directory, not in a graph (`QUIDDITY_CONFIG_DIR` says
+where, for a second instance on one machine). Favourites are the entities with
+`favourite:: true`.
 Run in a plain browser, the UI works on a made-up graph in memory, which is
 reset on reload.
 

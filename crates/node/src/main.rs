@@ -22,7 +22,8 @@ use tracing::{debug, error, warn};
 #[derive(Parser, Debug)]
 #[command(version, about)]
 struct Cli {
-    /// The graph's directory, which holds `graph.quiddity`.
+    /// The graph: a directory, which holds `graph.quiddity`, or the file
+    /// itself (a path that ends in `.quiddity`, or that is a file already).
     #[arg(long, short, default_value = ".")]
     graph: PathBuf,
     /// Where this device keeps its key, which is not in any graph: copying a
