@@ -68,6 +68,14 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
     being transactions on one file; `BUSY` bounds the wait.
   - **The test data must not repeat**: a short period made a read at the wrong
     offset return the right bytes, and a mutant survived because of it.
+- **`legacy_blobs::adopt` moves an old `blobs/` directory into the file.** It
+  reads the iroh-blobs filesystem store there (so `fs-store` stays a feature
+  of `iroh-blobs` until this is dropped), keeps every blob, and only then
+  renames the directory `blobs.migrated/`: a failure leaves it as it was, and a
+  second try passes over what is already kept. It acts only on a directory that
+  has `blobs.db` in it, so another `blobs/` is left alone, and a graph with no
+  old store never has one made for it. Nothing calls it until `Blobs` moves onto
+  the file.
 - **Never publish or copy the graph's file as a snapshot**: it holds the
   endpoint key. `quiddity-node snapshot` writes the bare Loro snapshot for the
   static build, and a test checks the key isn't in it.
