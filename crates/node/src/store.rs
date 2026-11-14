@@ -35,6 +35,7 @@ use tracing::{debug, info, instrument, warn};
 
 use crate::StoreError;
 use crate::keyring::Keyring;
+use crate::places::{Claim, Places};
 use quiddity_core::NodeId;
 use quiddity_identity::{Salt, SealedNodeId};
 
@@ -74,6 +75,8 @@ const APPLICATION_ID: i32 = 0x5144_4459;
 /// salt that a new graph's endpoint key is derived with. 4: and this replica's
 /// node ID.
 const LAYOUT: i32 = 4;
+/// The first layout that has the `node` table.
+const NODE_SINCE: i32 = 4;
 
 /// Exactly the schema, as SQLite stores it (its `sql` column is the statement
 /// as written), so that a file with anything else in it is refused. One row
@@ -328,7 +331,114 @@ impl Store {
     #[instrument(level = "debug", skip_all, fields(dir = %self.dir.display()))]
     pub fn node_id(&self) -> Result<NodeId, StoreError> {
         self.ensure()?;
-        self.node_id_in(&mut self.open()?)
+        let mut db = self.open()?;
+        let node = self.node_id_in(&mut db)?;
+        self.placed(&mut db, node)
+    }
+
+    /// Checks `node` against where this device has seen it. A graph that is a
+    /// copy of another on this device, which still has it, would edit as the
+    /// same node, so it takes one of its own, before anything is edited.
+    ///
+    /// The table is a safeguard and not a precondition: one that can't be used
+    /// is reported and the graph opened, since refusing to open a graph is worse
+    /// than not noticing a copy.
+    fn placed(&self, db: &mut Connection, node: NodeId) -> Result<NodeId, StoreError> {
+        let places = Places::new(self.keyring.dir());
+        let here = match fs::canonicalize(&self.dir) {
+            Ok(here) => here,
+            Err(e) => {
+                warn!(error = %e, "can't tell where this graph is, so can't tell if it is a copy");
+                return Ok(node);
+            }
+        };
+        match places.claim(node, &here, |other| self.holds(other, node)) {
+            Ok(Claim::Copy { of }) => {
+                warn!(of = %of.display(), here = %here.display(), "this graph is a copy of another on this device: it takes a node ID of its own");
+                let forked = self.fork_node_id(db, node)?;
+                if let Err(e) = places.record(forked, &here) {
+                    warn!(error = %e, "couldn't record where this graph is");
+                }
+                Ok(forked)
+            }
+            Ok(Claim::Moved) => {
+                info!(here = %here.display(), "this graph was moved");
+                Ok(node)
+            }
+            Ok(Claim::New | Claim::Same) => Ok(node),
+            Err(e) => {
+                warn!(error = %e, "can't use the table of where this device's graphs are, so can't tell if this one is a copy");
+                Ok(node)
+            }
+        }
+    }
+
+    /// Whether the graph in `dir` edits, or may edit, as `node`: it does, or
+    /// there is a file there that can't be read to say. A graph that is not
+    /// there, or has another node ID, or none, doesn't. Reading it changes
+    /// nothing: it may be a graph of any layout, and another process's.
+    fn holds(&self, dir: &Path, node: NodeId) -> bool {
+        let other = Self::new(dir, self.keyring.clone());
+        match other.peek_node_id() {
+            Peek::Holds(held) => held == node,
+            Peek::Neither => false,
+            Peek::Unknown => true,
+        }
+    }
+
+    /// The node ID in this file as this device would read it, without changing
+    /// anything.
+    fn peek_node_id(&self) -> Peek {
+        if !self.file().exists() {
+            return Peek::Neither;
+        }
+        let read = || -> Option<Peek> {
+            let db = Self::connect_read_only(&self.file())?;
+            let layout: i32 = db
+                .pragma_query_value(None, "user_version", |r| r.get(0))
+                .ok()?;
+            if layout < NODE_SINCE {
+                return Some(Peek::Neither);
+            }
+            let sealed: Option<Vec<u8>> = db
+                .query_row("SELECT sealed FROM node WHERE id = 1", [], |r| r.get(0))
+                .optional()
+                .ok()?;
+            let Some(sealed) = sealed else {
+                return Some(Peek::Neither);
+            };
+            let salt = salt_in(&db).ok()?;
+            let mask = self.keyring.key().ok()?.node_mask(&salt);
+            let sealed = SealedNodeId::from_bytes(sealed.try_into().ok()?);
+            Some(sealed.open(&mask).map_or(Peek::Neither, Peek::Holds))
+        };
+        read().unwrap_or(Peek::Unknown)
+    }
+
+    /// Gives this replica a node ID other than `copied`, which it shares with
+    /// another. Under a write lock, looking again first: a process that got
+    /// there before, in the same directory, has already done it.
+    fn fork_node_id(&self, db: &mut Connection, copied: NodeId) -> Result<NodeId, StoreError> {
+        let mask = self.keyring.key()?.node_mask(&salt_in(db)?);
+        let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let stored: Option<Vec<u8>> = tx
+            .query_row("SELECT sealed FROM node WHERE id = 1", [], |r| r.get(0))
+            .optional()?;
+        let stored = stored
+            .and_then(|b| b.try_into().ok())
+            .map(SealedNodeId::from_bytes)
+            .and_then(|sealed| sealed.open(&mask));
+        if let Some(id) = stored.filter(|&id| id != copied) {
+            return Ok(id);
+        }
+        let id = Graph::fresh_node_id();
+        tx.execute(
+            "INSERT INTO node (id, sealed) VALUES (1, ?1)
+             ON CONFLICT (id) DO UPDATE SET sealed = excluded.sealed",
+            params![id.seal(&mask).to_bytes().as_slice()],
+        )?;
+        tx.commit()?;
+        Ok(id)
     }
 
     fn node_id_in(&self, db: &mut Connection) -> Result<NodeId, StoreError> {
@@ -443,19 +553,7 @@ impl Store {
     /// what is set aside is meant to be as it was found.
     fn salvage(&self) -> Salvaged {
         (|| {
-            let db = Connection::open_with_flags(
-                self.file(),
-                OpenFlags::SQLITE_OPEN_READ_ONLY.union(OpenFlags::SQLITE_OPEN_NO_MUTEX),
-            )
-            .ok()?;
-            db.set_db_config(DbConfig::SQLITE_DBCONFIG_DEFENSIVE, true)
-                .ok()?;
-            db.set_db_config(DbConfig::SQLITE_DBCONFIG_TRUSTED_SCHEMA, false)
-                .ok()?;
-            db.set_db_config(DbConfig::SQLITE_DBCONFIG_ENABLE_TRIGGER, false)
-                .ok()?;
-            db.set_db_config(DbConfig::SQLITE_DBCONFIG_ENABLE_VIEW, false)
-                .ok()?;
+            let db = Self::connect_read_only(&self.file())?;
             let blob = |sql: &str| -> Option<Vec<u8>> { db.query_row(sql, [], |r| r.get(0)).ok() };
             Some(Salvaged {
                 key: blob("SELECT secret FROM endpoint_key WHERE id = 1")
@@ -464,6 +562,25 @@ impl Store {
             })
         })()
         .unwrap_or_default()
+    }
+
+    /// A connection that can't change the file, with the protections on, for
+    /// reading one that is untrusted or someone else's.
+    fn connect_read_only(path: &Path) -> Option<Connection> {
+        let db = Connection::open_with_flags(
+            path,
+            OpenFlags::SQLITE_OPEN_READ_ONLY.union(OpenFlags::SQLITE_OPEN_NO_MUTEX),
+        )
+        .ok()?;
+        db.set_db_config(DbConfig::SQLITE_DBCONFIG_DEFENSIVE, true)
+            .ok()?;
+        db.set_db_config(DbConfig::SQLITE_DBCONFIG_TRUSTED_SCHEMA, false)
+            .ok()?;
+        db.set_db_config(DbConfig::SQLITE_DBCONFIG_ENABLE_TRIGGER, false)
+            .ok()?;
+        db.set_db_config(DbConfig::SQLITE_DBCONFIG_ENABLE_VIEW, false)
+            .ok()?;
+        Some(db)
     }
 
     /// Makes the file, with its schema and nothing in it, if there is none.
@@ -722,6 +839,18 @@ impl Store {
         }
         Ok(())
     }
+}
+
+/// What [`Store::peek_node_id`] found.
+#[derive(Debug, PartialEq, Eq)]
+enum Peek {
+    /// The node ID this device reads there.
+    Holds(NodeId),
+    /// A graph that is not there, or has no node ID, or one that is not this
+    /// device's: it is not editing as any node this device can compare.
+    Neither,
+    /// Something is there that couldn't be read to say.
+    Unknown,
 }
 
 /// What [`Store::salvage`] found.
@@ -1382,7 +1511,16 @@ mod tests {
             store.init(false).unwrap();
             store.key().unwrap();
         }
-        assert_eq!(fs::read_dir(keys.dir()).unwrap().count(), 1);
+        let mut names: Vec<_> = fs::read_dir(keys.dir())
+            .unwrap()
+            .map(|e| e.unwrap().file_name().into_string().unwrap())
+            .collect();
+        names.sort();
+        assert_eq!(
+            names,
+            ["device.key", "places.sqlite3"],
+            "one key, and the table"
+        );
     }
 
     /// The file's own salts differ, or the graphs would be one device.
@@ -1662,11 +1800,11 @@ mod tests {
         assert!(graph.version().nodes().contains(&moved));
     }
 
-    /// A copy beside the original, on one device, is the same node: nothing in
-    /// the file can say otherwise. Telling them apart is the work of the map of
-    /// where a device's graphs are.
+    /// The file alone can't tell a copy beside the original from the original:
+    /// it holds the same sealed ID, which opens with the same mask. What can is
+    /// the table of where this device has seen each node.
     #[test]
-    fn a_copy_on_the_same_device_is_the_same_node() {
+    fn the_file_of_a_copy_on_the_same_device_holds_the_same_sealed_id() {
         let tmp = tempfile::tempdir().unwrap();
         let keys = Keyring::new(tmp.path().join("keys"));
         let one = Store::new(tmp.path().join("one"), keys.clone());
@@ -1674,7 +1812,16 @@ mod tests {
         let copy = Store::new(tmp.path().join("copy"), keys);
         fs::create_dir_all(copy.dir()).unwrap();
         fs::copy(one.file(), copy.file()).unwrap();
-        assert_eq!(copy.node_id().unwrap(), one.node_id().unwrap());
+        let sealed = |store: &Store| -> Vec<u8> {
+            store
+                .connect()
+                .unwrap()
+                .query_row("SELECT sealed FROM node WHERE id = 1", [], |r| r.get(0))
+                .unwrap()
+        };
+        assert_eq!(sealed(&copy), sealed(&one));
+        assert_eq!(copy.peek_node_id(), one.peek_node_id());
+        assert!(matches!(one.peek_node_id(), Peek::Holds(_)));
     }
 
     /// What is in the file is the sealed form: the ID isn't in it as it is.
@@ -1763,5 +1910,241 @@ mod tests {
         let node = store.node_id().unwrap();
         assert_eq!(store.load().unwrap().node_id(), node);
         assert_eq!(store.key().unwrap().public(), own.public());
+    }
+
+    /// Real directories on one device: the key and the table of places are
+    /// shared, each graph is a directory under `tmp`.
+    struct Device {
+        tmp: tempfile::TempDir,
+    }
+
+    impl Device {
+        fn new() -> Self {
+            Self {
+                tmp: tempfile::tempdir().unwrap(),
+            }
+        }
+
+        fn keys(&self) -> Keyring {
+            Keyring::new(self.tmp.path().join("keys"))
+        }
+
+        fn graph(&self, name: &str) -> Store {
+            Store::new(self.tmp.path().join(name), self.keys())
+        }
+
+        fn places(&self) -> Places {
+            Places::new(self.keys().dir())
+        }
+
+        /// `from`'s graph copied to `to`, as a person or a backup would.
+        fn copy(&self, from: &Store, to: &str) -> Store {
+            let copy = self.graph(to);
+            fs::create_dir_all(copy.dir()).unwrap();
+            fs::copy(from.file(), copy.file()).unwrap();
+            copy
+        }
+
+        fn canonical(&self, store: &Store) -> PathBuf {
+            fs::canonicalize(store.dir()).unwrap()
+        }
+    }
+
+    fn edit(store: &Store, text: &str) -> Graph {
+        let graph = store.load().unwrap();
+        graph.create_block(None, None, text).unwrap();
+        graph.commit();
+        store.save(&graph).unwrap();
+        graph
+    }
+
+    /// The case this exists for. Before, the copy and the original would have
+    /// edited as one node.
+    #[test]
+    fn a_copy_beside_the_original_edits_as_another_node() {
+        let device = Device::new();
+        let original = device.graph("original");
+        original.init(false).unwrap();
+        edit(&original, "before the copy");
+        let node = original.node_id().unwrap();
+        assert_eq!(
+            device.places().lookup(node).unwrap(),
+            Some(device.canonical(&original))
+        );
+
+        let copy = device.copy(&original, "copy");
+        let forked = copy.node_id().unwrap();
+        assert_ne!(forked, node, "the copy is not the original's node");
+        assert_eq!(original.node_id().unwrap(), node, "and the original is");
+        assert_eq!(copy.node_id().unwrap(), forked, "the copy keeps its own");
+        assert_eq!(
+            device.places().lookup(node).unwrap(),
+            Some(device.canonical(&original))
+        );
+        assert_eq!(
+            device.places().lookup(forked).unwrap(),
+            Some(device.canonical(&copy))
+        );
+
+        // Both go on editing, and then meet: nothing is lost or confused,
+        // because no two edits share an ID.
+        let (a, b) = (
+            edit(&original, "in the original"),
+            edit(&copy, "in the copy"),
+        );
+        assert_eq!(a.node_id(), node);
+        assert_eq!(b.node_id(), forked);
+        a.import(&b.updates_since(&a.version()).unwrap()).unwrap();
+        b.import(&a.updates_since(&b.version()).unwrap()).unwrap();
+        let texts = |g: &Graph| {
+            let mut t: Vec<_> = g.roots().into_iter().map(|r| g.text(r).unwrap()).collect();
+            t.sort();
+            t
+        };
+        assert_eq!(texts(&a), texts(&b));
+        assert_eq!(texts(&a).len(), 3);
+    }
+
+    #[test]
+    fn a_graph_that_is_moved_is_the_same_node_at_its_new_place() {
+        let device = Device::new();
+        let before = device.graph("before");
+        before.init(false).unwrap();
+        let node = before.node_id().unwrap();
+        fs::rename(before.dir(), device.tmp.path().join("after")).unwrap();
+        let after = device.graph("after");
+        assert_eq!(after.node_id().unwrap(), node);
+        assert_eq!(
+            device.places().lookup(node).unwrap(),
+            Some(device.canonical(&after)),
+            "and the table has followed it"
+        );
+        assert_eq!(after.load().unwrap().node_id(), node);
+    }
+
+    /// A copy whose original has since been deleted is what is left of it.
+    #[test]
+    fn a_copy_whose_original_has_gone_is_the_same_node() {
+        let device = Device::new();
+        let original = device.graph("original");
+        original.init(false).unwrap();
+        let node = original.node_id().unwrap();
+        let copy = device.copy(&original, "copy");
+        fs::remove_dir_all(original.dir()).unwrap();
+        assert_eq!(copy.node_id().unwrap(), node);
+    }
+
+    /// The graph the table saw first keeps the node: which is the original is
+    /// whichever it was opened as first.
+    #[test]
+    fn the_one_opened_first_keeps_the_node() {
+        let device = Device::new();
+        let original = device.graph("original");
+        original.init(false).unwrap();
+        let node = original.node_id().unwrap();
+        // The table loses what it knew, and a copy is opened before the original.
+        fs::remove_file(
+            device
+                .places()
+                .lookup(node)
+                .map(|_| device.keys().dir().join("places.sqlite3"))
+                .unwrap(),
+        )
+        .unwrap();
+        let copy = device.copy(&original, "copy");
+        assert_eq!(copy.node_id().unwrap(), node);
+        assert_ne!(
+            original.node_id().unwrap(),
+            node,
+            "now the original is the copy"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_link_to_a_graph_is_the_same_graph() {
+        let device = Device::new();
+        let original = device.graph("original");
+        original.init(false).unwrap();
+        let node = original.node_id().unwrap();
+        let link = device.tmp.path().join("link");
+        std::os::unix::fs::symlink(original.dir(), &link).unwrap();
+        assert_eq!(device.graph("link").node_id().unwrap(), node);
+        assert_eq!(original.node_id().unwrap(), node);
+    }
+
+    /// Looking at the other place changes nothing there, whatever its layout:
+    /// it may be another process's graph.
+    #[test]
+    fn looking_at_the_other_place_does_not_change_it() {
+        let device = Device::new();
+        let original = device.graph("original");
+        original.init(false).unwrap();
+        let node = original.node_id().unwrap();
+        let copy = device.copy(&original, "copy");
+        as_layout(&original, 3);
+        let before = fs::read(original.file()).unwrap();
+        // The original is of an older layout, which has no node ID to compare:
+        // it is not editing as that node, so the copy is the node's now.
+        assert_eq!(copy.node_id().unwrap(), node);
+        assert_eq!(fs::read(original.file()).unwrap(), before);
+        assert_eq!(layout(&original), 3, "not converted by being looked at");
+    }
+
+    /// If it can't be said whether the other place holds the node, it is taken
+    /// to: forking a graph that didn't need it costs a peer, and not forking one
+    /// that did costs the graph.
+    #[test]
+    fn an_other_place_that_cannot_be_read_is_taken_to_hold_the_node() {
+        let device = Device::new();
+        let original = device.graph("original");
+        original.init(false).unwrap();
+        let node = original.node_id().unwrap();
+        let copy = device.copy(&original, "copy");
+        fs::write(
+            original.file(),
+            b"in use by something that is not sqlite at all",
+        )
+        .unwrap();
+        assert_ne!(copy.node_id().unwrap(), node);
+    }
+
+    /// A table that can't be used is not a reason to refuse a graph.
+    #[test]
+    fn a_table_of_places_that_cannot_be_used_does_not_stop_a_graph_opening() {
+        let device = Device::new();
+        let original = device.graph("original");
+        original.init(false).unwrap();
+        let node = original.node_id().unwrap();
+        fs::write(
+            device.keys().dir().join("places.sqlite3"),
+            b"not a table of anything, but long",
+        )
+        .unwrap();
+        assert_eq!(original.node_id().unwrap(), node);
+        assert_eq!(original.load().unwrap().node_id(), node);
+        // (It also can't notice a copy: that is what is lost.)
+        assert_eq!(device.copy(&original, "copy").node_id().unwrap(), node);
+    }
+
+    /// Several processes opening a copy together agree on the node it forks to.
+    #[test]
+    fn copies_opened_together_fork_once() {
+        let device = Device::new();
+        let original = device.graph("original");
+        original.init(false).unwrap();
+        let node = original.node_id().unwrap();
+        let copy = device.copy(&original, "copy");
+        let ids: Vec<_> = std::thread::scope(|s| {
+            (0..6)
+                .map(|_| s.spawn(|| patiently(|| device.graph("copy").node_id())))
+                .collect::<Vec<_>>()
+                .into_iter()
+                .map(|t| t.join().unwrap())
+                .collect()
+        });
+        assert!(ids.windows(2).all(|w| w[0] == w[1]), "{ids:?}");
+        assert_ne!(ids[0], node);
+        assert_eq!(copy.node_id().unwrap(), ids[0]);
     }
 }
