@@ -3369,6 +3369,7 @@ dependencies = [
  "jiff",
  "loro",
  "proptest",
+ "quiddity-identity",
  "quiddity-syntax",
  "serde",
  "tempfile",

@@ -5,7 +5,7 @@ alias:: headless node
 - `crates/node`.
 - The headless node is `quiddity-node serve`, left running: a full peer owned by the user, not a relay, and no different from any other device. Being always on, it lets devices that are never online together sync. It keeps every blob. [[Binaries]] [[Architecture]]
 - Commands
-	- `init` makes a graph, or with `--blank` an empty replica to sync an existing one into. `id` prints this device's ID. `snapshot FILE` writes the graph's snapshot alone, for publishing. [[Storage]]
+	- `init` makes a graph, or with `--blank` an empty replica to sync an existing one into. `id` prints this device's ID, and `identify` prints the graph's, giving a graph from before graphs had IDs one first. [[Identity]] `snapshot FILE` writes the graph's snapshot alone, for publishing. [[Storage]]
 	- `import` and `export` read and write Markdown, and the files in `assets/` beside it. [[Export and import]]
 	- `gc` deletes the files nothing refers to any more, once it is safe to, and `gc --dry-run` says what it would do. The node must not be serving. [[Binaries]]
 	- `allow` lists a device in the graph, so it may connect, and `devices` lists the devices holding the graph with when each last saved. [[Device list]]

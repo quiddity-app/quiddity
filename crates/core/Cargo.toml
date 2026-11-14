@@ -10,6 +10,7 @@ rust-version.workspace = true
 [dependencies]
 jiff.workspace = true
 loro.workspace = true
+quiddity-identity.workspace = true
 quiddity-syntax.workspace = true
 serde.workspace = true
 thiserror.workspace = true
