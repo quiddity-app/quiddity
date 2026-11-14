@@ -209,3 +209,20 @@ test("a properties block has its own ground, and one can be added", async ({ pag
   // It went in front of what was there.
   expect((await mainBlocks(page))[0]).toContain("status");
 });
+
+test("an offered properties block that is left empty is not kept", async ({ page }) => {
+  await openEntity(page, "iroh");
+  const before = await mainBlocks(page);
+  await page.getByRole("button", { name: "+ Add properties" }).click();
+  await expect(page.locator("main article .cm-content")).toBeFocused();
+  // Nothing typed, and leaving the block drops it, so the offer is back.
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "+ Add properties" })).toBeVisible();
+  expect(await mainBlocks(page)).toEqual(before);
+
+  // Undo takes the deletion back and then the block itself.
+  await page.keyboard.press("Control+z");
+  expect(await mainBlocks(page)).toEqual(["", ...before]);
+  await page.keyboard.press("Control+z");
+  expect(await mainBlocks(page)).toEqual(before);
+});

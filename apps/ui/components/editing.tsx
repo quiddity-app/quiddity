@@ -39,10 +39,7 @@ function AddProperties() {
       empty={false}
       emptyLabel=""
       label="+ Add properties"
-      onAdd={() => {
-        const id = editing.graph.createBlock(editing.entityId, 0, "");
-        editing.edit(id, "start");
-      }}
+      onAdd={() => editing.addProperties()}
     />
   );
 }
@@ -63,6 +60,9 @@ export function EditableOutline({
   // Each block being edited, with its text from when editing began, so that
   // saving can tell the links it gained from the ones it had.
   const opened = useRef(new Map<string, string>());
+  // Blocks made by the offer of a properties block, which go again if they are
+  // left with nothing in them.
+  const offered = useRef(new Set<string>());
   const save = useCallback(
     (id: string) => {
       const before = opened.current.get(id);
@@ -70,6 +70,7 @@ export function EditableOutline({
       if (before === undefined) return;
       try {
         graph.commitBlock(id, before);
+        if (offered.current.delete(id)) graph.dropEmptyFirstBlock(id);
       } catch {
         // The block went in an undo, so there is nothing to save.
       }
@@ -104,6 +105,14 @@ export function EditableOutline({
         graph.settle();
         save(id);
         setCurrent((c) => (c?.id === id ? null : c));
+      },
+      addProperties: () => {
+        const id = graph.createBlock(entityId, 0, "");
+        offered.current.add(id);
+        graph.settle();
+        [...opened.current.keys()].forEach(save);
+        opened.current.set(id, graph.blockText(id));
+        setCurrent({ id, caret: "start" });
       },
     }),
     [graph, entityId, current, order, save],
