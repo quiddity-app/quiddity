@@ -11,7 +11,7 @@ use loro::{
 };
 
 use crate::syntax::nfc;
-use crate::{Error, Result};
+use crate::{Error, NodeId, Result};
 
 const BLOCKS: &str = "blocks";
 pub(crate) const GRAPH: &str = "graph";
@@ -69,6 +69,20 @@ impl Version {
     pub fn meet(&self, other: &Version) -> Version {
         Version(self.0.intersection(&other.0))
     }
+
+    /// Every replica that made an edit this version includes, in order.
+    pub fn nodes(&self) -> Vec<NodeId> {
+        let mut nodes: Vec<_> = self.0.keys().map(|&peer| NodeId::new(peer)).collect();
+        nodes.sort();
+        nodes
+    }
+
+    /// How many edits by `node` this version includes.
+    pub fn count_of(&self, node: NodeId) -> u64 {
+        self.0
+            .get(&node.get())
+            .map_or(0, |&counter| u64::try_from(counter).unwrap_or(0))
+    }
 }
 
 /// One replica of a graph.
@@ -86,9 +100,20 @@ impl Default for Graph {
 }
 
 impl Graph {
-    /// Creates a new, empty graph.
+    /// Creates a new, empty graph, as a replica with a node ID of its own that
+    /// nothing keeps: the next one will have another.
     pub fn new() -> Self {
+        Self::new_as(Self::fresh_node_id())
+    }
+
+    /// Creates a new, empty graph, as the replica `node`, so that what it
+    /// writes to begin with is by that replica and not by one that is never
+    /// heard of again.
+    pub fn new_as(node: NodeId) -> Self {
         let graph = Self::blank();
+        graph
+            .set_node_id(node)
+            .expect("a node ID this build made is valid");
         graph
             .doc
             .get_map(GRAPH)

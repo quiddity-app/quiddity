@@ -40,9 +40,19 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
   in a test, never the real one. `Store::key` is the file's own `endpoint_key`
   if it has one (so an old graph's device ID is unchanged, and it never asks for
   the device key), and otherwise derived from the device key and the file's
-  salt (`quiddity-identity`). **Layout 2** added `slot`; layout 1 is converted
-  on `open`, after checking it is exactly layout 1. Extending the schema again is
+  salt (`quiddity-identity`). **Layout 2** added `slot` and **layout 3** `node`;
+  an earlier layout is converted on `open` (`upgrade`), after checking it is
+  exactly that layout. Extending the schema again is
   a new layout and a conversion.
+- **A replica edits as a kept node ID.** `Store::load` and `init` set it
+  (`Graph::set_node_id`; `init` makes the graph as that node, so nothing is
+  written under a throwaway peer). It is stored sealed, with a mask derived from
+  the device's key and the file's salt, so a file from another device doesn't
+  open it and gets a new one. That is all a *copy beside the original on one
+  device* can't be told by: it is the same node. Two processes that load one
+  graph and both edit have always lost one's edits (each saves a whole
+  snapshot); as one node they would also be a twin, so don't run a command
+  beside `serve` that edits.
 - **Never publish or copy a graph's file as a snapshot**: a graph made before the
   device's key was kept apart holds its endpoint key. `quiddity-node snapshot` writes the bare Loro snapshot for the
   static build, and a test checks the key isn't in it.
