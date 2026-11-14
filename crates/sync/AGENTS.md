@@ -11,6 +11,13 @@ The sync protocol, independent of transport: a `Session` per connection,
 - **Schemas must match exactly** for now. A mismatch puts the session in
   `Incompatible` and nothing is exchanged; updates before a hello are an
   error.
+- **The hello carries the graph's ID, and two different ones are refused**
+  (`State::OtherGraph`, before the history checks, with no vouching). A side
+  with none is not refused: a blank replica is joining, and a graph from
+  before graphs had IDs may be the same one that has since been given one.
+  That leaves a gap: an unidentified graph will still merge with an unrelated
+  one, until it is given an ID. Changing the hello's encoding means a new
+  ALPN in `quiddity-node`, so old peers are refused at connecting.
 - **Compacted peers.** The hello says where the sender's history starts.
   A side behind the other's start (other than a blank one) is `Behind`, and
   the other `PeerBehind`: updates either way could never apply, so nothing

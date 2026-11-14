@@ -2,11 +2,12 @@
 - Transport
 	- Each device is an iroh endpoint, identified by its endpoint ID, an Ed25519 public key. `quiddity-node id` prints it.
 	- Connections are authenticated QUIC. They use hole punching where they can and fall back to a relay. Quiddity could run its own relays.
-	- The protocol is `quiddity/sync/2`, by ALPN: [[Loro]] versions and updates, with [[Presence]] on the same stream.
+	- The protocol is `quiddity/sync/3`, by ALPN, and a change to the hello's encoding is a new name, so that a device on the old protocol is refused at connecting and not misread: [[Loro]] versions and updates, with [[Presence]] on the same stream.
 	- Which devices may connect is the [[Device list]].
 - The protocol
-	- On connecting, each side sends a hello: its graph's schema version (none, for a blank replica), its device ID, where its history starts, and its Loro version vector.
+	- On connecting, each side sends a hello: its graph's schema version (none, for a blank replica), the graph's ID (none, for a blank replica or a graph from before graphs had them), its device ID, where its history starts, and its Loro version vector.
 	- A side that can't read the other's schema stops there, so a device that is behind never imports data it doesn't understand. [[Versioning]]
+	- So does a side whose graph has an ID that differs from the other's. Nothing is exchanged and no device is vouched for, since merging two graphs would also merge their device lists, and make each one's devices trusted by the other. A side that has no ID is not refused: a blank replica is joining, and a graph from before graphs had IDs may be the one that has since been given one. [[Identity]]
 	- So does a side that is behind where the other's history starts. [[Compaction]]
 	- Otherwise it vouches for the other if it hasn't heard of it, and sends the updates the other is missing, or a snapshot to a blank peer it can't bring up to date with updates.
 	- From then on each side sends new updates whenever its graph changes, whether by local edits or by updates from another peer. So live editing syncs character by character, and a device in the middle relays.
