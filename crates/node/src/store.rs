@@ -275,6 +275,9 @@ impl Store {
     pub fn save(&self, graph: &Graph) -> Result<(), StoreError> {
         let mut durable = self.durable();
         let mut db = self.open()?;
+        if !graph.retired_node_ids().is_empty() {
+            self.keep_node_id(&mut db, graph.node_id())?;
+        }
         let (snapshot, saved) = if graph.version() == Version::default() {
             (graph.snapshot()?, Version::default())
         } else {
@@ -413,6 +416,27 @@ impl Store {
             Some(sealed.open(&mask).map_or(Peek::Neither, Peek::Holds))
         };
         read().unwrap_or(Peek::Unknown)
+    }
+
+    /// Keeps `node` as the one this replica edits as, because the graph gave up
+    /// the one it had: changes arrived under it from another replica that edits
+    /// as it too (see `Graph::refuse_twins`). Without this the next run would
+    /// load the old one and clash again. Sealed as any other, and recorded as
+    /// being here.
+    fn keep_node_id(&self, db: &mut Connection, node: NodeId) -> Result<(), StoreError> {
+        let mask = self.keyring.key()?.node_mask(&salt_in(db)?);
+        db.execute(
+            "INSERT INTO node (id, sealed) VALUES (1, ?1)
+             ON CONFLICT (id) DO UPDATE SET sealed = excluded.sealed",
+            params![node.seal(&mask).to_bytes().as_slice()],
+        )?;
+        warn!(%node, "this replica gave up its node ID: another replica edits as it");
+        if let Ok(here) = fs::canonicalize(&self.dir)
+            && let Err(e) = Places::new(self.keyring.dir()).record(node, &here)
+        {
+            warn!(error = %e, "couldn't record where this graph is");
+        }
+        Ok(())
     }
 
     /// Gives this replica a node ID other than `copied`, which it shares with
@@ -2146,5 +2170,56 @@ mod tests {
         assert!(ids.windows(2).all(|w| w[0] == w[1]), "{ids:?}");
         assert_ne!(ids[0], node);
         assert_eq!(copy.node_id().unwrap(), ids[0]);
+    }
+
+    /// A graph that gave up its node ID, because a twin was found, keeps the new
+    /// one when it is saved: the next run must not load the old and clash again.
+    #[test]
+    fn a_retired_node_id_is_kept_by_saving() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = store_at(tmp.path());
+        store.init(false).unwrap();
+        edit(&store, "before");
+        let node = store.node_id().unwrap();
+
+        // Another replica that edits as the same node, and has made more.
+        let twin = store.load().unwrap();
+        let twin = Graph::from_snapshot(&twin.snapshot().unwrap()).unwrap();
+        twin.set_node_id(node).unwrap();
+        for text in ["t1", "t2"] {
+            twin.create_block(None, None, text).unwrap();
+        }
+        twin.commit();
+
+        let graph = store.load().unwrap();
+        graph.create_block(None, None, "mine").unwrap();
+        graph.commit();
+        let refused = graph.import(&twin.updates_since(&graph.version()).unwrap());
+        assert!(matches!(refused, Err(quiddity_core::Error::Twin(n)) if n == node));
+        let new = graph.node_id();
+        assert_ne!(new, node);
+
+        store.save(&graph).unwrap();
+        assert_eq!(store.node_id().unwrap(), new);
+        assert_eq!(store.load().unwrap().node_id(), new);
+        let places = Places::new(store.keyring.dir());
+        assert_eq!(
+            places.lookup(new).unwrap(),
+            Some(fs::canonicalize(store.dir()).unwrap())
+        );
+    }
+
+    /// Only a graph that gave one up changes it: a graph handed to `save` that
+    /// happens to edit as another node is saved, and the node ID is left alone.
+    #[test]
+    fn saving_a_graph_that_retired_nothing_leaves_the_node_id_alone() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = store_at(tmp.path());
+        store.init(false).unwrap();
+        let node = store.node_id().unwrap();
+        let other = Graph::new();
+        assert_ne!(other.node_id(), node);
+        store.save(&other).unwrap();
+        assert_eq!(store.node_id().unwrap(), node);
     }
 }

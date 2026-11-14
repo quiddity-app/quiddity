@@ -1,4 +1,4 @@
-use crate::BlockId;
+use crate::{BlockId, NodeId};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -28,6 +28,10 @@ pub enum Error {
     BlankReplica,
     #[error("that node ID can't be used: Loro keeps it for itself")]
     InvalidNodeId,
+    #[error(
+        "those changes are by another replica editing as {0}, as this one has: merging them would leave the two different, so they were refused"
+    )]
+    Twin(NodeId),
     #[error("in quiddity.toml: {0}")]
     Settings(String),
 }

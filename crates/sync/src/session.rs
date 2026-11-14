@@ -358,6 +358,45 @@ mod tests {
         assert_eq!(id, None);
     }
 
+    /// Updates from another replica that edits as the same node are refused, and
+    /// the session says so rather than applying some of them: the replicas would
+    /// be left different, each believing they agree.
+    #[test]
+    fn updates_from_a_twin_are_an_error_and_apply_nothing() -> Result<(), Error> {
+        use quiddity_core::NodeId;
+        let node = NodeId::new(5);
+        let base = Graph::new_as(node);
+        base.create_block(None, None, "base")?;
+        base.commit();
+        let (ours, theirs) = (
+            Graph::from_snapshot(&base.snapshot()?)?,
+            Graph::from_snapshot(&base.snapshot()?)?,
+        );
+        for graph in [&ours, &theirs] {
+            graph.set_node_id(node)?;
+        }
+        ours.create_block(None, None, "ours")?;
+        for text in ["theirs 1", "theirs 2"] {
+            theirs.create_block(None, None, text)?;
+        }
+        ours.commit();
+        theirs.commit();
+
+        let mut session = Session::new("me");
+        session.receive(&ours, hello(theirs.schema_version(), &theirs), now())?;
+        assert_eq!(session.state(), &State::Syncing);
+        let before = ours.roots().len();
+        let updates = Message::Updates(theirs.updates_since(&ours.version())?);
+        let error = session.receive(&ours, updates, now()).unwrap_err();
+        assert!(
+            matches!(error, Error::Graph(quiddity_core::Error::Twin(n)) if n == node),
+            "{error:?}"
+        );
+        assert_eq!(ours.roots().len(), before, "nothing was applied");
+        assert_ne!(ours.node_id(), node, "and it stopped editing as the node");
+        Ok(())
+    }
+
     #[test]
     fn a_blank_device_accepts_any_readable_graph() -> Result<(), Error> {
         let mut session = Session::new("me");
