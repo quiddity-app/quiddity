@@ -358,3 +358,6 @@ if the page logs an error. Pitfalls:
 - Typing `\n` presses Enter, which splits the block; use Shift-Enter for a
   newline. Press `Control+Shift+Z`, not `Control+Shift+z`: Playwright otherwise
   sends a lowercase `z` that no keyboard does.
+- **A shortcut pressed straight after `page.goto` can be lost**: the listener
+  is added when the component mounts. Wait for something the component draws
+  (the Search button, for Ctrl-K) before pressing it.
