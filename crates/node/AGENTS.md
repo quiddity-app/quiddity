@@ -110,7 +110,9 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
   precondition. Two processes that load one
   graph and both edit have always lost one's edits (each saves a whole
   snapshot); as one node they would also be a twin, so don't run a command
-  beside `serve` that edits.
+  beside `serve` that edits. `save` keeps the graph's node ID when the graph
+  gave one up (`retired_node_ids`, `keep_node_id`) and only then: a graph handed
+  to `save` that edits as some other node doesn't change what is stored.
 - **Never publish or copy a graph's file as a snapshot**: a graph made before the
   device's key was kept apart holds its endpoint key. `quiddity-node snapshot` writes the bare Loro snapshot for the
   static build, and a test checks the key isn't in it.
