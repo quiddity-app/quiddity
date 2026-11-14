@@ -66,11 +66,13 @@ description = "Build the documentation site (the UI showing docs/) into apps/ui/
 depends = ["setup", "doctor"]
 # The scratch graph is rebuilt each time so that removed pages don't linger.
 run = """
-rm -rf target/docs-graph
+rm -rf target/docs-graph target/docs-keys
 node scripts/journals.mjs
+# The device's key goes beside the graph, not in the real configuration directory.
+export QUIDDITY_CONFIG_DIR=$PWD/target/docs-keys
 cargo run -p quiddity-node -- -g target/docs-graph init
 cargo run -p quiddity-node -- -g target/docs-graph import docs
-# Only the snapshot is published: the graph's own file holds this device's key.
+# Only the snapshot is published, not the graph's own file.
 cargo run -p quiddity-node -- -g target/docs-graph snapshot target/docs-graph/graph.loro
 QUIDDITY_STATIC_GRAPH=$PWD/target/docs-graph/graph.loro pnpm ui build
 """

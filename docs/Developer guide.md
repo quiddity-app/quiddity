@@ -14,7 +14,7 @@ favourite:: true
 - Between devices
 	- [[Sync]]: the protocol, over [[iroh]].
 	- [[Device list]]: who may connect.
-	- [[Identity]]: device keys, graph IDs and node IDs, planned. [[Copied graphs]]: noticing that a graph was copied.
+	- [[Identity]]: device keys, graph IDs and node IDs, built in part. [[Copied graphs]]: noticing that a graph was copied.
 	- [[App sync]]: how the desktop app joins in.
 	- [[Presence]]: who is here, and which blocks they have open.
 	- [[Sync status]]: how a device stands with the others, as the app's cloud shows it.

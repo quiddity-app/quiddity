@@ -15,8 +15,9 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
   `exported N entities to DIR` when done: the signal can't report that, so
   callers wait for the line. Without `--export` the signal is logged and
   ignored (the default action would kill the process).
-- **The graph is one SQLite file, `graph.quiddity`**, with a `snapshot` row
-  and an `endpoint_key` row (`store.rs`). `save` is one transaction in a rollback journal with `synchronous=FULL`, so it
+- **The graph is one SQLite file, `graph.quiddity`**, with a `snapshot` row,
+  a `slot` row (a random salt) and, only in a graph made before the device's key
+  was kept apart, an `endpoint_key` row (`store.rs`). `save` is one transaction in a rollback journal with `synchronous=FULL`, so it
   is atomic and durable, and it keeps the snapshot it replaces as row 2 (the
   previous generation), which `load` falls back to if row 1 can't be decoded.
   Saves are serialised in-process by the `durable` mutex shared by clones, and
@@ -30,8 +31,20 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
   mode). Journal mode is `DELETE`, deliberately: WAL leaves `-wal`/`-shm`, which
   breaks "one file" and copying it. The key is made inside a transaction, so two
   processes starting together agree on it.
-- **Never publish or copy the graph's file as a snapshot**: it holds the
-  endpoint key. `quiddity-node snapshot` writes the bare Loro snapshot for the
+- **The device's key is in a `Keyring`, not in any graph** (`keyring.rs`: one
+  `device.key` of `qdk_` text in the configuration directory, made by a staged
+  file and a hard link so that processes starting together agree on it, and
+  never replaced if it can't be read). A `Store` is made with the keyring it
+  uses, so say where it is: `--config-dir`/`QUIDDITY_CONFIG_DIR` on the CLI,
+  the app's config directory in the shell, and a directory of the test's own
+  in a test, never the real one. `Store::key` is the file's own `endpoint_key`
+  if it has one (so an old graph's device ID is unchanged, and it never asks for
+  the device key), and otherwise derived from the device key and the file's
+  salt (`quiddity-identity`). **Layout 2** added `slot`; layout 1 is converted
+  on `open`, after checking it is exactly layout 1. Extending the schema again is
+  a new layout and a conversion.
+- **Never publish or copy a graph's file as a snapshot**: a graph made before the
+  device's key was kept apart holds its endpoint key. `quiddity-node snapshot` writes the bare Loro snapshot for the
   static build, and a test checks the key isn't in it.
 - **A directory of the old layout (`graph.loro`, `device.key`) is converted on
   first open** and the old files renamed `*.migrated`, not deleted. It is built

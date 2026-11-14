@@ -14,6 +14,7 @@ use quiddity_core::files::{export_dir, import_dir};
 use quiddity_core::{Index, merge_duplicates};
 use quiddity_node::blobs::Blobs;
 use quiddity_node::gc;
+use quiddity_node::keyring::Keyring;
 use quiddity_node::store::Store;
 use quiddity_node::{Allowed, NetError, Peer, allow_device};
 use tracing::{debug, error, warn};
@@ -24,6 +25,11 @@ struct Cli {
     /// The graph's directory, which holds `graph.quiddity`.
     #[arg(long, short, default_value = ".")]
     graph: PathBuf,
+    /// Where this device keeps its key, which is not in any graph: copying a
+    /// graph doesn't copy the device. By default, the platform's directory
+    /// for configuration, such as `~/.config/quiddity`.
+    #[arg(long, env = "QUIDDITY_CONFIG_DIR", value_name = "DIR")]
+    config_dir: Option<PathBuf>,
     #[command(subcommand)]
     command: Command,
     #[command(flatten)]
@@ -182,7 +188,13 @@ async fn wait_for_stop(_peer: &Peer, _export: Option<&Path>) -> anyhow::Result<(
 
 async fn run(cli: Cli) -> anyhow::Result<()> {
     debug!(graph = %cli.graph.display(), command = ?cli.command, "running");
-    let store = Store::new(cli.graph);
+    let keys = match cli.config_dir.or_else(Keyring::default_dir) {
+        Some(dir) => Keyring::new(dir),
+        None => anyhow::bail!(
+            "no place to keep this device's key: say where with --config-dir or QUIDDITY_CONFIG_DIR"
+        ),
+    };
+    let store = Store::new(cli.graph, keys);
     match cli.command {
         Command::Init { blank } => {
             store.init(blank)?;
