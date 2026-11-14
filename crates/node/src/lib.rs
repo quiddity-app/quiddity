@@ -15,6 +15,7 @@
 pub mod blob_store;
 pub mod blobs;
 pub mod gc;
+pub mod legacy_blobs;
 pub mod store;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};

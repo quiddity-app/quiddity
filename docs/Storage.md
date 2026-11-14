@@ -2,7 +2,7 @@
 - The [[Loro]] document is the only source of truth.
 	- Text is stored in Unicode NFC. [[Unicode normalisation]]
 	- A graph on disk is a directory, made by `quiddity-node init`. The graph is one [[SQLite]] file in it, `graph.quiddity`, holding the graph's snapshot and this device's endpoint key. [[quiddity-node]]
-		- Blobs and `unreferenced-blobs.txt` are still beside it, for now. Planned: they join the file, so that a graph is one file to copy.
+		- Blobs and `unreferenced-blobs.txt` are still beside it, for now. Planned: they join the file, so that a graph is one file to copy. A graph's old `blobs/` directory can already be moved into the file: it is read, every blob in it is kept in the file, and it is set aside as `blobs.migrated/`, not deleted. Nothing does that yet; the change that makes the file hold the blobs will.
 		- The file's `blob` table and the store that serves it to [[iroh-blobs]] are built and tested (`blob_store`), but nothing uses them yet. The layout is version 2 for that table, and a file of version 1 gains it when opened.
 		- A blob is kept whole. One being fetched from another device is kept in memory, grown by verified data and never by a size the peer claims, until it is whole, so a crash loses it and it is fetched again. A file over 1 GB is refused: that is SQLite's limit on one value.
 		- A directory from before, with `graph.loro`, `graph.loro.bak` and `device.key`, is converted the first time it is opened, and those files are kept with `.migrated` added to their names, and the backup becomes the previous generation. Delete them once the graph opens. The key is in `device.key.migrated`.

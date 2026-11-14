@@ -64,7 +64,7 @@ pub struct Imported {
 }
 
 impl BlobError {
-    fn store(e: impl std::fmt::Display) -> Self {
+    pub(crate) fn store(e: impl std::fmt::Display) -> Self {
         Self::Store(e.to_string())
     }
 }
