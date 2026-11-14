@@ -12,7 +12,7 @@ alias:: [Meta-properties, meta-property, ## properties]
 		     ##inverse(children)
 		  ```
 	- The set is fixed: Quiddity gives each one its meaning, and they can't be defined in the graph. `##` is a namespace of its own, so `##inverse` has nothing to do with a property called `inverse`.
-	- They are drawn as chips, `##key` and the parameter as written. Anywhere else, a `##` line has no effect, and its chip is flagged. `##id` goes in any block, and so does `##blob`, as a block's first line. [[Binaries]]
+	- They are drawn as text, `##key` and the parameter as written. Anywhere else, a `##` line has no effect, and the line is flagged. `##id` goes in any block, and so does `##blob`, as a block's first line. [[Binaries]]
 	- `##id(0198f0c4-…)` gives a block an ID to be referred to by, and unlike the rest goes in any block. [[id]]
 	- `##journal(2026-10-25)` is another that isn't about a property: it makes an entity that day's [[Journal]]. It needs a day, and is flagged without one.
 	- `##tag:: [a, b]` is the one that isn't about a property: it goes in the properties block of any entity, and is the long form of `#a #b`. It needs a value, and a bare `##tag` is flagged. [[tags]]
@@ -51,7 +51,7 @@ alias:: [Meta-properties, meta-property, ## properties]
 	- The label can't be written as a property (a `children:: Edinburgh` line is an ordinary `children` property, unrelated to `parent`), and a property entity named for a label is flagged.
 	- `##symmetric` is for relations like `sibling` or `spouse`: if Ann's sibling is Bob, Bob's sibling is Ann, whichever of them it is written on. A symmetric property is its own inverse.
 - Flags
-	- Like the rest of a schema, meta-properties never reject anything: the text is what it is, and what doesn't fit is flagged where it is written. A flagged chip is ringed, and says why when hovered over. A flag with no chip to go on, such as a property the entity should have and doesn't, is listed under the entity's title.
+	- Like the rest of a schema, meta-properties never reject anything: the text is what it is, and what doesn't fit is flagged where it is written. A flagged line is ringed, and says why when hovered over. A flag with no line to go on, such as a property the entity should have and doesn't, is listed under the entity's title.
 	- A value that isn't of the `##value-type`.
 	- A reference whose target doesn't match `##values`. A link to nowhere is not flagged: it has no target to judge.
 	- An entity that has a property but doesn't match its `##applies-to`. Only the properties it writes itself are checked.
@@ -59,10 +59,10 @@ alias:: [Meta-properties, meta-property, ## properties]
 	- A cycle in a transitive property.
 	- A meta-property Quiddity doesn't know, a parameter it can't read, or one outside a property entity's properties block.
 - How it works
-	- [[quiddity-syntax]] reads a `##key(…)` line as a meta-property, keeping the parameter as text. It finds the closing parenthesis by reading the parameter as the query parser does, so a query needs no escaping, and a line that is a meta-property isn't scanned for `#tags`. Links in a parameter that reads as a query are links like any other, and show in references. A properties block may hold meta-property lines as well as property lines. `##key:: value` is read the way a property line is, so its links count and its value shows on the chip.
+	- [[quiddity-syntax]] reads a `##key(…)` line as a meta-property, keeping the parameter as text. It finds the closing parenthesis by reading the parameter as the query parser does, so a query needs no escaping, and a line that is a meta-property isn't scanned for `#tags`. Links in a parameter that reads as a query are links like any other, and show in references. A properties block may hold meta-property lines as well as property lines. `##key:: value` is read the way a property line is, so its links count and its value shows on the line.
 		- A parameter ending in a backslash, `##k(C:\ )`, needs the space: `\)` would be a literal parenthesis.
 	- [[quiddity-core]] reads each property's meta-properties into its schema, and, after building the index, works out each entity's effective properties (its own, inherited, transitive and symmetric) by repeating until nothing changes, which copes with cycles. [[Queries]] are answered against the effective properties; the checks look at what is written.
 	- A reference refers to an entity only if it resolves to exactly one. An ambiguous link, or one to nowhere, is followed nowhere and checked against nothing.
 	- The work grows with the graph and how far its relations reach, and is redone at every rebuild of the index. On a graph of 3,150 pages it is about 20 ms of an 80 ms rebuild. [[Performance]]
-	- [[quiddity-view]] puts each flag on its chip, in words, and gives an entity's page its inherited values and inverse trees.
+	- [[quiddity-view]] puts each flag on its line, in words, and gives an entity's page its inherited values and inverse trees.
 	- They replace the `value-type::`, `form::` and `cardinality::` lines that a property entity is read for today. `form` goes: a list is always allowed.

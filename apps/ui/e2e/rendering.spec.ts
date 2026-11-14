@@ -40,20 +40,22 @@ test("a [[link]] works inside formatting and is left alone in code", async ({ pa
   await expect(page.getByRole("heading", { name: "Loro", level: 1 })).toBeVisible();
 });
 
-test("line properties become chips, and the prose around them stays", async ({ page }) => {
+test("line properties read as text, and the prose around them stays", async ({ page }) => {
   const block = await write(page, "A task\nstatus:: open\nowner:: [[Loro]]");
   await expect(block.getByText("A task")).toBeVisible();
-  await expect(block.getByText("status", { exact: true })).toBeVisible();
-  await expect(block.getByText("open", { exact: true })).toBeVisible();
-  await expect(block.getByText("status:: open")).toHaveCount(0);
+  // The key is bold and a link, and its value is plain text unless it links.
+  await expect(block.locator("a.font-bold", { hasText: "status::" })).toBeVisible();
+  await expect(block.getByText("status:: open")).toBeVisible();
+  await expect(block.getByText("owner:: Loro")).toBeVisible();
   await expect(block.getByRole("link", { name: "Loro" })).toBeVisible();
+  await expect(block.getByRole("link", { name: "open" })).toHaveCount(0);
 });
 
-test("a block of nothing but properties is only chips", async ({ page }) => {
+test("a block of nothing but properties is only its properties", async ({ page }) => {
   await page.goto("/");
   const day = page.locator("main section").first();
   const block = day.locator("[data-block-text]").first();
-  // The day's `##journal(…)` line is a chip, not the source.
+  // The day's `##journal(…)` line reads as a meta-property, not the source.
   await expect(block.getByText("##journal", { exact: true })).toBeVisible();
   await expect(block).not.toContainText("##journal(");
 });
@@ -149,7 +151,7 @@ test("clicking a link or chip doesn't start editing, and selecting text doesn't 
 test("a property's key goes to the entity that defines it, making it the first time", async ({ page }) => {
   const block = await write(page, "A task\nstatus:: open");
   // Nothing defines it yet, but it reads as a link all the same.
-  const key = block.getByRole("link", { name: "status", exact: true });
+  const key = block.getByRole("link", { name: "status::", exact: true });
   await expect(key).toHaveAttribute("href", "#");
   await key.click();
   await expect(page.getByRole("heading", { name: "status", level: 1 })).toBeVisible();
@@ -157,7 +159,7 @@ test("a property's key goes to the entity that defines it, making it the first t
   // Defined now, so the key goes somewhere real, and it leads to the same place.
   await page.locator("nav").getByRole("link", { name: "Reading list" }).first().click();
   const again = page.locator("main article > ul > li").first().locator("[data-block-text]");
-  const defined = again.getByRole("link", { name: "status", exact: true });
+  const defined = again.getByRole("link", { name: "status::", exact: true });
   await expect(defined).not.toHaveAttribute("href", "#");
   await defined.click();
   await expect(page.getByRole("heading", { name: "status", level: 1 })).toBeVisible();
@@ -172,7 +174,7 @@ test("a valueless property is a link too", async ({ page }) => {
 test("a block of nothing but properties has no bullet, until it is edited", async ({ page }) => {
   const first = await write(page, "status:: open");
   const row = page.locator("main article > ul > li").first();
-  await expect(first.getByText("open", { exact: true })).toBeVisible();
+  await expect(first.getByText("status:: open")).toBeVisible();
   await expect(row.locator("[data-bullet]")).toHaveClass(/invisible/);
   // The next block has prose, so it has its bullet.
   await expect(page.locator("main article > ul > li").nth(1).locator("[data-bullet]")).not.toHaveClass(

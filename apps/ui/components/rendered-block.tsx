@@ -9,7 +9,7 @@ import { appPage } from "@/lib/nav";
 import { isExternal, openExternal } from "@/lib/open-external";
 import { PROP_CLOSE, PROP_OPEN, remarkQuiddity } from "@/lib/remark-quiddity";
 import { BlobFile } from "./blob-file";
-import { BlockRefLink, LinkOrNot, PropertyChip } from "./property-chip";
+import { BlockRefLink, LinkOrNot, PropertyChip, PropertyLine } from "./property-chip";
 import { linkClass } from "./ui";
 
 /**
@@ -139,9 +139,9 @@ export const RenderedBlock = memo(function RenderedBlock({
         </ReactMarkdown>
       )}
       {lineProps.length > 0 && (
-        <div className={`flex flex-wrap gap-1.5 ${prose.trim() !== "" ? "mt-1" : ""}`}>
+        <div className={prose.trim() !== "" ? "mt-1" : ""}>
           {lineProps.map((p) => (
-            <PropertyChip key={p.start} property={p} links={links} />
+            <PropertyLine key={p.start} property={p} links={links} />
           ))}
         </div>
       )}

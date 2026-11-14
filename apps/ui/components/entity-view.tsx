@@ -13,11 +13,11 @@ function BlockRow({ block, links }: { block: Block; links: Record<string, Resolv
   const editing = useContext(EditingContext);
   const current = editing?.current;
   const isEditing = current?.id === block.id;
-  // A block of nothing but properties is drawn as chips, which need no bullet.
-  // The bullet's place stays, so the chips line up with the text around them.
+  // A block of nothing but properties is drawn as text lines, which need no bullet.
+  // The bullet's place stays, so the lines line up with the text around them.
   const { prose, lineProps } = splitBlock(block);
-  // A file has its bullet like any block: it is not only chips.
-  const chipsOnly = !isEditing && !block.blob && prose.trim() === "" && lineProps.length > 0;
+  // A file has its bullet like any block: it is not only properties.
+  const propsOnly = !isEditing && !block.blob && prose.trim() === "" && lineProps.length > 0;
   return (
     <li
       className={`flex gap-2 ${block.propertiesBlock ? "rounded bg-surface-properties px-2" : ""}`}
@@ -26,7 +26,7 @@ function BlockRow({ block, links }: { block: Block; links: Record<string, Resolv
       <span
         aria-hidden
         data-bullet
-        className={`mt-2.5 size-1.5 shrink-0 rounded-full bg-bullet ${chipsOnly ? "invisible" : ""}`}
+        className={`mt-2.5 size-1.5 shrink-0 rounded-full bg-bullet ${propsOnly ? "invisible" : ""}`}
       />
       <div className="min-w-0 flex-1 py-0.5">
         {isEditing ? (
