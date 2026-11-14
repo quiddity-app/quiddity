@@ -47,7 +47,9 @@ pub fn export_dir(graph: &Graph, dir: &Path) -> Result<usize> {
         )
         .into());
     }
-    removing_on_failure(dir, existed, || write_export(graph, dir))
+    // Only Windows limits the whole path. Cutting names for it elsewhere would
+    // make an export's file names depend on where it was written.
+    removing_on_failure(dir, existed, || write_export(graph, dir, cfg!(windows)))
 }
 
 /// Runs `write`, which fills `dir`. If it fails, takes out what it wrote and
@@ -85,7 +87,8 @@ fn empty_dir(dir: &Path) -> io::Result<()> {
     Ok(())
 }
 
-fn write_export(graph: &Graph, dir: &Path) -> Result<usize> {
+/// `limit_path` keeps every file's whole path within Windows' limit.
+fn write_export(graph: &Graph, dir: &Path, limit_path: bool) -> Result<usize> {
     fs::create_dir_all(dir.join("entities"))?;
     fs::create_dir_all(dir.join("journals"))?;
     fs::write(dir.join(MANIFEST), MANIFEST_BODY)?;
@@ -97,6 +100,11 @@ fn write_export(graph: &Graph, dir: &Path) -> Result<usize> {
     let index = Index::build(graph)?;
     let mut used = HashSet::new();
     let mut written = 0;
+    let stem_units = if limit_path {
+        windows_stem_budget(dir)
+    } else {
+        usize::MAX
+    };
     // Entities with one name are numbered in the order they are met, so that
     // order must not depend on where they sit among the roots, which moves,
     // or the files of one export swap contents in the next. A block's ID is
@@ -111,7 +119,7 @@ fn write_export(graph: &Graph, dir: &Path) -> Result<usize> {
         let info = index.entity(entity).expect("every root is indexed");
         let (sub, stem) = match info.identity() {
             Some(Identity::Journal(date)) => ("journals", date.to_string()),
-            _ => ("entities", file_stem(&info.name)),
+            _ => ("entities", file_stem_within(&info.name, stem_units)),
         };
         let path = unique_path(&dir.join(sub), &stem, &mut used);
         trace!(path = %path.display(), "exporting");
@@ -305,10 +313,31 @@ const MAX_STEM_CHARS: usize = 120;
 /// What is left of 255 holds a number (`Jane 2`) and `.md`.
 const MAX_STEM_BYTES: usize = 200;
 
-/// A file name for an entity. Names needn't be unique or file-system safe;
-/// the real name is kept in the file's `title::`.
-fn file_stem(name: &str) -> String {
+/// Windows' limit on a whole path, in UTF-16 units, without the terminating
+/// NUL. Without opting in to long paths, a longer one can't be written.
+const WINDOWS_MAX_PATH: usize = 259;
+/// The least a stem is cut to for the sake of a long path. A directory that
+/// deep leaves nothing that fits, and a name this short is still a name.
+const MIN_STEM_UNITS: usize = 16;
+
+/// How many UTF-16 units of stem keep a file in `dir` within Windows' path
+/// limit: what is left after the directory, `\entities\`, a number (` 999`)
+/// and `.md`. The directory is made absolute first, since that is the path
+/// Windows measures.
+fn windows_stem_budget(dir: &Path) -> usize {
+    let dir = std::path::absolute(dir).unwrap_or_else(|_| dir.to_owned());
+    let dir_units = dir.to_string_lossy().encode_utf16().count();
+    WINDOWS_MAX_PATH
+        .saturating_sub(dir_units + r"\entities\".len() + " 999.md".len())
+        .max(MIN_STEM_UNITS)
+}
+
+/// A file name for an entity, cut to at most `max_units` UTF-16 units. Names
+/// needn't be unique or file-system safe; the real name is kept in the file's
+/// `title::`.
+fn file_stem_within(name: &str, max_units: usize) -> String {
     let mut bytes = 0;
+    let mut units = 0;
     let safe: String = name
         .chars()
         .map(|c| {
@@ -321,7 +350,8 @@ fn file_stem(name: &str) -> String {
         .take(MAX_STEM_CHARS)
         .take_while(|c| {
             bytes += c.len_utf8();
-            bytes <= MAX_STEM_BYTES
+            units += c.len_utf16();
+            bytes <= MAX_STEM_BYTES && units <= max_units
         })
         .collect();
     let safe = safe
@@ -400,6 +430,11 @@ fn unique_path(dir: &Path, stem: &str, used: &mut HashSet<String>) -> PathBuf {
 mod tests {
     use super::*;
 
+    /// A stem with no path-length limit, which is every other platform's.
+    fn file_stem(name: &str) -> String {
+        file_stem_within(name, usize::MAX)
+    }
+
     /// Importing from somewhere that isn't there says where.
     #[test]
     fn importing_a_missing_directory_names_it() {
@@ -452,6 +487,83 @@ mod tests {
         assert_eq!(
             file_stem(&format!("{} x", "a".repeat(MAX_STEM_CHARS - 1))),
             "a".repeat(MAX_STEM_CHARS - 1)
+        );
+    }
+
+    #[test]
+    fn stems_are_cut_to_the_units_they_are_given() {
+        assert_eq!(file_stem_within("abcdef", 4), "abcd");
+        // A crab is two UTF-16 units, so two fit in five and not three.
+        assert_eq!(
+            file_stem_within(&"\u{1f980}".repeat(10), 5),
+            "\u{1f980}".repeat(2)
+        );
+        assert_eq!(file_stem_within("ab ", 3), "ab");
+        assert_eq!(file_stem_within("abc", usize::MAX), "abc");
+    }
+
+    /// The budget is what Windows' path limit leaves of `dir\entities\`, a
+    /// number and `.md`, and never so little that nothing is left.
+    #[test]
+    fn the_windows_budget_is_what_the_path_limit_leaves() {
+        let overhead = r"\entities\".len() + " 999.md".len();
+        let dir = |n: usize| PathBuf::from(format!("/{}", "d".repeat(n - 1)));
+        assert_eq!(
+            windows_stem_budget(&dir(40)),
+            WINDOWS_MAX_PATH - 40 - overhead
+        );
+        assert_eq!(
+            windows_stem_budget(&dir(200)),
+            WINDOWS_MAX_PATH - 200 - overhead
+        );
+        assert_eq!(windows_stem_budget(&dir(240)), MIN_STEM_UNITS);
+        assert_eq!(windows_stem_budget(&dir(900)), MIN_STEM_UNITS);
+        // A relative directory is measured where it will be.
+        let here = std::env::current_dir()
+            .unwrap()
+            .to_string_lossy()
+            .encode_utf16()
+            .count();
+        assert_eq!(
+            windows_stem_budget(Path::new("x")),
+            WINDOWS_MAX_PATH - (here + 1 + 1) - overhead
+        );
+    }
+
+    /// With the limit on, a deep directory leaves little room for a name, and
+    /// the whole path of every file is within what Windows allows. Without it,
+    /// the same names are written whole.
+    #[test]
+    fn a_limited_export_keeps_whole_paths_short() {
+        let tmp = tempfile::tempdir().unwrap();
+        let graph = Graph::new();
+        graph.create_entity(&"a".repeat(100), &[]).unwrap();
+        graph.create_entity(&"\u{1f980}".repeat(40), &[]).unwrap();
+        graph.commit();
+
+        let deep = tmp.path().join("d".repeat(200));
+        let out = deep.join("out");
+        write_export(&graph, &out, true).unwrap();
+        let mut longest = 0;
+        for entry in fs::read_dir(out.join("entities")).unwrap() {
+            let path = entry.unwrap().path();
+            longest = longest.max(path.to_string_lossy().encode_utf16().count());
+        }
+        assert!(longest <= WINDOWS_MAX_PATH, "{longest}");
+        assert!(
+            longest > WINDOWS_MAX_PATH - 8,
+            "cut no more than it had to: {longest}"
+        );
+
+        let free = tmp.path().join("free");
+        write_export(&graph, &free, false).unwrap();
+        let names: Vec<_> = fs::read_dir(free.join("entities"))
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        assert!(
+            names.contains(&format!("{}.md", "a".repeat(100))),
+            "{names:?}"
         );
     }
 
