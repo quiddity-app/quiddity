@@ -61,20 +61,26 @@ const PREVIOUS: i64 = 2;
 
 const APPLICATION_ID: i32 = 0x5144_4459;
 /// SQLite's `user_version`: the layout of the tables below.
-const LAYOUT: i32 = 2;
+const LAYOUT: i32 = 3;
 
 /// Exactly the schema, as SQLite stores it (its `sql` column is the statement
 /// as written), so that a file with anything else in it is refused. One row
 /// each, enforced by the key, so there is no question which is current.
 /// The snapshot has two: row 1 is the current one, and row 2 the one before
 /// it, which `load` falls back to if row 1 can't be decoded.
-const TABLES: [(&str, &str); 3] = [
+const TABLES: [(&str, &str); 4] = [
     // Complete blobs by BLAKE3 hash. `outboard` (the hashes iroh-blobs needs
     // to prove parts of the blob) comes before `data` so that reading it
     // never walks the pages `data` overflows into.
     (
         "blob",
         "CREATE TABLE blob (id INTEGER PRIMARY KEY, hash BLOB NOT NULL UNIQUE CHECK (length(hash) = 32), size INTEGER NOT NULL CHECK (size >= 0), outboard BLOB NOT NULL, data BLOB NOT NULL CHECK (length(data) = size)) STRICT",
+    ),
+    // When each file nothing refers to was first seen so, and at which version
+    // of the graph, for deciding which may be deleted (`gc`). One row a file.
+    (
+        "unreferenced",
+        "CREATE TABLE unreferenced (id INTEGER PRIMARY KEY, hash BLOB NOT NULL UNIQUE CHECK (length(hash) = 32), seen INTEGER NOT NULL, version BLOB NOT NULL) STRICT",
     ),
     (
         "snapshot",
@@ -419,12 +425,16 @@ impl Store {
         if id != APPLICATION_ID {
             return Err(self.not_ours("it is not a Quiddity graph".into()));
         }
-        if layout == 1 {
-            // Layout 1 had no blobs; the table is the only difference.
-            db.execute_batch(&format!(
-                "BEGIN; {}; PRAGMA user_version = {LAYOUT}; COMMIT;",
-                TABLES[0].1
-            ))?;
+        if (1..LAYOUT).contains(&layout) {
+            // Each layout since the first only added tables, so an older file
+            // gains whichever it lacks, as it would have been made.
+            let mut upgrade = String::from("BEGIN;");
+            for (_, sql) in TABLES {
+                let sql = sql.replacen("CREATE TABLE ", "CREATE TABLE IF NOT EXISTS ", 1);
+                upgrade.push_str(&format!("{sql};"));
+            }
+            upgrade.push_str(&format!("PRAGMA user_version = {LAYOUT}; COMMIT;"));
+            db.execute_batch(&upgrade)?;
             return self.open();
         }
         if layout != LAYOUT {
@@ -846,7 +856,7 @@ mod tests {
     fn a_file_that_is_not_ours_is_refused() {
         let cases: [(&str, &str); 6] = [
             ("another application", "PRAGMA application_id = 7"),
-            ("a later layout", "PRAGMA user_version = 3"),
+            ("a later layout", "PRAGMA user_version = 4"),
             (
                 "a trigger",
                 "CREATE TRIGGER t AFTER UPDATE ON snapshot BEGIN SELECT 1; END",
@@ -1034,33 +1044,45 @@ mod tests {
         ));
     }
 
-    /// A file of the first layout, which had no blobs, is upgraded in place:
-    /// what it held is kept and it gains the table.
+    /// A file of an earlier layout, which lacked the tables added since, is
+    /// upgraded in place: what it held is kept and it gains the tables, however
+    /// many layouts behind it was.
     #[test]
-    fn layout_one_gains_the_blob_table() {
-        let tmp = tempfile::tempdir().unwrap();
-        let store = Store::new(tmp.path());
-        let graph = store.init(false).unwrap();
-        let block = graph.create_block(None, None, "kept").unwrap();
-        graph.commit();
-        store.save(&graph).unwrap();
-        store
-            .connect()
-            .unwrap()
-            .execute_batch("DROP TABLE blob; PRAGMA user_version = 1;")
-            .unwrap();
+    fn an_older_layout_gains_the_tables_it_lacks() {
+        // Layout 1 had neither; layout 2 had blobs.
+        for (layout, dropped) in [
+            (1, "DROP TABLE blob; DROP TABLE unreferenced;"),
+            (2, "DROP TABLE unreferenced;"),
+        ] {
+            let tmp = tempfile::tempdir().unwrap();
+            let store = Store::new(tmp.path());
+            let graph = store.init(false).unwrap();
+            let block = graph.create_block(None, None, "kept").unwrap();
+            graph.commit();
+            store.save(&graph).unwrap();
+            store
+                .connect()
+                .unwrap()
+                .execute_batch(&format!("{dropped} PRAGMA user_version = {layout};"))
+                .unwrap();
 
-        assert_eq!(store.load().unwrap().text(block).unwrap(), "kept");
-        let db = store.connection().unwrap();
-        let layout: i32 = db
-            .pragma_query_value(None, "user_version", |r| r.get(0))
+            assert_eq!(store.load().unwrap().text(block).unwrap(), "kept");
+            let db = store.connection().unwrap();
+            let now: i32 = db
+                .pragma_query_value(None, "user_version", |r| r.get(0))
+                .unwrap();
+            assert_eq!(now, LAYOUT, "from layout {layout}");
+            db.execute(
+                "INSERT INTO blob (hash, size, outboard, data) VALUES (zeroblob(32), 1, x'', x'00')",
+                [],
+            )
             .unwrap();
-        assert_eq!(layout, LAYOUT);
-        db.execute(
-            "INSERT INTO blob (hash, size, outboard, data) VALUES (zeroblob(32), 1, x'', x'00')",
-            [],
-        )
-        .unwrap();
+            db.execute(
+                "INSERT INTO unreferenced (hash, seen, version) VALUES (zeroblob(32), 1, x'')",
+                [],
+            )
+            .unwrap();
+        }
     }
 
     /// Making a graph where one is already refuses, in either layout.

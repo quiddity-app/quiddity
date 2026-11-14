@@ -2,7 +2,7 @@
 - The [[Loro]] document is the only source of truth.
 	- Text is stored in Unicode NFC. [[Unicode normalisation]]
 	- A graph on disk is a directory, made by `quiddity-node init`. The graph is one [[SQLite]] file in it, `graph.quiddity`, holding the graph's snapshot and this device's endpoint key. [[quiddity-node]]
-		- The graph's binaries are in the file too, in a `blob` table. `unreferenced-blobs.txt` is still beside it, for now. Planned: it joins the file, so that a graph is one file to copy.
+		- The graph's binaries are in the file too, in a `blob` table, and so is the node's record of when it first saw each file that nothing refers to (the `unreferenced` table, for deleting them), so what a graph keeps is the one file. The record was a text file, `unreferenced-blobs.txt`, which is taken in once and set aside.
 		- A graph's old `blobs/` directory is moved into the file the first time its blobs are opened, every blob checked, and set aside as `blobs.migrated/`, not deleted. Delete it once the files open.
 	- Saving writes the whole snapshot in one transaction that is flushed to disk before it counts as done, so a crash, even a power loss, leaves the previous snapshot. The one it replaces is kept as the previous generation, and loading falls back to that if the current one can't be decoded, and the app shows a [[Recovery]] screen if that fails too. Saves are serialised. A save records this device in the graph's device list, and compacts what it writes. What it records is what the snapshot held *before* this save, never what it is about to write: other devices act on the record at once, by dropping history up to it, so a write that then failed would have left them ahead of this device. The record lags one save; the history kept doesn't. [[Compaction]]
 	- The file is one file at rest: it uses a rollback journal rather than write-ahead logging, so there is no `-wal` or `-shm` beside it. A second process that opens it waits a few seconds and then reports that it is busy.
@@ -12,7 +12,7 @@
 		- It must carry Quiddity's `application_id` and a layout version this build knows, and its schema must be exactly ours: a trigger, view or table we didn't make refuses it.
 		- Connections run in SQLite's defensive mode, with triggers, views and schema-defined functions turned off. Loading also runs `quick_check`.
 	- [[The shell]] keeps its graph the same way, in the app's data directory, or wherever `QUIDDITY_GRAPH` says. It saves after each batch of updates from the UI.
-- Blobs, the bytes of [[Binaries]], are kept by hash in the graph's file, served to [[iroh-blobs]] from SQLite. They are not derived and not in the document. `unreferenced-blobs.txt` beside them is the node's record of when it first saw each file that nothing refers to, for deleting them.
+- Blobs, the bytes of [[Binaries]], are kept by hash in the graph's file, served to [[iroh-blobs]] from SQLite. They are not derived and not in the document. The node's record of when it first saw each file that nothing refers to, for deleting them, is in the file too.
 - Everything else is derived.
 	- The index, of names and aliases, properties, links and how each resolved, is rebuilt from the document in memory and never synced or stored. [[quiddity-core]]
 	- Full-text search reads every block when asked, from the text the view keeps. [[Text search]]

@@ -179,7 +179,11 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
   another reason: `gc` saves the graph it loaded, which would be written over
   what a serving node saved since. The old store's lock stopped that by
   accident, and nothing does now. The empty file is built in: `has` is always
-  true for it and `stored` never lists it. A file goes
+  true for it and `stored` never lists it. **The ledger is the `unreferenced`
+  table**, saved whole in one transaction, and a text `unreferenced-blobs.txt`
+  from before is taken in on the first load (existing rows win, being the later
+  sighting) and set aside; a row or a line that can't be read only starts that
+  file's clock again. A file goes
   only when unreferenced now, unreferenced for the grace, *and* first seen
   unreferenced at a version `compaction_point` includes; no compaction point,
   no deletion. Versions are per-peer counts, so only versions of the same graph

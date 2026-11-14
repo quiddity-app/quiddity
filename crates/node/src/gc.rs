@@ -17,18 +17,21 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::io;
 use std::path::Path;
 
+use rusqlite::params;
+
 use jiff::{SignedDuration, Timestamp};
 use quiddity_core::{Graph, Index, Version};
 
 use crate::blobs::{BlobError, Blobs, Hash};
-use crate::store::ACTIVE;
+use crate::store::{ACTIVE, Store};
 
 /// How long a file must have gone unreferenced before it may be deleted: as
 /// long as a device may be silent before it stops holding back compaction.
 pub const GRACE: SignedDuration = ACTIVE;
 
-/// Where the ledger is kept, in the graph's directory. (Not in `blobs/`,
-/// which belongs to the store.)
+/// Where the ledger was kept, before it was kept in the graph's file: a text
+/// file in the graph's directory, read once and set aside. (Not in `blobs/`,
+/// which belonged to the store.)
 const LEDGER: &str = "unreferenced-blobs.txt";
 
 #[derive(Debug, thiserror::Error)]
@@ -39,6 +42,8 @@ pub enum CollectError {
     Graph(#[from] quiddity_core::Error),
     #[error(transparent)]
     Io(#[from] io::Error),
+    #[error(transparent)]
+    Store(#[from] crate::StoreError),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -98,24 +103,11 @@ impl Ledger {
         self.seen.is_empty()
     }
 
-    /// One file a line: its hash, when it was first seen unreferenced (in
-    /// seconds since 1970) and the graph's version then (in hex).
-    pub fn to_text(&self) -> String {
-        self.seen
-            .iter()
-            .map(|(hash, s)| {
-                format!(
-                    "{hash} {} {}\n",
-                    s.at.as_second(),
-                    to_hex(&s.version.encode())
-                )
-            })
-            .collect()
-    }
-
-    /// Reads what [`Ledger::to_text`] wrote. A line it cannot read is left
-    /// out, which only starts that file's clock again: waiting longer is the
-    /// safe mistake.
+    /// Reads the text ledger that was kept before the file held it: one file a
+    /// line, its hash, when it was first seen unreferenced (in seconds since
+    /// 1970) and the graph's version then (in hex). A line it cannot read is
+    /// left out, which only starts that file's clock again: waiting longer is
+    /// the safe mistake.
     pub fn from_text(text: &str) -> Self {
         let seen = text
             .lines()
@@ -133,24 +125,71 @@ impl Ledger {
         Self { seen }
     }
 
-    pub fn load(graph_dir: &Path) -> io::Result<Self> {
-        match std::fs::read_to_string(graph_dir.join(LEDGER)) {
-            Ok(text) => Ok(Self::from_text(&text)),
-            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(Self::default()),
-            Err(e) => Err(e),
+    /// The ledger in the graph's file. A text ledger left from before is
+    /// taken in first, and set aside.
+    pub fn load(graph_dir: &Path) -> Result<Self, CollectError> {
+        let db = Store::new(graph_dir).connection()?;
+        let legacy = graph_dir.join(LEDGER);
+        match std::fs::read_to_string(&legacy) {
+            Ok(text) => {
+                // Sightings already in the file stand: they are the later ones.
+                for (hash, seen) in Self::from_text(&text).seen {
+                    db.execute(
+                        "INSERT OR IGNORE INTO unreferenced (hash, seen, version) VALUES (?1, ?2, ?3)",
+                        params![
+                            hash.as_bytes().as_slice(),
+                            seen.at.as_second(),
+                            seen.version.encode()
+                        ],
+                    )
+                    .map_err(crate::StoreError::from)?;
+                }
+                std::fs::rename(&legacy, graph_dir.join(format!("{LEDGER}.migrated")))?;
+            }
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e.into()),
         }
+        let rows: Vec<(Vec<u8>, i64, Vec<u8>)> = db
+            .prepare("SELECT hash, seen, version FROM unreferenced")
+            .and_then(|mut rows| {
+                rows.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
+                    .collect()
+            })
+            .map_err(crate::StoreError::from)?;
+        // A row it cannot read is left out, as a line of the text was.
+        let seen = rows
+            .into_iter()
+            .filter_map(|(hash, at, version)| {
+                let hash = Hash::from_bytes(<[u8; 32]>::try_from(hash).ok()?);
+                let at = Timestamp::from_second(at).ok()?;
+                let version = Version::decode(&version).ok()?;
+                Some((hash, Seen { at, version }))
+            })
+            .collect();
+        Ok(Self { seen })
     }
 
-    /// Saves atomically, as the graph's snapshot is.
-    pub fn save(&self, graph_dir: &Path) -> io::Result<()> {
-        let tmp = graph_dir.join(format!("{LEDGER}.tmp"));
-        std::fs::write(&tmp, self.to_text())?;
-        std::fs::rename(tmp, graph_dir.join(LEDGER))
+    /// Saves in one transaction, as the graph's snapshot is, replacing what
+    /// was kept.
+    pub fn save(&self, graph_dir: &Path) -> Result<(), CollectError> {
+        let mut db = Store::new(graph_dir).connection()?;
+        let saved = (|| {
+            let tx = db.transaction()?;
+            tx.execute("DELETE FROM unreferenced", [])?;
+            for (hash, seen) in &self.seen {
+                tx.execute(
+                    "INSERT INTO unreferenced (hash, seen, version) VALUES (?1, ?2, ?3)",
+                    params![
+                        hash.as_bytes().as_slice(),
+                        seen.at.as_second(),
+                        seen.version.encode()
+                    ],
+                )?;
+            }
+            tx.commit()
+        })();
+        Ok(saved.map_err(crate::StoreError::from)?)
     }
-}
-
-fn to_hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
 fn from_hex(text: &str) -> Option<Vec<u8>> {
