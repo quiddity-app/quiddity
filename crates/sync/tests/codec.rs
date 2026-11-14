@@ -3,7 +3,7 @@
 
 use proptest::collection::{btree_set, vec};
 use proptest::prelude::*;
-use quiddity_core::{Graph, Version};
+use quiddity_core::{Graph, GraphId, Version};
 use quiddity_sync::{FrameError, FrameReader, MAX_FRAME, Message, Record, write_frame};
 
 /// A real version: from a graph that has seen edits from several peers.
@@ -27,12 +27,14 @@ fn message() -> impl Strategy<Value = Message> {
     prop_oneof![
         (
             proptest::option::of(any::<i64>()),
+            proptest::option::of(any::<[u8; 16]>().prop_map(GraphId::from_bytes)),
             any::<String>(),
             version(),
             version()
         )
-            .prop_map(|(schema, device, start, version)| Message::Hello {
+            .prop_map(|(schema, graph, device, start, version)| Message::Hello {
                 schema,
+                graph,
                 device,
                 start,
                 version,

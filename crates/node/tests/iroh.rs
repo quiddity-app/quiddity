@@ -197,6 +197,45 @@ async fn a_device_behind_its_peer_is_told_so() {
     device_router.shutdown().await.unwrap();
 }
 
+/// Two graphs that were never one are not merged, even though each lets the
+/// other connect: the hello says they differ, and nothing is exchanged. That
+/// would also have merged their device lists, and so made each one's devices
+/// trusted by the other.
+#[tokio::test]
+async fn a_device_holding_another_graph_is_refused() {
+    let (one, two) = (Graph::new(), Graph::new());
+    let (one_id, two_id) = (one.graph_id(), two.graph_id());
+    let one = Peer::new(one, Allowed::Any, "one");
+    let two = Peer::new(two, Allowed::Any, "two");
+    edit(&one, "from one");
+    edit(&two, "from two");
+    let (one_router, one_addr) = listen(&one).await;
+    let (two_router, _) = listen(&two).await;
+
+    let result = two
+        .connect(
+            two_router.endpoint(),
+            one_addr,
+            Some(Duration::from_secs(2)),
+        )
+        .await;
+    assert!(
+        matches!(result, Err(quiddity_node::Error::OtherGraph)),
+        "{result:?}"
+    );
+    // Neither took anything, and neither listed the other's device.
+    assert_eq!(
+        (one.graph().roots().len(), two.graph().roots().len()),
+        (1, 1)
+    );
+    assert_eq!(one.graph().graph_id(), one_id);
+    assert_eq!(two.graph().graph_id(), two_id);
+    assert!(one.graph().devices().is_empty() && two.graph().devices().is_empty());
+
+    one_router.shutdown().await.unwrap();
+    two_router.shutdown().await.unwrap();
+}
+
 #[tokio::test]
 async fn unlisted_devices_are_refused() {
     let node = Peer::new(Graph::new(), Allowed::Only(HashSet::new()), "node");

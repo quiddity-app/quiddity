@@ -38,7 +38,7 @@ use tokio::task::JoinSet;
 use tracing::{debug, error, info, instrument, warn};
 
 /// The protocol's name, negotiated when connecting.
-pub const ALPN: &[u8] = b"quiddity/sync/2";
+pub const ALPN: &[u8] = b"quiddity/sync/3";
 
 /// How long to wait before dialling a listed device again, at first and at
 /// most (it doubles in between, so a device that is off isn't pestered).
@@ -60,6 +60,10 @@ const EDIT_IDLE: Duration = Duration::from_secs(2);
 /// history, so the peer can say why rather than that the connection went.
 const BEHIND: u32 = 2;
 
+/// The code a device closes a connection with when the peer holds another
+/// graph, for the same reason.
+const OTHER_GRAPH: u32 = 3;
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error(transparent)]
@@ -80,6 +84,8 @@ pub enum Error {
     TimedOut,
     #[error("the peer's graph uses schema {0:?}, which this build can't sync with")]
     Incompatible(Option<i64>),
+    #[error("the peer holds another graph, and this device won't merge two")]
+    OtherGraph,
     #[error("this device is behind the peer's history: it needs to start again from a snapshot")]
     Behind,
     #[error("the peer is behind this device's history: it needs to start again from a snapshot")]
@@ -791,6 +797,7 @@ impl Peer {
                         }
                         match session.state() {
                             State::Incompatible { theirs } => return Err(Error::Incompatible(*theirs)),
+                            State::OtherGraph { .. } => return Err(Error::OtherGraph),
                             State::Behind => return Err(Error::Behind),
                             State::PeerBehind => return Err(Error::PeerBehind),
                             State::Starting | State::Syncing => {}
@@ -904,14 +911,21 @@ async fn write(send: &mut SendStream, message: &Message) -> Result<(), Error> {
 fn close(connection: &Connection, result: &Result<(), Error>) {
     match result {
         Err(Error::PeerBehind) => connection.close(BEHIND.into(), b"behind this device's history"),
+        Err(Error::OtherGraph) => connection.close(OTHER_GRAPH.into(), b"another graph"),
         _ => connection.close(0u32.into(), b"done"),
     }
 }
 
 /// A peer that found this device behind its history closes with
-/// [`BEHIND`]: report that, not the lost connection.
+/// [`BEHIND`], and one that holds another graph with [`OTHER_GRAPH`]: report
+/// that, not the lost connection.
 fn read_error(e: ReadError) -> Error {
     match e {
+        ReadError::ConnectionLost(ConnectionError::ApplicationClosed(close))
+            if close.error_code == OTHER_GRAPH.into() =>
+        {
+            Error::OtherGraph
+        }
         ReadError::ConnectionLost(ConnectionError::ApplicationClosed(close))
             if close.error_code == BEHIND.into() =>
         {

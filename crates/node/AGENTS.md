@@ -89,7 +89,10 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
   two instances on one machine find each other.
 - **A device behind its peer's history** gets `Error::Behind`. The side
   that finds its peer behind closes with code `BEHIND`, so the other can say
-  why even if the close arrives before the peer's hello is read.
+  why even if the close arrives before the peer's hello is read. **Another
+  graph** is the same: `Error::OtherGraph`, close code `OTHER_GRAPH`. Without
+  the code the side that didn't notice first reads only "done", and a test that
+  looks for the error is flaky. **Change the hello and you change `ALPN`.**
 - **Presence rides the sync connection** (`Peer::set_focus`, `watched`,
   `present`). A connection becomes a presence link once the peer's hello has
   arrived, and is withdrawn when its task ends, however it ends (`Link`
