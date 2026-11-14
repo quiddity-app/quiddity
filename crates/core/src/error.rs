@@ -22,6 +22,10 @@ pub enum Error {
     BeforeHistory,
     #[error("those updates can't be applied here: this replica lacks what they were made on")]
     NotApplied,
+    #[error("this graph already has an ID")]
+    GraphIdExists,
+    #[error("a blank replica has no graph to give an ID to")]
+    BlankReplica,
     #[error("in quiddity.toml: {0}")]
     Settings(String),
 }
