@@ -64,6 +64,10 @@ enum Command {
     Allow { device: EndpointId },
     /// Print this device's ID, for `allow`.
     Id,
+    /// Print the graph's ID. A graph made before graphs had IDs is given one
+    /// first: do that on one device and let it sync, since two that each make
+    /// one will not agree.
+    Identify,
     /// List the devices holding this graph, latest first, with when each
     /// last saved it (as far as this device has heard).
     Devices,
@@ -253,6 +257,18 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
             println!("{device} may connect");
         }
         Command::Id => println!("{}", store.key()?.public()),
+        Command::Identify => {
+            let graph = store.load()?;
+            let id = match graph.graph_id() {
+                Some(id) => id,
+                None => {
+                    let id = graph.assign_graph_id()?;
+                    store.save(&graph)?;
+                    id
+                }
+            };
+            println!("{id}");
+        }
         Command::Devices => {
             let me = store.key()?.public().to_string();
             let mut devices = store.load()?.devices();

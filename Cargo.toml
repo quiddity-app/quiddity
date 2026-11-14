@@ -12,6 +12,7 @@ rust-version = "1.88"
 
 [workspace.dependencies]
 quiddity-core = { path = "crates/core" }
+quiddity-identity = { path = "crates/identity" }
 quiddity-syntax = { path = "crates/syntax" }
 # No time zone database: the UI only needs civil dates and timestamps.
 jiff = { version = "0.2", default-features = false, features = ["std"] }
@@ -27,7 +28,7 @@ tracing-subscriber = "0.3"
 caseless = "0.2"
 unicode-normalization = "0.1"
 toml = { version = "1", default-features = false, features = ["std", "serde", "parse", "display"] }
-uuid = { version = "1", features = ["v7"] }
+uuid = { version = "1", features = ["v4", "v7"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

@@ -17,6 +17,18 @@ outline text format.
 - `Graph::blank()` has no schema version until it syncs; `Graph::new()`
   writes one.
 
+## The graph's ID
+
+- **`Graph::new` makes one, `Graph::blank` has none.** It is in the `graph` map
+  beside the schema version (`graph_id.rs`), so it arrives with the first
+  import. Nothing else makes one: a graph made before has none and is
+  accepted by any peer, and `assign_graph_id` (the node's `identify`) is for
+  one device to do once. Two replicas that each assigned one before meeting
+  disagree, and the loser is refused by peers that hold the winner's, so
+  never call it from anything that runs on its own.
+- **An ID this build can't read is not an absent one.** `graph_id` says
+  `None` for both, but `assign_graph_id` refuses to write over either.
+
 ## Reading the whole graph
 
 - **Loro costs about 7 µs for each block it is asked about**, however it is
