@@ -1,4 +1,4 @@
-- A `[[link]]` or `#tag` to a name no entity has goes to a virtual entity, which looks in every way like an empty one. [[Rendering]]
+- A `[[link]]` or `#tag` to a name no entity has, or a property key no entity is named for, goes to a virtual entity, which looks in every way like an empty one. [[Rendering]]
 	- It is listed in [[All entities]], is a node in the graph, turns up in search, has a page and has references.
 	- Nothing is stored for it. It exists while something links to it, and goes when the last link does.
 	- Following the link opens its page and makes nothing. `follow_link(key)` returns an ID made of `~` and the name as names are compared.
@@ -10,3 +10,4 @@
 	- Following it makes the entity if none matches. So does saving a block that gained the link: `commit_block(id, before)` compares the links before and after, and one that was already there, which may have come from another device, makes nothing. [[Editing]]
 	- The entity has an empty block to type into and the properties the qualifiers ask for, so the link finds it.
 	- Saving is one step of undo, apart from the typing before it.
+	- A property key is not a link, so its virtual entity has no references: its page lists its uses instead, and the graph joins it weakly to each entity that uses the key. [[Properties]]

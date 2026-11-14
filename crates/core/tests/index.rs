@@ -253,6 +253,11 @@ proptest! {
                 fresh.mentions().collect::<Vec<_>>(),
                 "mentions"
             );
+            prop_assert_eq!(
+                index.undefined_keys().collect::<Vec<_>>(),
+                fresh.undefined_keys().collect::<Vec<_>>(),
+                "undefined keys"
+            );
         }
     }
 }
@@ -517,4 +522,72 @@ fn a_mention_ends_when_the_entity_is_made() {
     graph.create_block(None, None, "nowhere").unwrap();
     graph.commit();
     assert_eq!(Index::build(&graph).unwrap().mentions().count(), 0);
+}
+
+/// A property key that no entity is named for is an undefined key, with who
+/// uses it in document order. Tags, `##` lines, keys in prose blocks and keys
+/// an entity or alias is named for are not.
+#[test]
+fn a_property_key_nobody_defined_is_an_undefined_key() {
+    let graph = Graph::new();
+    let first = graph.create_block(None, None, "First").unwrap();
+    graph
+        .create_block(
+            Some(first),
+            None,
+            "Status:: open\nrating:: 5\n#tagged\n##tag:: [other]\ndefined:: x\nknown:: y",
+        )
+        .unwrap();
+    graph
+        .create_block(Some(first), None, "prose:: not a property")
+        .unwrap();
+    let second = graph.create_block(None, None, "Second").unwrap();
+    graph
+        .create_block(Some(second), None, "STATUS:: closed\nstatus:: again")
+        .unwrap();
+    let defined = graph.create_block(None, None, "defined").unwrap();
+    let other = graph.create_block(None, None, "Other").unwrap();
+    graph
+        .create_block(Some(other), None, "alias:: known")
+        .unwrap();
+    let _ = defined;
+    graph.commit();
+    let index = Index::build(&graph).unwrap();
+
+    let keys: Vec<_> = index.undefined_keys().map(|(k, _)| k).collect();
+    assert_eq!(keys, ["alias", "rating", "status"]);
+    let users = |key: &str| -> Vec<(BlockId, String)> {
+        index
+            .undefined_key(key)
+            .iter()
+            .map(|u| (u.entity, u.key.clone()))
+            .collect()
+    };
+    assert_eq!(
+        users("status"),
+        [(first, "Status".to_owned()), (second, "STATUS".to_owned())],
+        "once for each entity, in document order, as the first wrote it"
+    );
+    assert_eq!(users(" Rating "), [(first, "rating".to_owned())]);
+    assert!(users("defined").is_empty() && users("known").is_empty());
+    assert!(users("prose").is_empty() && users("tagged").is_empty());
+}
+
+/// Two entities of a name are an ambiguous property, not an undefined one, and
+/// making the entity ends the key.
+#[test]
+fn an_undefined_key_ends_when_an_entity_is_named_for_it() {
+    let graph = Graph::new();
+    let page = graph.create_block(None, None, "Page").unwrap();
+    graph.create_block(Some(page), None, "mood:: calm").unwrap();
+    graph.commit();
+    assert_eq!(Index::build(&graph).unwrap().undefined_keys().count(), 1);
+    graph.create_block(None, None, "Mood").unwrap();
+    graph.create_block(None, None, "mood").unwrap();
+    graph.commit();
+    assert_eq!(
+        Index::build(&graph).unwrap().undefined_keys().count(),
+        0,
+        "two of a name are ambiguous, which is not undefined"
+    );
 }

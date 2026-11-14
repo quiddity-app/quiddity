@@ -104,8 +104,8 @@ per revision.
 **Weak edges** (`Edge::weak`) join each end of a property with a value (the
 entity, and each entity its value links to) to the entity that defines the
 key, found by name (`Index::property_entity`). A pair already joined by a
-strong edge in either direction has no weak one, and a key nobody defines has
-none, since only links make virtual entities. `uses(id)` is the same
+strong edge in either direction has no weak one. A key nobody has made an entity
+for is joined to its virtual entity (`Index::undefined_keys`). `uses(id)` is the same
 relation from the property's side, grouped by entity, for its page; it is
 empty for anything that defines no property. Neither is in `references`.
 
@@ -143,12 +143,17 @@ what the All entities table shows.
 
 ## Links to nowhere
 
-A name that is linked to (or tagged) and that no entity has is a **virtual
-entity** (`virtual_entity.rs`, `Index::mentions`). It must look in every way
+A name that is linked to (or tagged), or is a property's key, and that no
+entity has is a **virtual entity** (`virtual_entity.rs`, `Index::mentions`). It must look in every way
 like an empty entity: it is in `entities`, `summaries`, `connections`,
 `search_titles`, has a page (`entity`) and references. Its ID is `~` and the
 name as names are compared (`id_of`, `name_of`); nothing is stored for it.
 
+- **A property key is not a link**: `Index::undefined_keys` lists the keys
+  written in properties blocks that no entity is named for, and `virtuals` joins
+  them to the links. A virtual key has no references, only `uses`, and its chip's
+  `definition` is its `~` ID. A key in a block that is not a properties block
+  makes none.
 - **Reading never makes anything.** `follow_link(key)` answers `~name` for an
   unqualified link that goes nowhere; an ambiguous link is an error.
 - **Writing makes it real, in the same edit.** `create_block` and

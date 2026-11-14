@@ -217,14 +217,23 @@ fn property(text: &str, p: &Prop, index: &Index) -> Property {
     // entity it names.
     let definition = if p.style == PropertyStyle::Inline {
         match index.resolve(&quiddity_core::tags::link(&p.key)) {
-            Resolution::Unique(id) => Some(index.canonical(id)),
+            Resolution::Unique(id) => Some(index.canonical(id).to_string()),
             _ => None,
         }
     } else {
-        index.property_entity(&p.key).map(|id| index.canonical(id))
+        index
+            .property_entity(&p.key)
+            .map(|id| index.canonical(id).to_string())
     };
+    // A key that no entity is named for goes to its virtual entity, so long as
+    // some properties block uses it (one in a prose block is flagged, and
+    // doesn't make an entity).
+    let definition = definition.or_else(|| {
+        (p.style != PropertyStyle::Inline && !index.undefined_key(&p.key).is_empty())
+            .then(|| crate::virtual_entity::id_of(&p.key))
+    });
     Property {
-        definition: definition.map(|id| id.to_string()),
+        definition,
         key: p.key.clone(),
         value: p.value.as_ref().map(property_value),
         inline: p.style == PropertyStyle::Inline,
@@ -562,19 +571,27 @@ impl View {
     /// Who has the property that the entity `id` defines, grouped by entity
     /// and ordered by title: the property's own page lists these where an
     /// ordinary entity lists its references. Empty for an entity that defines
-    /// no property.
+    /// no property. A property key nobody has made an entity for has a virtual
+    /// one, and its page lists its uses the same way.
     pub fn uses(&self, id: &str) -> Result<Vec<Use>> {
-        let definition = match self.named(id)? {
-            Some(Named::Virtual(_)) => return Ok(Vec::new()),
-            Some(Named::Real(entity)) => entity,
-            None => self.entity_id(id)?,
-        };
         let found: Vec<(BlockId, Vec<String>)> = {
+            let named = self.named(id)?;
+            let definition = match &named {
+                Some(Named::Virtual(_)) => None,
+                Some(Named::Real(entity)) => Some(*entity),
+                None => Some(self.entity_id(id)?),
+            };
             let index = self.index()?;
-            if !index.defines_property(definition) {
-                return Ok(Vec::new());
-            }
-            let key = normalise_name(index.entity(definition).map_or("", |e| e.name.as_str()));
+            let key = match (&named, definition) {
+                (_, Some(definition)) => {
+                    if !index.defines_property(definition) {
+                        return Ok(Vec::new());
+                    }
+                    normalise_name(index.entity(definition).map_or("", |e| e.name.as_str()))
+                }
+                (Some(Named::Virtual(v)), None) => normalise_name(&v.title),
+                (_, None) => return Ok(Vec::new()),
+            };
             index
                 .entities()
                 .filter(|e| index.canonical(e.id) == e.id)
@@ -602,7 +619,7 @@ impl View {
 
     /// Adds the weak edges: for each property with a value, one from the
     /// entity that has it, and one from each entity it links to, to the entity
-    /// that defines the property, when there is one. A pair already joined by
+    /// that defines the property, or its virtual one if nobody does. A pair already joined by
     /// a strong edge, in either direction, gets none.
     fn add_weak_edges(&self, edges: &mut BTreeSet<Edge>) -> Result<()> {
         let index = self.index()?;
@@ -616,18 +633,23 @@ impl View {
                 let Some(value) = &property.value else {
                     continue;
                 };
-                let Some(definition) = index.property_entity(&property.key) else {
-                    continue;
+                // The entity that defines the key, or the virtual one a key
+                // nobody has made an entity for stands in with.
+                let definition = match index.property_entity(&property.key) {
+                    Some(id) => index.canonical(id).to_string(),
+                    None if !index.undefined_key(&property.key).is_empty() => {
+                        crate::virtual_entity::id_of(&property.key)
+                    }
+                    None => continue,
                 };
-                let definition = index.canonical(definition);
-                let mut ends = vec![owner];
+                let mut ends = vec![owner.to_string()];
                 for link in links_of(value) {
                     if let Resolution::Unique(id) = index.resolve(link) {
-                        ends.push(index.canonical(id));
+                        ends.push(index.canonical(id).to_string());
                     }
                 }
-                for end in ends.into_iter().filter(|&end| end != definition) {
-                    weak.insert((end.to_string(), definition.to_string()));
+                for end in ends.into_iter().filter(|end| *end != definition) {
+                    weak.insert((end, definition.clone()));
                 }
             }
         }

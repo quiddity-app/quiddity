@@ -37,6 +37,5 @@
 	- A disambiguation page for links that match several entities, and an offer to merge entities with the same name. [[Links]] [[Duplicates]]
 	- Editing aids driven by the schema, such as a date picker and autocomplete for references, which write Markdown into the text. [[Properties]]
 	- What is left of the change to tags, properties, journals and blobs. [[Properties]] [[Entity]]
-		- A property key nobody has defined has no virtual entity, so it has no page and makes no weak link in the [[Graph view]].
 		- Completion of property names and values in an entity's properties block, dropping the block if it is left empty, and drawing `##` lines as tags rather than chips.
 	- Mobile builds, cursors in [[Presence]], [[Queries]] anywhere but meta-properties, table and board views by type, and a plugin API.
