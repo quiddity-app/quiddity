@@ -198,19 +198,21 @@ never writes the `##blob` line: Rust does.
   writes it into the link, marked `previewing` so it doesn't reopen the list.
   Enter with no list follows the link. A hit's `link` is the text to write,
   escaped and qualified by Rust.
-- **A property chip's key goes to the entity that defines the property**
-  (`Property.definition`). With none yet it is a button, and following it
-  makes the entity (`graph.defineProperty`), as a link to nowhere does. **A
+- **A line property is text, not a chip** (`PropertyLine`, as in Logseq): `key::`
+  in bold, then the value, whose links are links. **Its key goes to the entity
+  that defines the property** (`Property.definition`). With none yet it is a
+  button, and following it makes the entity (`graph.defineProperty`), as a link
+  to nowhere does. **A
   tag's chip (`inline`) goes to the entity it names** instead, and with none
   makes it as a link does (`graph.followLink`): a tag is a link, not a property. A block
-  of nothing but properties is drawn as chips with its bullet hidden, not
-  removed, so the chips line up with the text around them.
+  of nothing but properties has its bullet hidden, not removed, so the lines
+  line up with the text around them.
 - **An entity's properties block** (`Block.propertiesBlock`, from Rust) is
   drawn on `bg-surface-properties` with `data-properties-block`, and
   `EditableOutline` offers `AddProperties` (an empty first block) while there
   is none. Completion in it, and dropping an empty one, are not built.
 - **Meta-properties** (`meta-sections.tsx`): flags with no chip go under the
-  title, and Inherited and the inverse trees go below the body. A chip with
+  title, and Inherited and the inverse trees go below the body. A line with
   `flags` is ringed and carries `data-flagged`, with the reasons as its
   title. All the words come from Rust.
 - The main pane's title (`EditableTitle`) renames in place when the entity

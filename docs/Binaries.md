@@ -22,7 +22,7 @@
 	  └─ ##blob(ea8f…200f, image/png, 12345, cat.png)   ← a blob
 	     The cat, asleep                               ← its caption
 	  ```
-	- A block is a blob only if its first line is a `##blob` line, so a blob can be the first block of a page without being taken for its properties block. A `##blob` line that can't be read, or is not the first line, is flagged on its chip and the block is not a blob. The hash is not checked against the store: whether the bytes are here is a separate question. Nothing else is stored about a blob.
+	- A block is a blob only if its first line is a `##blob` line, so a blob can be the first block of a page without being taken for its properties block. A `##blob` line that can't be read, or is not the first line, is flagged on its line and the block is not a blob. The hash is not checked against the store: whether the bytes are here is a separate question. Nothing else is stored about a blob.
 	- The same bytes in two blocks are two blobs and one stored file. A blob can be given an `##id(…)` line and embedded elsewhere with `((id))`; the embedding is not built. [[Block references]]
 	- A device that is told of a `##blob` it lacks fetches the bytes from a connected device, and the headless node keeps them all. [[Blob transfer]]
 	- The app's shell keeps a store, and has `put_blob` and `get_blob` for the UI, so it gives and fetches blobs like the headless node does. [[The shell]]

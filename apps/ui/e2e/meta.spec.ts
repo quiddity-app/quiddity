@@ -16,7 +16,7 @@ test("an inverse is a tree of what refers to the entity", async ({ page }) => {
   await expect(kinds.getByRole("link", { name: "Loro" })).toBeVisible();
 });
 
-test("meta-properties are chips, and what doesn't fit is flagged", async ({ page }) => {
+test("meta-properties read as text, and what doesn't fit is flagged", async ({ page }) => {
   await openEntity(page, "kind of");
   const props = page.locator("main article > ul > li").first();
   await expect(props).toContainText("##transitive");

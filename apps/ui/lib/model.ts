@@ -36,7 +36,7 @@ export interface Device {
 export interface Block {
   id: string;
   text: string;
-  /** The properties written in `text`, in order, for rendering as chips. */
+  /** The properties written in `text`, in order, for rendering. */
   properties: Property[];
   /** The file this block is, if its first line is a `##blob` line that can be
    * read. The rest of `text` is its caption. */

@@ -21,12 +21,11 @@ test("an entity is renamed in place, and the lists and sidebar follow", async ({
   await expect(page.locator("main").getByRole("link", { name: "Loro CRDT" })).toBeVisible();
 });
 
-test("the old name stays, as an alias chip, and links to it still work", async ({ page }) => {
+test("the old name stays, as an alias property, and links to it still work", async ({ page }) => {
   await openEntity(page, "Loro");
   await rename(page, "Loro CRDT");
   const block = page.locator("main article > ul [data-block-text]").first();
-  await expect(block.getByText("alias", { exact: true })).toBeVisible();
-  await expect(block.getByText("Loro", { exact: true })).toBeVisible();
+  await expect(block.getByText("alias:: Loro")).toBeVisible();
 
   // Quiddity still says [[Loro]], and that still leads here, not to a dead link.
   await page.locator("nav").getByRole("link", { name: "Quiddity" }).first().click();
@@ -45,7 +44,7 @@ test("Escape, an empty name and the same name change nothing", async ({ page }) 
   await expect(page.getByRole("heading", { name: "Loro", level: 1 })).toBeVisible();
   await rename(page, "Loro");
   await expect(page.getByRole("heading", { name: "Loro", level: 1 })).toBeVisible();
-  await expect(page.locator("main article > ul").getByText("alias", { exact: true })).toHaveCount(0);
+  await expect(page.locator("main article > ul").getByText("alias::", { exact: true })).toHaveCount(0);
 });
 
 test("leaving the field keeps the new name", async ({ page }) => {
@@ -65,7 +64,7 @@ test("one undo takes back the name and the alias together", async ({ page }) => 
   await expect(page.getByRole("heading", { name: "Iroh", level: 1 })).toBeVisible();
   await page.keyboard.press("Control+z");
   await expect(page.getByRole("heading", { name: "iroh", level: 1 })).toBeVisible();
-  await expect(page.locator("main article > ul").getByText("alias", { exact: true })).toHaveCount(0);
+  await expect(page.locator("main article > ul").getByText("alias::", { exact: true })).toHaveCount(0);
 });
 
 test("a journal's date is its name: it is a heading, not a field", async ({ page }) => {

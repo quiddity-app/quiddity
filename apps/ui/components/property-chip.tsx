@@ -182,7 +182,55 @@ function PropertyKey({
 const flaggedChip = "ring-1 ring-flag-ring";
 
 /**
- * A property, as a pill: the key, then its value if it has one. A
+ * A property written as a line, `key:: value`, drawn as text the way Logseq
+ * does: the key in bold with its `::`, a link to the entity that defines it,
+ * then the value, whose links are links. A meta-property reads `##key` and its
+ * parameter as written. One that doesn't fit its schema is ringed, and says
+ * why on hover.
+ */
+export function PropertyLine({
+  property,
+  links,
+}: {
+  property: Property;
+  links: Record<string, ResolvedLink>;
+}) {
+  const flagged = property.flags.length > 0;
+  return (
+    <div
+      className={`break-words ${flagged ? `rounded ${flaggedChip}` : ""}`}
+      title={flagged ? property.flags.join("\n") : undefined}
+      data-flagged={flagged || undefined}
+    >
+      {property.meta ? (
+        <>
+          <span className="text-ink-muted">##{property.key}</span>
+          {property.value?.kind === "text" && (
+            <>
+              {" "}
+              <code>{property.value.text}</code>
+            </>
+          )}
+        </>
+      ) : (
+        <>
+          <PropertyKey property={property} className="font-bold">
+            {property.key}::
+          </PropertyKey>
+          {property.value !== null && (
+            <>
+              {" "}
+              <Value value={property.value} links={links} />
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * A tag, as a pill: the key, then its value if it has one. A
  * meta-property shows `##key` and its parameter as written. A chip whose
  * property doesn't fit its schema is ringed, and says why on hover.
  */
