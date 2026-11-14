@@ -1,5 +1,5 @@
 use jiff::Timestamp;
-use quiddity_core::{Graph, SCHEMA_VERSION, Version};
+use quiddity_core::{Graph, GraphId, SCHEMA_VERSION, Version};
 use tracing::debug;
 
 use crate::Message;
@@ -24,6 +24,12 @@ pub enum State {
     /// updating.
     Incompatible {
         theirs: Option<i64>,
+    },
+    /// Both sides know which graph they hold, and it isn't the same one.
+    /// Nothing is exchanged: merging two graphs would also merge their device
+    /// lists, and so make each one's devices trusted by the other.
+    OtherGraph {
+        theirs: GraphId,
     },
     /// This replica is behind where the peer's history starts, so the peer
     /// can't bring it up to date, and edits made here may rely on history
@@ -77,6 +83,7 @@ impl Session {
     pub fn hello(&self, graph: &Graph) -> Message {
         Message::Hello {
             schema: graph.schema_version(),
+            graph: graph.graph_id(),
             device: self.device.clone(),
             start: graph.history_start(),
             version: graph.version(),
@@ -99,6 +106,7 @@ impl Session {
         match message {
             Message::Hello {
                 schema,
+                graph: theirs,
                 device,
                 start,
                 version,
@@ -108,6 +116,15 @@ impl Session {
                 if !readable(schema) || !readable(graph.schema_version()) {
                     debug!(%device, ?schema, "refusing a peer with another schema");
                     self.state = State::Incompatible { theirs: schema };
+                    return Ok(Vec::new());
+                }
+                // A replica that doesn't know its graph's ID (a blank one, or
+                // one from before graphs had them) takes the peer's word.
+                if let (Some(ours), Some(theirs)) = (graph.graph_id(), theirs)
+                    && ours != theirs
+                {
+                    debug!(%device, %theirs, "refusing a peer with another graph");
+                    self.state = State::OtherGraph { theirs };
                     return Ok(Vec::new());
                 }
                 let ours = graph.version();
@@ -201,6 +218,7 @@ mod tests {
     fn hello(schema: Option<i64>, graph: &Graph) -> Message {
         Message::Hello {
             schema,
+            graph: graph.graph_id(),
             device: "peer".into(),
             start: graph.history_start(),
             version: graph.version(),
@@ -241,6 +259,103 @@ mod tests {
         session.receive(&graph, Message::Updates(updates_from_elsewhere()), now())?;
         assert_eq!(graph.roots().len(), 1);
         Ok(())
+    }
+
+    /// A hello for a replica of `graph` that says its graph is `id`.
+    fn hello_as(id: Option<GraphId>, graph: &Graph) -> Message {
+        match hello(graph.schema_version(), graph) {
+            Message::Hello {
+                schema,
+                device,
+                start,
+                version,
+                ..
+            } => Message::Hello {
+                schema,
+                graph: id,
+                device,
+                start,
+                version,
+            },
+            other => other,
+        }
+    }
+
+    #[test]
+    fn refuses_another_graph_and_exchanges_nothing() -> Result<(), Error> {
+        let (ours, theirs) = (Graph::new(), Graph::new());
+        ours.create_block(None, None, "local")?;
+        theirs.create_block(None, None, "theirs")?;
+        assert_ne!(ours.graph_id(), theirs.graph_id());
+
+        let mut session = Session::new("me");
+        assert!(
+            session
+                .receive(&ours, hello(theirs.schema_version(), &theirs), now())?
+                .is_empty()
+        );
+        assert_eq!(
+            session.state(),
+            &State::OtherGraph {
+                theirs: theirs.graph_id().unwrap()
+            }
+        );
+        // Nor does it vouch for the peer, which would list it as holding ours.
+        assert!(ours.devices().is_empty());
+        ours.create_block(None, None, "more")?;
+        assert!(session.flush(&ours)?.is_none());
+        session.receive(&ours, Message::Updates(updates_from_elsewhere()), now())?;
+        assert_eq!(ours.roots().len(), 2);
+        Ok(())
+    }
+
+    #[test]
+    fn the_same_graph_syncs() -> Result<(), Error> {
+        let ours = Graph::new();
+        let theirs = Graph::from_snapshot(&ours.snapshot()?)?;
+        theirs.create_block(None, None, "theirs")?;
+        let mut session = Session::new("me");
+        session.receive(&ours, hello(theirs.schema_version(), &theirs), now())?;
+        assert_eq!(session.state(), &State::Syncing);
+        Ok(())
+    }
+
+    /// A replica that doesn't know its graph's ID, or a peer that doesn't,
+    /// is not refused: a blank replica is joining, and a graph from before
+    /// graphs had IDs is the same graph as the one that has been given one.
+    #[test]
+    fn a_side_that_does_not_know_its_graph_is_not_refused() -> Result<(), Error> {
+        let known = Graph::new();
+        let mut blank_side = Session::new("me");
+        blank_side.receive(
+            &Graph::blank(),
+            hello(known.schema_version(), &known),
+            now(),
+        )?;
+        assert_eq!(blank_side.state(), &State::Syncing);
+
+        let mut unknown_peer = Session::new("me");
+        unknown_peer.receive(&known, hello_as(None, &known), now())?;
+        assert_eq!(unknown_peer.state(), &State::Syncing);
+
+        let mut neither = Session::new("me");
+        neither.receive(&Graph::blank(), hello_as(None, &Graph::blank()), now())?;
+        assert_eq!(neither.state(), &State::Syncing);
+        Ok(())
+    }
+
+    #[test]
+    fn says_which_graph_it_holds() {
+        let graph = Graph::new();
+        let Message::Hello { graph: id, .. } = Session::new("me").hello(&graph) else {
+            panic!("not a hello");
+        };
+        assert_eq!(id, graph.graph_id());
+        assert!(id.is_some());
+        let Message::Hello { graph: id, .. } = Session::new("me").hello(&Graph::blank()) else {
+            panic!("not a hello");
+        };
+        assert_eq!(id, None);
     }
 
     #[test]

@@ -1,13 +1,13 @@
 alias:: [device key, device ID, graph ID, node ID, identifiers]
 
 - Planned, not built. How a replica, a device and a graph are told apart, and how the secret one is kept from being misused. Today a device is its [[iroh]] key and nothing else, and the [[Loro]] peer ID is chosen at random each time a replica starts. [[Design]]
-- Built so far: the types, their written form and the derivations, in [[quiddity-identity]]; and the graph ID, made with each new graph and kept in its document. The sync handshake doesn't check it yet, and nothing else uses the types; the steps at the end say what comes next.
+- Built so far: the types, their written form and the derivations, in [[quiddity-identity]]; and the graph ID, made with each new graph and kept in its document. The sync handshake checks it, and nothing else uses the types yet; the steps at the end say what comes next.
 - What there is now
 	- One secret: the endpoint key, 32 raw bytes, in the graph's file (the `endpoint_key` table of `graph.quiddity`; before that, a `device.key` beside it). It is an Ed25519 secret key, so asymmetric. Its public half is the endpoint ID, which the UI, the CLI and the graph's [[Device list]] call the device ID. [[Storage]] [[Sync]]
 	- Nothing else is a key. Sync, [[Blob transfer]] and [[Presence]] all use the endpoint. The updater's signing key belongs to releases and is not in the app. [[Updates]]
 	- Because the key lives in the graph's directory, device IDs are per graph, and copying the directory copies the identity: two directories would then answer to one device ID. [[Copied graphs]]
 	- Loro's own peer ID, a 64-bit number, is left to Loro. Nothing keeps it between runs, so every launch of the UI's replica adds a peer to the graph's version. [[App sync]]
-	- Nothing in the hello says which graph it is for, so nothing stops two unrelated graphs from being synced into one document. [[Sync]]
+	- The hello carries the graph's ID and refuses another's, so two graphs that have IDs are never merged. A graph from before graphs had IDs has none, and is accepted by any peer until it is given one. [[Sync]]
 - Four identifiers, each its own type
 	- **Device key**: the one secret, made once per device and never used directly. It is a seed, not a signing key: nothing signs with it or encrypts with it, so it cannot be used for the wrong thing. Everything else is derived from it.
 	- **Graph ID**: 128 bits, random (a version 4 UUID), made when the graph is created and kept in the graph's document, so every replica has it. It is not secret.
@@ -42,7 +42,7 @@ alias:: [device key, device ID, graph ID, node ID, identifiers]
 - Steps, a stack of changes each of which builds and passes on its own
 	- Built: the types, the written form and the derivations. [[quiddity-identity]]
 	- Built: the graph ID, made with the graph and kept in its document. [[quiddity-core]]
-	- Planned: the hello carries it, and a session refuses another graph's. The sync protocol changes, so its ALPN name does. [[quiddity-sync]]
+	- Built: the hello carries it, and a session refuses another graph's. The sync protocol changed, so its ALPN name did (`quiddity/sync/3`). [[quiddity-sync]]
 	- Planned: the device key moves out of the graph's file, into the device's own configuration directory, and new graphs' endpoint keys are derived from it. [[quiddity-node]]
 	- Planned: node IDs, stored sealed with the mask and set as Loro's peer ID.
 	- Planned: the map of nodes to places, and forking a copy. [[Copied graphs]]
