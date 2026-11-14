@@ -14,7 +14,7 @@ use crate::syntax::nfc;
 use crate::{Error, Result};
 
 const BLOCKS: &str = "blocks";
-const GRAPH: &str = "graph";
+pub(crate) const GRAPH: &str = "graph";
 const TEXT: &str = "text";
 const SCHEMA_VERSION_KEY: &str = "schemaVersion";
 
@@ -94,6 +94,7 @@ impl Graph {
             .get_map(GRAPH)
             .insert(SCHEMA_VERSION_KEY, SCHEMA_VERSION)
             .expect("inserting into a fresh map can't fail");
+        graph.write_graph_id(Self::fresh_graph_id());
         graph.doc.commit();
         graph
     }
