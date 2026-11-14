@@ -10,9 +10,9 @@ use std::time::Duration;
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::{Verbosity, WarnLevel};
 use iroh::{Endpoint, EndpointAddr, EndpointId};
-use quiddity_core::files::{export_dir, import_dir};
-use quiddity_core::{Index, merge_duplicates};
-use quiddity_node::blobs::Blobs;
+use quiddity_core::files::{discard_export, export_dir, import_dir};
+use quiddity_core::{Graph, Index, merge_duplicates};
+use quiddity_node::blobs::{Blobs, Exported};
 use quiddity_node::gc;
 use quiddity_node::keyring::Keyring;
 use quiddity_node::store::Store;
@@ -165,6 +165,21 @@ fn export_replacing(peer: &Peer, dir: &Path) -> anyhow::Result<usize> {
     Ok(written)
 }
 
+/// Writes the files of the graph's binaries into an export of it, if it has any.
+async fn export_files(
+    store: &Store,
+    graph: &Graph,
+    dir: &Path,
+) -> anyhow::Result<Option<Exported>> {
+    if Index::build(graph)?.assets().next().is_none() {
+        return Ok(None);
+    }
+    let blobs = Blobs::open(store.dir()).await?;
+    let files = blobs.export_assets(graph, dir).await;
+    blobs.shutdown().await?;
+    Ok(Some(files?))
+}
+
 /// Waits for Ctrl-C. With `export`, SIGUSR1 meanwhile writes an export there
 /// and says so on stdout, which is how a caller that sent the signal knows
 /// the export is complete.
@@ -229,12 +244,21 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
         }
         Command::Export { dir } => {
             let graph = store.load()?;
+            let existed = dir.exists();
+            // `export_dir` takes out its own failures, and leaves alone a
+            // directory it refused. Past it, `dir` held nothing before, so
+            // a failure to add the files takes out the entities as well: an
+            // export without its files would pass for a whole one.
             let written = export_dir(&graph, &dir)?;
+            let files = match export_files(&store, &graph, &dir).await {
+                Ok(files) => files,
+                Err(e) => {
+                    discard_export(&dir, existed);
+                    return Err(e);
+                }
+            };
             println!("exported {written} entities");
-            if Index::build(&graph)?.assets().next().is_some() {
-                let blobs = Blobs::open(store.dir()).await?;
-                let files = blobs.export_assets(&graph, &dir).await?;
-                blobs.shutdown().await?;
+            if let Some(files) = files {
                 print!("exported {} files", files.written);
                 if files.missing > 0 {
                     print!(", {} not on this device yet", files.missing);

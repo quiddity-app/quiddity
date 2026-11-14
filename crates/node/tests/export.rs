@@ -205,3 +205,64 @@ async fn files_survive_an_export_and_an_import_with_the_command_line() {
     assert!(!blobs.has(Hash::new(b"on another device")).await.unwrap());
     blobs.shutdown().await.unwrap();
 }
+
+/// The error a command ends with, which it must.
+fn fail(command: &mut Command) -> String {
+    let output = command.output().unwrap();
+    assert!(!output.status.success(), "{command:?} succeeded");
+    String::from_utf8_lossy(&output.stderr).into_owned()
+}
+
+/// A graph that has a file in it and a blob store that can't be opened, so
+/// that exporting it writes the entities and then fails on the file. The old
+/// `blobs/` directory beside the graph is read when the blobs are opened, and
+/// one whose database is not a database stops that.
+fn graph_whose_files_cannot_be_read(dir: &Path) {
+    let store = common::store(dir);
+    let graph = store.init(false).unwrap();
+    describe(&graph, "data.bin", b"some bytes");
+    store.save(&graph).unwrap();
+    fs::create_dir(dir.join("blobs")).unwrap();
+    fs::write(dir.join("blobs/blobs.db"), "not a database").unwrap();
+}
+
+/// An export that can't write the files of its binaries is not left behind,
+/// whole-looking and without them, so the command can be run again.
+#[test]
+fn a_failure_writing_files_takes_out_the_whole_export() {
+    let tmp = tempfile::tempdir().unwrap();
+    let a = tmp.path().join("a");
+    graph_whose_files_cannot_be_read(&a);
+
+    // A directory that isn't there is not there afterwards either.
+    let out = tmp.path().join("out");
+    fail(node(&a).arg("export").arg(&out));
+    assert!(!out.exists());
+
+    // One that was there, empty, is left empty.
+    fs::create_dir(&out).unwrap();
+    fail(node(&a).arg("export").arg(&out));
+    assert!(out.is_dir());
+    assert!(listing(&out).is_empty(), "{:?}", listing(&out));
+}
+
+/// The export refuses a directory with things in it. That refusal must leave
+/// them alone, however the command goes on to fail.
+#[test]
+fn a_refused_directory_is_left_as_it_was() {
+    let tmp = tempfile::tempdir().unwrap();
+    let a = tmp.path().join("a");
+    graph_whose_files_cannot_be_read(&a);
+    let out = tmp.path().join("out");
+    fs::create_dir_all(out.join("mine")).unwrap();
+    fs::write(out.join("mine/notes.txt"), "keep").unwrap();
+    fs::write(out.join("also"), "keep").unwrap();
+
+    let error = fail(node(&a).arg("export").arg(&out));
+    assert!(error.contains("not empty"), "{error}");
+    assert_eq!(listing(&out), ["also", "mine"]);
+    assert_eq!(
+        fs::read_to_string(out.join("mine/notes.txt")).unwrap(),
+        "keep"
+    );
+}
