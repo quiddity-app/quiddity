@@ -56,6 +56,11 @@ holds its own replica and answers its own queries (see `apps/ui` and
 - `session.rs` knows nothing about Tauri, so it is tested on its own.
 - **`QUIDDITY_GRAPH`** names a directory made by `quiddity-node` to work on
   instead of the one graph in the app's data directory.
+- **The device's key is in the app's config directory**, not the graph's
+  (`QUIDDITY_CONFIG_DIR` overrides it). Two instances on one machine that
+  should be two devices need their graphs apart, which gives each its own
+  salt and so its own device ID even if the key is shared; they may share the
+  key.
 - **The window's background follows the system theme** (`appearance.rs`):
   the page's own ground, so a dark window doesn't open with a flash of white,
   repainted on `ThemeChanged`. The two colours are `--surface` in

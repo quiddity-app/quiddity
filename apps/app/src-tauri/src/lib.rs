@@ -13,6 +13,7 @@ mod updates;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+use quiddity_node::keyring::Keyring;
 use serde::Serialize;
 
 use session::{Error, Recovery, Session};
@@ -55,7 +56,11 @@ async fn recover(
         let problem = startup.0.lock().expect("startup lock poisoned");
         problem.as_ref().ok_or(Error::NothingToRecover)?.dir.clone()
     };
-    match Session::recover(&dir, how) {
+    let keys = match keyring(&app) {
+        Ok(keys) => keys,
+        Err(e) => return Err(Error::Keys(e.to_string())),
+    };
+    match Session::recover(&dir, keys, how) {
         Ok(session) => {
             let session = begin(session).await;
             app.manage(Mutex::new(session));
@@ -249,6 +254,16 @@ async fn begin(session: Session) -> Session {
     session
 }
 
+/// Where this device keeps its key, which is not in any graph: `QUIDDITY_CONFIG_DIR`
+/// if it is set, which is how two instances on one machine can be two devices,
+/// and otherwise the app's own configuration directory.
+fn keyring(app: &tauri::AppHandle) -> Result<Keyring, Box<dyn std::error::Error>> {
+    match std::env::var_os("QUIDDITY_CONFIG_DIR") {
+        Some(dir) => Ok(Keyring::new(dir)),
+        None => Ok(Keyring::new(app.path().app_config_dir()?)),
+    }
+}
+
 /// `QUIDDITY_GRAPH` names the graph's directory, for working on a graph made
 /// with `quiddity-node`; otherwise there is one graph in the app's data
 /// directory.
@@ -281,9 +296,10 @@ pub fn run() {
     builder
         .setup(|app| {
             let dir = graph_dir(app)?;
+            let keys = keyring(app.handle())?;
             // A graph that can't be opened is the UI's to deal with, with a
             // window to do it in: exiting here would leave nothing on screen.
-            let problem = match Session::open(&dir) {
+            let problem = match Session::open(&dir, keys) {
                 Ok(session) => {
                     app.manage(Mutex::new(tauri::async_runtime::block_on(begin(session))));
                     None

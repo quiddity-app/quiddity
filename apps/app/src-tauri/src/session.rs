@@ -12,6 +12,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use quiddity_core::{Graph, Version};
+use quiddity_node::keyring::Keyring;
 use quiddity_node::store::Store;
 use quiddity_node::{Allowed, Peer, SyncState};
 use serde::{Deserialize, Serialize};
@@ -34,6 +35,9 @@ pub enum Error {
     NoBlobs,
     #[error("the graph opened, so there is nothing to recover from")]
     NothingToRecover,
+    /// There is nowhere to keep this device's key.
+    #[error("this device has nowhere to keep its key: {0}")]
+    Keys(String),
     #[error("{0:?} is not a hash")]
     NotAHash(String),
 }
@@ -71,12 +75,13 @@ pub struct Session {
 }
 
 impl Session {
-    /// Opens the graph in `dir`, creating an empty one if there is none.
+    /// Opens the graph in `dir`, creating an empty one if there is none. `keys`
+    /// is where this device keeps its key, which is not in the graph.
     ///
     /// Nobody may connect yet except the devices the graph lists, and the
     /// ones [`Session::allow`] lets in.
-    pub fn open(dir: &Path) -> Result<Self, Error> {
-        let store = Store::new(dir);
+    pub fn open(dir: &Path, keys: Keyring) -> Result<Self, Error> {
+        let store = Store::new(dir, keys);
         let graph = match store.load() {
             Ok(graph) => graph,
             Err(quiddity_node::StoreError::Missing(_)) => store.init(false)?,
@@ -92,13 +97,13 @@ impl Session {
     }
 
     /// Opens the graph in `dir` after it couldn't be opened, as `how` says.
-    pub fn recover(dir: &Path, how: Recovery) -> Result<Self, Error> {
+    pub fn recover(dir: &Path, keys: Keyring, how: Recovery) -> Result<Self, Error> {
         if how != Recovery::Retry {
-            let store = Store::new(dir);
+            let store = Store::new(dir, keys.clone());
             store.set_aside()?;
             store.init(how == Recovery::Blank)?;
         }
-        Self::open(dir)
+        Self::open(dir, keys)
     }
 
     /// Opens the store for the bytes of the graph's binaries and has the peer
@@ -236,11 +241,30 @@ mod tests {
 
     use super::*;
 
+    /// The key of the device that keeps the graph in `dir`: in `dir/keys`, so
+    /// that opening one graph twice is one device, and no test touches a real
+    /// device's key.
+    fn keys(dir: &Path) -> Keyring {
+        Keyring::new(dir.join("keys"))
+    }
+
+    fn store(dir: &Path) -> Store {
+        Store::new(dir, keys(dir))
+    }
+
+    fn open(dir: &Path) -> Result<Session, Error> {
+        Session::open(dir, keys(dir))
+    }
+
+    fn recover(dir: &Path, how: Recovery) -> Result<Session, Error> {
+        Session::recover(dir, keys(dir), how)
+    }
+
     #[test]
     fn creates_a_graph_when_there_is_none() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("graph");
-        let session = Session::open(&path).unwrap();
+        let session = open(&path).unwrap();
         assert!(path.join("graph.quiddity").exists());
         Graph::from_snapshot(&session.snapshot().unwrap()).unwrap();
     }
@@ -249,7 +273,7 @@ mod tests {
     #[test]
     fn the_uis_edits_are_applied_and_survive_a_restart() {
         let dir = tempfile::tempdir().unwrap();
-        let session = Session::open(dir.path()).unwrap();
+        let session = open(dir.path()).unwrap();
         let ui = Graph::from_snapshot(&session.snapshot().unwrap()).unwrap();
         let before = ui.version();
         let page = ui.create_entity("Typed in the UI", &[]).unwrap();
@@ -258,7 +282,7 @@ mod tests {
             .apply(&ui.updates_since(&before).unwrap(), &[])
             .unwrap();
 
-        let reopened = Session::open(dir.path()).unwrap();
+        let reopened = open(dir.path()).unwrap();
         let graph = Graph::from_snapshot(&reopened.snapshot().unwrap()).unwrap();
         assert_eq!(graph.entity_name(page).unwrap(), "Typed in the UI");
     }
@@ -266,7 +290,7 @@ mod tests {
     #[test]
     fn nonsense_is_refused_and_changes_nothing() {
         let dir = tempfile::tempdir().unwrap();
-        let session = Session::open(dir.path()).unwrap();
+        let session = open(dir.path()).unwrap();
         let before = session.snapshot().unwrap();
         assert!(session.apply(b"not an update", &[]).is_err());
         assert_eq!(session.snapshot().unwrap(), before);
@@ -324,7 +348,7 @@ mod tests {
     #[tokio::test]
     async fn the_uis_edits_reach_other_devices() {
         let dir = tempfile::tempdir().unwrap();
-        let session = Session::open(dir.path()).unwrap();
+        let session = open(dir.path()).unwrap();
         let (server, guest, connection) = joined(&session).await;
 
         let ui = Graph::from_snapshot(&session.snapshot().unwrap()).unwrap();
@@ -351,7 +375,7 @@ mod tests {
     #[tokio::test]
     async fn typing_is_held_back_until_it_is_seen_or_over() {
         let dir = tempfile::tempdir().unwrap();
-        let session = Session::open(dir.path()).unwrap();
+        let session = open(dir.path()).unwrap();
         session.peer().set_edit_idle(Duration::from_secs(60));
         let (server, guest, connection) = joined(&session).await;
         let ui = Graph::from_snapshot(&session.snapshot().unwrap()).unwrap();
@@ -393,7 +417,7 @@ mod tests {
     #[tokio::test]
     async fn the_open_blocks_are_seen_by_other_devices() {
         let dir = tempfile::tempdir().unwrap();
-        let session = Session::open(dir.path()).unwrap();
+        let session = open(dir.path()).unwrap();
         let (server, guest, connection) = joined(&session).await;
 
         session.set_focus(&["a".to_owned(), "b".to_owned()]);
@@ -430,7 +454,7 @@ mod tests {
     fn allowing_a_device_lists_it_or_trusts_it() {
         let id = iroh::SecretKey::generate().public().to_string();
 
-        let joined = Session::open(tempfile::tempdir().unwrap().path()).unwrap();
+        let joined = open(tempfile::tempdir().unwrap().path()).unwrap();
         joined.allow(&id).unwrap();
         assert!(joined.peer().graph().devices().iter().any(|d| d.id == id));
         assert!(matches!(
@@ -439,8 +463,8 @@ mod tests {
         ));
 
         let dir = tempfile::tempdir().unwrap();
-        Store::new(dir.path()).init(true).unwrap();
-        let blank = Session::open(dir.path()).unwrap();
+        store(dir.path()).init(true).unwrap();
+        let blank = open(dir.path()).unwrap();
         blank.allow(&id).unwrap();
         assert!(blank.peer().graph().devices().is_empty());
     }
@@ -450,7 +474,7 @@ mod tests {
     #[test]
     fn a_damaged_graph_can_be_recovered_from() {
         let damaged = |dir: &Path| {
-            Store::new(dir).init(false).unwrap();
+            store(dir).init(false).unwrap();
             std::fs::write(dir.join("graph.quiddity"), b"not a snapshot").unwrap();
         };
         let kept = |dir: &Path| {
@@ -466,11 +490,11 @@ mod tests {
 
         let dir = tempfile::tempdir().unwrap();
         damaged(dir.path());
-        assert!(Session::open(dir.path()).is_err());
-        assert!(Session::recover(dir.path(), Recovery::Retry).is_err());
+        assert!(open(dir.path()).is_err());
+        assert!(recover(dir.path(), Recovery::Retry).is_err());
         assert_eq!(kept(dir.path()), 0, "retrying changes nothing");
 
-        let blank = Session::recover(dir.path(), Recovery::Blank).unwrap();
+        let blank = recover(dir.path(), Recovery::Blank).unwrap();
         assert_eq!(blank.peer().graph().version(), Version::default());
         assert_eq!(kept(dir.path()), 1);
         assert_eq!(
@@ -487,21 +511,21 @@ mod tests {
 
         let dir = tempfile::tempdir().unwrap();
         damaged(dir.path());
-        let fresh = Session::recover(dir.path(), Recovery::Fresh).unwrap();
+        let fresh = recover(dir.path(), Recovery::Fresh).unwrap();
         assert_ne!(fresh.peer().graph().version(), Version::default());
         assert_eq!(kept(dir.path()), 1);
         // And it opens as any graph does now.
-        Session::open(dir.path()).unwrap();
+        open(dir.path()).unwrap();
     }
 
     #[test]
     fn the_device_id_is_the_endpoint_id() {
         let dir = tempfile::tempdir().unwrap();
-        let session = Session::open(dir.path()).unwrap();
+        let session = open(dir.path()).unwrap();
         let key = session.store().key().unwrap();
         assert_eq!(session.device_id().unwrap(), key.public().to_string());
         // The same on the next start: the key is kept.
-        let again = Session::open(dir.path()).unwrap();
+        let again = open(dir.path()).unwrap();
         assert_eq!(again.device_id().unwrap(), session.device_id().unwrap());
     }
 
@@ -529,7 +553,7 @@ mod tests {
     #[test]
     fn other_devices_changes_reach_the_ui_once() {
         let dir = tempfile::tempdir().unwrap();
-        let session = Session::open(dir.path()).unwrap();
+        let session = open(dir.path()).unwrap();
         let ui = ui_replica(&session);
         assert_eq!(session.ui_updates().unwrap(), None, "nothing yet");
 
@@ -547,8 +571,8 @@ mod tests {
     #[test]
     fn a_blank_ui_is_given_a_compacted_graph_whole() {
         let dir = tempfile::tempdir().unwrap();
-        Store::new(dir.path()).init(true).unwrap();
-        let session = Session::open(dir.path()).unwrap();
+        store(dir.path()).init(true).unwrap();
+        let session = open(dir.path()).unwrap();
         let ui = ui_replica(&session);
         assert_eq!(ui.version(), Version::default());
 
@@ -576,7 +600,7 @@ mod tests {
     #[test]
     fn the_uis_own_edits_do_not_come_back() {
         let dir = tempfile::tempdir().unwrap();
-        let session = Session::open(dir.path()).unwrap();
+        let session = open(dir.path()).unwrap();
         let ui = ui_replica(&session);
         let untouched = ui_replica(&session);
         let before = ui.version();
@@ -606,7 +630,7 @@ mod tests {
     #[test]
     fn a_ui_that_starts_over_is_not_sent_what_it_has() {
         let dir = tempfile::tempdir().unwrap();
-        let session = Session::open(dir.path()).unwrap();
+        let session = open(dir.path()).unwrap();
         from_elsewhere(&session, "Before the reload");
         let fresh = ui_replica(&session);
         assert_eq!(session.ui_updates().unwrap(), None);
@@ -623,7 +647,7 @@ mod tests {
     #[tokio::test]
     async fn the_sync_state_is_named_for_the_ui() {
         let dir = tempfile::tempdir().unwrap();
-        let session = Session::open(dir.path()).unwrap();
+        let session = open(dir.path()).unwrap();
         assert_eq!(session.sync_state(), "alone");
 
         let (server, guest, connection) = joined(&session).await;
@@ -642,7 +666,7 @@ mod tests {
     #[tokio::test]
     async fn a_file_is_kept_by_its_hash() {
         let dir = tempfile::tempdir().unwrap();
-        let session = Session::open(dir.path()).unwrap();
+        let session = open(dir.path()).unwrap();
         session.keep_blobs().await.unwrap();
         let bytes: Vec<u8> = (0..300_000u32).map(|i| (i % 253) as u8).collect();
 
@@ -663,7 +687,7 @@ mod tests {
     #[tokio::test]
     async fn without_a_store_files_are_refused() {
         let dir = tempfile::tempdir().unwrap();
-        let session = Session::open(dir.path()).unwrap();
+        let session = open(dir.path()).unwrap();
         assert!(matches!(
             session.put_blob(b"x".to_vec()).await,
             Err(Error::NoBlobs)
@@ -679,7 +703,7 @@ mod tests {
         use quiddity_node::blobs::Blobs;
 
         let (home_dir, guest_dir) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
-        let home = Session::open(home_dir.path()).unwrap();
+        let home = open(home_dir.path()).unwrap();
         home.keep_blobs().await.unwrap();
         let bytes: Vec<u8> = (0..200_000u32).map(|i| (i % 249) as u8).collect();
         let hash = home.put_blob(bytes.clone()).await.unwrap();

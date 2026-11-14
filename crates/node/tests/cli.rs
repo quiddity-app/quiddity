@@ -1,5 +1,7 @@
 //! The `quiddity-node` binary end to end: import, serve, sync, export.
 
+mod common;
+
 use std::collections::BTreeMap;
 use std::fs;
 use std::io::{BufRead, BufReader};
@@ -8,7 +10,10 @@ use std::process::{Command, Stdio};
 
 fn node(graph: &Path) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_quiddity-node"));
-    command.arg("--graph").arg(graph);
+    command
+        .arg("--graph")
+        .arg(graph)
+        .env("QUIDDITY_CONFIG_DIR", common::keys(graph));
     command
 }
 
@@ -229,7 +234,7 @@ fn a_published_snapshot_has_no_key_in_it() {
     let graph = tmp.path().join("graph");
     run(node(&graph).arg("init"));
     let secret = {
-        let store = quiddity_node::store::Store::new(&graph);
+        let store = common::store(&graph);
         store.key().unwrap().to_bytes()
     };
     let out = tmp.path().join("graph.loro");
@@ -271,14 +276,13 @@ fn a_graph_has_an_id_that_identify_prints() {
 #[test]
 fn a_graph_from_before_ids_is_given_one_by_identify() {
     use quiddity_core::Graph;
-    use quiddity_node::store::Store;
 
     let tmp = tempfile::tempdir().unwrap();
     let dir = tmp.path().join("old");
     let old = Graph::from_snapshot(include_bytes!("fixtures/before-graph-ids.loro")).unwrap();
     assert_eq!(old.graph_id(), None);
     let before = old.snapshot().unwrap();
-    let store = Store::new(&dir);
+    let store = common::store(&dir);
     store.init(false).unwrap();
     store.save(&old).unwrap();
     assert_eq!(store.load().unwrap().graph_id(), None, "saving gives none");
