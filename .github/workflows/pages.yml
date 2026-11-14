@@ -49,11 +49,18 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
     # Import docs/ into a graph with the headless node...
+    # (The device's key goes in a directory of its own, not the runner's.)
     - run: cargo run --locked -p quiddity-node -- -g "$RUNNER_TEMP/graph" init
+      env:
+        QUIDDITY_CONFIG_DIR: ${{ runner.temp }}/keys
     - run: cargo run --locked -p quiddity-node -- -g "$RUNNER_TEMP/graph" import docs
+      env:
+        QUIDDITY_CONFIG_DIR: ${{ runner.temp }}/keys
     # ...then build the UI around that graph's snapshot. Only the snapshot is
-    # published: the graph's own file holds the device's key.
+    # published, not the graph's own file.
     - run: cargo run --locked -p quiddity-node -- -g "$RUNNER_TEMP/graph" snapshot "$RUNNER_TEMP/graph/graph.loro"
+      env:
+        QUIDDITY_CONFIG_DIR: ${{ runner.temp }}/keys
     - run: pnpm ui build
       env:
         QUIDDITY_STATIC_GRAPH: ${{ runner.temp }}/graph/graph.loro

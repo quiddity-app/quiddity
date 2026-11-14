@@ -9,7 +9,7 @@ rust-version = "1.91"
 
 [dependencies]
 anyhow = "1"
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "env"] }
 clap-verbosity-flag = { version = "3", default-features = false, features = ["tracing"] }
 iroh = "1.4"
 iroh-blobs = { version = "0.104", default-features = false, features = ["fs-store"] }
@@ -17,8 +17,10 @@ bytes = "1"
 bao-tree = "0.17"
 irpc = { version = "0.17", default-features = false }
 range-collections = "0.4"
+getrandom = "0.3"
 jiff.workspace = true
 quiddity-core.workspace = true
+quiddity-identity.workspace = true
 quiddity-sync = { path = "../sync" }
 thiserror.workspace = true
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "sync", "time"] }

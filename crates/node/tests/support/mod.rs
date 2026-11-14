@@ -1,11 +1,14 @@
 //! What the blob store's tests share.
 #![allow(dead_code)]
 
+use quiddity_node::keyring::Keyring;
 use quiddity_node::store::Store;
 
 pub fn graph() -> (tempfile::TempDir, Store) {
     let dir = tempfile::tempdir().unwrap();
-    let store = Store::new(dir.path());
+    // The device's key is in the graph's own temporary directory: a test never
+    // touches a real one.
+    let store = Store::new(dir.path(), Keyring::new(dir.path().join("keys")));
     store.init(false).unwrap();
     (dir, store)
 }

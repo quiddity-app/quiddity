@@ -15,6 +15,7 @@
 pub mod blob_store;
 pub mod blobs;
 pub mod gc;
+pub mod keyring;
 pub mod legacy_blobs;
 pub mod store;
 
@@ -106,6 +107,9 @@ pub enum StoreError {
     Unreadable(PathBuf, String),
     #[error(transparent)]
     Io(#[from] std::io::Error),
+    /// This device's key is there but isn't one: it is never replaced.
+    #[error("this device's key, in {}, can't be used: {}", .0.display(), .1)]
+    DeviceKey(PathBuf, String),
     #[error("the graph's file: {0}")]
     Sqlite(#[from] rusqlite::Error),
     #[error(transparent)]
