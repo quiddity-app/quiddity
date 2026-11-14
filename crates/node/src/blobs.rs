@@ -1,14 +1,14 @@
 //! The bytes of a graph's binaries, kept by their BLAKE3 hash.
 //!
 //! The graph names a binary by hash and describes it in text; the bytes live
-//! here, beside the snapshot, in an [`iroh_blobs`] store, so that devices can
-//! later exchange them on iroh-blobs' own protocol. Every device keeps every
-//! blob for now.
+//! here, in the graph's own file, in iroh-blobs' storage protocol served from
+//! SQLite ([`crate::blob_store`]), so that devices can exchange them on
+//! iroh-blobs' own protocol. Every device keeps every blob for now. A graph
+//! from before the file held them has its `blobs/` directory moved in when the
+//! store is first opened ([`crate::legacy_blobs`]).
 
 use std::collections::{BTreeSet, HashSet};
 use std::path::Path;
-use std::sync::Arc;
-use std::time::Duration;
 
 use iroh::EndpointId;
 use iroh::endpoint::Connection;
@@ -17,17 +17,16 @@ use iroh_blobs::HashAndFormat;
 use iroh_blobs::provider::events::{
     AbortReason, ConnectMode, EventMask, EventSender, ProviderMessage,
 };
-use iroh_blobs::store::fs::FsStore;
-use iroh_blobs::store::fs::options::Options;
-use iroh_blobs::store::{GcConfig, ProtectOutcome};
 use quiddity_core::{Graph, Index};
+
+use crate::blob_store::{self, SqliteBlobs};
+use crate::legacy_blobs;
+use crate::store::Store;
 
 pub use iroh_blobs::Hash;
 
 /// The name of the protocol blobs travel on, negotiated when connecting.
 pub use iroh_blobs::ALPN;
-
-const DIR: &str = "blobs";
 
 #[derive(Debug, thiserror::Error)]
 pub enum BlobError {
@@ -37,8 +36,6 @@ pub enum BlobError {
     Missing(Hash),
     #[error(transparent)]
     Io(#[from] std::io::Error),
-    #[error("{0}")]
-    Sweep(String),
     #[error(transparent)]
     Graph(#[from] quiddity_core::Error),
 }
@@ -72,15 +69,15 @@ impl BlobError {
 /// The blobs of one graph. Cheap to clone: clones share the store.
 #[derive(Debug, Clone)]
 pub struct Blobs {
-    store: FsStore,
+    store: SqliteBlobs,
 }
 
 impl Blobs {
-    /// Opens the blob store in a graph's directory, creating it if need be.
+    /// Opens the blob store in a graph's file, creating the file if need be,
+    /// and moves in the blobs of an old `blobs/` directory beside it.
     pub async fn open(graph_dir: &Path) -> Result<Self, BlobError> {
-        let store = FsStore::load(graph_dir.join(DIR))
-            .await
-            .map_err(BlobError::store)?;
+        let store = blob_store::open(&Store::new(graph_dir)).map_err(BlobError::store)?;
+        legacy_blobs::adopt(graph_dir, &store).await?;
         Ok(Self { store })
     }
 
@@ -234,91 +231,16 @@ impl Blobs {
         Ok(hashes.into_iter().collect())
     }
 
+    /// Deletes these blobs, and no others. Naming one that isn't stored is not
+    /// an error, and neither is naming the empty blob, which is always there.
+    pub async fn delete(&self, doomed: &BTreeSet<Hash>) -> Result<(), BlobError> {
+        let doomed = doomed.iter().copied().collect();
+        self.store.delete(doomed).await.map_err(BlobError::store)
+    }
+
     /// Stops the store's background tasks, once everything is written.
     pub async fn shutdown(&self) -> Result<(), BlobError> {
         self.store.shutdown().await.map_err(BlobError::store)
-    }
-}
-
-/// Deletes the blobs in `doomed` from the store in `graph_dir`, and nothing
-/// else.
-///
-/// iroh-blobs deletes only by garbage collection, which removes everything
-/// that is not marked live, and it takes its marks from tags and from a
-/// callback. So this opens the store with a collector whose callback marks
-/// every blob that is stored but not doomed, having first removed the tags
-/// (which would keep a doomed blob alive, and are not how this store keeps
-/// anything), waits for the collector to run, and then checks that everything
-/// it meant to keep is still there. Nothing is added while it runs: the store's
-/// database allows one process, so a node that is serving has to be stopped.
-///
-/// A blob that was only partly fetched is not stored, in this sense, and goes
-/// too; fetching it begins again.
-pub async fn sweep(graph_dir: &Path, doomed: &BTreeSet<Hash>) -> Result<(), BlobError> {
-    if doomed.is_empty() {
-        return Ok(());
-    }
-    // First, without a collector, to see what is there and let go of the tags.
-    let before = {
-        let blobs = Blobs::open(graph_dir).await?;
-        let stored = blobs.stored().await?;
-        blobs
-            .store
-            .tags()
-            .delete_all()
-            .await
-            .map_err(BlobError::store)?;
-        blobs.shutdown().await?;
-        stored
-    };
-    let keep: HashSet<Hash> = before.difference(doomed).copied().collect();
-    let protect = keep.clone();
-
-    let mut options = Options::new(&graph_dir.join(DIR));
-    options.gc = Some(GcConfig {
-        interval: Duration::from_millis(50),
-        add_protected: Some(Arc::new(move |live: &mut HashSet<Hash>| {
-            live.extend(protect.iter().copied());
-            Box::pin(std::future::ready(ProtectOutcome::Continue))
-        })),
-    });
-    let store = FsStore::load_with_opts(graph_dir.join(DIR).join("blobs.db"), options)
-        .await
-        .map_err(BlobError::store)?;
-    let blobs = Blobs { store };
-
-    let gone = async {
-        loop {
-            let mut remaining = false;
-            for hash in doomed.intersection(&before) {
-                remaining |= blobs.has(*hash).await?;
-            }
-            if !remaining {
-                return Ok::<(), BlobError>(());
-            }
-            tokio::time::sleep(Duration::from_millis(25)).await;
-        }
-    };
-    let waited = tokio::time::timeout(Duration::from_secs(60), gone).await;
-    // Whatever happened, what was to be kept must be there.
-    let mut lost = Vec::new();
-    for hash in &keep {
-        if !blobs.has(*hash).await.unwrap_or(false) {
-            lost.push(hash.to_string());
-        }
-    }
-    blobs.shutdown().await?;
-    if !lost.is_empty() {
-        return Err(BlobError::Sweep(format!(
-            "the collector removed blobs it was told to keep: {}",
-            lost.join(", ")
-        )));
-    }
-    match waited {
-        Ok(result) => result,
-        Err(_) => Err(BlobError::Sweep(
-            "the collector did not remove the blobs in time".into(),
-        )),
     }
 }
 

@@ -397,7 +397,10 @@ impl Store {
     }
 
     /// A connection to the checked file, for what else is kept in it.
+    /// The file is made, with no graph in it yet, if there is none: what
+    /// keeps blobs may be opened before the graph is.
     pub(crate) fn connection(&self) -> Result<Connection, StoreError> {
+        self.ensure()?;
         self.open()
     }
 

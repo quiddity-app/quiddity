@@ -100,3 +100,19 @@ fn a_move_that_cannot_finish_leaves_the_old_directory() {
         assert!(!dir.path().join("blobs").exists());
     });
 }
+
+/// Opening the graph's blobs is what brings the old ones across, so a graph
+/// that has them finds its files where it left them.
+#[test]
+fn opening_blobs_brings_the_old_ones_in() {
+    runtime().block_on(async {
+        let (dir, _graph) = graph();
+        let held = bytes(70_000, 9);
+        let hashes = old_store(dir.path(), std::slice::from_ref(&held)).await;
+
+        let blobs = quiddity_node::blobs::Blobs::open(dir.path()).await.unwrap();
+        assert_eq!(blobs.get(hashes[0]).await.unwrap().to_vec(), held);
+        assert!(dir.path().join("blobs.migrated").exists());
+        assert!(!dir.path().join("blobs").exists());
+    });
+}
