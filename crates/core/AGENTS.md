@@ -193,6 +193,9 @@ checks it. A property entity may be: the alias keeps its key.
   (`Index::property_entity`, `defines_property`): nothing marks it, and with
   two of a name neither defines the property, so their `##` lines are
   `Flag::MetaOutsideProperty`. Property entities are not merged as duplicates.
+- **`Index::undefined_keys` lists the property keys no entity is named for**,
+  read from properties blocks at build, so `update_text` never maintains it.
+  Two entities of a name is ambiguous, not undefined.
 - **A schema is the built-in one with the property entity's `##` lines over
   it** (`PropertySchema::with_meta`). What can't be read is kept as flags
   for that entity and otherwise ignored. `Index::schema` borrows where it

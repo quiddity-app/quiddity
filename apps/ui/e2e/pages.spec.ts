@@ -1,4 +1,4 @@
-import { expect, test, openEntity } from "./fixtures";
+import { expect, test, mainBlocks, openEntity } from "./fixtures";
 
 test("home is the journals unless the graph says otherwise", async ({ page }) => {
   await page.goto("/");
@@ -214,4 +214,19 @@ test("a property's page lists who has it, with the values", async ({ page }) => 
   await expect(page.getByRole("heading", { name: "Loro", level: 1 })).toBeVisible();
   // An ordinary entity has no such section.
   await expect(page.getByRole("region", { name: "Uses" })).toHaveCount(0);
+});
+
+test("a property key nobody has made an entity for opens an empty page that lists its uses", async ({ page }) => {
+  // CRDT has `merges:: without coordination`, and nothing is named "merges".
+  await openEntity(page, "CRDT");
+  const chips = page.locator("main article [data-properties-block]");
+  await chips.getByRole("link", { name: "merges::", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "merges", level: 1 })).toBeVisible();
+  expect(await mainBlocks(page)).toEqual([]);
+  const uses = page.getByRole("region", { name: "Uses" });
+  await expect(uses).toContainText("CRDT");
+  await expect(uses).toContainText("without coordination");
+  // It is an entity in the list as well.
+  await page.locator("nav").getByRole("link", { name: "All entities" }).click();
+  await expect(page.locator("main table").getByRole("link", { name: "merges", exact: true })).toBeVisible();
 });

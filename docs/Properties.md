@@ -10,7 +10,8 @@ alias:: property
 	- `steps:: [a, b, c]` is one instance holding an ordered list.
 - Property entities
 	- Every key can have an entity that defines it (a property entity): the only entity with that name, found as a link to the name alone would find it, so an alias counts and so do case and spacing. Nothing marks it: no `type`, only the name. The built-in ones are documented that way: [[type]], [[alias]], [[favourite]] and [[title]].
-	- If no entity has the name, or two or more do, the property has no entity to define it, and a `##` line on either is flagged as having no effect. Two devices that each make one leave two, and nothing merges them, since entities share names on purpose: rename or delete one.
+	- If nobody has made one, the key has a virtual entity, as a name linked to does: it is in [[All entities]] and the [[Graph view]], has a page, and the page lists who uses the key. Writing to it makes the entity. [[Links to nowhere]]
+	- If two or more entities have the name, the property has no entity to define it, and a `##` line on either is flagged as having no effect. Two devices that each make one leave two, and nothing merges them, since entities share names on purpose: rename or delete one.
 	- A property entity describes the property in prose, and can give it a schema.
 	- It can be renamed. The old name stays as an alias, so the key still finds it. [[Renaming]]
 - Schemas

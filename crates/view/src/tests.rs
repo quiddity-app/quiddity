@@ -93,8 +93,8 @@ mod queries {
             .collect();
         assert_eq!(
             names,
-            ["apple", "Mango", "Nope", "Quiddity", "Zebra"],
-            "and the name linked to that nobody has made"
+            ["apple", "favourite", "Mango", "Nope", "Quiddity", "Zebra"],
+            "and a name linked to, or a property key, that nobody has made"
         );
     }
 
@@ -591,8 +591,7 @@ mod properties {
         let v = view_with(|g| {
             g.create_entity("person", &[]).unwrap();
             // Defines a property of the same name as a tag, which isn't it.
-            g.create_entity("status", &[("type", text("property"))])
-                .unwrap();
+            g.create_entity("status", &[]).unwrap();
             let page = g.create_entity("Page", &[]).unwrap();
             note(g, page, "#person #nobody #status\nstatus:: ok\nperson:: x");
         });
@@ -911,6 +910,73 @@ mod nowhere {
         assert!(hits[0].properties.is_empty());
     }
 
+    /// A property key no entity is named for has a virtual entity too: it is an
+    /// empty entity with no references, whose page lists who uses the key.
+    #[test]
+    fn a_property_key_nobody_defined_is_an_empty_entity_with_uses() {
+        let v = view_with(|g| {
+            let b = g.create_entity("B", &[]).unwrap();
+            let a = g.create_entity("A", &[]).unwrap();
+            note(g, b, "Mood:: calm");
+            note(g, a, "mood:: [[B]]");
+        });
+        let id = "~mood";
+        assert!(
+            names(&v).contains(&"Mood".to_owned()),
+            "as the first wrote it"
+        );
+        let e = v.entity(id).unwrap();
+        assert_eq!((e.id.as_str(), e.title.as_str()), (id, "Mood"));
+        assert!(e.renamable && e.blocks.is_empty());
+        assert!(v.references(id).unwrap().is_empty(), "a key is not a link");
+        let uses: Vec<_> = v
+            .uses(id)
+            .unwrap()
+            .into_iter()
+            .map(|u| (u.entity.title, u.values))
+            .collect();
+        assert_eq!(
+            uses,
+            [
+                ("A".to_owned(), vec!["[[B]]".to_owned()]),
+                ("B".to_owned(), vec!["calm".to_owned()])
+            ]
+        );
+        let chip = &v.entity(&id_of(&v, "B")).unwrap().blocks[0].properties[0];
+        assert_eq!(chip.definition.as_deref(), Some(id), "its chip goes there");
+    }
+
+    /// Writing to it makes the entity, which then defines the key.
+    #[test]
+    fn writing_to_a_virtual_property_makes_the_property_entity() {
+        let (v, page, _) = page(&["Mood:: calm"]);
+        v.create_block("~mood", None, "How it feels").unwrap();
+        let e = v.entity("~mood").unwrap();
+        assert_ne!(e.id, "~mood");
+        assert_eq!(
+            (e.title.as_str(), texts(&e.blocks)),
+            ("Mood", vec!["How it feels"])
+        );
+        let chip = &v.entity(&page).unwrap().blocks[0].properties[0];
+        assert_eq!(chip.definition.as_deref(), Some(e.id.as_str()));
+        assert_eq!(
+            v.uses(&e.id).unwrap().len(),
+            1,
+            "the real entity has the uses"
+        );
+    }
+
+    /// A key in a block that is not a properties block is flagged and has no
+    /// effect, so it doesn't make an entity, and its chip goes nowhere.
+    #[test]
+    fn a_key_in_a_prose_block_makes_no_virtual_entity() {
+        let (v, page, _) = page(&["Prose first", "stray:: value"]);
+        assert!(!names(&v).contains(&"stray".to_owned()));
+        let chip = &v.entity(&page).unwrap().blocks[1].properties[0];
+        assert_eq!(chip.definition, None);
+        assert!(v.entity("~stray").is_err());
+    }
+
     /// The link to it goes to it, and a tag is a link.
     #[test]
     fn links_and_tags_to_it_open_its_page() {
@@ -1016,7 +1082,8 @@ mod nowhere {
         assert!(v.rename_entity("~new york", "Big Apple").unwrap());
         let e = v.entity("~new york").unwrap();
         assert_eq!(e.title, "Big Apple");
-        assert_eq!(names(&v), ["Big Apple", "Page", "urgent"]);
+        // The alias line it wrote makes `alias` a key with a virtual entity.
+        assert_eq!(names(&v), ["Big Apple", "Page", "alias", "urgent"]);
         let links = v.entity(&page).unwrap().links;
         assert_eq!(links["New York"].target, LinkTarget::Entity { id: e.id });
     }
@@ -1116,7 +1183,8 @@ mod nowhere {
         assert!(edit(&v, &ids[0], "[[Foo]]").is_empty());
         let typed = only(edit(&v, &ids[0], "[[Foo #type(person)]]"));
         assert_eq!(v.entity(&typed).unwrap().title, "Foo");
-        assert_eq!(names(&v), ["Foo", "Page"]);
+        // `type` is a key nobody has made an entity for, so it has a virtual one.
+        assert_eq!(names(&v), ["Foo", "Page", "type"]);
     }
 
     #[test]
@@ -1284,8 +1352,7 @@ mod connections {
     #[test]
     fn each_end_of_a_property_is_weakly_linked_to_the_entity_that_defines_it() {
         let v = view_with(|g| {
-            g.create_entity("author", &[("type", text("property"))])
-                .unwrap();
+            g.create_entity("author", &[]).unwrap();
             let book = g.create_entity("Book", &[]).unwrap();
             g.create_entity("Jane", &[]).unwrap();
             g.create_entity("Joe", &[]).unwrap();
@@ -1307,21 +1374,57 @@ mod connections {
     }
 
     #[test]
-    fn a_property_nobody_defines_or_that_has_no_value_makes_no_weak_edge() {
+    fn a_property_with_no_value_or_that_is_a_tag_makes_no_weak_edge() {
         let v = view_with(|g| {
-            g.create_entity("author", &[("type", text("property"))])
-                .unwrap();
+            g.create_entity("author", &[]).unwrap();
             let book = g.create_entity("Book", &[]).unwrap();
-            note(g, book, "#fiction\nundefined:: [[Jane]]\nauthor");
+            note(g, book, "#fiction\nauthor::");
         });
         assert_eq!(by_weight(&v, true), []);
+    }
+
+    /// Two entities of a name are an ambiguous property: neither defines it and
+    /// no virtual entity stands in, so there is nothing to join to.
+    #[test]
+    fn an_ambiguous_property_key_makes_no_weak_edge() {
+        let v = view_with(|g| {
+            g.create_entity("Twin", &[]).unwrap();
+            g.create_entity("twin", &[]).unwrap();
+            let book = g.create_entity("Book", &[]).unwrap();
+            note(g, book, "twin:: something");
+        });
+        let connections = v.connections().unwrap();
+        assert!(connections.edges.is_empty(), "{:?}", connections.edges);
+        assert!(!connections.nodes.iter().any(|n| n.id.starts_with('~')));
+    }
+
+    /// A key nobody has made an entity for has a virtual one, which the weak
+    /// edges go to like any other.
+    #[test]
+    fn a_property_nobody_defines_is_weakly_linked_to_its_virtual_entity() {
+        let v = view_with(|g| {
+            g.create_entity("Jane", &[]).unwrap();
+            let book = g.create_entity("Book", &[]).unwrap();
+            note(g, book, "Undefined:: [[Jane]]");
+        });
+        assert_eq!(
+            by_weight(&v, true),
+            [pair("Book", "Undefined"), pair("Jane", "Undefined")]
+        );
+        let nodes: Vec<_> = v
+            .connections()
+            .unwrap()
+            .nodes
+            .into_iter()
+            .map(|n| n.id)
+            .collect();
+        assert!(nodes.contains(&"~undefined".to_owned()));
     }
 
     #[test]
     fn a_pair_that_is_linked_outright_is_one_strong_edge() {
         let v = view_with(|g| {
-            g.create_entity("author", &[("type", text("property"))])
-                .unwrap();
+            g.create_entity("author", &[]).unwrap();
             let book = g.create_entity("Book", &[]).unwrap();
             note(g, book, "see [[author]]");
             note(g, book, "author:: Jane");
@@ -1334,9 +1437,7 @@ mod connections {
     #[test]
     fn a_link_from_the_definition_to_the_entity_is_one_strong_edge() {
         let v = view_with(|g| {
-            let author = g
-                .create_entity("author", &[("type", text("property"))])
-                .unwrap();
+            let author = g.create_entity("author", &[]).unwrap();
             let book = g.create_entity("Book", &[]).unwrap();
             note(g, book, "author:: Jane");
             note(g, author, "used by [[Book]]");
@@ -1348,8 +1449,7 @@ mod connections {
     #[test]
     fn a_weak_edge_is_not_a_reference() {
         let v = view_with(|g| {
-            g.create_entity("author", &[("type", text("property"))])
-                .unwrap();
+            g.create_entity("author", &[]).unwrap();
             let book = g.create_entity("Book", &[]).unwrap();
             note(g, book, "author:: Jane");
         });
@@ -1360,8 +1460,7 @@ mod connections {
     #[test]
     fn a_property_lists_its_uses_by_entity_with_their_values() {
         let v = view_with(|g| {
-            g.create_entity("rating", &[("type", text("property"))])
-                .unwrap();
+            g.create_entity("rating", &[]).unwrap();
             let b = g.create_entity("b film", &[]).unwrap();
             let a = g.create_entity("A film", &[]).unwrap();
             g.create_entity("Unrated", &[]).unwrap();
@@ -1391,8 +1490,7 @@ mod connections {
         let v = view_with(|g| {
             let a = g.create_entity("A", &[]).unwrap();
             note(g, a, "rating:: 5");
-            g.create_entity("rating", &[("type", text("property"))])
-                .unwrap();
+            g.create_entity("rating", &[]).unwrap();
         });
         assert!(v.uses(&id_of(&v, "A")).unwrap().is_empty());
         assert!(v.uses("junk").is_err());
@@ -1610,9 +1708,7 @@ mod property_links {
     fn a_property_points_at_the_entity_that_defines_it() {
         let mut status = String::new();
         let v = view_with(|g| {
-            let defined = g
-                .create_entity("Status", &[("type", text("property"))])
-                .unwrap();
+            let defined = g.create_entity("Status", &[]).unwrap();
             status = defined.to_string();
             let page = g.create_entity("Page", &[]).unwrap();
             note(g, page, "status:: done");
@@ -1629,7 +1725,11 @@ mod property_links {
     #[test]
     fn defining_a_property_makes_its_entity_once() {
         let (v, page, _) = page(&["mood:: calm"]);
-        assert_eq!(definitions(&v, &page), [None]);
+        assert_eq!(
+            definitions(&v, &page),
+            [Some("~mood".to_owned())],
+            "its virtual entity, until it is made"
+        );
         let id = v.define_property("mood").unwrap();
         let e = v.entity(&id).unwrap();
         assert_eq!(e.title, "mood");
@@ -1643,8 +1743,7 @@ mod property_links {
     #[test]
     fn defining_a_property_that_is_defined_changes_nothing() {
         let v = view_with(|g| {
-            g.create_entity("Status", &[("type", text("property"))])
-                .unwrap();
+            g.create_entity("Status", &[]).unwrap();
         });
         let id = id_of(&v, "Status");
         assert_eq!(v.define_property("status").unwrap(), id);

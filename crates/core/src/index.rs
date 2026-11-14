@@ -63,6 +63,15 @@ pub struct Mention {
     pub name: String,
 }
 
+/// An entity with a property whose key no entity has as a name: the property
+/// has no entity to define it, and so a virtual one.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KeyUse {
+    pub entity: BlockId,
+    /// The key as that entity wrote it.
+    pub key: String,
+}
+
 /// What the index knows about one entity.
 #[derive(Debug, Clone)]
 pub struct EntityInfo {
@@ -167,6 +176,10 @@ pub struct Index {
     blobs: Vec<(BlockId, crate::Asset)>,
     /// Names that are linked to and that no entity has, by normalised name.
     mentions: BTreeMap<String, Vec<Mention>>,
+    /// Property keys that no entity has as a name, by normalised key, with the
+    /// entities that use each in document order. Read from properties blocks,
+    /// which `update_text` leaves to a rebuild, so it never has to maintain it.
+    undefined_keys: BTreeMap<String, Vec<KeyUse>>,
     /// The `##blob` line of every block that starts with one, as written,
     /// whether or not it can be read.
     blob_lines: Vec<String>,
@@ -247,6 +260,8 @@ impl Index {
             }
         }
 
+        index.read_undefined_keys(blocks);
+
         let mut references = Vec::new();
         for (at, scanned) in blocks.iter().enumerate() {
             if scanned.parent.is_none() {
@@ -291,6 +306,51 @@ impl Index {
         index.read_schemas();
         index.compute_effective();
         index
+    }
+
+    /// Notes each property key, written as a line in an entity's properties
+    /// block, that no entity is named for, in document order. A tag is a link
+    /// and a `##` line is a meta-property: neither is a key.
+    fn read_undefined_keys(&mut self, blocks: &[Scanned]) {
+        for block in blocks.iter().filter(|b| b.parent.is_none()) {
+            if self.canonical.contains_key(&block.id) {
+                continue;
+            }
+            let info = &self.entities[&block.id];
+            for property in info
+                .properties
+                .iter()
+                .filter(|p| p.style == PropertyStyle::Line)
+            {
+                let key = normalise_name(&property.key);
+                if key.is_empty() || self.by_name.contains_key(&key) {
+                    continue;
+                }
+                let uses = self.undefined_keys.entry(key).or_default();
+                if uses.last().is_none_or(|u| u.entity != block.id) {
+                    uses.push(KeyUse {
+                        entity: block.id,
+                        key: property.key.trim().to_owned(),
+                    });
+                }
+            }
+        }
+    }
+
+    /// The property keys that no entity has as a name, with who uses each, in
+    /// document order. Like [`Index::mentions`], they are entities in all but
+    /// being written: see `quiddity-view`.
+    pub fn undefined_keys(&self) -> impl Iterator<Item = (&str, &[KeyUse])> {
+        self.undefined_keys
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_slice()))
+    }
+
+    /// Who uses the property `key`, if no entity is named for it.
+    pub fn undefined_key(&self, key: &str) -> &[KeyUse] {
+        self.undefined_keys
+            .get(&normalise_name(key))
+            .map_or(&[], Vec::as_slice)
     }
 
     /// Notes a link to a name nobody has made, if `link` is one: no qualifiers,

@@ -1,8 +1,9 @@
-//! Virtual entities: a name that is linked to, and that no entity has, looks to
-//! the UI in every way like an empty entity of that name, without being one.
+//! Virtual entities: a name that is linked to, or that is a property's key, and
+//! that no entity has, looks to the UI in every way like an empty entity of
+//! that name, without being one.
 //!
-//! Nothing is stored. The index lists the names ([`quiddity_core::Index::mentions`])
-//! and this module gives each an ID, `~` and the name as names are compared, so
+//! Nothing is stored. The index lists the names ([`quiddity_core::Index::mentions`]
+//! for links, [`quiddity_core::Index::undefined_keys`] for keys) and this module gives each an ID, `~` and the name as names are compared, so
 //! a page, a row in All entities, a node in the graph, a search hit and a link
 //! to it all work as they do for an entity. An entity becomes real by being
 //! written to: adding a block, or renaming it, makes one named as the first
@@ -31,14 +32,31 @@ pub(crate) fn name_of(id: &str) -> Option<&str> {
     id.strip_prefix(PREFIX)
 }
 
-/// A name that is linked to and that no entity has.
+/// A name that is linked to or is a property's key, and that no entity has.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Virtual {
     pub id: String,
-    /// As the first block, in document order, that links to it writes it.
+    /// As the first block, in document order, that links to it writes it, or
+    /// else as the first entity to use it as a property key does.
     pub title: String,
-    /// The blocks that link to it, once for each link, in document order.
+    /// The blocks that link to it, once for each link, in document order. A
+    /// property key is not a link, so there is none for one that is only a key.
     pub sources: Vec<BlockId>,
+}
+
+/// The virtual entity for `name`, if something links to it or uses it as a
+/// property key and no entity has it.
+fn virtual_of(index: &quiddity_core::Index, name: &str) -> Option<Virtual> {
+    let mentions = index.mention(name);
+    let title = mentions
+        .first()
+        .map(|m| m.name.clone())
+        .or_else(|| index.undefined_key(name).first().map(|u| u.key.clone()))?;
+    Some(Virtual {
+        id: id_of(name),
+        title,
+        sources: mentions.iter().map(|m| m.source).collect(),
+    })
 }
 
 /// What an ID for a name stands for now.
@@ -50,16 +68,15 @@ pub(crate) enum Named {
 }
 
 impl View {
-    /// Every name that is linked to and that no entity has, in name order.
+    /// Every name that is linked to or is a property's key, and that no entity
+    /// has, in name order.
     pub(crate) fn virtuals(&self) -> Result<Vec<Virtual>> {
         let index = self.index()?;
-        Ok(index
-            .mentions()
-            .map(|(name, mentions)| Virtual {
-                id: id_of(name),
-                title: mentions[0].name.clone(),
-                sources: mentions.iter().map(|m| m.source).collect(),
-            })
+        let mut names: BTreeSet<&str> = index.mentions().map(|(name, _)| name).collect();
+        names.extend(index.undefined_keys().map(|(key, _)| key));
+        Ok(names
+            .into_iter()
+            .filter_map(|name| virtual_of(&index, name))
             .collect())
     }
 
@@ -75,15 +92,10 @@ impl View {
         if let Some(&first) = real.first() {
             return Ok(Some(Named::Real(index.canonical(first))));
         }
-        let mentions = index.mention(name);
-        let Some(first) = mentions.first() else {
-            return Err(Error::NotAnEntity(id.to_owned()));
-        };
-        Ok(Some(Named::Virtual(Virtual {
-            id: id_of(name),
-            title: first.name.clone(),
-            sources: mentions.iter().map(|m| m.source).collect(),
-        })))
+        match virtual_of(&index, name) {
+            Some(v) => Ok(Some(Named::Virtual(v))),
+            None => Err(Error::NotAnEntity(id.to_owned())),
+        }
     }
 
     /// The entity `id` is the ID of, made first if it is a virtual one: a root

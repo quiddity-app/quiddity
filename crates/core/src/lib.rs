@@ -36,7 +36,9 @@ pub use devices::Device;
 pub use effective::Item;
 pub use error::{Error, Result};
 pub use graph::{BlockId, Graph, SCHEMA_VERSION, Scanned, Version};
-pub use index::{Backlink, EntityInfo, Identity, Index, Mention, Resolution, canonical_value};
+pub use index::{
+    Backlink, EntityInfo, Identity, Index, KeyUse, Mention, Resolution, canonical_value,
+};
 pub use journal::{create_journal, ensure_journal};
 pub use merge::merge_duplicates;
 pub use publish::{PublishError, page_names};
