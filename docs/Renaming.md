@@ -4,8 +4,9 @@ alias:: rename
 	- The alias is a line in the entity's properties block, which is made if there is none.
 	- No alias is added if the old name already is one (aliases may be a list, matched as names are) or if only the case or spacing changed.
 - Where: the main pane's title is a field when the entity can be renamed. Enter or leaving the field keeps the name and Escape drops it. Side cards and the journals show plain titles. [[The UI]]
-- Journals and property entities cannot be renamed.
-	- They are identified by their date or name, so a rename would make them a different entity. The index says which, and the view checks. [[Properties]]
+- Journals cannot be renamed.
+	- A journal is identified by its date, so a rename would make it a different entity. The index says which, and the view checks. [[Journal]]
+	- A property's entity can be renamed: the old name becomes an alias, and an alias finds the entity as a name does, so the property's key still goes to it. [[Properties]]
 - The name is one line, the first line of what is given, and cannot be empty.
 - A name nobody has made yet is renamed by making it first, so the old name is kept as an alias and links to it still work. [[Links to nowhere]]
 - Undoing a rename takes back the name and the alias together. [[Undo]]

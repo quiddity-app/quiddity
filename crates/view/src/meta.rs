@@ -90,7 +90,7 @@ fn describe(index: &Index, flag: &Flag) -> (Option<(String, bool)>, String) {
         Flag::BadMeta { key, message } => (Some((key.clone(), true)), message.clone()),
         Flag::MetaOutsideProperty => (
             None,
-            "Meta-properties mean something only on a property's entity, with type:: property"
+            "Meta-properties mean something only on an entity that is the only one with its name"
                 .to_owned(),
         ),
         Flag::StrayLine { text } => (

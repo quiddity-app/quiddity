@@ -16,7 +16,7 @@ alias:: [page, properties block]
 - Names are not unique.
 	- An entity is identified by its name together with its properties, and a link can say which properties it means: `[[Jane#type(person)]]`. [[Links]]
 	- Renaming keeps the old name as an [[alias]], so links written against it still work. [[Renaming]]
-	- A [[Journal]] is identified by its date and a property entity by its name. Two copies made on different devices are merged. [[Duplicates]]
+	- A [[Journal]] is identified by its date. Two copies made on different devices are merged. [[Duplicates]]
 - Where entities come from
 	- Writing a `[[link]]` to one that doesn't exist yet, and leaving the block, makes it. So does following such a link. [[Links to nowhere]]
 	- Today's journal is made when the app starts.

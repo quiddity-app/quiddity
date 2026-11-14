@@ -84,9 +84,9 @@ value is `None` here and `null` in JavaScript (the wasm layer sets that).
 - Edits that can't apply change nothing: `split` checks the offset is between
   characters before touching the text, and `merge_into_previous` says `None`
   rather than failing when there is nothing to merge into.
-- **Journals and property entities can't be renamed**: they are identified by
-  their date or name, so a rename would make them a different entity (and
-  `Entity::renamable` says so, for the UI). Everything else keeps its old name
+- **Journals can't be renamed**: they are identified by their date, so a
+  rename would make them a different entity (and `Entity::renamable` says so,
+  for the UI). Everything else, a property entity included, keeps its old name
   as an alias; see `quiddity-core`.
 - Reading order is depth first; "the block before" a block is the previous one
   in that order, which for a first child is its parent.
@@ -168,8 +168,8 @@ name as names are compared (`id_of`, `name_of`); nothing is stored for it.
 
 A property's key goes to the entity that defines it: `Property::definition` is
 that entity's id (found by name as `Index::property_entity` does) or `None`, and
-`define_property(key)` makes one, a property entity with an empty block, when
-there is none. Like a link to nowhere, the UI makes it on following. A tag's
+`define_property(key)` makes one, an entity named for the key with an empty
+block, when there is none. Like a link to nowhere, the UI makes it on following. A tag's
 chip (`inline`) goes to the entity it names instead, and the UI follows it with
 `follow_link`: a tag is a link, so `links_in` counts it and saving a block that
 gains one makes the entity.

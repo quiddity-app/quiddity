@@ -134,9 +134,9 @@ written against it still resolve, including ones written by a device that was
 offline. It appends to the entity's properties block, or makes one first. No
 alias is added if the old name is already one (aliases may be a list, and
 names are matched as `normalise_name` does), or if only case or spacing
-changed. It does not know which entities may be renamed: an entity identified
-by its name or date (a property entity, a journal) must not be, and that is
-the index's to say, so `quiddity-view` checks it.
+changed. It does not know which entities may be renamed: a journal, identified
+by its date, must not be, and that is the index's to say, so `quiddity-view`
+checks it. A property entity may be: the alias keeps its key.
 
 ## The model
 
@@ -168,7 +168,7 @@ the index's to say, so `quiddity-view` checks it.
 - **`move_block`'s index is the final position**, so within the same parent
   it counts the siblings other than the block itself.
 - **Duplicates are never deleted.** Entities with the same identity
-  (journals by date, property entities by name) are merged into the one
+  (journals, by date) are merged into the one
   with the lowest ID by moving their content. A device that hasn't synced
   may still be writing to a duplicate, and anything under a deleted block
   would be lost. `merge_duplicates` runs after every sync and reports
@@ -177,6 +177,10 @@ the index's to say, so `quiddity-view` checks it.
 
 ## Schemas and effective properties
 
+- **A property entity is the only entity with a name or alias**
+  (`Index::property_entity`, `defines_property`): nothing marks it, and with
+  two of a name neither defines the property, so their `##` lines are
+  `Flag::MetaOutsideProperty`. Property entities are not merged as duplicates.
 - **A schema is the built-in one with the property entity's `##` lines over
   it** (`PropertySchema::with_meta`). What can't be read is kept as flags
   for that entity and otherwise ignored. `Index::schema` borrows where it
