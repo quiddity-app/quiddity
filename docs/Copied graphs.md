@@ -1,7 +1,7 @@
 alias:: [node map, places]
 
 - How a device notices that a graph has been copied, so that two replicas never edit under one node ID. [[Identity]]
-- Built: the table of places, and forking a copy. Planned, not built: noticing a twin afterwards, from changes that arrive under this replica's own node ID, which is what would catch a backup restored over a graph, or a copy opened on another device with the same key.
+- Built: the table of places and forking a copy, and refusing a twin's changes when they arrive. What neither can do is said under *Noticing afterwards*.
 - Why it matters
 	- A graph is a directory. A person can copy it, back it up, restore a backup over it, or have a file-sync service duplicate it, and nothing stops them. Each copy is a full replica, which is fine, but two replicas that both go on making edits as the same node have two histories under one [[Loro]] peer ID, and Loro cannot hold both. [[Identity]]
 	- The graph can't say this about itself: a copy has all of the original's records, and is the original until the first edit that differs.
@@ -18,9 +18,13 @@ alias:: [node map, places]
 	- Which of two is the original is whichever the table saw first, so a person who opens the copy first, after the table has been lost, has the original forked. Both are valid replicas and sync as any two do, so this is a nuisance only: the version has an extra node.
 	- The table is a safeguard and not a precondition. If it can't be used, because it is damaged or its directory can't be written, the graph opens and a warning says so, since refusing to open a graph is worse than not noticing a copy. A graph whose path can't be written as text can't be kept in it, and is not compared.
 - Noticing afterwards
-	- Planned, not built. The table can't see a copy made while the app was closed and opened on another machine with the same key, or a backup restored over a graph. Both leave a replica that doesn't know that other changes were made under its ID.
-	- A replica that is sent changes from its own node ID, beyond what it has stored, would know it has a twin or has been put back. It would stop editing as that node, take a new node ID, and then import them, telling the person, since a twin that kept editing may have made changes that can't be merged.
-	- How Loro treats two changes with the same ID and counter and different content is not yet checked: it may refuse the second or keep one silently. That decides whether this is a way to recover or only a way to report.
+	- The table can't see a copy made while the app was closed and opened on another machine with the same key, or a backup restored over a graph. Both leave a replica that doesn't know that other changes were made under its ID. They show when changes arrive.
+	- **Loro can't be left to cope.** Two histories under one node ID don't fail: both imports succeed, each replica's version says it has the other's, and what they hold is different, with some of each side's edits taken and others dropped (one replica ended with `A0, B1` and the other with `B0, B1`). A test pins it, so that a change in Loro is noticed.
+	- So a replica remembers which node IDs it has edited as, and how much of each it held when it took it. Changes that carry more under one of them than it holds, once it has made edits of its own under it, are refused before anything is applied (`Error::Twin`), and it stops editing as that node, so what it does next adds nothing to the clash. The store keeps the new node ID when it saves, so the next run doesn't load the old and clash again.
+	- A replica that has made nothing of its own under the node just takes the changes: it crashed after sending edits it hadn't yet saved, and is being sent its own history back.
+	- **What it can't see.** It is the replica that is *behind* that finds the other, since only it sees changes that carry more than it has. A twin that has made as many edits, or more, is not told, and with equal counts neither is. Then each keeps its own edits and says it has the other's. Counts are all there is to compare: nothing in a change says what it said.
+	- **What it costs.** A replica that crashed after sending edits, and then edited before it reconnected, has made edits of its own under the node that the device that kept the old ones does not have, and is refused. It cannot take that device's history, and has to start again from a snapshot as an evicted device does, with what it made since offered for re-applying. Neither is built. [[Compaction]]
+	- A person is not yet told. A warning is logged, and the connection ends in an error that says so.
 - Not covered
 	- Someone who copies the device key with the graph is the same device, to this design, and nothing tells them apart. The key is the thing to keep safe. [[Identity]]
 	- Two processes that load one graph and both edit, as the node and the app on one directory. They would lose each other's edits whatever their node ID, and as one node would also be twins, so a command that edits shouldn't be run beside `serve`.

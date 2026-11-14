@@ -91,6 +91,13 @@ pub struct Graph {
     doc: LoroDoc,
     /// Present once [`Graph::enable_undo`] has been called.
     undo: Mutex<Option<UndoManager>>,
+    /// The node IDs this replica has been set to edit as, each with how many of
+    /// its edits the graph held when it took it. What it has made since is its
+    /// own, and is what another replica's edits under the same ID would clash
+    /// with. See `node_id.rs`.
+    pub(crate) nodes: Mutex<HashMap<u64, u64>>,
+    /// Node IDs given up because another replica was found editing as them too.
+    pub(crate) retired: Mutex<Vec<NodeId>>,
 }
 
 impl Default for Graph {
@@ -138,6 +145,8 @@ impl Graph {
         Self {
             doc,
             undo: Mutex::new(None),
+            nodes: Mutex::default(),
+            retired: Mutex::default(),
         }
     }
 
@@ -326,7 +335,14 @@ impl Graph {
     /// that is [`Error::BeforeHistory`]. Anything else that can't be applied
     /// here (updates whose causes this replica hasn't seen, which Loro would
     /// hold back without saying) is [`Error::NotApplied`].
+    ///
+    /// Changes under a node ID this replica has edited as, when it has made edits
+    /// of its own under it and the changes carry more under it than it has, are
+    /// [`Error::Twin`], and nothing is applied: another replica is editing as the
+    /// same node, and Loro would take some of its edits and drop others, leaving
+    /// the two replicas different and each believing they agree.
     pub fn import(&self, bytes: &[u8]) -> Result<()> {
+        self.refuse_twins(&Self::version_of_updates(bytes)?)?;
         match self.doc.import(bytes) {
             Ok(_) => {}
             Err(loro::LoroError::ImportUpdatesThatDependsOnOutdatedVersion) => {

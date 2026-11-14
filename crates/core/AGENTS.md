@@ -39,6 +39,20 @@ outline text format.
   changes with the same ID, and Loro keeps one without a word. Never set one
   that another replica might be using. Don't derive one; use `fresh_node_id`.
 - `Version::nodes` and `count_of` say who has edited and how much.
+- **Two replicas editing as one node corrupt each other silently**, and Loro
+  doesn't help: both imports return `Ok`, the versions say each has the other's,
+  and the content differs, with some of one's edits taken and others dropped
+  (pinned by `unrefused_twins_would_have_mixed_their_edits` and
+  `twins_with_equal_counts_cannot_be_told_apart`: if they fail, Loro changed).
+  So `import` calls `refuse_twins` *before applying anything*. A `Graph`
+  remembers each node ID it was set to and how much of it the graph held then
+  (`nodes`); changes with more under one of them than it holds, after it has
+  made edits of its own under it, are `Error::Twin`, and if the ID is the one in
+  use it takes a fresh one (`retired_node_ids` says which it gave up; whoever
+  keeps the replica must keep the new). **It only sees from the behind side**: a
+  twin with as many edits or more is invisible. A replica with nothing of its own
+  under the ID takes the changes, which is the crash-after-sending case. Don't
+  weaken it to "retire and import anyway": the import is where the damage is.
 
 ## Reading the whole graph
 
