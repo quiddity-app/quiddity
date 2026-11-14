@@ -1,24 +1,27 @@
-alias:: [node map]
+alias:: [node map, places]
 
-- Planned, not built, apart from the first step: the graph's file keeps its node ID, sealed so that it only opens on the device that made it, so a file taken to another device gets a new one by itself. What is not built is the rest: the map, and noticing a copy made on one device. How a device notices that a graph has been copied, so that two replicas never edit under one node ID. [[Identity]]
+- How a device notices that a graph has been copied, so that two replicas never edit under one node ID. [[Identity]]
+- Built: the table of places, and forking a copy. Planned, not built: noticing a twin afterwards, from changes that arrive under this replica's own node ID, which is what would catch a backup restored over a graph, or a copy opened on another device with the same key.
 - Why it matters
 	- A graph is a directory. A person can copy it, back it up, restore a backup over it, or have a file-sync service duplicate it, and nothing stops them. Each copy is a full replica, which is fine, but two replicas that both go on making edits as the same node have two histories under one [[Loro]] peer ID, and Loro cannot hold both. [[Identity]]
 	- The graph can't say this about itself: a copy has all of the original's records, and is the original until the first edit that differs.
-- The map
-	- The app keeps a table beside the device key, in the device's own configuration directory and never in a graph, so that a copied graph doesn't take it along: node ID, graph ID, path, what the node is for (the shell's replica, or the UI's), and when it was last opened. TOML. [[toml]]
-	- The graph's directory keeps its own node ID, stored in the form that only this device can read. [[Identity]]
+	- The graph's file does half of it. The node ID in it is sealed with a mask derived from the device's key, so a file taken to another device doesn't open there and that replica makes a node ID of its own. A copy beside the original, on one device, has the same key and so the same mask, and opens as the same node. That is what the table is for.
+- The table
+	- A device keeps a table of which node ID it has seen where, in `places.sqlite3` in its configuration directory beside its key, and never in a graph, so that a copied graph doesn't take it along. It maps a node ID to the graph's path, resolved so that a link to a graph is the same place as the graph. It is [[SQLite]], in a file of its own, so that the check and the record are one transaction: two copies opened at once can't both be the first.
+	- It is read and written by [[quiddity-node]]'s store whenever it works out the node ID to edit as, which is when a graph is loaded or made, before anything is edited.
 - Opening a graph
-	- The shell reads the directory's node ID. Before any edit, three things can be wrong, and it decides which by looking.
-	- **There is none, or it can't be read with this device's key.** The directory was made on another device, or by an earlier version. This replica takes a new node ID and records it. Nothing is lost: the old ID's changes are history like any other's.
-	- **The map has the ID at another path.** The old path is looked at:
-		- Gone, or no longer holding that node ID: the graph was moved. The map is updated.
-		- Still there, holding the same ID: the graph was copied. The directory opened second takes a new node ID, before anything is edited, and both are recorded. Which is the original is whichever the map saw first, so a person who opens the copy first has the original forked. Both are valid replicas and sync as any two do, so this is a nuisance only: the device list shows an extra node.
-	- **The ID isn't in the map.** The map was lost, or this is the first run with it. The path is recorded.
-	- Paths are compared after resolving links, and on a file system that is case-insensitive, case is ignored.
+	- **A node ID not seen before**, or seen here: nothing to do. It is recorded.
+	- **Seen somewhere else.** The old place is looked at, without changing anything there (it may be another process's graph, of any layout):
+		- It has gone, or no longer has that node ID: the graph was moved. The table follows it, and the node ID is the same.
+		- It still has it: this is a copy. It takes a new node ID, sealed and kept as any other, and the table records that. The original keeps its own. Edits the copy and the original go on to make are by different nodes, and they can meet and sync as any two replicas do.
+		- It can't be read to say, because something that isn't a graph is there, or it is held: it is taken to have the node ID. Forking a graph that didn't need it costs one more peer in the version; not forking one that did costs the graph.
+	- Which of two is the original is whichever the table saw first, so a person who opens the copy first, after the table has been lost, has the original forked. Both are valid replicas and sync as any two do, so this is a nuisance only: the version has an extra node.
+	- The table is a safeguard and not a precondition. If it can't be used, because it is damaged or its directory can't be written, the graph opens and a warning says so, since refusing to open a graph is worse than not noticing a copy. A graph whose path can't be written as text can't be kept in it, and is not compared.
 - Noticing afterwards
-	- The map can't see a copy made while the app was closed and opened on another machine with the same key, or a backup restored over a graph. Both leave a replica that doesn't know that other changes were made under its ID.
-	- A replica that is sent changes from its own node ID, beyond what it has stored, knows it has a twin or has been put back. It stops editing as that node, takes a new node ID, and then imports them. It tells the person, since a twin that kept editing may have made changes that can't be merged.
-	- How Loro treats two changes with the same ID and counter and different content is not yet checked: it may refuse the second or keep one silently. That decides whether this is a way to recover or only a way to report. It needs a test before it is built.
+	- Planned, not built. The table can't see a copy made while the app was closed and opened on another machine with the same key, or a backup restored over a graph. Both leave a replica that doesn't know that other changes were made under its ID.
+	- A replica that is sent changes from its own node ID, beyond what it has stored, would know it has a twin or has been put back. It would stop editing as that node, take a new node ID, and then import them, telling the person, since a twin that kept editing may have made changes that can't be merged.
+	- How Loro treats two changes with the same ID and counter and different content is not yet checked: it may refuse the second or keep one silently. That decides whether this is a way to recover or only a way to report.
 - Not covered
 	- Someone who copies the device key with the graph is the same device, to this design, and nothing tells them apart. The key is the thing to keep safe. [[Identity]]
-	- The headless [[quiddity-node]] has the same files and the same rules. Its map is in its own configuration directory, and it refuses to start on a copy it can't tell from the original, rather than forking it without being asked.
+	- Two processes that load one graph and both edit, as the node and the app on one directory. They would lose each other's edits whatever their node ID, and as one node would also be twins, so a command that edits shouldn't be run beside `serve`.
+	- The headless [[quiddity-node]] has the same files and the same rules. Its table is in its own configuration directory.
