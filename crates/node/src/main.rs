@@ -50,7 +50,8 @@ enum Command {
     /// goes only after it has gone unreferenced for the grace period, and
     /// only once every active device has stored a version of the graph from
     /// after the reference went; the first run only notes what is unreferenced.
-    /// The node must not be serving: the store allows one process at a time.
+    /// The node must not be serving: this saves the graph it loaded, over what
+    /// a serving node has saved since.
     Gc {
         /// Say what would be deleted, and change nothing.
         #[arg(long)]

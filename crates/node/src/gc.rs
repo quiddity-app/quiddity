@@ -20,7 +20,7 @@ use std::path::Path;
 use jiff::{SignedDuration, Timestamp};
 use quiddity_core::{Graph, Index, Version};
 
-use crate::blobs::{BlobError, Blobs, Hash, sweep};
+use crate::blobs::{BlobError, Blobs, Hash};
 use crate::store::ACTIVE;
 
 /// How long a file must have gone unreferenced before it may be deleted: as
@@ -198,8 +198,9 @@ fn referenced(index: &Index) -> BTreeSet<Hash> {
 /// module's description, and keeps the ledger. With `dry_run` it only says what
 /// it would do, and keeps nothing.
 ///
-/// The store in `graph_dir` is opened and closed here, so nothing else, a
-/// serving node included, may have it open.
+/// The graph's file is opened here and the graph is saved by the caller, so a
+/// serving node must be stopped first: what it saved since the graph was loaded
+/// would be written over. Nothing enforces that.
 pub async fn collect(
     graph_dir: &Path,
     graph: &Graph,
@@ -207,12 +208,8 @@ pub async fn collect(
     grace: SignedDuration,
     dry_run: bool,
 ) -> Result<Collected, CollectError> {
-    let stored = {
-        let blobs = Blobs::open(graph_dir).await?;
-        let stored = blobs.stored().await?;
-        blobs.shutdown().await?;
-        stored
-    };
+    let blobs = Blobs::open(graph_dir).await?;
+    let stored = blobs.stored().await?;
     let referenced = referenced(&Index::build(graph)?);
     let unreferenced: BTreeSet<Hash> = stored.difference(&referenced).copied().collect();
 
@@ -231,11 +228,13 @@ pub async fn collect(
         removed: due.clone(),
     };
     if dry_run {
+        blobs.shutdown().await?;
         return Ok(report);
     }
     // The sightings first, so they are kept even if deleting fails.
     ledger.save(graph_dir)?;
-    sweep(graph_dir, &due).await?;
+    blobs.delete(&due).await?;
+    blobs.shutdown().await?;
     ledger.forget(&due);
     ledger.save(graph_dir)?;
     Ok(report)

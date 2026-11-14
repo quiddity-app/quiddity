@@ -30,7 +30,7 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
   mode). Journal mode is `DELETE`, deliberately: WAL leaves `-wal`/`-shm`, which
   breaks "one file" and copying it. The key is made inside a transaction, so two
   processes starting together agree on it.
-- **`blob_store` is an iroh-blobs store on SQLite, not yet used by `Blobs`.**
+- **`blob_store` is an iroh-blobs store on SQLite, and `Blobs` is a thin wrapper of it.**
   iroh-blobs' `Store` is a client of a command channel, and `FsStore` and
   `MemStore` are actors serving it. `blob_store::spawn` is a third, built from
   `MemStore::from_sender`, which is `pub` but not a documented extension point,
@@ -74,8 +74,8 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
   renames the directory `blobs.migrated/`: a failure leaves it as it was, and a
   second try passes over what is already kept. It acts only on a directory that
   has `blobs.db` in it, so another `blobs/` is left alone, and a graph with no
-  old store never has one made for it. Nothing calls it until `Blobs` moves onto
-  the file.
+  old store never has one made for it. `Blobs::open` calls it, so a graph's
+  files come across the first time anything opens them.
 - **Never publish or copy the graph's file as a snapshot**: it holds the
   endpoint key. `quiddity-node snapshot` writes the bare Loro snapshot for the
   static build, and a test checks the key isn't in it.
@@ -159,29 +159,27 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
   publish sends everything up to that point, not just the watched block. A
   connection's hello still sends everything, held edits included. The
   timers live in the connection tasks, so there is nothing to spawn.
-- **`Blobs` is the bytes of the graph's binaries**, an iroh-blobs `FsStore`
-  in `blobs/` beside the snapshot. Hashes are BLAKE3. `get` checks `has`
-  first so that an absent blob is `Missing`, not a store error. Call
-  `shutdown` before dropping the last clone if something will reopen the
-  directory at once: the store's database is locked until its tasks stop.
-  Anything `put` is tagged, but tags are not how anything is kept: `sweep`
-  drops them all.
+- **`Blobs` is the bytes of the graph's binaries**, kept in the graph's file by
+  `blob_store`. Hashes are BLAKE3. `get` checks `has` first so that an absent
+  blob is `Missing`, not a store error. `Blobs::open` makes the file if there is
+  none (so it may be opened before the graph is), and moves in an old `blobs/`
+  directory. Anything `put` is tagged in name only: no tags are kept.
 - **Export and import of files are `Blobs::export_assets` and `import_assets`**,
   called by the CLI after the Markdown's. Core does the Markdown and knows
   nothing of the store, and names the file (`Asset::file_name`). Import keeps a
   file only if its name's stem is the BLAKE3 hash *of its contents*, so a
   Logseq `assets/` isn't swept in as bytes nothing refers to, and a corrupt file
   isn't kept under a hash it doesn't have. The CLI opens the store only if
-  there is something to do, so an export of a graph with no files doesn't leave
-  an empty `blobs/` behind, and shuts it down so the next run can open it.
+  there is something to do, so an export of a graph with no files does nothing
+  to the file.
 - **`gc` deletes only what the rule in `gc.rs` allows, and deleting is
-  `blobs::sweep`.** iroh-blobs deletes by its own collector, which removes
-  *everything not marked live*, so `sweep` opens the store with a collector
-  whose callback marks every stored blob except the doomed ones, drops the
-  tags first (they would keep a doomed blob alive), waits, and checks that what
-  it meant to keep is still there. It runs only on a store nothing else has
-  open. The empty file is built in: `has` is always true for it and `stored`
-  never lists it, so don't read "still there" as "not collected". A file goes
+  `Blobs::delete`**, one transaction that removes exactly the hashes named. It
+  was a collector run on a stopped store while iroh-blobs kept its own database;
+  now there is nothing to collect. **The node must still not be serving**, for
+  another reason: `gc` saves the graph it loaded, which would be written over
+  what a serving node saved since. The old store's lock stopped that by
+  accident, and nothing does now. The empty file is built in: `has` is always
+  true for it and `stored` never lists it. A file goes
   only when unreferenced now, unreferenced for the grace, *and* first seen
   unreferenced at a version `compaction_point` includes; no compaction point,
   no deletion. Versions are per-peer counts, so only versions of the same graph
