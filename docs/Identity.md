@@ -1,11 +1,13 @@
 alias:: [device key, device ID, graph ID, node ID, identifiers]
 
 - Planned, not built. How a replica, a device and a graph are told apart, and how the secret one is kept from being misused. Today a device is its [[iroh]] key and nothing else, and the [[Loro]] peer ID is chosen at random each time a replica starts. [[Design]]
-- Built so far: the types, their written form and the derivations, in [[quiddity-identity]]; and the graph ID, made with each new graph and kept in its document. The sync handshake checks it, and nothing else uses the types yet; the steps at the end say what comes next.
+- Built so far: the types, their written form and the derivations, in [[quiddity-identity]]; and the graph ID, made with each new graph and kept in its document. The sync handshake checks it; the device key is kept apart from the graphs and a new graph's endpoint key is derived from it. Node IDs don't use the types yet; the steps at the end say what comes next.
 - What there is now
-	- One secret: the endpoint key, 32 raw bytes, in the graph's file (the `endpoint_key` table of `graph.quiddity`; before that, a `device.key` beside it). It is an Ed25519 secret key, so asymmetric. Its public half is the endpoint ID, which the UI, the CLI and the graph's [[Device list]] call the device ID. [[Storage]] [[Sync]]
+	- Two secrets, and only one of them in use for any graph. Both are 32 bytes. [[Storage]] [[Sync]]
+		- **The device key**, in `device.key` in the device's own configuration directory (`~/.config/quiddity` on Linux; the app's own on a desktop; `--config-dir` or `QUIDDITY_CONFIG_DIR` says otherwise), written as a `qdk_` token. It is a seed that nothing signs or encrypts with directly, so neither asymmetric nor symmetric: it is key material.
+		- **The endpoint key**, an Ed25519 secret key, so asymmetric. Its public half is the endpoint ID, which the UI, the CLI and the graph's [[Device list]] call the device ID. A graph made now derives it from the device key and the salt in its file, and never stores it. A graph made before keeps its own in its file (the `endpoint_key` table of `graph.quiddity`), so that its device ID doesn't change.
 	- Nothing else is a key. Sync, [[Blob transfer]] and [[Presence]] all use the endpoint. The updater's signing key belongs to releases and is not in the app. [[Updates]]
-	- Because the key lives in the graph's directory, device IDs are per graph, and copying the directory copies the identity: two directories would then answer to one device ID. [[Copied graphs]]
+	- Device IDs are per graph, because each graph's endpoint key is its own. A graph made now can be copied to another device without taking the device with it: the other device's key derives another endpoint key. A graph made before still carries its endpoint key in its file, so copying it copies the device. And a copy made beside the original, on one device, is still the same device: that is what [[Copied graphs]] is for.
 	- Loro's own peer ID, a 64-bit number, is left to Loro. Nothing keeps it between runs, so every launch of the UI's replica adds a peer to the graph's version. [[App sync]]
 	- The hello carries the graph's ID and refuses another's, so two graphs that have IDs are never merged. A graph from before graphs had IDs has none, and is accepted by any peer until it is given one. [[Sync]]
 - Four identifiers, each its own type
@@ -28,7 +30,7 @@ alias:: [device key, device ID, graph ID, node ID, identifiers]
 	- **The salt is random, made with each graph's file and kept in it. It is not the graph ID**, which is what this page first said: a blank replica has to give out its device ID, to be let in, before it has met the graph and learned its ID.
 	- **Endpoint key**: an Ed25519 key per graph file, derived. It is what iroh is bound to, and what makes a device ID per graph, as now, but without keeping a key in each graph's file. One device key backs up every graph, and a device's IDs in two graphs can't be linked.
 	- **Node mask**: 64 bits, derived the same way. A node ID is stored XORed with it, together with a check of the plain value, so that it is only readable on the device that made it. Read on another, the check fails and the replica knows it was copied. The mask is not secrecy: a copy that takes the device key too is the same device. It is there to tell, not to prevent.
-	- Existing graphs keep their endpoint key (converted from `device.key` when the file is first opened), so that device IDs already in other devices' lists stay valid. Moving them to derived keys would change the ID, so it is a re-pairing and is not forced.
+	- Existing graphs keep their endpoint key (converted from `device.key` in the graph's directory when the file is first opened, and since then kept in the file), so that device IDs already in other devices' lists stay valid. They are given a salt when they are opened, for what is yet to come, and never ask for the device key. Moving them to derived keys would change the ID, so it is a re-pairing and is not forced.
 - Keeping a key from being misused
 	- Each identifier is its own type, and none converts to another. A secret has no `Display`, no `Serialize` and a `Debug` that prints nothing; it is wiped when dropped and can't be cloned by accident. There is one function that turns it into its stored form, in the module that writes keys, and one that reads it.
 	- It is kept in the device's own configuration directory, not in a graph's and so not copied with one, with mode 0600, or in the platform's keychain where there is one. It is never put in a graph, an export, a log, a URL, a pairing ticket, an argument on the command line (visible to every process) or anything the UI is sent. The UI only ever has public IDs.
@@ -43,7 +45,7 @@ alias:: [device key, device ID, graph ID, node ID, identifiers]
 	- Built: the types, the written form and the derivations. [[quiddity-identity]]
 	- Built: the graph ID, made with the graph and kept in its document. [[quiddity-core]]
 	- Built: the hello carries it, and a session refuses another graph's. The sync protocol changed, so its ALPN name did (`quiddity/sync/3`). [[quiddity-sync]]
-	- Planned: the device key moves out of the graph's file, into the device's own configuration directory, and new graphs' endpoint keys are derived from it. [[quiddity-node]]
+	- Built: the device key is in the device's own configuration directory, and new graphs' endpoint keys are derived from it and a salt in the graph's file. A file of the old layout gains a salt. [[quiddity-node]]
 	- Planned: node IDs, stored sealed with the mask and set as Loro's peer ID.
 	- Planned: the map of nodes to places, and forking a copy. [[Copied graphs]]
 	- Planned: noticing a twin, from changes that arrive under this replica's own node ID.

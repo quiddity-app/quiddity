@@ -1,7 +1,7 @@
 - How the UI is built around a graph on disk, rather than for the desktop app.
 - The gate is `QUIDDITY_STATIC_GRAPH`, read by `apps/ui/next.config.ts` at build time.
 	- It names a snapshot file, as written by `quiddity-node snapshot`.
-	- It is copied into `public/` as `graph.loro`, so it is published beside the pages. It is never the graph's own file, which holds the device's endpoint key. [[Storage]]
+	- It is copied into `public/` as `graph.loro`, so it is published beside the pages. It is never the graph's own file, which may hold the device's endpoint key. [[Storage]]
 	- `NEXT_PUBLIC_QUIDDITY_STATIC_GRAPH` is set to match, so the choice is made when the bundle is built and not when it runs.
 - A site also needs `names.txt` beside the snapshot (`QUIDDITY_STATIC_NAMES` says where else), as written by `quiddity-node names`, which fails if two entities share a name. The build fails without it.
 	- Each name becomes a page at `/page/<name>/`, and the UI addresses pages by name where it can. [[Page names]]

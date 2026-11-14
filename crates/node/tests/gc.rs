@@ -1,6 +1,8 @@
 //! Deciding which files may go: the ledger, the rule, and the collector over
 //! real stores.
 
+mod common;
+
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
@@ -12,7 +14,6 @@ use proptest::prelude::*;
 use quiddity_core::{Asset, BlockId, Graph, Index, Version};
 use quiddity_node::blobs::{Blobs, Hash};
 use quiddity_node::gc::{Collected, Ledger, collect};
-use quiddity_node::store::Store;
 
 const DAY: SignedDuration = SignedDuration::from_hours(24);
 
@@ -384,7 +385,10 @@ async fn a_damaged_line_with_a_capitalised_hash_still_protects_its_file() {
 
 fn node(graph: &Path) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_quiddity-node"));
-    command.arg("--graph").arg(graph);
+    command
+        .arg("--graph")
+        .arg(graph)
+        .env("QUIDDITY_CONFIG_DIR", common::keys(graph));
     command
 }
 
@@ -404,7 +408,7 @@ fn run(command: &mut Command) -> String {
 async fn the_command_notes_and_then_deletes() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("graph");
-    let store = Store::new(&path);
+    let store = common::store(&path);
     let graph = store.init(false).unwrap();
     let blobs = Blobs::open(&path).await.unwrap();
     let kept = blobs.put(&b"in use"[..]).await.unwrap();

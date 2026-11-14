@@ -1,6 +1,11 @@
 //! A graph on disk: one SQLite file holding the graph's snapshot and the
 //! device's endpoint key.
 //!
+//! The device's own key is not in it (see [`Keyring`]), so copying the file
+//! doesn't copy the device. A new graph's endpoint key is derived from that
+//! key and a random salt kept in the file. A graph made before then holds its
+//! endpoint key itself, which is kept so that its device ID is the same.
+//!
 //! SQLite is the file format because it is one file that other tools can
 //! open, it commits atomically, and more of what a device keeps (the bytes
 //! of binaries, the update log) can join it as tables. See
@@ -11,8 +16,8 @@
 //! our `application_id` and a schema version we know, its schema must be
 //! exactly ours (no triggers, views or tables we didn't make), and the
 //! connection runs with defensive mode on and with triggers, views and
-//! schema-defined functions off. The file holds the secret key, so it is
-//! created readable by its owner only.
+//! schema-defined functions off. An old graph's file holds its secret key, so
+//! it is created readable by its owner only.
 
 use std::fs;
 use std::io;
@@ -29,6 +34,8 @@ use rusqlite::{Connection, OpenFlags, OptionalExtension, params};
 use tracing::{debug, info, instrument, warn};
 
 use crate::StoreError;
+use crate::keyring::Keyring;
+use quiddity_identity::Salt;
 
 /// The graph, inside the graph's directory.
 const FILE: &str = "graph.quiddity";
@@ -61,30 +68,44 @@ const PREVIOUS: i64 = 2;
 
 const APPLICATION_ID: i32 = 0x5144_4459;
 /// SQLite's `user_version`: the layout of the tables below.
-const LAYOUT: i32 = 2;
+///
+/// 1: the snapshot, and the device's endpoint key. 2: and the blobs. 3: and the
+/// salt that a new graph's endpoint key is derived with.
+const LAYOUT: i32 = 3;
 
 /// Exactly the schema, as SQLite stores it (its `sql` column is the statement
 /// as written), so that a file with anything else in it is refused. One row
 /// each, enforced by the key, so there is no question which is current.
 /// The snapshot has two: row 1 is the current one, and row 2 the one before
 /// it, which `load` falls back to if row 1 can't be decoded.
-const TABLES: [(&str, &str); 3] = [
-    // Complete blobs by BLAKE3 hash. `outboard` (the hashes iroh-blobs needs
-    // to prove parts of the blob) comes before `data` so that reading it
-    // never walks the pages `data` overflows into.
-    (
-        "blob",
-        "CREATE TABLE blob (id INTEGER PRIMARY KEY, hash BLOB NOT NULL UNIQUE CHECK (length(hash) = 32), size INTEGER NOT NULL CHECK (size >= 0), outboard BLOB NOT NULL, data BLOB NOT NULL CHECK (length(data) = size)) STRICT",
-    ),
-    (
-        "snapshot",
-        "CREATE TABLE snapshot (id INTEGER PRIMARY KEY CHECK (id IN (1, 2)), data BLOB NOT NULL) STRICT",
-    ),
-    (
-        "endpoint_key",
-        "CREATE TABLE endpoint_key (id INTEGER PRIMARY KEY CHECK (id = 1), secret BLOB NOT NULL CHECK (length(secret) = 32)) STRICT",
-    ),
-];
+const TABLES: [(&str, &str); 4] = [BLOB_TABLE, SNAPSHOT_TABLE, ENDPOINT_KEY_TABLE, SLOT_TABLE];
+
+/// Complete blobs by BLAKE3 hash. `outboard` (the hashes iroh-blobs needs to
+/// prove parts of the blob) comes before `data` so that reading it never walks
+/// the pages `data` overflows into.
+const BLOB_TABLE: (&str, &str) = (
+    "blob",
+    "CREATE TABLE blob (id INTEGER PRIMARY KEY, hash BLOB NOT NULL UNIQUE CHECK (length(hash) = 32), size INTEGER NOT NULL CHECK (size >= 0), outboard BLOB NOT NULL, data BLOB NOT NULL CHECK (length(data) = size)) STRICT",
+);
+const SNAPSHOT_TABLE: (&str, &str) = (
+    "snapshot",
+    "CREATE TABLE snapshot (id INTEGER PRIMARY KEY CHECK (id IN (1, 2)), data BLOB NOT NULL) STRICT",
+);
+/// Only a graph made before the device's key was kept apart has a row here,
+/// and keeps it so that its device ID doesn't change.
+const ENDPOINT_KEY_TABLE: (&str, &str) = (
+    "endpoint_key",
+    "CREATE TABLE endpoint_key (id INTEGER PRIMARY KEY CHECK (id = 1), secret BLOB NOT NULL CHECK (length(secret) = 32)) STRICT",
+);
+/// One row: random, and not secret. What a derived key is specific to.
+const SLOT_TABLE: (&str, &str) = (
+    "slot",
+    "CREATE TABLE slot (id INTEGER PRIMARY KEY CHECK (id = 1), salt BLOB NOT NULL CHECK (length(salt) = 16)) STRICT",
+);
+
+/// What earlier layouts held, which are converted when they are opened.
+const TABLES_V1: [(&str, &str); 2] = [SNAPSHOT_TABLE, ENDPOINT_KEY_TABLE];
+const TABLES_V2: [(&str, &str); 3] = [BLOB_TABLE, SNAPSHOT_TABLE, ENDPOINT_KEY_TABLE];
 
 /// How long to wait for another process that has the file open before saying
 /// so: a node that is serving, and a command run beside it.
@@ -101,6 +122,8 @@ pub const ACTIVE: SignedDuration = SignedDuration::from_hours(24 * 30);
 #[derive(Debug, Clone)]
 pub struct Store {
     dir: PathBuf,
+    /// Where this device's key is, for a graph that derives its endpoint key.
+    keyring: Keyring,
     /// Serialises saves, which come from the command thread and the
     /// save-on-change task at once, and holds the version the snapshot in the
     /// file is known to hold: what a save may say this device has stored.
@@ -109,9 +132,10 @@ pub struct Store {
 }
 
 impl Store {
-    pub fn new(dir: impl Into<PathBuf>) -> Self {
+    pub fn new(dir: impl Into<PathBuf>, keyring: Keyring) -> Self {
         Self {
             dir: dir.into(),
+            keyring,
             durable: Arc::default(),
         }
     }
@@ -224,7 +248,7 @@ impl Store {
             (graph.snapshot()?, Version::default())
         } else {
             let now = Timestamp::now();
-            let id = key_in(&mut db)?.public().to_string();
+            let id = self.key_in(&db)?.public().to_string();
             graph.record_stored_at(&id, &durable, now)?;
             // The version before the snapshot is taken: the snapshot holds
             // at least that, and holds the record just made.
@@ -252,12 +276,37 @@ impl Store {
         Ok(())
     }
 
-    /// The device's endpoint key, created on first use. Its public half is
-    /// the device's ID.
+    /// The device's endpoint key for this graph, made on first use. Its public
+    /// half is the device's ID.
+    ///
+    /// A graph made before the device's key was kept apart has its own, in its
+    /// file. Any other derives it from the device's key and the file's salt, so
+    /// each graph has an ID of its own, and a copy of the file taken to another
+    /// device has another.
     #[instrument(level = "debug", skip_all, fields(dir = %self.dir.display()))]
     pub fn key(&self) -> Result<SecretKey, StoreError> {
         self.ensure()?;
-        key_in(&mut self.open()?)
+        self.key_in(&self.open()?)
+    }
+
+    fn key_in(&self, db: &Connection) -> Result<SecretKey, StoreError> {
+        let own: Option<Vec<u8>> = db
+            .query_row("SELECT secret FROM endpoint_key WHERE id = 1", [], |r| {
+                r.get(0)
+            })
+            .optional()?;
+        if let Some(bytes) = own {
+            let bytes: [u8; 32] = bytes
+                .try_into()
+                .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "bad endpoint key"))?;
+            return Ok(SecretKey::from_bytes(&bytes));
+        }
+        let salt = salt_in(db).map_err(|e| match e {
+            StoreError::Sqlite(_) => self.not_ours("it has no salt".into()),
+            e => e,
+        })?;
+        let seed = self.keyring.key()?.endpoint_seed(&salt);
+        Ok(SecretKey::from_bytes(&seed))
     }
 
     /// Moves the graph's file out of the way, without deleting it, so a new
@@ -274,7 +323,7 @@ impl Store {
         let mut durable = self.durable();
         let mut moved = Vec::new();
         if self.file().exists() {
-            let key = self.salvage_key();
+            let kept = self.salvage();
             let stamp = Timestamp::now().as_millisecond();
             // SQLite pairs a journal with its file by name, so one left beside
             // the new file would be rolled back into it: they go together.
@@ -289,45 +338,57 @@ impl Store {
                 }
             }
             sync_dir(&self.dir)?;
-            if let Some(key) = key {
+            if kept.key.is_some() || kept.salt.is_some() {
                 self.ensure().map_err(io::Error::other)?;
-                self.open()
-                    .map_err(io::Error::other)?
-                    .execute(
+                let db = self.open().map_err(io::Error::other)?;
+                if let Some(key) = kept.key {
+                    db.execute(
                         "INSERT OR IGNORE INTO endpoint_key (id, secret) VALUES (1, ?1)",
                         params![key.as_slice()],
                     )
                     .map_err(io::Error::other)?;
+                }
+                if let Some(salt) = kept.salt {
+                    db.execute(
+                        "UPDATE slot SET salt = ?1 WHERE id = 1",
+                        params![salt.as_slice()],
+                    )
+                    .map_err(io::Error::other)?;
+                }
             }
         }
         *durable = Version::default();
         Ok(moved)
     }
 
-    /// The key in a file that may be damaged, if it will give it up. The file
-    /// is opened read-only, which can't change it: a writer that finds a
-    /// journal beside it would roll the journal back and delete it, and what
-    /// is set aside is meant to be as it was found.
-    fn salvage_key(&self) -> Option<[u8; 32]> {
-        let db = Connection::open_with_flags(
-            self.file(),
-            OpenFlags::SQLITE_OPEN_READ_ONLY.union(OpenFlags::SQLITE_OPEN_NO_MUTEX),
-        )
-        .ok()?;
-        db.set_db_config(DbConfig::SQLITE_DBCONFIG_DEFENSIVE, true)
+    /// What gives the device its identity, in a file that may be damaged, if it
+    /// will give it up: the endpoint key of a graph that has its own, and the
+    /// salt. The file is opened read-only, which can't change it: a writer that
+    /// finds a journal beside it would roll the journal back and delete it, and
+    /// what is set aside is meant to be as it was found.
+    fn salvage(&self) -> Salvaged {
+        (|| {
+            let db = Connection::open_with_flags(
+                self.file(),
+                OpenFlags::SQLITE_OPEN_READ_ONLY.union(OpenFlags::SQLITE_OPEN_NO_MUTEX),
+            )
             .ok()?;
-        db.set_db_config(DbConfig::SQLITE_DBCONFIG_TRUSTED_SCHEMA, false)
-            .ok()?;
-        db.set_db_config(DbConfig::SQLITE_DBCONFIG_ENABLE_TRIGGER, false)
-            .ok()?;
-        db.set_db_config(DbConfig::SQLITE_DBCONFIG_ENABLE_VIEW, false)
-            .ok()?;
-        let bytes: Vec<u8> = db
-            .query_row("SELECT secret FROM endpoint_key WHERE id = 1", [], |r| {
-                r.get(0)
+            db.set_db_config(DbConfig::SQLITE_DBCONFIG_DEFENSIVE, true)
+                .ok()?;
+            db.set_db_config(DbConfig::SQLITE_DBCONFIG_TRUSTED_SCHEMA, false)
+                .ok()?;
+            db.set_db_config(DbConfig::SQLITE_DBCONFIG_ENABLE_TRIGGER, false)
+                .ok()?;
+            db.set_db_config(DbConfig::SQLITE_DBCONFIG_ENABLE_VIEW, false)
+                .ok()?;
+            let blob = |sql: &str| -> Option<Vec<u8>> { db.query_row(sql, [], |r| r.get(0)).ok() };
+            Some(Salvaged {
+                key: blob("SELECT secret FROM endpoint_key WHERE id = 1")
+                    .and_then(|b| b.try_into().ok()),
+                salt: blob("SELECT salt FROM slot WHERE id = 1").and_then(|b| b.try_into().ok()),
             })
-            .ok()?;
-        bytes.try_into().ok()
+        })()
+        .unwrap_or_default()
     }
 
     /// Makes the file, with its schema and nothing in it, if there is none.
@@ -376,6 +437,10 @@ impl Store {
             }
             statements.push_str("COMMIT;");
             db.execute_batch(&statements)?;
+            db.execute(
+                "INSERT INTO slot (id, salt) VALUES (1, ?1)",
+                params![new_salt()?.as_slice()],
+            )?;
             Ok::<(), StoreError>(())
         })();
         if let Err(e) = made {
@@ -410,42 +475,80 @@ impl Store {
             }
             self.migrate()?;
         }
-        let db = self.connect()?;
+        let mut db = self.connect()?;
         let id: i32 = db.pragma_query_value(None, "application_id", |r| r.get(0))?;
         let layout: i32 = db.pragma_query_value(None, "user_version", |r| r.get(0))?;
         if id != APPLICATION_ID {
             return Err(self.not_ours("it is not a Quiddity graph".into()));
         }
-        if layout == 1 {
-            // Layout 1 had no blobs; the table is the only difference.
-            db.execute_batch(&format!(
-                "BEGIN; {}; PRAGMA user_version = {LAYOUT}; COMMIT;",
-                TABLES[0].1
-            ))?;
-            return self.open();
+        match layout {
+            LAYOUT => {}
+            1 | 2 => self.upgrade(&mut db)?,
+            _ => {
+                return Err(self.not_ours(format!(
+                    "its layout is version {layout}, and this build reads version {LAYOUT}"
+                )));
+            }
         }
-        if layout != LAYOUT {
-            return Err(self.not_ours(format!(
-                "its layout is version {layout}, and this build reads version {LAYOUT}"
-            )));
-        }
-        // Each statement is stored as written, and names its own kind and name,
-        // so the statements alone say whether this is exactly our schema. Those
-        // SQLite makes itself, for a `UNIQUE`, have none and are left out.
+        self.check_schema(&db, &TABLES)?;
+        Ok(db)
+    }
+
+    /// Whether the file's schema is exactly `tables`. Each statement is stored
+    /// as written, and names its own kind and name, so the statements alone
+    /// say whether this is exactly our schema. Those SQLite makes itself, for
+    /// a `UNIQUE`, have none and are left out.
+    fn check_schema(&self, db: &Connection, tables: &[(&str, &str)]) -> Result<(), StoreError> {
         let found: Vec<String> = db
             .prepare("SELECT sql FROM sqlite_schema WHERE sql IS NOT NULL ORDER BY name")?
             .query_map([], |r| r.get(0))?
             .collect::<Result<_, _>>()?;
-        let mut expected: Vec<_> = TABLES.iter().collect();
+        let mut expected: Vec<_> = tables.iter().collect();
         expected.sort();
-        let matches = found.iter().eq(expected.iter().map(|(_, sql)| sql));
-        if !matches {
+        if !found.iter().eq(expected.iter().map(|(_, sql)| sql)) {
             return Err(self.not_ours(
                 "it holds more than a graph does (tables, views, triggers or indexes of another's)"
                     .into(),
             ));
         }
-        Ok(db)
+        Ok(())
+    }
+
+    /// Converts a file of an earlier layout: layout 1 gains the blob table, and
+    /// both gain the salt, which only a graph that derives its key uses (one
+    /// made before keeps its own endpoint key).
+    ///
+    /// The layout is read again, and the file's schema checked against exactly
+    /// what that layout held, under the write lock and not before it. Another
+    /// process opening the file at the same moment may convert it between a
+    /// read and a lock, and a check made outside would then find its tables and
+    /// call the file damaged. Whoever gets the lock second finds it done.
+    fn upgrade(&self, db: &mut Connection) -> Result<(), StoreError> {
+        let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let layout: i32 = tx.pragma_query_value(None, "user_version", |r| r.get(0))?;
+        match layout {
+            LAYOUT => {}
+            1 | 2 => {
+                self.check_schema(&tx, if layout == 1 { &TABLES_V1 } else { &TABLES_V2 })?;
+                info!(layout, "converting the graph's file to layout {LAYOUT}");
+                if layout == 1 {
+                    tx.execute_batch(BLOB_TABLE.1)?;
+                }
+                tx.execute_batch(SLOT_TABLE.1)?;
+                tx.execute(
+                    "INSERT INTO slot (id, salt) VALUES (1, ?1)",
+                    params![new_salt()?.as_slice()],
+                )?;
+                tx.pragma_update(None, "user_version", LAYOUT)?;
+            }
+            _ => {
+                return Err(self.not_ours(format!(
+                    "its layout is version {layout}, and this build reads version {LAYOUT}"
+                )));
+            }
+        }
+        tx.commit()?;
+        Ok(())
     }
 
     /// A connection with the file's protections on, whatever is in it.
@@ -537,48 +640,89 @@ impl Store {
     }
 }
 
-/// The key in the file, made if there is none. It is read without taking a
-/// write lock, since it is asked for far more often than it is made; only
-/// making it does, as `INSERT OR IGNORE` then `SELECT` in one transaction, so
-/// that two processes starting at once agree.
-fn key_in(db: &mut Connection) -> Result<SecretKey, StoreError> {
-    let read = |db: &Connection| -> rusqlite::Result<Option<Vec<u8>>> {
-        db.query_row("SELECT secret FROM endpoint_key WHERE id = 1", [], |r| {
-            r.get(0)
-        })
-        .optional()
-    };
-    let bytes = match read(db)? {
-        Some(bytes) => bytes,
-        None => {
-            let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-            let made = SecretKey::generate();
-            info!("making this device's endpoint key");
-            tx.execute(
-                "INSERT OR IGNORE INTO endpoint_key (id, secret) VALUES (1, ?1)",
-                params![made.to_bytes().as_slice()],
-            )?;
-            let bytes = read(&tx)?.expect("the key was just inserted, or was there");
-            tx.commit()?;
-            bytes
-        }
-    };
-    let bytes: [u8; 32] = bytes
+/// What [`Store::salvage`] found.
+#[derive(Debug, Default)]
+struct Salvaged {
+    key: Option<[u8; 32]>,
+    salt: Option<[u8; 16]>,
+}
+
+/// The salt in the file.
+fn salt_in(db: &Connection) -> Result<Salt, StoreError> {
+    let bytes: Vec<u8> = db.query_row("SELECT salt FROM slot WHERE id = 1", [], |r| r.get(0))?;
+    let bytes: [u8; 16] = bytes
         .try_into()
-        .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "bad endpoint key"))?;
-    Ok(SecretKey::from_bytes(&bytes))
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "bad salt"))?;
+    Ok(Salt::from_bytes(bytes))
+}
+
+/// A salt for a new file.
+fn new_salt() -> Result<[u8; 16], StoreError> {
+    let mut salt = [0u8; 16];
+    getrandom::fill(&mut salt).map_err(|e| io::Error::other(e.to_string()))?;
+    Ok(salt)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    /// The store of the graph in `dir`, for a device whose key is in `dir/keys`
+    /// (so that two stores of one directory are one device).
+    fn store_at(dir: impl AsRef<Path>) -> Store {
+        let dir = dir.as_ref();
+        Store::new(dir, Keyring::new(dir.join("keys")))
+    }
+
+    /// Makes the file what an earlier build made: layout 1 had neither blobs
+    /// nor a salt, and layout 2 had no salt.
+    fn as_layout(store: &Store, layout: i32) {
+        let tables = match layout {
+            1 => "DROP TABLE blob; DROP TABLE slot;",
+            2 => "DROP TABLE slot;",
+            _ => panic!("no such earlier layout"),
+        };
+        store
+            .connect()
+            .unwrap()
+            .execute_batch(&format!("{tables} PRAGMA user_version = {layout};"))
+            .unwrap();
+    }
+
+    /// Runs `f` again while the file is busy. Processes starting together make it
+    /// so for a moment, and `BUSY` is short in tests: what the tests of what they
+    /// agree on check is that they agree and none finds the file damaged, not
+    /// how long a lock is held.
+    fn patiently<T>(mut f: impl FnMut() -> Result<T, StoreError>) -> T {
+        let start = std::time::Instant::now();
+        loop {
+            match f() {
+                Ok(value) => return value,
+                Err(StoreError::Sqlite(rusqlite::Error::SqliteFailure(e, _)))
+                    if e.code == rusqlite::ErrorCode::DatabaseBusy
+                        && start.elapsed() < Duration::from_secs(30) =>
+                {
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+                Err(e) => panic!("{e:?}"),
+            }
+        }
+    }
+
+    fn layout(store: &Store) -> i32 {
+        store
+            .connect()
+            .unwrap()
+            .pragma_query_value(None, "user_version", |r| r.get(0))
+            .unwrap()
+    }
+
     /// A device on its own needs no history: once it has saved, what it
     /// stores is compacted, and records that it stored it.
     #[test]
     fn saving_records_the_device_and_compacts() {
         let tmp = tempfile::tempdir().unwrap();
-        let store = Store::new(tmp.path());
+        let store = store_at(tmp.path());
         let graph = store.init(false).unwrap();
         let id = store.key().unwrap().public().to_string();
         let block = graph.create_block(None, None, "").unwrap();
@@ -610,7 +754,7 @@ mod tests {
     fn silent_devices_hold_compaction_back_for_a_month() {
         for (days, compacted) in [(29, false), (31, true)] {
             let tmp = tempfile::tempdir().unwrap();
-            let store = Store::new(tmp.path());
+            let store = store_at(tmp.path());
             let graph = store.init(false).unwrap();
             let seen = Timestamp::now() - SignedDuration::from_hours(24 * days);
             graph
@@ -630,7 +774,7 @@ mod tests {
     #[test]
     fn a_failed_save_claims_nothing_new() {
         let tmp = tempfile::tempdir().unwrap();
-        let store = Store::new(tmp.path());
+        let store = store_at(tmp.path());
         let graph = store.init(false).unwrap();
         let id = store.key().unwrap().public().to_string();
         let claim = |graph: &Graph| {
@@ -667,7 +811,7 @@ mod tests {
     #[test]
     fn a_save_records_what_the_file_held_before() {
         let tmp = tempfile::tempdir().unwrap();
-        let store = Store::new(tmp.path());
+        let store = store_at(tmp.path());
         let graph = store.init(false).unwrap();
         let id = store.key().unwrap().public().to_string();
         let claim = |graph: &Graph| {
@@ -685,7 +829,7 @@ mod tests {
         assert_eq!(claim(&graph), first);
 
         // A fresh handle that loads the file records what it found there.
-        let loaded = Store::new(tmp.path());
+        let loaded = store_at(tmp.path());
         let graph = loaded.load().unwrap();
         let found = graph.version();
         graph.create_block(None, None, "third").unwrap();
@@ -699,7 +843,7 @@ mod tests {
     #[test]
     fn a_save_keeps_the_previous_snapshot() {
         let tmp = tempfile::tempdir().unwrap();
-        let store = Store::new(tmp.path());
+        let store = store_at(tmp.path());
         let graph = store.init(false).unwrap();
         let block = graph.create_block(None, None, "first").unwrap();
         graph.commit();
@@ -722,7 +866,7 @@ mod tests {
     #[test]
     fn a_bad_snapshot_is_an_error() {
         let tmp = tempfile::tempdir().unwrap();
-        let store = Store::new(tmp.path());
+        let store = store_at(tmp.path());
         store.init(false).unwrap();
         store
             .connect()
@@ -736,7 +880,7 @@ mod tests {
     #[test]
     fn concurrent_saves_all_succeed() {
         let tmp = tempfile::tempdir().unwrap();
-        let store = Store::new(tmp.path());
+        let store = store_at(tmp.path());
         let graph = store.init(false).unwrap();
         std::thread::scope(|s| {
             for _ in 0..4 {
@@ -762,7 +906,7 @@ mod tests {
         graph.commit();
         fs::write(tmp.path().join(LEGACY_SNAPSHOT), graph.snapshot().unwrap()).unwrap();
 
-        let store = Store::new(tmp.path());
+        let store = store_at(tmp.path());
         assert_eq!(store.load().unwrap().text(block).unwrap(), "now");
         store
             .connect()
@@ -778,7 +922,7 @@ mod tests {
     #[test]
     fn a_blank_replica_records_nothing() {
         let tmp = tempfile::tempdir().unwrap();
-        let store = Store::new(tmp.path());
+        let store = store_at(tmp.path());
         store.init(true).unwrap();
         assert_eq!(store.load().unwrap().version(), Version::default());
     }
@@ -788,7 +932,7 @@ mod tests {
     #[test]
     fn loading_where_there_is_no_graph_names_the_directory() {
         let tmp = tempfile::tempdir().unwrap();
-        let err = Store::new(tmp.path()).load().unwrap_err();
+        let err = store_at(tmp.path()).load().unwrap_err();
         assert!(matches!(err, crate::StoreError::Missing(_)), "{err:?}");
         let message = err.to_string();
         assert!(message.contains(&tmp.path().display().to_string()));
@@ -800,11 +944,11 @@ mod tests {
     #[test]
     fn the_endpoint_key_is_kept() {
         let tmp = tempfile::tempdir().unwrap();
-        let store = Store::new(tmp.path());
+        let store = store_at(tmp.path());
         store.init(true).unwrap();
         let key = store.key().unwrap();
         assert_eq!(store.key().unwrap().public(), key.public());
-        assert_eq!(Store::new(tmp.path()).key().unwrap().public(), key.public());
+        assert_eq!(store_at(tmp.path()).key().unwrap().public(), key.public());
     }
 
     /// The file holds the secret key, so nobody else may read it, nor the
@@ -814,7 +958,7 @@ mod tests {
     fn the_file_is_private_to_its_owner() {
         use std::os::unix::fs::PermissionsExt;
         let tmp = tempfile::tempdir().unwrap();
-        let store = Store::new(tmp.path());
+        let store = store_at(tmp.path());
         store.init(false).unwrap();
         let mode = fs::metadata(store.file()).unwrap().permissions().mode();
         assert_eq!(mode & 0o777, 0o600);
@@ -824,12 +968,13 @@ mod tests {
     #[test]
     fn a_saved_graph_is_one_file() {
         let tmp = tempfile::tempdir().unwrap();
-        let store = Store::new(tmp.path());
+        let dir = tmp.path().join("graph");
+        let store = Store::new(&dir, Keyring::new(tmp.path().join("keys")));
         let graph = store.init(false).unwrap();
         graph.create_block(None, None, "text").unwrap();
         graph.commit();
         store.save(&graph).unwrap();
-        let names: Vec<_> = fs::read_dir(tmp.path())
+        let names: Vec<_> = fs::read_dir(&dir)
             .unwrap()
             .map(|e| e.unwrap().file_name().into_string().unwrap())
             .collect();
@@ -843,7 +988,7 @@ mod tests {
     fn a_file_that_is_not_ours_is_refused() {
         let cases: [(&str, &str); 6] = [
             ("another application", "PRAGMA application_id = 7"),
-            ("a later layout", "PRAGMA user_version = 3"),
+            ("a later layout", "PRAGMA user_version = 4"),
             (
                 "a trigger",
                 "CREATE TRIGGER t AFTER UPDATE ON snapshot BEGIN SELECT 1; END",
@@ -861,7 +1006,7 @@ mod tests {
         ];
         for (what, sql) in cases {
             let tmp = tempfile::tempdir().unwrap();
-            let store = Store::new(tmp.path());
+            let store = store_at(tmp.path());
             store.init(false).unwrap();
             store.connect().unwrap().execute_batch(sql).unwrap();
             let err = store.load().unwrap_err();
@@ -879,7 +1024,7 @@ mod tests {
             b"not a database, but long enough to look like one",
         )
         .unwrap();
-        assert!(Store::new(tmp.path()).load().is_err());
+        assert!(store_at(tmp.path()).load().is_err());
     }
 
     /// A directory from before the graph was one file is converted: its
@@ -894,7 +1039,7 @@ mod tests {
         fs::write(tmp.path().join(LEGACY_SNAPSHOT), graph.snapshot().unwrap()).unwrap();
         fs::write(tmp.path().join(LEGACY_KEY), key.to_bytes()).unwrap();
 
-        let store = Store::new(tmp.path());
+        let store = store_at(tmp.path());
         assert_eq!(store.load().unwrap().text(block).unwrap(), "kept");
         assert_eq!(store.key().unwrap().public(), key.public());
         assert!(tmp.path().join(FILE).exists());
@@ -918,7 +1063,7 @@ mod tests {
             Graph::new().snapshot().unwrap(),
         )
         .unwrap();
-        let store = Store::new(tmp.path());
+        let store = store_at(tmp.path());
         store.load().unwrap();
         assert_eq!(store.key().unwrap().public(), store.key().unwrap().public());
     }
@@ -928,7 +1073,7 @@ mod tests {
     #[test]
     fn setting_aside_keeps_the_bytes() {
         let tmp = tempfile::tempdir().unwrap();
-        let store = Store::new(tmp.path());
+        let store = store_at(tmp.path());
         assert!(store.set_aside().unwrap().is_empty());
 
         let graph = store.init(false).unwrap();
@@ -960,7 +1105,7 @@ mod tests {
     #[test]
     fn a_damaged_file_is_set_aside_whole() {
         let tmp = tempfile::tempdir().unwrap();
-        let store = Store::new(tmp.path());
+        let store = store_at(tmp.path());
         fs::write(
             store.file(),
             b"not a database, and long enough to look like one",
@@ -991,7 +1136,7 @@ mod tests {
     #[test]
     fn a_key_asked_for_first_is_kept_by_init() {
         let tmp = tempfile::tempdir().unwrap();
-        let store = Store::new(tmp.path());
+        let store = store_at(tmp.path());
         let key = store.key().unwrap();
         assert!(matches!(
             store.load().unwrap_err(),
@@ -1008,7 +1153,7 @@ mod tests {
             let tmp = tempfile::tempdir().unwrap();
             let keys: Vec<_> = std::thread::scope(|s| {
                 let handles: Vec<_> = (0..4)
-                    .map(|_| s.spawn(|| Store::new(tmp.path()).key().unwrap().to_bytes()))
+                    .map(|_| s.spawn(|| store_at(tmp.path()).key().unwrap().to_bytes()))
                     .collect();
                 handles.into_iter().map(|h| h.join().unwrap()).collect()
             });
@@ -1023,7 +1168,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let key = SecretKey::generate();
         fs::write(tmp.path().join(LEGACY_KEY), key.to_bytes()).unwrap();
-        let store = Store::new(tmp.path());
+        let store = store_at(tmp.path());
         assert_eq!(store.key().unwrap().public(), key.public());
         assert!(matches!(
             store.load().unwrap_err(),
@@ -1036,7 +1181,7 @@ mod tests {
     #[test]
     fn layout_one_gains_the_blob_table() {
         let tmp = tempfile::tempdir().unwrap();
-        let store = Store::new(tmp.path());
+        let store = store_at(tmp.path());
         let graph = store.init(false).unwrap();
         let block = graph.create_block(None, None, "kept").unwrap();
         graph.commit();
@@ -1044,7 +1189,7 @@ mod tests {
         store
             .connect()
             .unwrap()
-            .execute_batch("DROP TABLE blob; PRAGMA user_version = 1;")
+            .execute_batch("DROP TABLE blob; DROP TABLE slot; PRAGMA user_version = 1;")
             .unwrap();
 
         assert_eq!(store.load().unwrap().text(block).unwrap(), "kept");
@@ -1064,14 +1209,267 @@ mod tests {
     #[test]
     fn init_does_not_replace_a_graph() {
         let tmp = tempfile::tempdir().unwrap();
-        let store = Store::new(tmp.path());
+        let store = store_at(tmp.path());
         store.init(false).unwrap();
         assert!(matches!(store.init(false), Err(StoreError::Exists(_))));
         let old = tempfile::tempdir().unwrap();
         fs::write(old.path().join(LEGACY_SNAPSHOT), b"x").unwrap();
         assert!(matches!(
-            Store::new(old.path()).init(false),
+            store_at(old.path()).init(false),
             Err(StoreError::Exists(_))
         ));
+    }
+
+    /// What each way of getting a key gives: the derived key is exactly what
+    /// the device's key and the file's salt say, and nothing of it is kept in
+    /// the file.
+    #[test]
+    fn a_new_graphs_key_is_derived_from_the_device_key_and_the_files_salt() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = store_at(tmp.path());
+        store.init(false).unwrap();
+        let key = store.key().unwrap();
+
+        let db = store.connect().unwrap();
+        let held: i64 = db
+            .query_row("SELECT count(*) FROM endpoint_key", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(held, 0, "no key of its own");
+        let salt = salt_in(&db).unwrap();
+        let device = store.keyring.key().unwrap();
+        assert_eq!(
+            key.to_bytes(),
+            *device.endpoint_seed(&salt),
+            "it is what the device key and the salt say"
+        );
+        assert_ne!(key.to_bytes(), salt.to_bytes().repeat(2)[..32]);
+
+        // And neither it nor the device's key is in the file.
+        store.save(&Graph::new()).unwrap();
+        let file = fs::read(store.file()).unwrap();
+        let contains = |needle: &[u8]| file.windows(needle.len()).any(|w| w == needle);
+        assert!(
+            !contains(&key.to_bytes()),
+            "the endpoint key is in the file"
+        );
+        assert!(contains(&salt.to_bytes()), "the salt is");
+        assert!(!contains(device.to_token().as_bytes()));
+        assert_eq!(
+            store.key().unwrap().to_bytes(),
+            key.to_bytes(),
+            "and is stable"
+        );
+    }
+
+    /// Each graph a device holds is a device of its own, and a file taken to
+    /// another device is another device: neither copies the one that made it.
+    #[test]
+    fn graphs_are_devices_of_their_own_and_a_copy_on_another_device_is_another() {
+        let tmp = tempfile::tempdir().unwrap();
+        let keys = Keyring::new(tmp.path().join("keys"));
+        let at = |name: &str, keys: &Keyring| Store::new(tmp.path().join(name), keys.clone());
+
+        let (one, two) = (at("one", &keys), at("two", &keys));
+        one.init(false).unwrap();
+        two.init(false).unwrap();
+        assert_ne!(one.key().unwrap().public(), two.key().unwrap().public());
+
+        // The file copied beside it, for the same device: the same device,
+        // which is what the map of where graphs are exists to notice.
+        let copy = at("copy", &keys);
+        fs::create_dir_all(copy.dir()).unwrap();
+        fs::copy(one.file(), copy.file()).unwrap();
+        assert_eq!(copy.key().unwrap().public(), one.key().unwrap().public());
+
+        // The file copied to a device with another key: another device.
+        let elsewhere = at("elsewhere", &Keyring::new(tmp.path().join("other keys")));
+        fs::create_dir_all(elsewhere.dir()).unwrap();
+        fs::copy(one.file(), elsewhere.file()).unwrap();
+        assert_ne!(
+            elsewhere.key().unwrap().public(),
+            one.key().unwrap().public()
+        );
+    }
+
+    /// The device's key is shared by every graph, and made once.
+    #[test]
+    fn every_graph_on_a_device_uses_its_one_key() {
+        let tmp = tempfile::tempdir().unwrap();
+        let keys = Keyring::new(tmp.path().join("keys"));
+        for name in ["a", "b", "c"] {
+            let store = Store::new(tmp.path().join(name), keys.clone());
+            store.init(false).unwrap();
+            store.key().unwrap();
+        }
+        assert_eq!(fs::read_dir(keys.dir()).unwrap().count(), 1);
+    }
+
+    /// The file's own salts differ, or the graphs would be one device.
+    #[test]
+    fn each_file_has_a_salt_of_its_own() {
+        let tmp = tempfile::tempdir().unwrap();
+        let salts: Vec<_> = (0..8)
+            .map(|i| {
+                let store = store_at(tmp.path().join(format!("g{i}")));
+                store.init(false).unwrap();
+                salt_in(&store.connect().unwrap()).unwrap().to_bytes()
+            })
+            .collect();
+        let distinct: std::collections::HashSet<_> = salts.iter().collect();
+        assert_eq!(distinct.len(), salts.len());
+        assert!(salts.iter().all(|s| s != &[0; 16]));
+    }
+
+    /// A graph made before the device's key was kept apart (layout 1 or 2) keeps
+    /// its own key, and so its device ID, and doesn't ask for the device's: it is
+    /// only given a salt.
+    #[test]
+    fn a_file_of_an_earlier_layout_keeps_its_key_and_gains_a_salt() {
+        for old in [1, 2] {
+            let tmp = tempfile::tempdir().unwrap();
+            let store = store_at(tmp.path());
+            let graph = Graph::new();
+            let block = graph.create_block(None, None, "kept").unwrap();
+            graph.commit();
+            // Made by another device, so that this one's key is not made on the way.
+            let maker = Store::new(tmp.path(), Keyring::new(tmp.path().join("maker's keys")));
+            maker.init(false).unwrap();
+            maker.save(&graph).unwrap();
+            // Make the file what the last build made: no salt, and its own key.
+            as_layout(&store, old);
+            let own = SecretKey::generate();
+            store
+                .connect()
+                .unwrap()
+                .execute(
+                    "INSERT INTO endpoint_key (id, secret) VALUES (1, ?1)",
+                    params![own.to_bytes().as_slice()],
+                )
+                .unwrap();
+            assert_eq!(layout(&store), old);
+
+            assert_eq!(store.key().unwrap().public(), own.public(), "layout {old}");
+            assert_eq!(layout(&store), LAYOUT);
+            assert!(salt_in(&store.connect().unwrap()).is_ok());
+            assert_eq!(store.load().unwrap().text(block).unwrap(), "kept");
+            assert!(
+                !store.keyring.dir().exists(),
+                "the device's key was not asked for"
+            );
+            // And a blob can be kept in it, which layout 1 couldn't.
+            store
+                .connect()
+                .unwrap()
+                .execute(
+                    "INSERT INTO blob (hash, size, outboard, data) VALUES (zeroblob(32), 1, x'', x'00')",
+                    [],
+                )
+                .unwrap();
+        }
+    }
+
+    /// Opening a file of an earlier layout from several threads at once: the
+    /// check that it is exactly that layout is made under the lock, so whoever
+    /// is second finds it converted and not damaged. (It was made before the
+    /// lock, and failed about one time in twelve under load.) Done over and over,
+    /// since it is a race.
+    #[test]
+    fn an_earlier_layout_is_converted_once_however_many_open_it() {
+        for round in 0..20 {
+            for old in [1, 2] {
+                let tmp = tempfile::tempdir().unwrap();
+                let store = store_at(tmp.path());
+                store.init(false).unwrap();
+                as_layout(&store, old);
+                let salts: Vec<_> = std::thread::scope(|s| {
+                    (0..6)
+                        .map(|_| {
+                            s.spawn(|| {
+                                let store = store_at(tmp.path());
+                                let db = patiently(|| store.open());
+                                salt_in(&db).unwrap().to_bytes()
+                            })
+                        })
+                        .collect::<Vec<_>>()
+                        .into_iter()
+                        .map(|t| t.join().unwrap())
+                        .collect()
+                });
+                assert!(
+                    salts.windows(2).all(|w| w[0] == w[1]),
+                    "round {round}, layout {old}: {salts:?}"
+                );
+                assert_eq!(layout(&store), LAYOUT);
+            }
+        }
+    }
+
+    /// A process that read the layout before another converted the file finds
+    /// it converted when it takes the lock, and carries on: the race above,
+    /// made to happen every time.
+    #[test]
+    fn a_stale_reading_of_the_layout_is_not_an_error() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = store_at(tmp.path());
+        store.init(false).unwrap();
+        as_layout(&store, 1);
+        let mut late = store.connect().unwrap();
+        // Another process converts the file; this one is about to as well.
+        store.open().unwrap();
+        assert_eq!(layout(&store), LAYOUT);
+        let salt = salt_in(&store.connect().unwrap()).unwrap();
+        store.upgrade(&mut late).unwrap();
+        assert_eq!(
+            salt_in(&store.connect().unwrap()).unwrap(),
+            salt,
+            "not done twice"
+        );
+    }
+
+    /// An earlier layout is only converted if it is exactly that layout.
+    #[test]
+    fn an_earlier_layout_with_more_in_it_is_refused_and_left_alone() {
+        for old in [1, 2] {
+            let tmp = tempfile::tempdir().unwrap();
+            let store = store_at(tmp.path());
+            store.init(false).unwrap();
+            as_layout(&store, old);
+            store
+                .connect()
+                .unwrap()
+                .execute_batch("CREATE TABLE extra (x)")
+                .unwrap();
+            assert!(matches!(
+                store.load().unwrap_err(),
+                StoreError::Unreadable(..)
+            ));
+            assert_eq!(layout(&store), old, "not converted");
+        }
+    }
+
+    /// A key that can't be read is reported before anything is written, and
+    /// the graph is as it was.
+    #[test]
+    fn saving_without_a_usable_device_key_changes_nothing() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = store_at(tmp.path());
+        let graph = store.init(false).unwrap();
+        graph.create_block(None, None, "before").unwrap();
+        graph.commit();
+        store.save(&graph).unwrap();
+        let before = fs::read(store.file()).unwrap();
+
+        fs::write(store.keyring.dir().join("device.key"), "damaged\n").unwrap();
+        graph.create_block(None, None, "after").unwrap();
+        graph.commit();
+        assert!(matches!(
+            store.save(&graph).unwrap_err(),
+            StoreError::DeviceKey(..)
+        ));
+        assert!(matches!(
+            store.key().unwrap_err(),
+            StoreError::DeviceKey(..)
+        ));
+        assert_eq!(fs::read(store.file()).unwrap(), before);
     }
 }
