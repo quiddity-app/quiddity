@@ -128,26 +128,11 @@ impl Ledger {
     /// The ledger in the graph's file. A text ledger left from before is
     /// taken in first, and set aside.
     pub fn load(graph_dir: &Path) -> Result<Self, CollectError> {
-        let db = Store::new(graph_dir).connection()?;
-        let legacy = graph_dir.join(LEDGER);
-        match std::fs::read_to_string(&legacy) {
-            Ok(text) => {
-                // Sightings already in the file stand: they are the later ones.
-                for (hash, seen) in Self::from_text(&text).seen {
-                    db.execute(
-                        "INSERT OR IGNORE INTO unreferenced (hash, seen, version) VALUES (?1, ?2, ?3)",
-                        params![
-                            hash.as_bytes().as_slice(),
-                            seen.at.as_second(),
-                            seen.version.encode()
-                        ],
-                    )
-                    .map_err(crate::StoreError::from)?;
-                }
-                std::fs::rename(&legacy, graph_dir.join(format!("{LEDGER}.migrated")))?;
-            }
-            Err(e) if e.kind() == io::ErrorKind::NotFound => {}
-            Err(e) => return Err(e.into()),
+        let store = Store::new(graph_dir);
+        let db = store.connection()?;
+        // Only a graph in a directory can have had the text file beside it.
+        if let Some(dir) = store.legacy_dir() {
+            take_in_text_ledger(&db, dir)?;
         }
         let rows: Vec<(Vec<u8>, i64, Vec<u8>)> = db
             .prepare("SELECT hash, seen, version FROM unreferenced")
@@ -190,6 +175,31 @@ impl Ledger {
         })();
         Ok(saved.map_err(crate::StoreError::from)?)
     }
+}
+
+/// Takes in the text ledger kept before the file held it, if there is one, and
+/// sets it aside. Sightings already in the file stand: they are the later ones.
+fn take_in_text_ledger(db: &rusqlite::Connection, dir: &Path) -> Result<(), CollectError> {
+    let legacy = dir.join(LEDGER);
+    match std::fs::read_to_string(&legacy) {
+        Ok(text) => {
+            for (hash, seen) in Ledger::from_text(&text).seen {
+                db.execute(
+                    "INSERT OR IGNORE INTO unreferenced (hash, seen, version) VALUES (?1, ?2, ?3)",
+                    params![
+                        hash.as_bytes().as_slice(),
+                        seen.at.as_second(),
+                        seen.version.encode()
+                    ],
+                )
+                .map_err(crate::StoreError::from)?;
+            }
+            std::fs::rename(&legacy, dir.join(format!("{LEDGER}.migrated")))?;
+        }
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+        Err(e) => return Err(e.into()),
+    }
+    Ok(())
 }
 
 fn from_hex(text: &str) -> Option<Vec<u8>> {

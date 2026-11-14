@@ -116,3 +116,21 @@ fn opening_blobs_brings_the_old_ones_in() {
         assert!(!dir.path().join("blobs").exists());
     });
 }
+
+/// A graph named by its file has no old `blobs/` of its own: one beside it is
+/// somebody else's, and is left where it is.
+#[test]
+fn a_graph_named_by_its_file_does_not_take_its_neighbours_blobs() {
+    runtime().block_on(async {
+        let (dir, _graph) = graph();
+        let held = bytes(1000, 4);
+        let hashes = old_store(dir.path(), std::slice::from_ref(&held)).await;
+
+        let mine = dir.path().join("mine.quiddity");
+        let blobs = quiddity_node::blobs::Blobs::open(&mine).await.unwrap();
+        assert!(blobs.stored().await.unwrap().is_empty());
+        assert!(!blobs.has(hashes[0]).await.unwrap());
+        assert!(dir.path().join("blobs/blobs.db").exists());
+        assert!(!dir.path().join("blobs.migrated").exists());
+    });
+}
