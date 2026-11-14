@@ -97,8 +97,17 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
   (`Graph::set_node_id`; `init` makes the graph as that node, so nothing is
   written under a throwaway peer). It is stored sealed, with a mask derived from
   the device's key and the file's salt, so a file from another device doesn't
-  open it and gets a new one. That is all a *copy beside the original on one
-  device* can't be told by: it is the same node. Two processes that load one
+  open it and gets a new one. A *copy beside the original on one device* opens
+  as the same node, so `Store::node_id` also asks the table of places
+  (`places.rs`, `places.sqlite3` beside the key): the claim and the record are
+  one write transaction, so copies opened together can't both be first. A graph
+  seen at another path whose old place still has the node ID is a copy and forks
+  (`fork_node_id`); one whose old place has gone, or lost it, was moved. Looking
+  at the other place is `peek_node_id` on a read-only connection: **never use
+  `open` there**, which converts an older layout, and the graph may be another
+  process's. If the other can't be read it is *assumed to hold* the node. If the
+  table can't be used the graph opens and a warning says so: a safeguard, not a
+  precondition. Two processes that load one
   graph and both edit have always lost one's edits (each saves a whole
   snapshot); as one node they would also be a twin, so don't run a command
   beside `serve` that edits.
