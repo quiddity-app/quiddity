@@ -12,10 +12,10 @@ anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 clap-verbosity-flag = { version = "3", default-features = false, features = ["tracing"] }
 iroh = "1.4"
-iroh-blobs = { version = "0.104", default-features = false, features = ["fs-store"] }
+iroh-blobs = { version = "0.105", default-features = false, features = ["fs-store"] }
 bytes = "1"
 bao-tree = "0.17"
-irpc = { version = "0.17", default-features = false }
+irpc = { version = "1", default-features = false }
 range-collections = "0.4"
 jiff.workspace = true
 quiddity-core.workspace = true

@@ -8,6 +8,7 @@
 
 use std::path::Path;
 
+use iroh_blobs::Hash;
 use iroh_blobs::store::fs::FsStore;
 use tracing::info;
 
@@ -61,6 +62,11 @@ async fn move_all(old: &FsStore, into: &SqliteBlobs) -> Result<usize, BlobError>
         .map_err(BlobError::store)?;
     let mut moved = 0;
     for hash in hashes {
+        // Built into every store, and listed by iroh-blobs as held: not a blob
+        // that was kept, so there is nothing to move and it isn't counted.
+        if hash == Hash::EMPTY {
+            continue;
+        }
         let bytes = old
             .blobs()
             .get_bytes(hash)
