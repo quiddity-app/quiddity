@@ -3,6 +3,9 @@
 	- It names a snapshot file, as written by `quiddity-node snapshot`.
 	- It is copied into `public/` as `graph.loro`, so it is published beside the pages. It is never the graph's own file, which holds the device's endpoint key. [[Storage]]
 	- `NEXT_PUBLIC_QUIDDITY_STATIC_GRAPH` is set to match, so the choice is made when the bundle is built and not when it runs.
+- A site also needs `names.txt` beside the snapshot (`QUIDDITY_STATIC_NAMES` says where else), as written by `quiddity-node names`, which fails if two entities share a name. The build fails without it.
+	- Each name becomes a page at `/page/<name>/`, and the UI addresses pages by name where it can. [[Page names]]
+	- `NEXT_PUBLIC_QUIDDITY_PAGE_NAMES` carries the list to the browser, so that a page with no static page of its own is still addressed by its ID.
 - With it set, the UI loads its replica from that file (`backend-static.ts`) instead of asking the Tauri shell (`backend-tauri.ts`) or building a made-up graph (`backend-memory.ts`).
 - Without it nothing changes: the desktop app's build has no snapshot and the static backend is not in the bundle.
 - `QUIDDITY_BASE_PATH` is where the site is served from, such as `/quiddity` on GitHub Pages.

@@ -244,3 +244,29 @@ fn a_published_snapshot_has_no_key_in_it() {
             .is_err()
     );
 }
+
+/// A site addresses its pages by name, so the names go in a file for the
+/// build, and a name two entities share stops it.
+#[test]
+fn names_are_written_one_a_line_unless_two_clash() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (graph, md) = (tmp.path().join("graph"), tmp.path().join("md"));
+    fs::create_dir_all(&md).unwrap();
+    fs::write(md.join("Jane.md"), "- Hello\n").unwrap();
+    fs::write(md.join("Café.md"), "- Hello\n").unwrap();
+    run(node(&graph).arg("init"));
+    run(node(&graph).arg("import").arg(&md));
+    let out = tmp.path().join("names.txt");
+    run(node(&graph).arg("names").arg(&out));
+    assert_eq!(fs::read_to_string(&out).unwrap(), "Café\nJane\n");
+
+    // `jane` is a second entity with the first's name, as far as links go.
+    fs::write(md.join("jane.md"), "- Hello\n").unwrap();
+    let clashing = tmp.path().join("clashing");
+    run(node(&clashing).arg("init"));
+    run(node(&clashing).arg("import").arg(&md));
+    let failed = node(&clashing).arg("names").arg(&out).output().unwrap();
+    assert!(!failed.status.success());
+    let stderr = String::from_utf8_lossy(&failed.stderr);
+    assert!(stderr.contains(r#"["Jane", "jane"]"#), "{stderr}");
+}

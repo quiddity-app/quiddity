@@ -1,11 +1,11 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import type { Start } from "@/lib/model";
-import { viewHref } from "@/lib/nav";
 import { useRead } from "@/lib/use-graph";
 import { Skeleton } from "./boundary";
+import { useView } from "./use-view";
 
 const paths: Record<Exclude<Start["kind"], "entity">, string> = {
   journals: "/journals/",
@@ -38,13 +38,14 @@ if (typeof document !== "undefined") {
  */
 export function Home() {
   const start = useRead((g) => g.start());
-  const params = useSearchParams();
   const router = useRouter();
-  const open = (params.get("open") ?? "").split(",").filter(Boolean);
+  // `/` has no view of its own to keep but the side pane, which is read the
+  // same way as anywhere else.
+  const { open, href: toHref } = useView();
   const href =
     start.kind === "entity"
-      ? viewHref({ path: "/", main: start.id, open })
-      : viewHref({ path: paths[start.kind], main: null, open });
+      ? toHref({ path: "/", main: start.id, open })
+      : toHref({ path: paths[start.kind], main: null, open });
 
   useEffect(() => {
     const raced = first && followed;

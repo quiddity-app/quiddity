@@ -54,6 +54,8 @@ jobs:
     # ...then build the UI around that graph's snapshot. Only the snapshot is
     # published: the graph's own file holds the device's key.
     - run: cargo run --locked -p quiddity-node -- -g "$RUNNER_TEMP/graph" snapshot "$RUNNER_TEMP/graph/graph.loro"
+    # Pages are addressed by name, so this stops the build if two share one.
+    - run: cargo run --locked -p quiddity-node -- -g "$RUNNER_TEMP/graph" names "$RUNNER_TEMP/graph/names.txt"
     - run: pnpm ui build
       env:
         QUIDDITY_STATIC_GRAPH: ${{ runner.temp }}/graph/graph.loro

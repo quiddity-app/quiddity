@@ -46,6 +46,10 @@ enum Command {
     /// site publishes. The graph's own file also holds this device's
     /// endpoint key, so it must never be published.
     Snapshot { file: PathBuf },
+    /// Write the name of every entity, one a line, to a file: the pages a
+    /// static site addresses by name. Fails, naming them, if two entities
+    /// share a name or one can't be a path segment.
+    Names { file: PathBuf },
     /// Delete the files that nothing in the graph refers to any more. A file
     /// goes only after it has gone unreferenced for the grace period, and
     /// only once every active device has stored a version of the graph from
@@ -224,6 +228,15 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
         Command::Snapshot { file } => {
             std::fs::write(&file, store.load()?.snapshot()?)?;
             println!("wrote {}", file.display());
+        }
+        Command::Names { file } => {
+            let names = quiddity_core::page_names(&store.load()?)?;
+            // Control characters are not allowed in a name, newlines included.
+            std::fs::write(
+                &file,
+                names.iter().map(|n| format!("{n}\n")).collect::<String>(),
+            )?;
+            println!("wrote {} names to {}", names.len(), file.display());
         }
         Command::Gc {
             dry_run,
