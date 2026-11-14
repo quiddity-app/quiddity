@@ -543,3 +543,23 @@ fn an_old_ledger_that_cannot_be_read_is_an_error() {
     fs::create_dir(dir.path().join("unreferenced-blobs.txt")).unwrap();
     assert!(Ledger::load(dir.path()).is_err());
 }
+
+/// A graph named by its file has no old text ledger beside it: one in the
+/// folder is somebody else's, and is left where it is.
+#[test]
+fn a_graph_named_by_its_file_does_not_take_a_neighbours_ledger() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join("unreferenced-blobs.txt"),
+        format!(
+            "{} {} {}\n",
+            Hash::new([1]),
+            t0().as_second(),
+            hex(&version_after(1).encode())
+        ),
+    )
+    .unwrap();
+    let loaded = Ledger::load(&dir.path().join("mine.quiddity")).unwrap();
+    assert!(loaded.is_empty());
+    assert!(dir.path().join("unreferenced-blobs.txt").exists());
+}

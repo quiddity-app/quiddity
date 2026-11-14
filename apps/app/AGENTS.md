@@ -54,7 +54,8 @@ holds its own replica and answers its own queries (see `apps/ui` and
   an update log is the fix when it isn't. The UI pushes a few hundred
   milliseconds after typing stops, and on the window being hidden.
 - `session.rs` knows nothing about Tauri, so it is tested on its own.
-- **`QUIDDITY_GRAPH`** names a directory made by `quiddity-node` to work on
+- **`QUIDDITY_GRAPH`** names a graph made by `quiddity-node` (a directory, or its
+  `.quiddity` file) to work on
   instead of the one graph in the app's data directory.
 - **The window's background follows the system theme** (`appearance.rs`):
   the page's own ground, so a dark window doesn't open with a flash of white,

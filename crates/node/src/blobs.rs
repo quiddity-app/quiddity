@@ -74,10 +74,15 @@ pub struct Blobs {
 
 impl Blobs {
     /// Opens the blob store in a graph's file, creating the file if need be,
-    /// and moves in the blobs of an old `blobs/` directory beside it.
+    /// and moves in the blobs of an old `blobs/` directory beside it. The graph
+    /// is named as [`Store::new`] takes it: a directory, or the file.
     pub async fn open(graph_dir: &Path) -> Result<Self, BlobError> {
-        let store = blob_store::open(&Store::new(graph_dir)).map_err(BlobError::store)?;
-        legacy_blobs::adopt(graph_dir, &store).await?;
+        let graph = Store::new(graph_dir);
+        let store = blob_store::open(&graph).map_err(BlobError::store)?;
+        // A graph named by its file has no directory of an older layout.
+        if let Some(dir) = graph.legacy_dir() {
+            legacy_blobs::adopt(dir, &store).await?;
+        }
         Ok(Self { store })
     }
 

@@ -104,8 +104,18 @@ const BUSY: Duration = Duration::from_millis(100);
 /// other devices' compaction.
 pub const ACTIVE: SignedDuration = SignedDuration::from_hours(24 * 30);
 
+/// `path` with `suffix` after its whole name: `graph.quiddity` and `-journal`
+/// make `graph.quiddity-journal`, which `Path::with_extension` can't say.
+fn with_suffix(path: &Path, suffix: &str) -> PathBuf {
+    let mut name = path.as_os_str().to_owned();
+    name.push(suffix);
+    PathBuf::from(name)
+}
+
 #[derive(Debug, Clone)]
 pub struct Store {
+    /// Where the graph is, as it was named: a directory that holds the graph's
+    /// file, or the file itself. See [`Store::file`].
     dir: PathBuf,
     /// Serialises saves, which come from the command thread and the
     /// save-on-change task at once, and holds the version the snapshot in the
@@ -122,12 +132,47 @@ impl Store {
         }
     }
 
+    /// The graph's path as it was named, which is what to give anything else
+    /// that opens the same graph.
     pub fn dir(&self) -> &Path {
         &self.dir
     }
 
+    /// The graph's file. The path names a directory, which holds
+    /// `graph.quiddity`, or the file itself: an existing directory is one, an
+    /// existing file is the other whatever it is called (so a copied graph can
+    /// be renamed), and a path that is not there yet is a file if it ends in
+    /// `.quiddity` and a directory if not, so that a path that has always named
+    /// a directory still does.
     fn file(&self) -> PathBuf {
-        self.dir.join(FILE)
+        if self.names_the_file() {
+            self.dir.clone()
+        } else {
+            self.dir.join(FILE)
+        }
+    }
+
+    fn names_the_file(&self) -> bool {
+        if self.dir.is_dir() {
+            return false;
+        }
+        self.dir.is_file() || self.dir.extension().is_some_and(|e| e == "quiddity")
+    }
+
+    /// The directory the graph's file is in, which is where it is made and
+    /// where what is made beside it goes.
+    fn folder(&self) -> PathBuf {
+        match self.file().parent() {
+            Some(parent) if !parent.as_os_str().is_empty() => parent.to_owned(),
+            _ => PathBuf::from("."),
+        }
+    }
+
+    /// The directory of an older layout, if the path names a directory:
+    /// `graph.loro`, `device.key` and `blobs/` are in it. A graph named by its
+    /// file has none, and its neighbours' files are not its own to take.
+    pub(crate) fn legacy_dir(&self) -> Option<&Path> {
+        (!self.names_the_file()).then_some(self.dir.as_path())
     }
 
     /// Creates the directory with an empty graph (or, with `blank`, an empty
@@ -148,7 +193,10 @@ impl Store {
     /// Whether there is a graph here, readable or not: a file that can't be
     /// opened is somebody's graph, and not for `init` to replace.
     fn holds_graph(&self) -> bool {
-        if self.dir.join(LEGACY_SNAPSHOT).exists() {
+        if self
+            .legacy_dir()
+            .is_some_and(|dir| dir.join(LEGACY_SNAPSHOT).exists())
+        {
             return true;
         }
         if !self.file().exists() {
@@ -285,8 +333,8 @@ impl Store {
             // SQLite pairs a journal with its file by name, so one left beside
             // the new file would be rolled back into it: they go together.
             for suffix in ["", "-journal", "-wal", "-shm"] {
-                let from = self.dir.join(format!("{FILE}{suffix}"));
-                let to = self.dir.join(format!("{FILE}.damaged-{stamp}{suffix}"));
+                let from = with_suffix(&self.file(), suffix);
+                let to = with_suffix(&self.file(), &format!(".damaged-{stamp}{suffix}"));
                 match fs::rename(&from, &to) {
                     Ok(()) if suffix.is_empty() => moved.push(to),
                     Ok(()) => {}
@@ -294,7 +342,7 @@ impl Store {
                     Err(e) => return Err(e),
                 }
             }
-            sync_dir(&self.dir)?;
+            sync_dir(&self.folder())?;
             if let Some(key) = key {
                 self.ensure().map_err(io::Error::other)?;
                 self.open()
@@ -348,14 +396,15 @@ impl Store {
         if self.legacy_present() {
             return self.migrate();
         }
-        fs::create_dir_all(&self.dir)?;
+        fs::create_dir_all(self.folder())?;
         let staged = self.build()?;
         self.link(&staged)
     }
 
     /// Whether a directory of the old layout is here, to be converted.
     fn legacy_present(&self) -> bool {
-        self.dir.join(LEGACY_SNAPSHOT).exists() || self.dir.join(LEGACY_KEY).exists()
+        self.legacy_dir()
+            .is_some_and(|dir| dir.join(LEGACY_SNAPSHOT).exists() || dir.join(LEGACY_KEY).exists())
     }
 
     /// Makes a file with the schema, under a name of its own. It is made
@@ -363,9 +412,7 @@ impl Store {
     /// SQLite creates its journal with the file's own mode.
     fn build(&self) -> Result<PathBuf, StoreError> {
         let n = STAGING.fetch_add(1, Ordering::Relaxed);
-        let staged = self
-            .dir
-            .join(format!("{FILE}.{}.{n}.new", std::process::id()));
+        let staged = with_suffix(&self.file(), &format!(".{}.{n}.new", std::process::id()));
         let mut options = fs::OpenOptions::new();
         options.write(true).create_new(true);
         #[cfg(unix)]
@@ -396,7 +443,7 @@ impl Store {
         let linked = fs::hard_link(staged, self.file());
         let _ = fs::remove_file(staged);
         match linked {
-            Ok(()) => Ok(sync_dir(&self.dir)?),
+            Ok(()) => Ok(sync_dir(&self.folder())?),
             Err(e) if e.kind() == io::ErrorKind::AlreadyExists => Ok(()),
             Err(e) => Err(e.into()),
         }
@@ -1083,6 +1130,97 @@ mod tests {
             )
             .unwrap();
         }
+    }
+
+    /// A graph can be named by its file, which is then the one file there is,
+    /// made with whatever folders lead to it.
+    #[test]
+    fn a_graph_can_be_named_by_its_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file = tmp.path().join("deeper/still/notes.quiddity");
+        let store = Store::new(&file);
+        let graph = store.init(false).unwrap();
+        let key = store.key().unwrap();
+        store.save(&graph).unwrap();
+
+        let beside: Vec<_> = fs::read_dir(file.parent().unwrap())
+            .unwrap()
+            .map(|e| e.unwrap().file_name().into_string().unwrap())
+            .collect();
+        assert_eq!(beside, ["notes.quiddity"]);
+        assert_eq!(Store::new(&file).load().unwrap().version(), graph.version());
+        assert_eq!(Store::new(&file).key().unwrap().public(), key.public());
+        assert!(matches!(store.init(false), Err(StoreError::Exists(_))));
+    }
+
+    /// A graph that exists as a file is that file, whatever it is called, so
+    /// that a copy can be renamed; and a directory is a directory, whatever it
+    /// is called, so a path that has always named one still does.
+    #[test]
+    fn the_name_of_what_exists_decides_what_it_is() {
+        let tmp = tempfile::tempdir().unwrap();
+        let original = tmp.path().join("graph.quiddity");
+        let graph = Store::new(&original).init(false).unwrap();
+        let renamed = tmp.path().join("my notes");
+        fs::rename(&original, &renamed).unwrap();
+        assert_eq!(
+            Store::new(&renamed).load().unwrap().version(),
+            graph.version()
+        );
+
+        let odd = tmp.path().join("odd.quiddity");
+        fs::create_dir(&odd).unwrap();
+        Store::new(&odd).init(false).unwrap();
+        assert!(odd.join("graph.quiddity").is_file());
+    }
+
+    /// Where the file is made and what is made beside it follow the file, and a
+    /// bare file name is in the current folder.
+    #[test]
+    fn the_folder_is_where_the_file_is() {
+        let tmp = tempfile::tempdir().unwrap();
+        assert_eq!(Store::new(tmp.path()).folder(), tmp.path());
+        let file = tmp.path().join("a.quiddity");
+        assert_eq!(Store::new(&file).folder(), tmp.path());
+        assert_eq!(Store::new("g.quiddity").folder(), PathBuf::from("."));
+    }
+
+    /// A graph named by its file has no directory of an older layout: what is
+    /// in the folder beside it is somebody else's and is left as it is.
+    #[test]
+    fn a_graph_named_by_its_file_leaves_its_neighbours_alone() {
+        let tmp = tempfile::tempdir().unwrap();
+        fs::write(tmp.path().join(LEGACY_SNAPSHOT), b"another graph").unwrap();
+        fs::write(tmp.path().join(LEGACY_KEY), [7u8; 32]).unwrap();
+        let store = Store::new(tmp.path().join("mine.quiddity"));
+
+        assert!(matches!(store.load(), Err(StoreError::Missing(_))));
+        store.init(false).unwrap();
+        assert_eq!(
+            fs::read(tmp.path().join(LEGACY_SNAPSHOT)).unwrap(),
+            b"another graph"
+        );
+        assert!(tmp.path().join(LEGACY_KEY).exists());
+        assert!(
+            !tmp.path()
+                .join(format!("{LEGACY_SNAPSHOT}.{SET_ASIDE}"))
+                .exists()
+        );
+        assert_ne!(store.key().unwrap().to_bytes(), [7u8; 32]);
+    }
+
+    /// Setting a graph aside names what it moves for the file, beside it.
+    #[test]
+    fn a_graph_named_by_its_file_is_set_aside_beside_it() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = Store::new(tmp.path().join("mine.quiddity"));
+        store.init(false).unwrap();
+        let moved = store.set_aside().unwrap();
+        assert_eq!(moved.len(), 1);
+        let name = moved[0].file_name().unwrap().to_string_lossy().into_owned();
+        assert!(name.starts_with("mine.quiddity.damaged-"), "{name}");
+        assert_eq!(moved[0].parent().unwrap(), tmp.path());
+        store.init(false).unwrap();
     }
 
     /// Making a graph where one is already refuses, in either layout.
