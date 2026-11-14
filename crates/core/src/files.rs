@@ -321,12 +321,27 @@ fn file_stem(name: &str) -> String {
         .trim()
         .trim_end_matches(['.', ' '])
         .trim_start_matches('.');
-    let reserved = matches!(
-        safe.to_ascii_uppercase().as_str(),
+    // Windows reads `con.txt` as the device too, so it is the part before the
+    // first dot that counts.
+    let (base, rest) = safe.split_at(safe.find('.').unwrap_or(safe.len()));
+    match safe {
+        "" => "untitled".to_owned(),
+        _ if is_device_name(base.trim_end()) => format!("{base}_{rest}"),
+        s => s.to_owned(),
+    }
+}
+
+/// Whether Windows treats `name` as a device, whatever follows a dot and
+/// whatever the case. The superscript digits are devices too.
+fn is_device_name(name: &str) -> bool {
+    matches!(
+        name.to_ascii_uppercase().as_str(),
         "CON"
             | "PRN"
             | "AUX"
             | "NUL"
+            | "CONIN$"
+            | "CONOUT$"
             | "COM1"
             | "COM2"
             | "COM3"
@@ -336,6 +351,9 @@ fn file_stem(name: &str) -> String {
             | "COM7"
             | "COM8"
             | "COM9"
+            | "COM\u{b9}"
+            | "COM\u{b2}"
+            | "COM\u{b3}"
             | "LPT1"
             | "LPT2"
             | "LPT3"
@@ -345,12 +363,10 @@ fn file_stem(name: &str) -> String {
             | "LPT7"
             | "LPT8"
             | "LPT9"
-    );
-    match safe {
-        "" => "untitled".to_owned(),
-        s if reserved => format!("{s}_"),
-        s => s.to_owned(),
-    }
+            | "LPT\u{b9}"
+            | "LPT\u{b2}"
+            | "LPT\u{b3}"
+    )
 }
 
 /// `dir/stem.md`, or `dir/stem 2.md` and so on if taken. Compared as names
@@ -395,6 +411,23 @@ mod tests {
         assert_eq!(file_stem("con"), "con_");
     }
 
+    /// Windows reads the part before the first dot as the device, so `con.txt`
+    /// (which becomes `con.txt.md`) is as bad as `con`.
+    #[test]
+    fn device_names_are_found_before_the_first_dot() {
+        assert_eq!(file_stem("con.txt"), "con_.txt");
+        assert_eq!(file_stem("CON.tar.gz"), "CON_.tar.gz");
+        assert_eq!(file_stem("Nul.x"), "Nul_.x");
+        assert_eq!(file_stem("COM1"), "COM1_");
+        assert_eq!(file_stem("lpt\u{b2}.log"), "lpt\u{b2}_.log");
+        assert_eq!(file_stem("conin$"), "conin$_");
+        // Not devices: only the whole part before the dot counts.
+        assert_eq!(file_stem("Conan.txt"), "Conan.txt");
+        assert_eq!(file_stem("a.con"), "a.con");
+        assert_eq!(file_stem("com10"), "com10");
+        assert_eq!(file_stem("con-x.txt"), "con-x.txt");
+    }
+
     /// The names the file system sees are what is limited, so count bytes:
     /// 130 CJK characters are 390.
     #[test]
@@ -421,6 +454,17 @@ mod tests {
         use super::*;
 
         proptest! {
+            /// However dots, spaces and device names are mixed, the part of
+            /// the stem before its first dot is never a device.
+            #[test]
+            fn stems_are_never_devices(
+                name in "(con|PRN|aux|NUL|com1|LPT9|x|\\.|\\.|a|[ ]){1,6}",
+            ) {
+                let stem = file_stem(&name);
+                let base = stem.split('.').next().unwrap();
+                prop_assert!(!is_device_name(base.trim_end()), "{stem:?}");
+            }
+
             /// Whatever the name, the stem fits with room for a number and
             /// the extension, and is never empty.
             #[test]
