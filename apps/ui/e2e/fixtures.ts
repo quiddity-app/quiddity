@@ -34,6 +34,20 @@ declare global {
   }
 }
 
+/**
+ * Opens the search panel with Ctrl-K. The shortcut is only heard once the page
+ * has hydrated, so a key pressed straight after `goto` can be lost on a slow
+ * machine: press again until the panel is there. It never presses while the
+ * panel is open, since the key would close it.
+ */
+export async function openSearch(page: Page): Promise<void> {
+  const panel = page.getByRole("dialog", { name: "Search" });
+  await expect(async () => {
+    if (!(await panel.isVisible())) await page.keyboard.press("Control+k");
+    await expect(panel).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+}
+
 export { expect };
 
 /** The text of every block of the entity in the main pane, in reading order. */
