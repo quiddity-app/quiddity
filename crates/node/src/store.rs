@@ -73,8 +73,8 @@ const APPLICATION_ID: i32 = 0x5144_4459;
 ///
 /// 1: the snapshot, and the device's endpoint key. 2: and the blobs. 3: and the
 /// salt that a new graph's endpoint key is derived with. 4: and this replica's
-/// node ID.
-const LAYOUT: i32 = 4;
+/// node ID. 5: and the record of which files nothing refers to.
+const LAYOUT: i32 = 5;
 /// The first layout that has the `node` table.
 const NODE_SINCE: i32 = 4;
 
@@ -83,8 +83,9 @@ const NODE_SINCE: i32 = 4;
 /// each, enforced by the key, so there is no question which is current.
 /// The snapshot has two: row 1 is the current one, and row 2 the one before
 /// it, which `load` falls back to if row 1 can't be decoded.
-const TABLES: [(&str, &str); 5] = [
+const TABLES: [(&str, &str); 6] = [
     BLOB_TABLE,
+    UNREFERENCED_TABLE,
     SNAPSHOT_TABLE,
     ENDPOINT_KEY_TABLE,
     SLOT_TABLE,
@@ -97,6 +98,12 @@ const TABLES: [(&str, &str); 5] = [
 const BLOB_TABLE: (&str, &str) = (
     "blob",
     "CREATE TABLE blob (id INTEGER PRIMARY KEY, hash BLOB NOT NULL UNIQUE CHECK (length(hash) = 32), size INTEGER NOT NULL CHECK (size >= 0), outboard BLOB NOT NULL, data BLOB NOT NULL CHECK (length(data) = size)) STRICT",
+);
+/// When each file nothing refers to was first seen so, and at which version of
+/// the graph, for deciding which may be deleted (`gc`). One row a file.
+const UNREFERENCED_TABLE: (&str, &str) = (
+    "unreferenced",
+    "CREATE TABLE unreferenced (id INTEGER PRIMARY KEY, hash BLOB NOT NULL UNIQUE CHECK (length(hash) = 32), seen INTEGER NOT NULL, version BLOB NOT NULL) STRICT",
 );
 const SNAPSHOT_TABLE: (&str, &str) = (
     "snapshot",
@@ -125,6 +132,13 @@ const NODE_TABLE: (&str, &str) = (
 const TABLES_V1: [(&str, &str); 2] = [SNAPSHOT_TABLE, ENDPOINT_KEY_TABLE];
 const TABLES_V2: [(&str, &str); 3] = [BLOB_TABLE, SNAPSHOT_TABLE, ENDPOINT_KEY_TABLE];
 const TABLES_V3: [(&str, &str); 4] = [BLOB_TABLE, SNAPSHOT_TABLE, ENDPOINT_KEY_TABLE, SLOT_TABLE];
+const TABLES_V4: [(&str, &str); 5] = [
+    BLOB_TABLE,
+    SNAPSHOT_TABLE,
+    ENDPOINT_KEY_TABLE,
+    SLOT_TABLE,
+    NODE_TABLE,
+];
 
 /// How long to wait for another process that has the file open before saying
 /// so: a node that is serving, and a command run beside it.
@@ -157,6 +171,15 @@ impl Store {
             keyring,
             durable: Arc::default(),
         }
+    }
+
+    /// A `Store` to reach the file and nothing else: for what is kept in it
+    /// beside the graph (the blobs, the record of unreferenced files), which
+    /// never needs the device's key. Its keyring is never asked, so it points
+    /// at the graph's own directory rather than at a place of its own.
+    pub(crate) fn file_only(dir: impl Into<PathBuf>) -> Self {
+        let dir = dir.into();
+        Self::new(dir.clone(), Keyring::new(dir))
     }
 
     pub fn dir(&self) -> &Path {
@@ -702,7 +725,7 @@ impl Store {
         }
         match layout {
             LAYOUT => {}
-            1..=3 => self.upgrade(&mut db)?,
+            1..=4 => self.upgrade(&mut db)?,
             _ => {
                 return Err(self.not_ours(format!(
                     "its layout is version {layout}, and this build reads version {LAYOUT}"
@@ -748,11 +771,12 @@ impl Store {
         let layout: i32 = tx.pragma_query_value(None, "user_version", |r| r.get(0))?;
         match layout {
             LAYOUT => {}
-            1..=3 => {
+            1..=4 => {
                 let held: &[(&str, &str)] = match layout {
                     1 => &TABLES_V1,
                     2 => &TABLES_V2,
-                    _ => &TABLES_V3,
+                    3 => &TABLES_V3,
+                    _ => &TABLES_V4,
                 };
                 self.check_schema(&tx, held)?;
                 info!(layout, "converting the graph's file to layout {LAYOUT}");
@@ -766,7 +790,10 @@ impl Store {
                         params![new_salt()?.as_slice()],
                     )?;
                 }
-                tx.execute_batch(NODE_TABLE.1)?;
+                if layout < NODE_SINCE {
+                    tx.execute_batch(NODE_TABLE.1)?;
+                }
+                tx.execute_batch(UNREFERENCED_TABLE.1)?;
                 tx.pragma_update(None, "user_version", LAYOUT)?;
             }
             _ => {
@@ -915,12 +942,14 @@ mod tests {
     }
 
     /// Makes the file what an earlier build made: layout 1 had no blobs, layouts
-    /// 1 and 2 had no salt, and layouts 1 to 3 had no node ID.
+    /// 1 and 2 had no salt, layouts 1 to 3 had no node ID, and none had the
+    /// record of unreferenced files.
     fn as_layout(store: &Store, layout: i32) {
         let tables = match layout {
-            1 => "DROP TABLE node; DROP TABLE slot; DROP TABLE blob;",
-            2 => "DROP TABLE node; DROP TABLE slot;",
-            3 => "DROP TABLE node;",
+            1 => "DROP TABLE unreferenced; DROP TABLE node; DROP TABLE slot; DROP TABLE blob;",
+            2 => "DROP TABLE unreferenced; DROP TABLE node; DROP TABLE slot;",
+            3 => "DROP TABLE unreferenced; DROP TABLE node;",
+            4 => "DROP TABLE unreferenced;",
             _ => panic!("no such earlier layout"),
         };
         store
@@ -1229,7 +1258,7 @@ mod tests {
     fn a_file_that_is_not_ours_is_refused() {
         let cases: [(&str, &str); 6] = [
             ("another application", "PRAGMA application_id = 7"),
-            ("a later layout", "PRAGMA user_version = 5"),
+            ("a later layout", "PRAGMA user_version = 6"),
             (
                 "a trigger",
                 "CREATE TRIGGER t AFTER UPDATE ON snapshot BEGIN SELECT 1; END",
@@ -1417,29 +1446,38 @@ mod tests {
         ));
     }
 
-    /// A file of the first layout, which had no blobs, is upgraded in place:
-    /// what it held is kept and it gains the table.
+    /// A file of an earlier layout, which lacked the tables added since, is
+    /// upgraded in place: what it held is kept and it gains the tables, however
+    /// many layouts behind it was.
     #[test]
-    fn layout_one_gains_the_blob_table() {
-        let tmp = tempfile::tempdir().unwrap();
-        let store = store_at(tmp.path());
-        let graph = store.init(false).unwrap();
-        let block = graph.create_block(None, None, "kept").unwrap();
-        graph.commit();
-        store.save(&graph).unwrap();
-        as_layout(&store, 1);
+    fn an_older_layout_gains_the_tables_it_lacks() {
+        for layout in 1..=4 {
+            let tmp = tempfile::tempdir().unwrap();
+            let store = store_at(tmp.path());
+            let graph = store.init(false).unwrap();
+            let block = graph.create_block(None, None, "kept").unwrap();
+            graph.commit();
+            store.save(&graph).unwrap();
+            as_layout(&store, layout);
 
-        assert_eq!(store.load().unwrap().text(block).unwrap(), "kept");
-        let db = store.connection().unwrap();
-        let layout: i32 = db
-            .pragma_query_value(None, "user_version", |r| r.get(0))
+            assert_eq!(store.load().unwrap().text(block).unwrap(), "kept");
+            let db = store.connection().unwrap();
+            let now: i32 = db
+                .pragma_query_value(None, "user_version", |r| r.get(0))
+                .unwrap();
+            assert_eq!(now, LAYOUT, "from layout {layout}");
+            db.execute(
+                "INSERT INTO blob (hash, size, outboard, data) VALUES (zeroblob(32), 1, x'', x'00')",
+                [],
+            )
             .unwrap();
-        assert_eq!(layout, LAYOUT);
-        db.execute(
-            "INSERT INTO blob (hash, size, outboard, data) VALUES (zeroblob(32), 1, x'', x'00')",
-            [],
-        )
-        .unwrap();
+            db.execute(
+                "INSERT INTO unreferenced (hash, seen, version) VALUES (zeroblob(32), 1, x'')",
+                [],
+            )
+            .unwrap();
+            assert!(salt_in(&db).is_ok(), "from layout {layout}");
+        }
     }
 
     /// Making a graph where one is already refuses, in either layout.
@@ -1572,7 +1610,7 @@ mod tests {
     /// replica edits as.)
     #[test]
     fn a_file_of_an_earlier_layout_keeps_its_key_and_gains_a_salt() {
-        for old in [1, 2] {
+        for old in [1, 2, 3, 4] {
             let tmp = tempfile::tempdir().unwrap();
             let store = store_at(tmp.path());
             let graph = Graph::new();
@@ -1643,7 +1681,7 @@ mod tests {
     #[test]
     fn an_earlier_layout_is_converted_once_however_many_open_it() {
         for round in 0..20 {
-            for old in [1, 2, 3] {
+            for old in [1, 2, 3, 4] {
                 let tmp = tempfile::tempdir().unwrap();
                 let store = store_at(tmp.path());
                 store.init(false).unwrap();
@@ -1696,7 +1734,7 @@ mod tests {
     /// An earlier layout is only converted if it is exactly that layout.
     #[test]
     fn an_earlier_layout_with_more_in_it_is_refused_and_left_alone() {
-        for old in [1, 2, 3] {
+        for old in [1, 2, 3, 4] {
             let tmp = tempfile::tempdir().unwrap();
             let store = store_at(tmp.path());
             store.init(false).unwrap();

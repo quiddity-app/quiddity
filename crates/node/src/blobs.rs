@@ -20,7 +20,6 @@ use iroh_blobs::provider::events::{
 use quiddity_core::{Graph, Index};
 
 use crate::blob_store::{self, SqliteBlobs};
-use crate::keyring::Keyring;
 use crate::legacy_blobs;
 use crate::store::Store;
 
@@ -77,10 +76,7 @@ impl Blobs {
     /// Opens the blob store in a graph's file, creating the file if need be,
     /// and moves in the blobs of an old `blobs/` directory beside it.
     pub async fn open(graph_dir: &Path) -> Result<Self, BlobError> {
-        // The blobs are the file's, and never need the device's key: this
-        // `Store` is only a way to open the file, so its keyring is never asked.
-        let file = Store::new(graph_dir, Keyring::new(graph_dir));
-        let store = blob_store::open(&file).map_err(BlobError::store)?;
+        let store = blob_store::open(&Store::file_only(graph_dir)).map_err(BlobError::store)?;
         legacy_blobs::adopt(graph_dir, &store).await?;
         Ok(Self { store })
     }
