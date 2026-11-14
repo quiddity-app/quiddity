@@ -1,6 +1,6 @@
 alias:: [node map]
 
-- Planned, not built. How a device notices that a graph has been copied, so that two replicas never edit under one node ID. [[Identity]]
+- Planned, not built, apart from the first step: the graph's file keeps its node ID, sealed so that it only opens on the device that made it, so a file taken to another device gets a new one by itself. What is not built is the rest: the map, and noticing a copy made on one device. How a device notices that a graph has been copied, so that two replicas never edit under one node ID. [[Identity]]
 - Why it matters
 	- A graph is a directory. A person can copy it, back it up, restore a backup over it, or have a file-sync service duplicate it, and nothing stops them. Each copy is a full replica, which is fine, but two replicas that both go on making edits as the same node have two histories under one [[Loro]] peer ID, and Loro cannot hold both. [[Identity]]
 	- The graph can't say this about itself: a copy has all of the original's records, and is the original until the first edit that differs.

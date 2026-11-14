@@ -22,6 +22,7 @@ mod graph_id;
 mod index;
 pub mod journal;
 mod merge;
+mod node_id;
 pub mod outline;
 mod publish;
 mod query;
@@ -40,6 +41,6 @@ pub use index::{Backlink, EntityInfo, Identity, Index, Mention, Resolution, cano
 pub use journal::{create_journal, ensure_journal};
 pub use merge::merge_duplicates;
 pub use publish::{PublishError, page_names};
-pub use quiddity_identity::GraphId;
+pub use quiddity_identity::{GraphId, NodeId};
 pub use quiddity_syntax as syntax;
 pub use settings::{Home, Settings};
