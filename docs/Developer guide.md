@@ -27,5 +27,5 @@ favourite:: true
 	- [[Versioning]]: changing the format without breaking stored graphs.
 	- [[Binaries]]: files in the graph, partly built.
 - This site
-	- [[Publishing]]: how CI builds it, and [[Static build]], what that asks of the UI.
+	- [[Publishing]]: how CI builds it, and [[Static build]], what that asks of the UI. [[Page names]] are how its pages are linked.
 	- Each day's work has a [[Journal]] entry, written in commit messages: [[Journal entries]].

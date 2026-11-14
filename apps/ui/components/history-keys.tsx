@@ -3,7 +3,6 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { PlaceHistory, type Place } from "@/lib/history";
-import { viewHref } from "@/lib/nav";
 import { useView } from "./use-view";
 
 /**
@@ -34,7 +33,7 @@ export function HistoryKeys() {
     const go = (place: Place | undefined) => {
       if (!place) return;
       // Replace, not push: stepping through the history mustn't add to the browser's.
-      router.replace(viewHref({ ...latest.current, ...place }));
+      router.replace(latest.current.href({ ...latest.current, ...place }));
     };
     const onKey = (e: KeyboardEvent) => {
       const alt = e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey;

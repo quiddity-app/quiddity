@@ -1,0 +1,14 @@
+- A page of the published site can be linked by its name: `/page/Static build/`. An ID would not do, because it changes each time the graph is imported afresh, and so each time the site is built. [[Publishing]]
+	- A name stays where it is until the page is renamed or removed. Whether a link made now works after the next build is the whole point.
+	- Names are written as they are in the page's title, with the usual percent-encoding in the address (`/page/Static%20build/`). They are matched exactly, so `/page/static build/` is not the page.
+	- The side pane's pages are named too, in repeated `open` parameters: `/page/Design/?open=Crate&open=Loro`.
+	- A page the site has no name for is addressed by its ID as before (`/entity/?id=`): a link to nowhere (see [[Links to nowhere]]), say, or a page made in the browser since the build.
+- How it is built
+	- `quiddity-node names FILE` writes the name of every entity, a line each. [[Static build]] reads it, by default as `names.txt` beside the snapshot, and the UI builds `/page/[name]/` once for each. Only the desktop app's build lacks the route, since its graph isn't known when it is built.
+	- The route is `app/page/[name]/page.published.tsx`, which Next treats as a route only when a snapshot is being published (`pageExtensions` in `next.config.ts`): an export refuses a dynamic route with no names to build it for.
+	- The page finds its entity in the browser, from the loaded graph, as every other route does.
+- The restriction: names must be unique
+	- Two entities whose names compare equal (ignoring case, spacing and Unicode form, as links do) would be one file on a file system that ignores case, and could not be told apart by a link. `quiddity-node names` fails, listing them, so the build stops rather than publishing a page that is the wrong one.
+	- A name must be one segment of a path, so it can't contain `/` or `\`, be `.` or `..`, or hold a control character. A Logseq namespace such as `Places/Scotland` stops the build until it is renamed.
+	- This documentation has no names that break either rule, and has to stay that way. Journals are named for their dates, so they are pages too.
+- See [[Static build]] for the build and [[Entity]] for what is named.
