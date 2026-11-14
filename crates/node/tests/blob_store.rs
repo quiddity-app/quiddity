@@ -59,7 +59,7 @@ fn absent_blobs_are_absent() {
             BlobStatus::NotFound
         ));
         assert!(blobs.get_bytes(hash).await.is_err());
-        assert!(blobs.list().hashes().await.unwrap().is_empty());
+        assert!(held(&blobs).await.is_empty());
     });
 }
 
@@ -73,7 +73,7 @@ fn deleting_removes_only_what_is_named() {
         let a = blobs.add_bytes(&b"one"[..]).await.unwrap().hash;
         let b = blobs.add_bytes(&b"two"[..]).await.unwrap().hash;
         blobs.add_bytes(&b"one"[..]).await.unwrap();
-        assert_eq!(blobs.list().hashes().await.unwrap().len(), 2);
+        assert_eq!(held(&blobs).await.len(), 2);
         blobs
             .delete(vec![a, Hash::new(b"never stored")])
             .await
@@ -130,7 +130,7 @@ fn the_empty_blob_is_always_there() {
             BlobStatus::Complete { size: 0 }
         ));
         assert_eq!(blobs.add_bytes(Vec::new()).await.unwrap().hash, Hash::EMPTY);
-        assert!(blobs.list().hashes().await.unwrap().is_empty());
+        assert!(held(&blobs).await.is_empty());
     });
 }
 
@@ -208,7 +208,7 @@ fn blobs_over_the_limit_are_refused() {
         );
         assert!(blobs.add_bytes(over.clone()).await.is_err());
         assert!(!blobs.has(Hash::new(&over)).await.unwrap());
-        assert_eq!(blobs.list().hashes().await.unwrap().len(), 1);
+        assert_eq!(held(&blobs).await.len(), 1);
     });
 }
 
@@ -224,7 +224,7 @@ fn files_are_not_imported_by_path() {
         // iroh's error keeps what caused it, not in how it is shown.
         let shown = format!("{err:?}");
         assert!(shown.contains("not supported"), "{shown}");
-        assert!(blobs.list().hashes().await.unwrap().is_empty());
+        assert!(held(&blobs).await.is_empty());
     });
 }
 
@@ -265,4 +265,12 @@ fn observing_a_whole_blob_says_so() {
         assert!(!absent.is_complete());
         assert_eq!(absent.size(), 0);
     });
+}
+
+/// What the store holds, without the empty blob, which iroh-blobs lists first
+/// because it is always present.
+async fn held<S: std::ops::Deref<Target = iroh_blobs::api::Store>>(store: &S) -> Vec<Hash> {
+    let mut all = store.list().hashes().await.unwrap();
+    all.retain(|h| *h != Hash::EMPTY);
+    all
 }

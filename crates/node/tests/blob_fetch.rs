@@ -91,7 +91,7 @@ fn part_of_a_blob_is_not_kept() {
             target.status(hash).await.unwrap(),
             BlobStatus::Partial { .. }
         ));
-        assert!(target.list().hashes().await.unwrap().is_empty());
+        assert!(held(&target).await.is_empty());
     });
 }
 
@@ -227,4 +227,12 @@ fn a_fetch_over_the_limit_is_refused() {
             BlobStatus::NotFound
         ));
     });
+}
+
+/// What the store holds, without the empty blob, which iroh-blobs lists first
+/// because it is always present.
+async fn held<S: std::ops::Deref<Target = iroh_blobs::api::Store>>(store: &S) -> Vec<Hash> {
+    let mut all = store.list().hashes().await.unwrap();
+    all.retain(|h| *h != Hash::EMPTY);
+    all
 }

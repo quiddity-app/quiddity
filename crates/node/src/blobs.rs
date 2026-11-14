@@ -231,7 +231,8 @@ impl Blobs {
             .hashes()
             .await
             .map_err(BlobError::store)?;
-        Ok(hashes.into_iter().collect())
+        // iroh-blobs lists the empty blob first, as it is always present.
+        Ok(hashes.into_iter().filter(|h| *h != Hash::EMPTY).collect())
     }
 
     /// Stops the store's background tasks, once everything is written.

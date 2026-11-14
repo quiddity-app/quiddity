@@ -41,7 +41,10 @@ fn old_blobs_are_moved_into_the_file() {
         for (hash, data) in hashes.iter().zip(&held) {
             assert_eq!(blobs.get_bytes(*hash).await.unwrap().to_vec(), *data);
         }
-        assert_eq!(blobs.list().hashes().await.unwrap().len(), SIZES.len());
+        // The empty blob is in every store, and isn't one that was kept.
+        let mut kept = blobs.list().hashes().await.unwrap();
+        kept.retain(|h| *h != Hash::EMPTY);
+        assert_eq!(kept.len(), SIZES.len());
         assert!(!dir.path().join("blobs").exists());
         assert!(dir.path().join("blobs.migrated/blobs.db").exists());
 
