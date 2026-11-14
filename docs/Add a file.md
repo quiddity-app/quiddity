@@ -7,7 +7,7 @@
 	- An image is shown in its block. Any other file has a download link, with its size and type beside it. Click the block's edge to edit it: what you type after the first line is the file's caption.
 	- A file you have been told of by another device may not have arrived yet. The page says so, and Try again looks for it once more; it comes by itself when a device that has it is reachable. [[Blob transfer]]
 - What is in the graph
-	- The block's first line is `##blob(hash, type, size, name)`: the file's hash, type, size and name. It isn't for typing, and the block shows the file in its place. [[Meta-properties]]
+	- The block's first line is `##blob(hash, type, size, name)`: the file's hash, type, size and name. It isn't for typing, and the block shows the file in its place. [[Built-in properties]]
 	- A file is a block of the page, not an entity: it has no page, isn't in All entities and can't be linked to by name. It can have children, like any block. [[Block]]
 - Not built yet
 	- Removing a file's bytes when nothing refers to them any more is done by `quiddity-node gc`, on a node; the app never does it. [[Binaries]]

@@ -1,6 +1,6 @@
 alias:: [query, query language]
 
-- A query picks out entities by their properties: `#type(person) & ~#archived`. The first use is in [[Meta-properties]], to say which entities a property's values may refer to and which may have it. Queries in search and in blocks of their own are for later. Queries can't yet be written anywhere but a meta-property.
+- A query picks out entities by their properties: `#type(person) & ~#archived`. The first use is in [[Built-in properties]], to say which entities a property's values may refer to and which may have it. Queries in search and in blocks of their own are for later. Queries can't yet be written anywhere but a meta-property.
 - At a glance
 	- | Written | Finds |
 	  |---|---|
@@ -26,7 +26,7 @@ alias:: [query, query language]
 	- `&`, `|` and `~` combine what each single value matches: `#rating(4 | 5)` finds a rating of 4 or of 5. So `#tag(a & b)` asks for one value that is both, which no value is; for an entity tagged with both, write `#tag(a) & #tag(b)`.
 	- There are no comparisons yet, such as a rating above 3 or a date before today.
 - What a query sees
-	- An entity's effective properties: those it writes, those it inherits, and the values a transitive property reaches. With `##transitive` on [[type]], `#type(plant)` finds an oak whose type is tree, if tree's type is plant. [[Meta-properties]]
+	- An entity's effective properties: those it writes, those it inherits, and the values a transitive property reaches. With `##transitive` on [[type]], `#type(plant)` finds an oak whose type is tree, if tree's type is plant. [[Built-in properties]]
 	- Inverse labels, as if they were properties: with `##inverse(children)` on `parent`, `#children(Edinburgh)` finds Edinburgh's parents.
 - In a meta-property, a query is written as it is: `##values(#type(city) | #type(country))`. Its parentheses balance, so nothing needs escaping.
 - Link qualifiers are queries of a sort already: `[[Jane#type(person)]]` is `Jane & #type(person)`. They are to share one evaluator, which would let a qualifier's value be a query too, as in `[[Jane#employer(#type(charity))]]`. [[Links]]

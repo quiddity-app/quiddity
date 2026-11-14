@@ -5,10 +5,10 @@
 - What a tag is for
 	- A link's qualifier can ask for one, to tell apart entities that share a name: `[[Mercury#planet]]`. [[Links]]
 	- A query finds what has one: `#planet`. A bare `#key` matches a tag as well as any instance of the property `key`. [[Queries]]
-	- `##inherits` passes tags on like any other property with no value. [[Meta-properties]]
+	- `##inherits` passes tags on like any other property with no value. [[Built-in properties]]
 	- [[All entities]] shows enough of an entity's tags to tell it from others with the same title.
 - Tags are compared as names are, ignoring case and spacing.
-- Tags replace `tags:: [a, b]`, which is an ordinary property now, and `type:: person`, which is still read for two meanings, `journal` and `property`, until journals and property entities are identified without it. [[type]] [[Model redesign]]
+- Tags replace `tags:: [a, b]`, which is an ordinary property now, and `type:: person`, which is still read for two meanings, `journal` and `property`, until journals and property entities are identified without it. [[type]]
 - How it works
 	- [[quiddity-syntax]] reads `#key` as an inline property with no value and `##tag:: …` as a `##` line with a value. [[quiddity-core]] turns each name in a `##tag` line into the same valueless property, so everything that already treated a bare `#key` as a tag treats both forms alike, and adds a link from the block to each tag's entity.
 	- A tag's chip goes to the entity it names, or makes it if there is none. [[quiddity-view]]

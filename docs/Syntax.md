@@ -15,7 +15,7 @@
 	  | `##key(parameter)` | a meta-property, on a line of its own in a property's own properties block |
 	  | `##id(abc)` | gives its block an ID, which `((abc))` refers to |
 	  | `##key:: value` | the same, with a value written as a property line's is |
-	- [[Properties]], [[Links]], [[Block references]] and [[Meta-properties]] have the details, and [[Queries]] has the language a meta-property's parameter is written in.
+	- [[Properties]], [[Links]], [[Block references]] and [[Built-in properties]] have the details, and [[Queries]] has the language a meta-property's parameter is written in.
 - Values
 	- Text, written bare, or `"quoted"` when it contains a delimiter.
 	- A link, `[[Name#key(value)]]`, or a block reference, `((id))`.
@@ -26,7 +26,7 @@
 	- Any other backslash is literal: `path:: C:\Users` reads as written.
 	- Quoted text also understands `\n` for a new line.
 - When `#` starts a tag
-	- At the start of a line, after whitespace or `(`, or straight after another tag, so `#a#b` is two. A `(value)` after a tag is ordinary text: `#key(value)` is the tag `key` followed by "(value)". Only a link's qualifiers take values. [[Model redesign]]
+	- At the start of a line, after whitespace or `(`, or straight after another tag, so `#a#b` is two. A `(value)` after a tag is ordinary text: `#key(value)` is the tag `key` followed by "(value)". Only a link's qualifiers take values.
 	- `# Heading`, `foo#bar` and a URL's fragment are not tags.
 	- A key of nothing but digits is not one either, so issue numbers like `#123` stay as text. `#fff` is a tag; we can live with that.
 	- A full stop at the end isn't part of a bare key: `see #todo.` is `todo`.
