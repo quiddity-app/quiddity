@@ -1252,6 +1252,37 @@ mod nowhere {
 mod properties_block {
     use super::*;
 
+    /// Only an entity's first block that is empty and has no children goes:
+    /// it is what is left of an offer nobody typed in.
+    #[test]
+    fn an_empty_first_block_is_dropped_and_nothing_else_is() {
+        let (v, first, ids) = page(&["", "second", ""]);
+        // Not the first block, so it stays.
+        assert!(!v.drop_empty_first_block(&ids[2]).unwrap());
+        // Has text.
+        assert!(!v.drop_empty_first_block(&ids[1]).unwrap());
+        assert_eq!(top_level(&v, &first), ["", "second", ""]);
+        assert!(v.drop_empty_first_block(&ids[0]).unwrap());
+        assert_eq!(top_level(&v, &first), ["second", ""]);
+        // A block with a child isn't empty, and one that is no longer the first
+        // is not an offer.
+        let (v, page, ids) = page(&["", "x"]);
+        v.create_block(&ids[0], None, "child").unwrap();
+        assert!(!v.drop_empty_first_block(&ids[0]).unwrap());
+        assert_eq!(top_level(&v, &page), ["", "x"]);
+        assert!(v.drop_empty_first_block("junk").is_err());
+    }
+
+    #[test]
+    fn dropping_an_empty_first_block_is_one_undo_step() {
+        let (v, page, ids) = page(&["", "kept"]);
+        v.graph().enable_undo();
+        assert!(v.drop_empty_first_block(&ids[0]).unwrap());
+        assert_eq!(top_level(&v, &page), ["kept"]);
+        assert!(v.undo().unwrap());
+        assert_eq!(top_level(&v, &page), ["", "kept"]);
+    }
+
     #[test]
     fn only_an_entitys_first_child_that_starts_like_one_is_its_properties_block() {
         let v = view_with(|g| {

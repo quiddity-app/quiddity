@@ -218,7 +218,9 @@ never writes the `##blob` line: Rust does.
 - **An entity's properties block** (`Block.propertiesBlock`, from Rust) is
   drawn on `bg-surface-properties` with `data-properties-block`, and
   `EditableOutline` offers `AddProperties` (an empty first block) while there
-  is none. Completion in it, and dropping an empty one, are not built.
+  is none, and remembers the block it made (`offered`): leaving it with no text
+  deletes it (`graph.dropEmptyFirstBlock`, one undo step of its own). Any other
+  empty first block is left alone. Completion in it is not built.
 - **Meta-properties** (`meta-sections.tsx`): flags with no chip go under the
   title, and Inherited and the inverse trees go below the body. A line with
   `flags` is ringed and carries `data-flagged`, with the reasons as its

@@ -179,6 +179,13 @@ impl Replica {
         js(&self.view.unlinked_references(id)?)
     }
 
+    /// Deletes an entity's first block if it is empty, as the offer of a
+    /// properties block that nothing was typed in. Returns whether it went.
+    #[wasm_bindgen(js_name = dropEmptyFirstBlock)]
+    pub fn drop_empty_first_block(&self, id: &str) -> Result<bool, JsError> {
+        Ok(self.view.drop_empty_first_block(id)?)
+    }
+
     /// Ends a burst of typing, so the next typing is a new undo step. Call
     /// when typing pauses.
     #[wasm_bindgen(js_name = endTyping)]

@@ -18,6 +18,9 @@ export interface Editing {
   edit(id: string, caret: Caret): void;
   /** Stops editing `id`, unless something else has been started since. */
   stop(id: string): void;
+  /** Adds an empty first block for properties and edits it. It is dropped
+   * again if it is left empty. */
+  addProperties(): void;
 }
 
 export const EditingContext = createContext<Editing | null>(null);

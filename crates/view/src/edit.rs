@@ -120,6 +120,27 @@ impl View {
         self.edited(made.map(|e| e.to_string()).map_err(Error::from))
     }
 
+    /// Deletes `id` if it is an entity's first block, has no text and no
+    /// children: what is left of an offer of a properties block when nothing
+    /// was typed in it. Anything else is left alone. Returns whether it went.
+    pub fn drop_empty_first_block(&self, id: &str) -> Result<bool> {
+        self.structural();
+        let block = self.block_id(id)?;
+        let first = self.graph.parent(block).is_some_and(|parent| {
+            self.graph.parent(parent).is_none()
+                && self.graph.children(parent).first() == Some(&block)
+        });
+        let empty = self.graph.text(block)?.is_empty() && self.graph.children(block).is_empty();
+        if !(first && empty) {
+            return Ok(false);
+        }
+        let deleted = self.graph.delete_block(block);
+        self.edited_by(
+            deleted.map(|()| true).map_err(Error::from),
+            Change::Structure,
+        )
+    }
+
     /// Adds a file the shell has kept to `page`, as a block at its end whose
     /// first line says what the file is: a blob. `hash` is the shell's answer
     /// for the bytes, and the parts are checked before anything is changed.

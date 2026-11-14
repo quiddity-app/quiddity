@@ -333,6 +333,12 @@ export class Graph {
     return this.edited(this.replica.outdent(id));
   }
 
+  /** Deletes an entity's first block if it is empty: the offer of a properties
+   * block that nothing was typed in. Says whether it went. */
+  dropEmptyFirstBlock(id: string) {
+    return this.edited(this.replica.dropEmptyFirstBlock(id));
+  }
+
   moveSibling(id: string, delta: number) {
     return this.edited(this.replica.moveSibling(id, delta));
   }
