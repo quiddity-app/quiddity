@@ -5,7 +5,7 @@
 
 use std::collections::HashSet;
 
-use quiddity_core::syntax::{Link, PropertyStyle, Value, parse_block};
+use quiddity_core::syntax::{Link, PropertyStyle, parse_block};
 use quiddity_core::{BlockId, Resolution};
 
 use crate::query::link_key;
@@ -132,8 +132,7 @@ impl View {
         if key.is_empty() {
             return Err(quiddity_core::Error::EmptyName.into());
         }
-        let kind = Value::Text("property".to_owned());
-        let entity = self.graph.create_entity(key, &[("type", Some(kind))])?;
+        let entity = self.graph.create_entity(key, &[])?;
         self.graph.create_block(Some(entity), None, "")?;
         Ok(entity)
     }

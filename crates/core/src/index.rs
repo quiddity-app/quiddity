@@ -111,12 +111,7 @@ impl EntityInfo {
 
     /// For entities fully identified by their properties, that identity.
     pub fn identity(&self) -> Option<Identity> {
-        if let Some(date) = crate::journal::date(&self.meta) {
-            return Some(Identity::Journal(date));
-        }
-        self.types()
-            .contains("property")
-            .then(|| Identity::Property(normalise_name(&self.name)))
+        crate::journal::date(&self.meta).map(Identity::Journal)
     }
 
     /// Whether one of the entity's properties satisfies the qualifier.
@@ -139,8 +134,6 @@ impl EntityInfo {
 pub enum Identity {
     /// A journal page, identified by its date.
     Journal(Date),
-    /// A property key, identified by its normalised name.
-    Property(String),
 }
 
 /// The outcome of following a link.
@@ -413,18 +406,14 @@ impl Index {
     }
 
     /// Reads each property entity's meta-properties over the built-in
-    /// schemas.
+    /// schemas. An entity defines the property of its name, and of each alias,
+    /// when it is the only one with that name ([`Index::property_entity`]).
     fn read_schemas(&mut self) {
         let mut schemas = HashMap::new();
         let mut flags = HashMap::new();
-        for (identity, ids) in &self.by_identity {
-            let Identity::Property(key) = identity else {
-                continue;
-            };
-            let id = ids[0];
-            let base = PropertySchema::builtin(key).unwrap_or_default();
+        for (&id, info) in &self.entities {
             // `##tag` is for any entity, and isn't about the property.
-            let meta: Vec<_> = self.entities[&id]
+            let meta: Vec<_> = info
                 .meta
                 .iter()
                 .filter(|m| {
@@ -432,9 +421,19 @@ impl Index {
                 })
                 .cloned()
                 .collect();
-            let (schema, problems) = base.with_meta(&meta);
-            schemas.insert(key.clone(), schema);
-            flags.insert(id, problems);
+            if meta.is_empty() || !self.defines_property(id) {
+                continue;
+            }
+            let names = std::iter::once(normalise_name(&info.name))
+                .chain(info.aliases().into_iter().map(canonical_value));
+            for key in names.filter(|k| !k.is_empty()) {
+                let base = PropertySchema::builtin(&key).unwrap_or_default();
+                let (schema, problems) = base.with_meta(&meta);
+                if key == normalise_name(&info.name) {
+                    flags.insert(id, problems);
+                }
+                schemas.insert(key, schema);
+            }
         }
         self.schemas = schemas;
         self.meta_flags = flags;
@@ -534,9 +533,22 @@ impl Index {
         self.by_identity(&Identity::Journal(date))
     }
 
-    /// The entity defining the property `key`. Property names are unique.
+    /// The entity that defines the property `key`: the only entity with that
+    /// name or alias, found as a link to the name alone would. With none, or
+    /// several, the property has no entity to define it.
     pub fn property_entity(&self, key: &str) -> Option<BlockId> {
-        self.by_identity(&Identity::Property(normalise_name(key)))
+        let found = self.named(key);
+        match found.as_slice() {
+            [only] => Some(*only),
+            _ => None,
+        }
+    }
+
+    /// Whether `id` is the entity that defines the property of its own name.
+    pub fn defines_property(&self, id: BlockId) -> bool {
+        self.entities
+            .get(&id)
+            .is_some_and(|info| self.property_entity(&info.name) == Some(id))
     }
 
     /// Groups of entities sharing an identity, lowest ID (the one kept) first.

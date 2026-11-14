@@ -52,7 +52,7 @@ const pages: [string, Seed[]][] = [
   [
     "kind of",
     [
-      b("type:: property\n##transitive\n##inherits\n##inverse(kinds)"),
+      b("##transitive\n##inherits\n##inverse(kinds)"),
       b("What something is a kind of. It has that thing's properties too."),
     ],
   ],

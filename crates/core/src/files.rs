@@ -260,7 +260,7 @@ fn import_namespaces(graph: &Graph, mut pending: Vec<String>) -> Result<Vec<Bloc
     if index.property_entity("parent").is_none() {
         let outline = Outline {
             title: Some("parent".into()),
-            properties: Some("type:: property\n##inverse(children)".into()),
+            properties: Some("##inverse(children)".into()),
             blocks: Vec::new(),
         };
         ids.push(import_outline(graph, &outline, "parent")?);

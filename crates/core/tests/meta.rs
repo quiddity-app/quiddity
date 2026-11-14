@@ -415,7 +415,9 @@ fn flags() -> Result<()> {
     )?;
     let cat = entity(&graph, "Cat", "type:: person")?;
     let dog = entity(&graph, "Rex", "type:: dog\nborn in:: Paris")?;
+    // Two of a name: neither defines a property, so the line means nothing.
     let stray = entity(&graph, "Stray", "##transitive")?;
+    entity(&graph, "Stray", "")?;
     let births = entity(&graph, "births", "type:: property")?;
     let odd = entity(
         &graph,
@@ -572,5 +574,52 @@ fn journal_lines_are_flagged_when_they_are_not_a_day() -> Result<()> {
         "flagged for its date, not as an unknown meta-property"
     );
     assert_eq!(index.schema("rating").value_type, ValueType::Number);
+    Ok(())
+}
+
+/// An entity is a property's entity because of its name and nothing else: no
+/// `type`, and its `##` lines apply to the property of that name.
+#[test]
+fn an_entity_named_for_a_property_defines_it_by_name_alone() -> Result<()> {
+    let graph = Graph::new();
+    let rating = entity(&graph, "Rating", "##value-type(number)")?;
+    let index = Index::build(&graph)?;
+    assert_eq!(index.property_entity("rating"), Some(rating));
+    assert_eq!(index.property_entity(" RATING "), Some(rating));
+    assert!(index.defines_property(rating));
+    assert_eq!(index.schema("rating").value_type, ValueType::Number);
+    assert_eq!(
+        index.schema("Rating").value_type,
+        ValueType::Number,
+        "by key, however written"
+    );
+    assert!(index.flags(rating).is_empty());
+    Ok(())
+}
+
+/// With two entities of a name there is no one entity to define the property,
+/// and neither's `##` lines apply.
+#[test]
+fn a_name_two_entities_share_defines_nothing() -> Result<()> {
+    let graph = Graph::new();
+    let first = entity(&graph, "Twin", "##value-type(number)")?;
+    entity(&graph, "Twin", "")?;
+    let index = Index::build(&graph)?;
+    assert_eq!(index.property_entity("twin"), None);
+    assert!(!index.defines_property(first));
+    assert_eq!(index.flags(first), [Flag::MetaOutsideProperty]);
+    assert_ne!(index.schema("twin").value_type, ValueType::Number);
+    Ok(())
+}
+
+/// An alias is a name too, so a renamed property entity keeps its key.
+#[test]
+fn a_property_entity_is_found_by_an_alias() -> Result<()> {
+    let graph = Graph::new();
+    let score = entity(&graph, "score", "alias:: rating")?;
+    let index = Index::build(&graph)?;
+    assert_eq!(index.property_entity("rating"), Some(score));
+    assert_eq!(index.property_entity("score"), Some(score));
+    assert!(index.defines_property(score));
     Ok(())
 }

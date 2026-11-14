@@ -2,11 +2,10 @@ alias:: [Meta-properties, meta-property, ## properties]
 
 - A meta-property says something about a property itself: which values it takes, what it may be applied to, how many values it may have, and how it relates entities to one another. They are how a graph builds its own taxonomies (parents and children, kinds and subkinds) out of [[Properties]] it defines, with nothing in code.
 - Writing them
-	- `##key`, `##key(parameter)` or `##key:: value`, on a line of its own in the properties block of a property's entity, the one with `type:: property` that defines the property. [[Entity]]
+	- `##key`, `##key(parameter)` or `##key:: value`, on a line of its own in the properties block of a property's entity: the one entity with the property's name, which defines it. [[Entity]] [[Properties]]
 		- ```
 		  parent                       ← the property's entity
-		  └─ type:: property           ← its properties block
-		     ##values(#type(place))
+		  └─ ##values(#type(place))    ← its properties block
 		     ##applies-to(#type(place))
 		     ##cardinality(0..1)
 		     ##transitive

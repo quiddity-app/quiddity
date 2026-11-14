@@ -7,7 +7,7 @@ use quiddity_syntax::normalise_name;
 
 use crate::schema::{Cardinality, Mismatch, coerce};
 use crate::tags;
-use crate::{BlockId, Identity, Index};
+use crate::{BlockId, Index};
 
 /// Something about an entity that doesn't fit the schema of a property.
 /// Keys are as written, so the UI can find what to mark.
@@ -146,7 +146,7 @@ impl Index {
                 }),
         );
 
-        let defines = matches!(info.identity(), Some(Identity::Property(_)));
+        let defines = self.defines_property(id);
         if !defines
             && info.meta.iter().any(|m| {
                 !tags::is_tag(m) && !crate::journal::is_journal(m) && !crate::ref_id::is_id(m)

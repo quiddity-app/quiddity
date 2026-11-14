@@ -571,10 +571,10 @@ impl View {
         };
         let found: Vec<(BlockId, Vec<String>)> = {
             let index = self.index()?;
-            let Some(Identity::Property(key)) = index.entity(definition).and_then(|e| e.identity())
-            else {
+            if !index.defines_property(definition) {
                 return Ok(Vec::new());
-            };
+            }
+            let key = normalise_name(index.entity(definition).map_or("", |e| e.name.as_str()));
             index
                 .entities()
                 .filter(|e| index.canonical(e.id) == e.id)

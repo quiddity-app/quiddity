@@ -3,16 +3,16 @@ alias:: property
 - A property is a `key:: value` line, and a tag is a `#key` anywhere in running text, which is a property with no value for now. Both are read from a [[Block]]'s Markdown, which is the source of truth. A `(value)` after a tag is ordinary text. [[Syntax]]
 	- An [[Entity]]'s own properties are in its properties block, its first child, and only there: a `key:: value` line in another block has no effect and is flagged. [[Block]]
 	- A block's `type` property is its type. [[type]]
-	- A property's own page, the entity named for its key with `type:: property`, lists its uses under the references, grouped by entity and with each value as written. In the [[Graph view]] it is joined weakly to each entity that has the property and each entity those values link to.
+	- A property's own page, the entity named for its key, lists its uses under the references, grouped by entity and with each value as written. In the [[Graph view]] it is joined weakly to each entity that has the property and each entity those values link to.
 	- A property with no value is written `key::`. `#key` is a tag, which is a link to an entity and not a property. [[tags]]
 - One value or several
 	- Two `tag:: a` and `tag:: b` lines are two instances of `tag`, with one value each.
 	- `steps:: [a, b, c]` is one instance holding an ordered list.
 - Property entities
-	- Every key can have an entity that defines it (a property entity), named for the key, with `type:: property`. The built-in ones are documented that way: [[type]], [[alias]], [[favourite]] and [[title]].
-	- Property names are unique, matched as names are, ignoring case and spacing. If two devices make the same property entity, the two are merged. [[Duplicates]]
+	- Every key can have an entity that defines it (a property entity): the only entity with that name, found as a link to the name alone would find it, so an alias counts and so do case and spacing. Nothing marks it: no `type`, only the name. The built-in ones are documented that way: [[type]], [[alias]], [[favourite]] and [[title]].
+	- If no entity has the name, or two or more do, the property has no entity to define it, and a `##` line on either is flagged as having no effect. Two devices that each make one leave two, and nothing merges them, since entities share names on purpose: rename or delete one.
 	- A property entity describes the property in prose, and can give it a schema.
-	- It can't be renamed, because its name is what identifies it. [[Renaming]]
+	- It can be renamed. The old name stays as an alias, so the key still finds it. [[Renaming]]
 - Schemas
 	- A property entity says how its property's values are read, and how it relates entities, with [[Built-in properties]]: `##value-type`, `##values`, `##applies-to` and `##cardinality` for what a property holds, and `##transitive`, `##inherits`, `##inverse` and `##symmetric` for how it relates entities.
 	- Value types: `text`, `number` (a double), `boolean` (`true`, `false`, `yes` or `no`), `date` (an ISO 8601 date), `datetime` (RFC 3339, with an offset) or `ref`. More will come, such as `blob`. [[Binaries]]

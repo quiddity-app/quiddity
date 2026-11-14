@@ -17,7 +17,7 @@
 	- Deleting asks first, in the page. It does not use `window.confirm`, which the desktop app's webview can't be relied on to show. Changing the selection withdraws the question, so what you confirm is what you were asked about.
 	- Deletion is one step of undo, however many entities go. [[Undo]]
 	- It removes an entity with everything in it. Links to it stay in the text of other blocks, and become links to nowhere, as if it had never been made. [[Links to nowhere]]
-	- A journal or property entity goes with any duplicates merged into it, since otherwise the twin would appear in its place.
+	- A journal goes with any duplicates merged into it, since otherwise the twin would appear in its place.
 	- Nothing is deleted if any of the IDs is not an entity.
 	- The selection is the set of IDs ticked, filtered by the rows still there, so an entity that an undo or a sync removes stops counting.
 - Created and last modified

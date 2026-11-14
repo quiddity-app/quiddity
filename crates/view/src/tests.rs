@@ -621,8 +621,8 @@ mod properties {
         );
         assert_eq!(
             definition(4),
-            None,
-            "`person` defines no property, and its tag chip is a different one"
+            Some(id_of(&v, "person")),
+            "an entity is the definition of the property of its own name, tag or not"
         );
     }
 
@@ -776,23 +776,31 @@ mod rename {
     }
 
     #[test]
-    fn journals_and_property_entities_cannot_be_renamed() {
+    fn journals_cannot_be_renamed() {
         let v = view_with(|g| {
-            g.create_entity("rating", &[("type", text("property"))])
-                .unwrap();
             g.create_entity("Ordinary", &[]).unwrap();
         });
         let day = v.ensure_journal(today()).unwrap();
-        let rating = id_of(&v, "rating");
-        for id in [&day.id, &rating] {
-            assert!(!v.entity(id).unwrap().renamable);
-            assert!(matches!(
-                v.rename_entity(id, "x"),
-                Err(Error::NotRenamable(_))
-            ));
-        }
+        assert!(!v.entity(&day.id).unwrap().renamable);
+        assert!(matches!(
+            v.rename_entity(&day.id, "x"),
+            Err(Error::NotRenamable(_))
+        ));
         assert_eq!(v.entity(&day.id).unwrap().title, "2026-10-26", "untouched");
         assert!(v.entity(&id_of(&v, "Ordinary")).unwrap().renamable);
+    }
+
+    /// A property entity is found by name, and a rename keeps the old name as
+    /// an alias, so the property's key still finds it.
+    #[test]
+    fn renaming_a_property_entity_keeps_its_key() {
+        let (v, page, _) = page(&["rating:: 5"]);
+        let rating = v.define_property("rating").unwrap();
+        assert!(v.entity(&rating).unwrap().renamable);
+        assert!(v.rename_entity(&rating, "score").unwrap());
+        let chip = &v.entity(&page).unwrap().blocks[0].properties[0];
+        assert_eq!(chip.definition.as_deref(), Some(rating.as_str()));
+        assert_eq!(v.define_property("rating").unwrap(), rating, "found again");
     }
 
     #[test]
@@ -1625,8 +1633,8 @@ mod property_links {
         let id = v.define_property("mood").unwrap();
         let e = v.entity(&id).unwrap();
         assert_eq!(e.title, "mood");
-        assert!(!e.renamable, "a property is identified by its name");
-        assert_eq!(texts(&e.blocks), ["type:: property", ""]);
+        assert!(e.renamable, "a rename keeps the old key as an alias");
+        assert_eq!(texts(&e.blocks), [""]);
         assert_eq!(definitions(&v, &page), [Some(id.clone())]);
         assert_eq!(v.define_property(" Mood ").unwrap(), id, "once");
         assert_eq!(v.entities().unwrap().len(), 2);
@@ -1997,7 +2005,11 @@ mod meta {
                 "born in",
                 "type:: property\n##applies-to(#type(person))\n##cardinality(1)",
             );
-            entity(g, "Film", "rating:: lots\ntype:: person\n##transitive");
+            entity(g, "Film", "rating:: lots\ntype:: person");
+            // Two entities of one name: neither is the property's, so the
+            // meta-property on the first means nothing.
+            entity(g, "Twin", "##transitive");
+            entity(g, "Twin", "");
             let page = entity(g, "Notes", "");
             note(g, page, "Prose first, so the next isn't a properties block");
             note(g, page, "##transitive");
@@ -2012,12 +2024,13 @@ mod meta {
         assert_eq!(flags[1].1, Vec::<String>::new());
         assert_eq!(
             film.flags,
-            [
-                "Should have born in: 1".to_owned(),
-                "Meta-properties mean something only on a property's entity, with type:: property"
-                    .to_owned()
-            ],
+            ["Should have born in: 1".to_owned(),],
             "flags with no chip of their own"
+        );
+        let twin = v.entity(&id_of(&v, "Twin")).unwrap();
+        assert_eq!(
+            twin.flags,
+            ["Meta-properties mean something only on an entity that is the only one with its name"],
         );
 
         let rating = v.entity(&id_of(&v, "rating")).unwrap();

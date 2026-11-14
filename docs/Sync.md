@@ -14,6 +14,6 @@
 		- Typing that nobody else can see is held back until the edit is over. [[Publish gate]]
 	- Messages are length-prefixed frames on one QUIC stream. Unknown message types are ignored, so newer versions can add messages.
 	- Acknowledgements aren't messages. Each device records what it has stored in the graph itself, which syncs like any edit. [[Compaction]]
-- After every sync, duplicate journals and property entities are merged. [[Duplicates]]
+- After every sync, duplicate journals are merged. [[Duplicates]]
 - Using it: `quiddity-node serve` keeps a graph online, and `quiddity-node sync <id>` syncs with one device until neither has anything more to send. [[quiddity-node]]
 - Tested over a simulated network that connects, disconnects and scrambles delivery, and over real iroh connections on localhost. [[Testing]]
