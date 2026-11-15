@@ -1,11 +1,22 @@
 import { expect, test as base, type Locator, type Page } from "@playwright/test";
 
-/** A test that fails if the page logs an error, which the UI shouldn't. */
-export const test = base.extend<{ page: Page }>({
-  page: async ({ page }, use) => {
+/**
+ * A test that fails if the page logs an error, which the UI shouldn't.
+ *
+ * A test that provokes errors on purpose says which with `allowedErrors`:
+ * React reports an error an error boundary has caught, a moment after the
+ * fallback appears, so without it such a test passes only if it ends before
+ * the report arrives, and fails on a slow machine.
+ */
+export const test = base.extend<{ page: Page; allowedErrors: RegExp[] }>({
+  allowedErrors: [[], { option: true }],
+  page: async ({ page, allowedErrors }, use) => {
     const errors: string[] = [];
-    page.on("pageerror", (e) => errors.push(String(e)));
-    page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+    const record = (text: string) => {
+      if (!allowedErrors.some((allowed) => allowed.test(text))) errors.push(text);
+    };
+    page.on("pageerror", (e) => record(String(e)));
+    page.on("console", (m) => m.type() === "error" && record(m.text()));
     await use(page);
     expect(errors, "errors logged by the page").toEqual([]);
   },
