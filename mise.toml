@@ -77,6 +77,8 @@ cargo run -p quiddity-node -- -g target/docs-graph snapshot target/docs-graph/gr
 # Pages are addressed by name, so two sharing one is an error here, not a broken link later.
 cargo run -p quiddity-node -- -g target/docs-graph names target/docs-graph/names.txt
 QUIDDITY_STATIC_GRAPH=$PWD/target/docs-graph/graph.loro pnpm ui build
+# Each named page must be drawn in its HTML, which is what CI checks too.
+node scripts/check-export.mjs apps/ui/out target/docs-graph/names.txt
 """
 
 [tasks.node]
