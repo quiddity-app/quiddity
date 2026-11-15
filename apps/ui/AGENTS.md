@@ -325,6 +325,14 @@ calls `draw()` once on mount and `update(data)` when the graph changes.**
   on screen, except for the node hovered or focused. The canvas carries
   `data-labels`, how many the last paint drew, for tests.
 
+## Disambiguation
+
+`/disambiguate/?link=<key>` (`components/disambiguation.tsx`) lists the entities
+an ambiguous link matches, each with its title and its read-only properties
+block. **The link is in the URL as `View.link`**, so `viewHref` keeps it when a
+side card is opened. An ambiguous `LinkOrNot` and Enter in the editor go there;
+`graph.linkMatches` is the cached read.
+
 ## Search
 
 The action strip above the main pane holds the search button; **Cmd/Ctrl-K**

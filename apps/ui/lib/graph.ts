@@ -138,6 +138,10 @@ export class Graph {
     this.read<EntityRef[]>("journals", () => this.replica.journals(today()));
   references = (id: EntityId) =>
     this.read<Reference[]>(`r:${id}`, () => this.replica.references(id));
+  /** The entities a link matches, for choosing between them when it is
+   * ambiguous. `key` is as for `followLink`. */
+  linkMatches = (key: string) =>
+    this.read<EntityId[]>(`m:${key}`, () => this.replica.linkMatches(key));
   uses = (id: EntityId) => this.read<Use[]>(`use:${id}`, () => this.replica.uses(id));
 
   unlinkedReferences = (id: EntityId) =>

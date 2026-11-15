@@ -34,6 +34,6 @@
 	- Binaries in a content-addressed store. [[Binaries]]
 	- Migrations by version lenses. [[Versioning]]
 	- Pairing by QR code, and revoking a device. [[Device list]]
-	- A disambiguation page for links that match several entities, and an offer to merge entities with the same name. [[Links]] [[Duplicates]]
+	- An offer to merge entities with the same name, and narrowing an ambiguous link in place from its disambiguation page. [[Links]] [[Duplicates]] [[Disambiguation]]
 	- Editing aids driven by the schema, such as a date picker and autocomplete for references, which write Markdown into the text. [[Properties]]
 	- Mobile builds, cursors in [[Presence]], [[Queries]] anywhere but meta-properties, table and board views by type, and a plugin API.

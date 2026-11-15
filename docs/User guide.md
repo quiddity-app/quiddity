@@ -13,6 +13,7 @@ favourite:: true
 	- [[Built-in properties]]: `##values(…)`, `##transitive`, `##inverse(…)` and the rest, to give properties types and build taxonomies, written in [[Queries]].
 	- [[Links]]: `[[Name]]`, with qualifiers to pick between entities with one name, and the references at the foot of each page. Names match whatever their case or [[Unicode normalisation]].
 	- [[Links to nowhere]]: how a link makes the entity it names.
+	- [[Disambiguation]]: choosing between entities that share a name.
 	- [[Block references]]: `((id))`.
 	- [[Renaming]], and the [[alias]] it leaves behind.
 	- [[Undo]]: across the whole graph.

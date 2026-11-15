@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useGraph } from "@/lib/use-graph";
@@ -26,6 +27,7 @@ export function LinkOrNot({
   /** What to show instead of the link's name, as in `[label]([[Name]])`. */
   label?: ReactNode;
 }) {
+  const view = useView();
   const resolved = links[linkKey];
   const target = resolved ?? { kind: "missing" };
   const name = label ?? resolved?.name ?? fallback;
@@ -45,12 +47,13 @@ export function LinkOrNot({
     return <NewEntityLink name={name} linkKey={linkKey} qualifiers={qualifiers} />;
   }
   return (
-    <span
+    <Link
+      href={view.href({ path: "/disambiguate/", main: null, open: view.open, link: linkKey })}
       className={`text-ink-muted ${unresolved}`}
       title={qualifiers ? `Several entities match ${qualifiers}` : "Several entities match"}
     >
       {name}
-    </span>
+    </Link>
   );
 }
 

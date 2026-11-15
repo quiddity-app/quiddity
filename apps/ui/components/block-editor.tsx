@@ -213,7 +213,13 @@ export function BlockEditor({
                 try {
                   target = graph.followLink(key);
                 } catch {
-                  return; // Empty, or ambiguous (no page to choose yet).
+                  // Empty, which goes nowhere, or ambiguous, which has a page to choose on.
+                  if (graph.linkMatches(key).length < 2) return;
+                  const { nav, router } = go.current;
+                  router.push(
+                    nav.href({ path: "/disambiguate/", main: null, open: nav.open, link: key }),
+                  );
+                  return;
                 }
                 go.current.router.push(go.current.nav.toMain(target));
               },
