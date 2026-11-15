@@ -6,6 +6,7 @@ import { limited, type Facet, type Hit } from "@/lib/search/facet";
 import { text } from "@/lib/search/text";
 import { titles } from "@/lib/search/titles";
 import { useSearch } from "@/lib/search/use-search";
+import { noteFollowed } from "./home";
 import { useView } from "./use-view";
 import { Button, Kbd, sectionHeading } from "./ui";
 
@@ -86,7 +87,11 @@ function Panel({ onClose }: { onClose: () => void }) {
   const choose = (hit: Hit, side: boolean) => {
     onClose();
     if (hit.target.kind === "run") hit.target.run();
-    else router.push(side ? view.toSide(hit.target.id) : view.toMain(hit.target.id));
+    else {
+      // Not a link, so `Home` wouldn't know it was chosen before its redirect.
+      noteFollowed();
+      router.push(side ? view.toSide(hit.target.id) : view.toMain(hit.target.id));
+    }
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {

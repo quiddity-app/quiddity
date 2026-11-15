@@ -147,8 +147,10 @@ never writes the `##blob` line: Rust does.
   moment the sidebar's links start working. A link followed first is the
   person's choice, and the redirect, being later, would take over the
   navigation still under way, so `Home` notes links followed before its first
-  redirect and stands down. `e2e/pages.spec.ts` follows the link the moment it
-  is drawn, with the destination slow, to hold the race open.
+  redirect and stands down. A navigation that isn't a click on a link, such as
+  choosing a search result, says so with `noteFollowed`. `e2e/pages.spec.ts` follows the link the moment it
+  is drawn, with the destination slow, to hold the race open, and
+  `e2e/search.spec.ts` does the same for a search result.
 - Reading the URL suspends, so each pane, and each secondary within the right
   pane, has its own `Suspense` and error boundary (`Region`): a slow or broken
   one holds up nothing else. A card's header sits outside its content's

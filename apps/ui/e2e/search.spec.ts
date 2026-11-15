@@ -60,6 +60,36 @@ test("text search finds blocks by their words, and opens the page they are on", 
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Reading list");
 });
 
+test("a result chosen before / has redirected is not overwritten by the redirect", async ({
+  page,
+}) => {
+  // Choose the first text result the moment it is drawn, which is when the
+  // graph has loaded and before the redirect has run, and make the page it
+  // leads to slow, so that the navigation is still under way when the
+  // redirect fires. Otherwise the race is there, but too narrow to hit.
+  await page.route("**/entity/**", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await route.continue();
+  });
+  await page.addInitScript(() => {
+    const watch = new MutationObserver(() => {
+      const hit = document.querySelector<HTMLElement>(
+        '[role="group"][aria-label="Text"] [role="option"]',
+      );
+      if (hit) {
+        watch.disconnect();
+        hit.click();
+      }
+    });
+    watch.observe(document, { childList: true, subtree: true });
+  });
+  await page.goto("/");
+  await openSearch(page);
+  await page.getByRole("combobox").fill("crdts note");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Reading list");
+  await expect(page).toHaveURL(/\/entity\//);
+});
+
 test("a word that is nowhere finds nothing", async ({ page }) => {
   await page.goto("/");
   await openSearch(page);

@@ -17,10 +17,20 @@ const paths: Record<Exclude<Start["kind"], "entity">, string> = {
 // the moment it does. A link followed in that gap is the person's choice, and
 // the redirect, being later, would overwrite it. So links followed before the
 // first redirect are noted (in the capture phase, so nothing can stop them),
-// and the redirect stands down. It is only the first that can race: after that
+// and the redirect stands down. (A navigation that isn't a link says so with
+// `noteFollowed`.) It is only the first that can race: after that
 // a visit to `/` is a fresh arrival.
 let followed = false;
 let first = true;
+
+/**
+ * Notes a navigation the person chose that isn't a click on a link, such as
+ * picking a search result, so that the first redirect stands down for it too.
+ */
+export function noteFollowed() {
+  followed = true;
+}
+
 if (typeof document !== "undefined") {
   document.addEventListener(
     "click",
