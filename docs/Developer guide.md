@@ -4,7 +4,7 @@ favourite:: true
 - Start here
 	- [[Design]]: the goals, the decisions and the open questions.
 	- [[Architecture]]: the app, the headless node and the crates.
-	- [[Running the app]], [[Testing]], [[Nightly builds]], [[Releases]] and [[Updates]].
+	- [[Running the app]], [[Testing]], [[Releases]] and [[Updates]].
 	- [[Performance]]: what costs time in a large graph, and what is still to do.
 - The parts
 	- Crates: [[quiddity-syntax]], [[quiddity-identity]], [[quiddity-core]], [[quiddity-sync]], [[quiddity-node]], [[quiddity-view]] and [[quiddity-wasm]].
