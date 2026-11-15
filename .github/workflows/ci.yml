@@ -119,6 +119,42 @@ jobs:
         name: playwright-traces
         path: apps/ui/test-results/
 
+  site:
+    # The documentation site is the one published build, and Pages builds it
+    # only after a merge, so a change that breaks it would be found there.
+    # This builds it as Pages does, and checks that each named page is drawn in
+    # its HTML (scripts/check-export.mjs). It needs the node binary, which
+    # `ui` doesn't, so it is a job of its own.
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+    - uses: $/.github/actions/setup
+      with:
+        tools: cargo-binstall rust node pnpm cargo:wasm-bindgen-cli
+        node: true
+    - run: pnpm install --frozen-lockfile
+    # The device's key goes in a directory of its own, not the runner's.
+    - run: cargo run --locked -p quiddity-node -- -g "$RUNNER_TEMP/graph" init
+      env:
+        QUIDDITY_CONFIG_DIR: ${{ runner.temp }}/keys
+    - run: cargo run --locked -p quiddity-node -- -g "$RUNNER_TEMP/graph" import docs
+      env:
+        QUIDDITY_CONFIG_DIR: ${{ runner.temp }}/keys
+    - run: cargo run --locked -p quiddity-node -- -g "$RUNNER_TEMP/graph" snapshot "$RUNNER_TEMP/graph/graph.loro"
+      env:
+        QUIDDITY_CONFIG_DIR: ${{ runner.temp }}/keys
+    # Stops here if two pages share a name.
+    - run: cargo run --locked -p quiddity-node -- -g "$RUNNER_TEMP/graph" names "$RUNNER_TEMP/graph/names.txt"
+      env:
+        QUIDDITY_CONFIG_DIR: ${{ runner.temp }}/keys
+    - run: pnpm ui build
+      env:
+        QUIDDITY_STATIC_GRAPH: ${{ runner.temp }}/graph/graph.loro
+    - run: node scripts/check-export.mjs apps/ui/out "$RUNNER_TEMP/graph/names.txt"
+
   app:
     # The shell's Rust, which is all there is to check: its tests never load
     # the UI, so this needs neither Node nor the WASM build, which the ui job
@@ -286,7 +322,7 @@ jobs:
     # includes a cancelled run.
     name: lint, build, test
     if: always()
-    needs: [lint, test, scripts, ui, app, changes, mutants, fuzz, typecheck]
+    needs: [lint, test, scripts, ui, site, app, changes, mutants, fuzz, typecheck]
     runs-on: ubuntu-latest
     timeout-minutes: 1
     steps:

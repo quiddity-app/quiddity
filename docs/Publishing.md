@@ -3,6 +3,7 @@
 	- The UI is built with `QUIDDITY_STATIC_GRAPH` pointing at that graph, which makes it load the graph's snapshot instead of talking to the Tauri shell. [[Static build]] has the details.
 	- `quiddity-node names` writes the entities' names, and stops the build if two share one. Each page is then also at `/page/<name>/`, which survives a rebuild. [[Page names]]
 	- `QUIDDITY_BASE_PATH` is where the site is served from.
+- `scripts/check-export.mjs` checks the export: each name has a page whose own heading and title are in its HTML. CI runs it on pull requests, Pages before it deploys, and `mise run docs` locally. [[Testing]]
 - Without `QUIDDITY_STATIC_GRAPH` the build is the one the desktop app embeds, unchanged.
 - To build it yourself, run `mise run docs`; the site lands in `apps/ui/out`.
 - Adding to this site is a matter of adding Markdown to `docs/`: a page per topic, and a `Journal:` block in the commit message for each day's work, which CI turns into `docs/journals/` entries. [[Journal entries]]
