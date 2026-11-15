@@ -251,3 +251,86 @@ fn journals_are_marked_with_a_journal_line_once() -> Result<()> {
     );
     Ok(())
 }
+
+/// Logseq links to a journal by the day as it writes it, which isn't what a
+/// journal is named here, so such a journal answers to that as an alias.
+#[test]
+fn logseq_journals_answer_to_the_name_logseq_gives_them() -> Result<()> {
+    let tmp = tempfile::tempdir()?;
+    let dir = tmp.path();
+    fs::create_dir_all(dir.join("pages"))?;
+    fs::create_dir_all(dir.join("journals"))?;
+    // The journals come before the pages that link to them, so the links have
+    // to be read first.
+    fs::write(
+        dir.join("journals/2026_11_10.md"),
+        "alias:: Tuesday\n\n- A day\n",
+    )?;
+    fs::write(dir.join("journals/2026_11_11.md"), "- Nothing links here\n")?;
+    fs::write(
+        dir.join("pages/Plan.md"),
+        "- Due [[10th November 2026]]\n\t- and again #[[3rd December 2026]]\n",
+    )?;
+    fs::write(
+        dir.join("pages/Review.md"),
+        "due:: [[10th november 2026]]\n\n- Soon\n",
+    )?;
+
+    let graph = Graph::new();
+    import_dir(&graph, dir)?;
+    let index = Index::build(&graph)?;
+    let find = |name: &str| match index.resolve(&Link {
+        name: name.into(),
+        qualifiers: vec![],
+    }) {
+        Resolution::Unique(id) => Some(id),
+        _ => None,
+    };
+    let tenth = index.journal("2026-11-10".parse().unwrap()).unwrap();
+    assert_eq!(find("10th November 2026"), Some(tenth));
+    assert_eq!(find("10th november 2026"), Some(tenth));
+    assert_eq!(find("Tuesday"), Some(tenth), "its own alias is kept");
+    assert_eq!(index.backlinks(tenth).len(), 2);
+    // Nothing links to the 11th by date, so it is left as it was.
+    let eleventh = index.journal("2026-11-11".parse().unwrap()).unwrap();
+    assert_eq!(find("11th November 2026"), None);
+    assert_eq!(
+        graph.text(graph.children(eleventh)[0])?,
+        "##journal(2026-11-11)"
+    );
+    // A day linked to that has no file is made, so that the link isn't left
+    // pointing nowhere.
+    let third = index.journal("2026-12-03".parse().unwrap()).unwrap();
+    assert_eq!(find("3rd December 2026"), Some(third));
+    assert_eq!(graph.entity_name(third)?, "2026-12-03");
+    Ok(())
+}
+
+/// A Quiddity export isn't Logseq's: a link there means what it says.
+#[test]
+fn a_quiddity_export_has_no_day_aliases_added() -> Result<()> {
+    let tmp = tempfile::tempdir()?;
+    let dir = tmp.path();
+    fs::create_dir_all(dir.join("entities"))?;
+    fs::create_dir_all(dir.join("journals"))?;
+    fs::write(
+        dir.join("quiddity.json"),
+        "{\"format\": \"quiddity\", \"version\": 1}\n",
+    )?;
+    fs::write(
+        dir.join("journals/2026-11-10.md"),
+        "title:: 2026-11-10\n##journal(2026-11-10)\n\n- A day\n",
+    )?;
+    fs::write(
+        dir.join("entities/Plan.md"),
+        "title:: Plan\n\n- Due [[10th November 2026]]\n",
+    )?;
+
+    let graph = Graph::new();
+    import_dir(&graph, dir)?;
+    let index = Index::build(&graph)?;
+    let day = index.journal("2026-11-10".parse().unwrap()).unwrap();
+    assert_eq!(graph.text(graph.children(day)[0])?, "##journal(2026-11-10)");
+    assert_eq!(index.journal("2026-11-10".parse().unwrap()), Some(day));
+    Ok(())
+}

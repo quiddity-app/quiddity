@@ -43,5 +43,6 @@ alias:: text format
 	- A `quiddity.toml` at the top sets the graph's settings, with or without `quiddity.json`. [[Graph settings]]
 	- Files in `assets/` are kept if they are named for the hash of what is in them, with any extension or none. Others are left alone and counted: a [[Logseq]] graph's `assets/` is full of pictures that nothing here refers to by hash, and a file that doesn't match its name is damaged or not ours. Importing them again changes nothing.
 	- Files in `journals/` named `2026-10-25.md` or `2026_10_25.md` become journals. [[Journal]]
+	- In a Logseq graph, a link to a day written as Logseq writes it (`[[10th November 2026]]`) finds that day's journal, which is given the alias, and made if there was no file for it. [[Logseq]]
 	- A file with no `title::` is named for the file. In a Logseq graph, `___` in the file name is a `/`, and a name with a `/` is a namespace: the page gets a `parent` to the page above it. [[Logseq]]
 	- Importing the same export twice makes two of everything except journals, which merge. Exports leave out copies that have been merged. [[Duplicates]]
