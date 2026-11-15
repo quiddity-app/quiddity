@@ -2,7 +2,7 @@ import { expect, test } from "./fixtures";
 
 test("a graph that opened shows no recovery screen", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("link", { name: "Devices", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Journals", exact: true })).toBeVisible();
   await expect(page.getByRole("alertdialog")).toHaveCount(0);
 });
 

@@ -10,6 +10,7 @@ import { ClientOnly } from "@/components/client-only";
 import { HistoryKeys } from "@/components/history-keys";
 import { Recovery } from "@/components/recovery";
 import { LeftSidebar } from "@/components/left-sidebar";
+import { MoreMenu } from "@/components/more-menu";
 import { RightPane } from "@/components/right-pane";
 import { Search } from "@/components/search";
 import { SyncIndicator } from "@/components/sync-indicator";
@@ -62,6 +63,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </Suspense>
               <Suspense fallback={null}>
                 <Search />
+              </Suspense>
+              <Suspense fallback={null}>
+                <MoreMenu />
               </Suspense>
             </ClientOnly>
           }

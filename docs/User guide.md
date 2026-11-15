@@ -19,6 +19,7 @@ favourite:: true
 	- [[Syntax]]: all of it on one page.
 - Finding things
 	- [[Search]]: Cmd/Ctrl-K, by [[Title matching]] and [[Text search]].
+	- [[Menus]]: the More menu, deleting an entity, and the Mac's File and Go menus.
 	- [[All entities]]: every entity as a table, to sort and tidy.
 	- [[Graph view]]: every entity and the links between them, drawn.
 - Your data

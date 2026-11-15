@@ -1,0 +1,9 @@
+- The More menu is three dots to the right of the search button. [[The UI]]
+	- **Devices** is where another device is added. [[Add a device]]
+	- **Delete Entity** deletes the entity in the main pane, and is greyed out where there is none (the journals, the graph). It asks first, naming the entity, and the answer that keeps it has the focus. Links to a deleted entity stay in the text, as links to nothing, and Undo brings it back. [[Links to nowhere]] [[Undo]]
+	- Escape closes it, and the arrow keys move through it.
+- On macOS the menu bar has the same things. [[The shell]]
+	- **File ▸ Delete Entity** does what the More menu's does. It is greyed out while no entity is open.
+	- **Go** is beside File, and goes to each entrypoint: the journals, [[All entities]], the [[Graph view]] and Devices. The sidebar's links and Go go to the same places.
+	- The shell only tells the UI what was chosen, since the UI knows what is open and does the asking, the deleting and the going. The names are in `apps/app/src-tauri/src/menu.rs`, and a test there holds its paths to the UI's list of entrypoints.
+	- Not built: keyboard shortcuts for them. Cmd-Backspace would be the natural one for Delete Entity, but it means "delete to the start of the line" in a block being edited, and a menu's shortcut would take it.

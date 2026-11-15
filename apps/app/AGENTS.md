@@ -8,7 +8,7 @@ holds its own replica and answers its own queries (see `apps/ui` and
   because it needs Tauri's system packages (webkit) that the core's CI
   shouldn't. It has its own `Cargo.lock`, its own CI job, and its own
   `cargo fmt`, `clippy` and `test` runs (from `src-tauri`).
-- **Eleven commands.** `load_graph` returns a snapshot and `push_updates`
+- **Twelve commands.** `load_graph` returns a snapshot and `push_updates`
   takes Loro updates as the request body, imports them, saves and sends them
   to other devices, both as raw bytes rather than JSON arrays. Updates that
   arrive out of order are held by Loro until their causes do.
@@ -20,7 +20,8 @@ holds its own replica and answers its own queries (see `apps/ui` and
   the others (`Session::sync_state`) each time it changes.
   `subscribe_updates` is below. `device_id` and `allow_device` are for letting
   another device in (see `docs/App sync.md`); the Devices page calls them.
-  `put_blob` takes a file as the request body and returns its hash, and
+  `set_entity_open` says whether the UI has an entity open, for the macOS
+  menu (below). `put_blob` takes a file as the request body and returns its hash, and
   `get_blob` returns the bytes for a hash: the shell only keeps bytes, and the
   UI says in the graph what a file is, with a block that starts with a `##blob`
   line, as an ordinary edit pushed with `push_updates`.
@@ -66,6 +67,14 @@ holds its own replica and answers its own queries (see `apps/ui` and
   repainted on `ThemeChanged`. The two colours are `--surface` in
   `apps/ui/app/globals.css`, and a test reads the stylesheet and fails if they
   drift. The title bar is the system's and isn't set here.
+- **The macOS menu bar** (`menu.rs`) is Tauri's default with Delete Entity
+  added to File and a Go menu after it. It only emits the item's ID on the
+  `menu` event; the UI does the work, since it knows what is open. Delete
+  Entity has no shortcut on purpose: Cmd-Backspace is "delete to the start of
+  the line" in a block. The File menu is found by its title, as Tauri gives it
+  no ID, and made if it isn't there. **The menu code is macOS-only and was
+  type-checked on Linux with the cfg lifted, not run**; a test holds the Go
+  menu's paths to `entrypoints` in `apps/ui/lib/nav.ts`.
 - **Every icon is made from the SVGs in `src-tauri/icons/source`** by
   `mise run icons` (`scripts/icons.sh`): don't edit the generated PNGs, ICNS
   and ICO by hand. **The Q's ring, not the whole glyph, is centred** in the
