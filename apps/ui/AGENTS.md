@@ -245,6 +245,9 @@ never writes the `##blob` line: Rust does.
   not cached. The source is `Prec.highest` before the outliner's keys so Enter
   chooses an entry, with `interactionDelay: 0`: the default ignores keys for
   75 ms after the list opens, and a quick Enter would then split the block.
+  **Enter in a properties block adds a line** (the outliner's Enter would split
+  the block), except on an empty last line, which is removed as the body's
+  first block is made after it.
   It offers nothing unless the block is a properties block or the one the offer
   made (`BlockEditor`'s `properties`, read through a ref so a block that becomes
   one is completed). The list takes the page's colours from tokens.

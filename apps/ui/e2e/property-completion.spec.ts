@@ -31,6 +31,23 @@ test("a value is completed from the values the key already has", async ({ page }
   await expect(editor(page)).toContainText("merges:: without coordination");
 });
 
+test("Enter in a properties block starts a line, and on an empty last line starts the body", async ({ page }) => {
+  await editProperties(page);
+  const blocks = page.locator("main article > ul > li");
+  const before = await blocks.count();
+  // A line to type into, not a new block.
+  await page.keyboard.press("Enter");
+  await expect(blocks).toHaveCount(before);
+  await expect(editor(page)).toHaveText(/without coordination\n?$/);
+  // On the empty last line it makes a block after, and drops the empty line.
+  await page.keyboard.press("Enter");
+  await expect(blocks).toHaveCount(before + 1);
+  await expect(
+    page.locator("main article [data-properties-block] [data-block-text]"),
+  ).not.toContainText(/\n\s*$/);
+  await expect(editor(page)).toHaveText("");
+});
+
 test("nothing is offered in an ordinary block", async ({ page }) => {
   await openEntity(page, "Quiddity");
   await page.locator("main article > ul").getByText("Local-first").click();
