@@ -349,7 +349,7 @@ calls `draw()` once on mount and `update(data)` when the graph changes.**
   hidden**, so hiding either also hides what only they linked. The canvas carries `data-links` and
   `data-weak`, how many links are drawn and how many are weak, for tests. Choices
   aren't remembered, and a hidden node's position is forgotten when next saved.
-- Labels are not drawn when a node is under `LABEL_DIAMETER` (5px) across
+- Labels are not drawn when a node is under `LABEL_DIAMETER` (6px) across
   on screen, except for the node hovered or focused. The canvas carries
   `data-labels`, how many the last paint drew, for tests.
 

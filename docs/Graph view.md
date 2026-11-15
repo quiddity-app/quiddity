@@ -31,7 +31,7 @@
 	- Positions of entities that have gone are dropped when next saved.
 - Things worth knowing
 	- Setting the initial zoom ends a zoom, which used to save an empty layout over the remembered one before it could be restored. Nothing is saved before the first nodes are drawn.
-	- Labels are hidden once a node is under 5 pixels across on screen, so zoomed out the hubs keep their names and the leaves lose them, and always shown for the one hovered or focused.
+	- Labels are hidden once a node is under 6 pixels across on screen, so zoomed out the hubs keep their names and the leaves lose them. While one is hovered or focused, its label is always shown when visible.
 	- Links use d3's default strength, so a link between two well-connected entities is a weak spring and hubs do not collapse into a knot.
 	- Dragging lets every node go first, so the rest can untangle around the dragged one, but only once the pointer moves, so a click does not stir the layout.
 	- The canvas, its hit-testing and its repaint once per frame follow a similar graph viewer of Logseq pages. A drawing is seen only by sight, so what a screen reader gets is the list of links, not the drawing.

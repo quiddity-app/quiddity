@@ -93,13 +93,16 @@ function draw(
     .force("collide", forceCollide<Node>().radius((n) => radius(n) + 2))
     // Loose islands drift towards the middle rather than away for good.
     .force("x", forceX<Node>().strength(0.04))
-    .force("y", forceY<Node>().strength(0.04));
+    .force("y", forceY<Node>().strength(0.04))
+    .stop();
 
   let neighbours = new Map<string, Set<string>>();
   let focused: string | null = null;
   let dragged: Node | null = null;
   let moved = false;
   let ratio = 1;
+  let cssWidth = 0;
+  let cssHeight = 0;
   let frame = 0;
 
   // Repaints at most once per animation frame, however often it is asked, and
@@ -144,29 +147,72 @@ function draw(
 
     ctx.fillStyle = colours.fill;
     ctx.strokeStyle = colours.stroke;
-    for (const n of nodes) {
-      if (n.x === undefined) continue;
-      ctx.globalAlpha = near && n.id !== focused && !near.has(n.id) ? 0.25 : 1;
-      ctx.lineWidth = (n.id === focused ? 2 : 1) * px;
+
+    if (focused === null) {
+      ctx.globalAlpha = 1;
+      ctx.lineWidth = px;
       ctx.beginPath();
-      ctx.arc(n.x, n.y ?? 0, radius(n), 0, Math.PI * 2);
+      for (const n of nodes) {
+        if (n.x === undefined) continue;
+        const r = radius(n);
+        ctx.moveTo(n.x + r, n.y ?? 0);
+        ctx.arc(n.x, n.y ?? 0, r, 0, Math.PI * 2);
+      }
       ctx.fill();
       ctx.stroke();
+    } else {
+      ctx.lineWidth = px;
+      ctx.globalAlpha = 0.25;
+      ctx.beginPath();
+      for (const n of nodes) {
+        if (n.x === undefined || n.id === focused || near?.has(n.id)) continue;
+        const r = radius(n);
+        ctx.moveTo(n.x + r, n.y ?? 0);
+        ctx.arc(n.x, n.y ?? 0, r, 0, Math.PI * 2);
+      }
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.globalAlpha = 1;
+      ctx.beginPath();
+      for (const n of nodes) {
+        if (n.x === undefined || n.id === focused || !near?.has(n.id)) continue;
+        const r = radius(n);
+        ctx.moveTo(n.x + r, n.y ?? 0);
+        ctx.arc(n.x, n.y ?? 0, r, 0, Math.PI * 2);
+      }
+      ctx.fill();
+      ctx.stroke();
+
+      const focusNode = nodes.find((n) => n.id === focused);
+      if (focusNode && focusNode.x !== undefined) {
+        ctx.lineWidth = 2 * px;
+        ctx.beginPath();
+        ctx.arc(focusNode.x, focusNode.y ?? 0, radius(focusNode), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
     }
 
     ctx.font = `${LABEL_PX * px}px ui-sans-serif, system-ui, sans-serif`;
     ctx.textBaseline = "middle";
     ctx.fillStyle = colours.text;
+    const x0 = -view.x / view.k;
+    const y0 = -view.y / view.k;
+    const x1 = (cssWidth - view.x) / view.k;
+    const y1 = (cssHeight - view.y) / view.k;
     let labels = 0;
     for (const n of nodes) {
       if (n.x === undefined) continue;
+      if (n.x < x0 - 200 || n.x > x1 + 50 || (n.y ?? 0) < y0 - 50 || (n.y ?? 0) > y1 + 50) continue;
       if (n.id !== focused && !labelFits(radius(n), view.k)) continue;
       labels++;
       ctx.globalAlpha = near && n.id !== focused && !near.has(n.id) ? 0.25 : 1;
       ctx.fillText(n.title, n.x + radius(n) + 3 * px, n.y ?? 0);
     }
     ctx.globalAlpha = 1;
-    canvas.dataset.labels = String(labels);
+    const countStr = String(labels);
+    if (canvas.dataset.labels !== countStr) canvas.dataset.labels = countStr;
   };
   const repaint = () => {
     if (frame === 0) frame = requestAnimationFrame(paint);
@@ -180,6 +226,8 @@ function draw(
 
   const resize = () => {
     const { width, height } = canvas.getBoundingClientRect();
+    cssWidth = width;
+    cssHeight = height;
     ratio = window.devicePixelRatio || 1;
     canvas.width = Math.round(width * ratio);
     canvas.height = Math.round(height * ratio);
@@ -230,17 +278,18 @@ function draw(
 
   simulation.on("tick", repaint);
   simulation.on("end", () => {
+    simulation.stop();
     unsettled.clear();
     release();
+    save();
+    settle(true);
+    repaint();
     // With no remembered view, frame the layout once it has found its shape,
     // unless the person has already taken the view into their own hands.
     if (tracking) {
       tracking = false;
       fit(null, true);
     }
-    save();
-    settle(true);
-    repaint();
   });
 
   // True while the view is ours to frame: no remembered view, and no pan or zoom yet.
@@ -275,7 +324,8 @@ function draw(
     .on("zoom", (event: { transform: ZoomTransform; sourceEvent?: unknown }) => {
       if (event.sourceEvent) tracking = false;
       view = event.transform;
-      canvas.dataset.view = `${view.x},${view.y},${view.k}`;
+      const vStr = `${view.x},${view.y},${view.k}`;
+      if (canvas.dataset.view !== vStr) canvas.dataset.view = vStr;
       repaint();
     })
     .on("end", save);
@@ -411,13 +461,15 @@ function draw(
       // near the middle, so it doesn't fly in from nowhere and shove the rest.
       const byId = new Map(nodes.map((n) => [n.id, n]));
       for (const n of nodes) {
-        if (n.x !== undefined && n.y !== undefined) continue;
-        const friend = [...(neighbours.get(n.id) ?? [])]
-          .map((id) => byId.get(id))
-          .find((f) => f?.x !== undefined && f?.y !== undefined);
-        const angle = Math.random() * Math.PI * 2;
-        n.x = (friend?.x ?? 0) + Math.cos(angle) * 30;
-        n.y = (friend?.y ?? 0) + Math.sin(angle) * 30;
+        if (cachedPosition(n.id)) continue;
+        if (n.x === undefined || n.y === undefined) {
+          const friend = [...(neighbours.get(n.id) ?? [])]
+            .map((id) => byId.get(id))
+            .find((f) => f?.x !== undefined && f?.y !== undefined);
+          const angle = Math.random() * Math.PI * 2;
+          n.x = (friend?.x ?? 0) + Math.cos(angle) * 30;
+          n.y = (friend?.y ?? 0) + Math.sin(angle) * 30;
+        }
         unsettled.add(n.id);
       }
       edges = data.edges;
@@ -443,26 +495,26 @@ function draw(
         .attr("aria-label", (n) => n.title)
         .text((n) => n.title);
 
-      simulation.nodes(nodes);
-      simulation.force<ReturnType<typeof forceLink<Node, Link>>>("link")?.links(links);
-      if (tracking) fit(null, false);
-      repaint();
-      // Whatever already has a place is held there while new entities find
-      // theirs, so a link's spring can't pull a settled layout out of shape.
-      // The rest let go when it ends. With nothing new there is nothing to
-      // settle, and nothing moves.
       if (unsettled.size > 0) {
         for (const n of nodes) {
           if (unsettled.has(n.id)) continue;
-          n.fx = n.x;
-          n.fy = n.y;
+          const remembered = cachedPosition(n.id);
+          n.fx = remembered?.x ?? n.x;
+          n.fy = remembered?.y ?? n.y;
+          if (n.fx !== undefined) n.x = n.fx;
+          if (n.fy !== undefined) n.y = n.fy;
         }
+        simulation.nodes(nodes);
+        simulation.force<ReturnType<typeof forceLink<Node, Link>>>("link")?.links(links);
         settle(false);
         simulation.alpha(1).restart();
       } else {
+        simulation.alpha(0).stop();
         save();
         settle(true);
       }
+      if (tracking) fit(null, false);
+      repaint();
     },
     fit: () => fit(null, true),
     stop() {

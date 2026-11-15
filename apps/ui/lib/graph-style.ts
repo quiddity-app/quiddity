@@ -14,9 +14,8 @@ export const radius = (degree: number): number => Math.max(3, Math.log(degree + 
 export const LABEL_PX = 10;
 
 /** A label is drawn once its node is this many CSS pixels across on screen.
- * At normal zoom that is every node; zoomed out, the hubs keep their names and
- * the leaves lose them. */
-export const LABEL_DIAMETER = 5;
+ * Zoomed out, the hubs keep their names and the leaves lose them. */
+export const LABEL_DIAMETER = 6;
 
 /** Whether a node of this radius has room for its name at this zoom. */
 export const labelFits = (r: number, k: number): boolean => 2 * r * k >= LABEL_DIAMETER;
