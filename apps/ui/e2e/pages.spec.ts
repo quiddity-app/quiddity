@@ -75,10 +75,15 @@ test("shift-click opens at the side, keeping the main page, and the card closes"
   await expect(card).toHaveCount(0);
 });
 
-test("an unknown entity is reported in its own place, not the whole page", async ({ page }) => {
-  await page.goto("/entity/?id=nonsense&open=also-nonsense");
-  await expect(page.getByRole("alert").first()).toBeVisible();
-  await expect(page.getByRole("navigation")).toBeVisible();
+test.describe("an unknown entity", () => {
+  // The error boundaries catch these, and React reports what they catch.
+  test.use({ allowedErrors: [/"[^"]*" is not an entity/] });
+
+  test("is reported in its own place, not the whole page", async ({ page }) => {
+    await page.goto("/entity/?id=nonsense&open=also-nonsense");
+    await expect(page.getByRole("alert").first()).toBeVisible();
+    await expect(page.getByRole("navigation")).toBeVisible();
+  });
 });
 
 test("recents forget what no longer exists", async ({ page }) => {
