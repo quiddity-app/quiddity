@@ -2,11 +2,11 @@
 // Makes `latest.json`, the feed the app's updater reads, from the signed
 // update bundles a release has built. See docs/Releases.md.
 //
-// Tauri signs each bundle it makes for updating (`createUpdaterArtifacts`) and
-// leaves the signature beside it as `<bundle>.sig`. The updater wants, for each
-// platform, the URL of the bundle and its signature, so this reads the
-// signatures in a directory and works out which platform each bundle is for
-// from its name:
+// The release's `sign` job signs each bundle the updater downloads
+// (`tauri signer sign`) and leaves the signature beside it as `<bundle>.sig`.
+// The updater wants, for each platform, the URL of the bundle and its
+// signature, so this reads the signatures in a directory and works out which
+// platform each bundle is for from its name:
 //
 //     Quiddity_1.2.3_amd64.AppImage        linux-x86_64
 //     Quiddity_1.2.3_aarch64.AppImage      linux-aarch64
@@ -15,8 +15,8 @@
 //     Quiddity_1.2.3_x64-setup.exe         windows-x86_64
 //     Quiddity_1.2.3_arm64-setup.exe       windows-aarch64
 //
-// (The macOS bundle is named the same for both architectures, so the release
-// renames it first.) Signatures for anything else, such as the `.msi` that
+// (The macOS tarball is named for its architecture when the release makes it,
+// since both are built the same way.) Signatures for anything else, such as the `.msi` that
 // Windows offers too, are left out. A platform with no bundle is an error: a
 // feed that silently lacked one would leave those users on the old version.
 //
