@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { autoBrackets } from "@/lib/auto-brackets";
 import { fromGraph } from "@/lib/cm-annotations";
 import { linkCompletion } from "@/lib/link-completion";
+import { propertyCompletion } from "@/lib/property-completion";
 import { useEditing, type Caret, type Editing } from "./editing-context";
 import { useView } from "./use-view";
 
@@ -155,7 +156,16 @@ function outlinerKeys(id: string, latest: { current: Editing }): KeyBinding[] {
  * goes into the block's text as the splice that was typed, and changes that
  * arrive from elsewhere are applied to the editor as the smallest edit.
  */
-export function BlockEditor({ id, caret }: { id: string; caret: Caret }) {
+export function BlockEditor({
+  id,
+  caret,
+  properties,
+}: {
+  id: string;
+  caret: Caret;
+  /** Whether this is its entity's properties block, which is completed. */
+  properties: boolean;
+}) {
   const editing = useEditing()!;
   const { graph } = editing;
   const host = useRef<HTMLDivElement>(null);
@@ -167,6 +177,10 @@ export function BlockEditor({ id, caret }: { id: string; caret: Caret }) {
   // The key handlers outlive a render, so they read the latest state from here.
   const latest = useRef(editing);
   latest.current = editing;
+  // Read by the completion source, which outlives a render: a block can become
+  // a properties block while it is being edited.
+  const isProperties = useRef(properties);
+  isProperties.current = properties;
   // Removing a focused editor fires a blur, which isn't the user leaving it.
   // React removes the DOM before it runs ordinary effects' cleanups, but after
   // layout effects', so this flag is set in time.
@@ -205,6 +219,15 @@ export function BlockEditor({ id, caret }: { id: string; caret: Caret }) {
               },
             }),
           ),
+          // Also before the outliner's keys, for the same reason: Enter chooses
+          // an entry while the list is open.
+          Prec.highest(
+            propertyCompletion({
+              keys: (query, limit) => graph.propertyKeys(query, limit),
+              values: (key, query, limit) => graph.propertyValues(key, query, limit),
+              active: () => isProperties.current,
+            }),
+          ),
           Prec.highest(keymap.of(outlinerKeys(id, latest))),
           keymap.of(defaultKeymap),
           EditorView.updateListener.of((update) => {
@@ -237,6 +260,21 @@ export function BlockEditor({ id, caret }: { id: string; caret: Caret }) {
             "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground": {
               background: "var(--selection)",
             },
+            // The completion list, in the page's colours.
+            ".cm-tooltip.cm-tooltip-autocomplete": {
+              backgroundColor: "var(--surface)",
+              color: "var(--ink)",
+              border: "1px solid var(--border)",
+              borderRadius: "0.375rem",
+              boxShadow: "var(--shadow-overlay)",
+            },
+            ".cm-tooltip-autocomplete > ul": { fontFamily: "inherit" },
+            ".cm-tooltip-autocomplete > ul > li": { padding: "0.125rem 0.5rem" },
+            ".cm-tooltip-autocomplete > ul > li[aria-selected]": {
+              backgroundColor: "var(--surface-hover)",
+              color: "var(--ink)",
+            },
+            ".cm-completionDetail": { color: "var(--ink-secondary)", marginLeft: "0.75rem" },
           }),
         ],
       }),

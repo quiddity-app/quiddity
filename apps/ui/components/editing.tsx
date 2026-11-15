@@ -106,6 +106,7 @@ export function EditableOutline({
         save(id);
         setCurrent((c) => (c?.id === id ? null : c));
       },
+      isOffered: (id) => offered.current.has(id),
       addProperties: () => {
         const id = graph.createBlock(entityId, 0, "");
         offered.current.add(id);

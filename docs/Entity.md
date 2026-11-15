@@ -4,7 +4,7 @@ alias:: [page, properties block]
 - Properties block
 	- If the first child starts with a property line, a line of tags or a `##` line, it is the entity's properties block, and holds the entity's own [[Properties]]. Its later lines must be of those kinds too: any other line is read as nothing, and flagged under the entity's title. A first child that starts with prose is an ordinary block.
 	- The properties block is drawn on its own ground (a tint, so it reads as a different kind of block), and `Block::properties_block` tells the UI which it is. An entity that has none offers "+ Add properties", which adds an empty first block to type into, and takes it away again if it is left empty, since an empty first block means nothing. [[Editing]]
-	- Planned, not built: completing property names and values while typing in it.
+	- Typing in it completes. At the start of a line it offers the keys the graph already uses, most used first, with the property entities that have `##` lines even if nothing uses them yet. After `key::` it offers the values already given to that key. Enter chooses one. Only a properties block completes (and the block the offer made), never prose. [[Properties]]
 	- This mirrors the properties at the top of a [[Logseq]] page.
 	- ```
 	  Jane                         ← root block: the name

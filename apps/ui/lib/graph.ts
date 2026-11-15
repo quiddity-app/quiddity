@@ -9,8 +9,10 @@ import type {
   EntityId,
   EntityRef,
   Merged,
+  KeyHit,
   Reference,
   Use,
+  ValueHit,
   Start,
   Summary,
   TitleHit,
@@ -143,6 +145,13 @@ export class Graph {
 
   /** Entities whose titles match `query`, best first. Not kept: a query is
    * rarely asked twice, and the answer needn't be stable between edits. */
+  /** Not cached: asked for on every keystroke in a properties block. */
+  propertyKeys = (query: string, limit: number) =>
+    this.replica.propertyKeys(query, limit) as KeyHit[];
+
+  propertyValues = (key: string, query: string, limit: number) =>
+    this.replica.propertyValues(key, query, limit) as ValueHit[];
+
   searchTitles = (query: string, limit: number) =>
     this.replica.searchTitles(query, limit) as TitleHit[];
 

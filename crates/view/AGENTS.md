@@ -202,6 +202,16 @@ gains one makes the entity.
   children before any of theirs, and each node counts the children it
   leaves out (`hidden`). An entity isn't repeated beneath itself.
 
+## Completion
+
+`completion.rs` answers what the properties block offers while typing: `property_keys`
+are the keys entities write in properties blocks (once for each entity however
+often it writes one, most used first) plus property entities with `##` lines,
+ranked by `fuzzy_match` on the **lowercased** query (a capital in a query must
+start a word, which suits titles and not keys); `property_values` are the values
+written for a key, as written, containing what was typed. Both read the index, so
+they are whole-graph work per keystroke; the UI doesn't cache them.
+
 ## Search
 
 `fuzzy_match(query, name)` is the one matcher: characters in order, ignoring

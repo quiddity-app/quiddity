@@ -30,7 +30,11 @@ function BlockRow({ block, links }: { block: Block; links: Record<string, Resolv
       />
       <div className="min-w-0 flex-1 py-0.5">
         {isEditing ? (
-          <BlockEditor id={block.id} caret={current.caret} />
+          <BlockEditor
+            id={block.id}
+            caret={current.caret}
+            properties={block.propertiesBlock || (editing?.isOffered(block.id) ?? false)}
+          />
         ) : (
           <div
             data-block-text

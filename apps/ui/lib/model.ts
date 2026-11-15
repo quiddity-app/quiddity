@@ -210,3 +210,18 @@ export interface BlockHit {
   /** The words that matched, as ascending `[start, end)` runs of `text` in UTF-16 units. */
   ranges: [number, number][];
 }
+
+/** A property key to offer while typing in a properties block. */
+export interface KeyHit {
+  /** As the first entity to use it wrote it. */
+  key: string;
+  /** How many entities write it. */
+  uses: number;
+}
+
+/** A value to offer for a key, as it is written after `key::`. */
+export interface ValueHit {
+  value: string;
+  /** How many entities have it. */
+  uses: number;
+}

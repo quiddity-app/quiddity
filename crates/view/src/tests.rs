@@ -1306,6 +1306,109 @@ mod properties_block {
     }
 }
 
+mod completion {
+    use super::*;
+
+    fn graph() -> View {
+        view_with(|g| {
+            for (name, props) in [
+                ("A", "status:: open\nowner:: [[Zed]]\nTags:: x"),
+                ("B", "Status:: closed\nowner:: [[Zed]]"),
+                ("C", "status:: open\nstatus:: open\nrating:: 5"),
+                ("D", "status:: [a, b]"),
+            ] {
+                let e = g.create_entity(name, &[]).unwrap();
+                note(g, e, props);
+            }
+            // Has no `##` line, so is not offered unless something uses it.
+            g.create_entity("deadline", &[]).unwrap();
+            // Defines a property that nobody uses yet.
+            let effort = g.create_entity("effort", &[]).unwrap();
+            note(g, effort, "##value-type(number)");
+        })
+    }
+
+    fn keys(v: &View, query: &str) -> Vec<(String, usize)> {
+        v.property_keys(query, 10)
+            .unwrap()
+            .into_iter()
+            .map(|h| (h.key, h.uses))
+            .collect()
+    }
+
+    fn values(v: &View, key: &str, query: &str) -> Vec<(String, usize)> {
+        v.property_values(key, query, 10)
+            .unwrap()
+            .into_iter()
+            .map(|h| (h.value, h.uses))
+            .collect()
+    }
+
+    fn pair(k: &str, n: usize) -> (String, usize) {
+        (k.to_owned(), n)
+    }
+
+    /// Each entity counts once however often it writes a key, case and spacing
+    /// are ignored, and a property entity with `##` lines is offered unused.
+    #[test]
+    fn keys_in_use_come_most_used_first() {
+        let v = graph();
+        assert_eq!(
+            keys(&v, ""),
+            [
+                pair("status", 4),
+                pair("owner", 2),
+                pair("rating", 1),
+                pair("Tags", 1),
+                pair("effort", 0)
+            ]
+        );
+    }
+
+    #[test]
+    fn keys_are_ranked_by_how_well_they_match() {
+        let v = graph();
+        assert_eq!(keys(&v, "st")[0], pair("status", 4));
+        assert_eq!(keys(&v, "RAT"), [pair("rating", 1)], "ignoring case");
+        assert_eq!(keys(&v, "eff"), [pair("effort", 0)]);
+        assert!(keys(&v, "zzz").is_empty());
+        assert_eq!(
+            v.property_keys("", 2).unwrap().len(),
+            2,
+            "at most the limit"
+        );
+    }
+
+    /// A tag, a `##` line and a key in a prose block are not keys.
+    #[test]
+    fn only_keys_in_properties_blocks_are_offered() {
+        let (v, _page, _) = page(&["#tagged\n##tag:: [other]", "prose:: not a key"]);
+        let found = keys(&v, "");
+        assert!(
+            !found.iter().any(|(k, _)| k == "tagged" || k == "prose"),
+            "{found:?}"
+        );
+    }
+
+    #[test]
+    fn values_are_those_given_to_the_key_most_used_first() {
+        let v = graph();
+        assert_eq!(
+            values(&v, "Status", ""),
+            [pair("open", 2), pair("[a, b]", 1), pair("closed", 1)],
+            "once per entity, and a list is one value"
+        );
+        assert_eq!(values(&v, "owner", ""), [pair("[[Zed]]", 2)]);
+        assert_eq!(
+            values(&v, "status", "OP"),
+            [pair("open", 2)],
+            "containing it"
+        );
+        assert!(values(&v, "nothing", "").is_empty());
+        assert_eq!(v.property_values("status", "", 1).unwrap().len(), 1);
+    }
+}
+
 mod connections {
     use super::*;
 

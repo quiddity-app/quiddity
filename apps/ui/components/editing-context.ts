@@ -21,6 +21,9 @@ export interface Editing {
   /** Adds an empty first block for properties and edits it. It is dropped
    * again if it is left empty. */
   addProperties(): void;
+  /** Whether `id` is a block the offer of properties made, which is a
+   * properties block from the moment it is made, though it is empty. */
+  isOffered(id: string): boolean;
 }
 
 export const EditingContext = createContext<Editing | null>(null);
