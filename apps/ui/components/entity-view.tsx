@@ -13,6 +13,7 @@ function BlockRow({ block, links }: { block: Block; links: Record<string, Resolv
   const editing = useContext(EditingContext);
   const current = editing?.current;
   const isEditing = current?.id === block.id;
+  const selected = editing?.selected.has(block.id) ?? false;
   // A block of nothing but properties is drawn as text lines, which need no bullet.
   // The bullet's place stays, so the lines line up with the text around them.
   const { prose, lineProps } = splitBlock(block);
@@ -22,6 +23,8 @@ function BlockRow({ block, links }: { block: Block; links: Record<string, Resolv
     <li
       className={`flex gap-2 ${block.propertiesBlock ? "rounded bg-surface-properties px-2" : ""}`}
       data-properties-block={block.propertiesBlock ? "" : undefined}
+      data-block-id={editing ? block.id : undefined}
+      data-outline={editing?.scope}
     >
       <span
         aria-hidden
@@ -38,7 +41,10 @@ function BlockRow({ block, links }: { block: Block; links: Record<string, Resolv
         ) : (
           <div
             data-block-text
-            className={`min-h-[1.5em] break-words [&>*+*]:mt-1 ${editing ? "cursor-text" : ""}`}
+            // The block's own text, not its children's, so a selected parent and
+            // child aren't painted twice.
+            data-selected={selected ? "" : undefined}
+            className={`min-h-[1.5em] break-words [&>*+*]:mt-1 ${editing ? "cursor-text" : ""} ${selected ? "rounded bg-selection" : ""}`}
             tabIndex={editing ? 0 : undefined}
             onClick={(e) => {
               // Links and chips do their own thing, and so does selecting text.

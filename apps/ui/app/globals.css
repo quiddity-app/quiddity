@@ -35,7 +35,7 @@
   --graph-node: #0284c7; /* sky 600 */
   --graph-node-stroke: #0c4a6e; /* sky 900 */
   --graph-label: #1e293b; /* slate 800 */
-  --selection: rgb(56 189 248 / 0.35); /* sky 400, in the editor */
+  --selection: rgb(56 189 248 / 0.35); /* sky 400: text in the editor, and selected blocks */
 
   /*
    * What covers what: the right pane when it overlays, the dim layer, the
@@ -125,6 +125,7 @@
   --color-edit-outline: var(--outline-edit);
   --color-bullet: var(--bullet);
   --color-scrim: var(--scrim);
+  --color-selection: var(--selection);
   --color-sync-alone: var(--sync-alone);
   --color-sync-offline: var(--sync-offline);
   --color-sync-behind: var(--sync-behind);

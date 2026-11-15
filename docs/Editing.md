@@ -13,6 +13,20 @@
 	- The arrows move between blocks at the edges, and Escape leaves the editor.
 	- A key that moves the block being edited says where editing continues before it moves it, because moving makes React remount the block.
 	- A block opened by a key, Enter above all, takes focus without the browser scrolling and has CodeMirror bring the caret into view in the pane that scrolls, with room to spare. Left to itself, a new editor's focus either did not scroll at all, so the caret ran off the bottom of the pane, or scrolled by the engine's own rules.
+- Selecting blocks
+	- Select All (Ctrl or Cmd-A) in an editor selects the block's text, as it always did. Pressed again, with the text all selected (or an empty block), it selects the block as a block, and the editor closes. In a block that is not being edited it selects the block at once.
+	- Each press after that takes in more, working upwards, and skips a step that would add nothing:
+		- the block;
+		- the block and its children;
+		- the block and its siblings, with all their children;
+		- the parent, with all of that;
+		- the parent's siblings, with all their children;
+		- and so on, a level at a time, until the whole entity is selected.
+	- Dragging from one block to another selects the blocks between them in reading order, whichever way the drag goes. Dragging past the first or last block reaches it. A drag that starts in the block being edited and leaves it closes the editor; one that stays inside selects text, as usual.
+	- A selection made by dragging grows from the block the drag started in, to the first step that holds it and more.
+	- Escape, or pressing anywhere, lets go. The selected blocks are shaded with the editor's selection colour, each block's own text and not its children's, so a selected parent and child are not painted twice.
+	- Nothing acts on the selection yet: copying, deleting and moving a selection are not built.
+	- Code: `lib/block-selection.ts` for the steps, and `selectionHandlers` in `components/editing.tsx` for the keys and the drag.
 - Links
 	- `[` makes `[]` with the caret inside, so `[[` makes `[[]]`. With a selection, the brackets go round it. `]` steps over a closer rather than doubling it, and Backspace in an empty pair removes both. A `[` before a word is left alone.
 	- Typing in a `[[link]]`, or making a new one, offers the pages whose titles match, by the same matching as search. [[Title matching]]

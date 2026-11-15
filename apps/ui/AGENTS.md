@@ -201,6 +201,18 @@ never writes the `##blob` line: Rust does.
   `edit(id, caret)` *before* the structural change so the new editor opens at
   the right place. Undo and redo are the graph's (`Mod-z` in the editor, and
   `UndoKeys` when no editor is focused); there is no editor-level history.
+- **Selecting blocks** (`lib/block-selection.ts`, `selectionHandlers` in
+  `editing.tsx`) is separate from CodeMirror's selection of text. Its listeners
+  are on the `document`, in the capture phase, since an editor would take
+  Select All for its text and a drag starts in one block and ends in another.
+  **The first Mod-a in an editor is still the editor's**; with its text all
+  selected (or none) the next makes a block selection and closes the editor.
+  Rows carry `data-block-id` and `data-outline` (the `Editing.scope`), so
+  an outline at the side doesn't answer for the main one. **A drag finds its
+  block by height, not by what is under the pointer**, so a gap, the margin
+  or the far side of the page doesn't lose it, and it swallows the click that
+  follows its release, which would edit the block. What is selected is
+  filtered by the blocks still there. Nothing acts on it yet.
 - Removing a focused editor fires a blur that isn't the user leaving, so
   `closing` is set in a layout effect (which runs before the DOM goes).
 - IDs held by editing state go dead across an undo of a deletion; that just
