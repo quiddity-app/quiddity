@@ -17,7 +17,7 @@ bytes = "1"
 bao-tree = "0.17"
 irpc = { version = "1", default-features = false }
 range-collections = "0.4"
-getrandom = "0.3"
+getrandom = "0.4"
 jiff.workspace = true
 quiddity-core.workspace = true
 quiddity-identity.workspace = true
