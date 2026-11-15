@@ -10,20 +10,20 @@
 //!   journals/2026-10-25.md
 //! ```
 
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
 use jiff::civil::Date;
 use quiddity_syntax::{
-    Link, Value, fold, format_meta_line, format_property_line, normalise_name, parse_meta_line,
-    parse_property_line,
+    Link, PropertyStyle, Value, fold, format_meta_line, format_property_line, normalise_name,
+    parse_block, parse_meta_line, parse_property_line,
 };
 use tracing::{debug, instrument, trace, warn};
 
 use crate::merge::is_spent_duplicate;
-use crate::outline::{Indent, Outline, export_entity, import_outline, parse_outline};
+use crate::outline::{Indent, Outline, OutlineBlock, export_entity, import_outline, parse_outline};
 use crate::{BlockId, Graph, Identity, Index, Result, Settings};
 
 pub const MANIFEST: &str = "quiddity.json";
@@ -141,6 +141,12 @@ fn write_export(graph: &Graph, dir: &Path, limit_path: bool) -> Result<usize> {
 /// no `title::`. Each namespaced page gets a `parent` property naming the page
 /// above it, ancestors that have no page of their own are made, and `parent`
 /// is defined, with `children` as its inverse, unless the graph has it already.
+///
+/// A Logseq graph also links to its journals by the date as Logseq writes it
+/// (`[[10th November 2026]]`), which isn't the name a journal has here. So a
+/// journal that is linked to that way gets the Logseq form as an `alias`, and
+/// one that is linked to but has no file (Logseq makes a day's file only once
+/// something is written on it) is made, so that the link has somewhere to go.
 #[instrument(level = "debug", skip(graph), fields(dir = %dir.display()))]
 pub fn import_dir(graph: &Graph, dir: &Path) -> Result<Vec<BlockId>> {
     // Name the directory: the error from reading it doesn't.
@@ -166,11 +172,23 @@ pub fn import_dir(graph: &Graph, dir: &Path) -> Result<Vec<BlockId>> {
     if files.is_empty() {
         warn!("no Markdown files to import");
     }
+    // Every file is read before any is imported, since a journal needs to know
+    // whether a page that comes after it links to it by date.
+    let mut parsed = Vec::with_capacity(files.len());
+    for path in files {
+        let outline = parse_outline(&fs::read_to_string(&path)?, indent);
+        parsed.push((path, outline));
+    }
+    let linked = if logseq {
+        linked_days(parsed.iter().map(|(_, outline)| outline))
+    } else {
+        BTreeSet::new()
+    };
     let mut ids = Vec::new();
     let mut ancestors = Vec::new();
-    for path in files {
+    let mut journalled = HashSet::new();
+    for (path, mut outline) in parsed {
         trace!(path = %path.display(), "importing");
-        let mut outline = parse_outline(&fs::read_to_string(&path)?, indent);
         let stem = path
             .file_stem()
             .unwrap_or_default()
@@ -188,6 +206,10 @@ pub fn import_dir(graph: &Graph, dir: &Path) -> Result<Vec<BlockId>> {
                 outline.properties = Some(lines.join("\n"));
                 outline.title.get_or_insert(date);
             }
+            if linked.contains(&date) {
+                append_property(&mut outline, &alias_line(date));
+            }
+            journalled.insert(date);
         } else if logseq {
             let name = (outline.title.clone()).unwrap_or_else(|| stem.replace("___", "/"));
             if let Some(parent) = namespace_parent(&name) {
@@ -197,6 +219,19 @@ pub fn import_dir(graph: &Graph, dir: &Path) -> Result<Vec<BlockId>> {
             outline.title = Some(name);
         }
         ids.push(import_outline(graph, &outline, &stem)?);
+    }
+    for date in linked.iter().filter(|d| !journalled.contains(*d)) {
+        let day = date.to_string();
+        let outline = Outline {
+            title: Some(day.clone()),
+            properties: Some(format!(
+                "{}\n{}",
+                format_meta_line(crate::journal::KEY, Some(&day)),
+                alias_line(*date)
+            )),
+            blocks: Vec::new(),
+        };
+        ids.push(import_outline(graph, &outline, &day)?);
     }
     if !ancestors.is_empty() {
         ids.extend(import_namespaces(graph, ancestors)?);
@@ -245,10 +280,112 @@ fn add_parent(outline: &mut Outline, parent: &str) {
             qualifiers: vec![],
         })),
     );
+    append_property(outline, &line);
+}
+
+/// Adds a line to the end of the outline's properties block.
+fn append_property(outline: &mut Outline, line: &str) {
     outline.properties = Some(match outline.properties.take() {
         Some(p) => format!("{p}\n{line}"),
-        None => line,
+        None => line.to_owned(),
     });
+}
+
+/// The months, as Logseq's `MMMM` writes them.
+const MONTHS: [&str; 12] = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+];
+
+/// A day as Logseq writes it in a link by default (`do MMMM yyyy`):
+/// `10th November 2026`.
+fn logseq_day_name(date: Date) -> String {
+    let day = date.day();
+    let suffix = match (day % 10, day / 10) {
+        (_, 1) => "th",
+        (1, _) => "st",
+        (2, _) => "nd",
+        (3, _) => "rd",
+        _ => "th",
+    };
+    format!(
+        "{day}{suffix} {} {}",
+        MONTHS[date.month() as usize - 1],
+        date.year()
+    )
+}
+
+/// The day a link's name says, if it is written as [`logseq_day_name`] writes
+/// it, whatever the case. The name is built again from the day it seems to
+/// say and compared, so `1th January 2026` and `31st June 2026` aren't days.
+fn logseq_day(name: &str) -> Option<Date> {
+    let mut parts = name.split_whitespace();
+    let (day, month, year) = (parts.next()?, parts.next()?, parts.next()?);
+    if parts.next().is_some() {
+        return None;
+    }
+    let digits = day.len() - day.trim_start_matches(|c: char| c.is_ascii_digit()).len();
+    let month = MONTHS.iter().position(|m| m.eq_ignore_ascii_case(month))? + 1;
+    let date = Date::new(
+        year.parse().ok()?,
+        i8::try_from(month).ok()?,
+        day[..digits].parse().ok()?,
+    )
+    .ok()?;
+    let canonical = logseq_day_name(date);
+    canonical
+        .eq_ignore_ascii_case(&format!("{day} {} {year}", MONTHS[month - 1]))
+        .then_some(date)
+}
+
+/// The `alias` line that lets a link in Logseq's form find the day's journal.
+fn alias_line(date: Date) -> String {
+    format_property_line("alias", Some(&Value::Text(logseq_day_name(date))))
+}
+
+/// The days that the outlines link to by Logseq's name for them, in a link or
+/// as a tag (`#[[10th November 2026]]`, which is a link too).
+fn linked_days<'a>(outlines: impl Iterator<Item = &'a Outline>) -> BTreeSet<Date> {
+    fn read(text: &str, days: &mut BTreeSet<Date>) {
+        let block = parse_block(text);
+        let tags = block
+            .properties
+            .iter()
+            .filter(|p| p.style == PropertyStyle::Inline)
+            .map(|p| &p.key);
+        days.extend(
+            block
+                .links
+                .iter()
+                .map(|l| &l.name)
+                .chain(tags)
+                .filter_map(|name| logseq_day(name)),
+        );
+    }
+    fn walk(blocks: &[OutlineBlock], days: &mut BTreeSet<Date>) {
+        for block in blocks {
+            read(&block.text, days);
+            walk(&block.children, days);
+        }
+    }
+    let mut days = BTreeSet::new();
+    for outline in outlines {
+        if let Some(properties) = &outline.properties {
+            read(properties, &mut days);
+        }
+        walk(&outline.blocks, &mut days);
+    }
+    days
 }
 
 /// Makes the namespaces that were named as parents but have no page, and the
@@ -429,6 +566,60 @@ fn unique_path(dir: &Path, stem: &str, used: &mut HashSet<String>) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+    mod logseq_days {
+        use super::*;
+        use proptest::prelude::*;
+
+        proptest! {
+            /// Whatever day it is, Logseq's name for it reads back as that day, in
+            /// any case.
+            #[test]
+            fn a_days_logseq_name_reads_back(days in -800_000i32..2_000_000) {
+                let date = Date::new(1970, 1, 1).unwrap() + jiff::Span::new().days(days);
+                let name = logseq_day_name(date);
+                prop_assert_eq!(logseq_day(&name), Some(date));
+                prop_assert_eq!(logseq_day(&name.to_uppercase()), Some(date));
+            }
+        }
+    }
+
+    #[test]
+    fn only_a_day_written_as_logseq_writes_it_is_one() {
+        let day = |s| logseq_day(s).map(|d| d.to_string());
+        assert_eq!(day("10th November 2026").as_deref(), Some("2026-11-10"));
+        for (name, expected) in [
+            ("1st January 2026", "2026-01-01"),
+            ("2nd february 2026", "2026-02-02"),
+            ("3rd March 2026", "2026-03-03"),
+            ("11th April 2026", "2026-04-11"),
+            ("12th May 2026", "2026-05-12"),
+            ("13th June 2026", "2026-06-13"),
+            ("21st July 2026", "2026-07-21"),
+            ("22nd August 2026", "2026-08-22"),
+            ("23rd September 2026", "2026-09-23"),
+            ("30th October 2026", "2026-10-30"),
+            (" 29th  February   2028 ", "2028-02-29"),
+        ] {
+            assert_eq!(day(name).as_deref(), Some(expected), "{name}");
+        }
+        for not in [
+            "",
+            "November 2026",
+            "10 November 2026",
+            "10th Nov 2026",
+            "11st November 2026",
+            "1th November 2026",
+            "010th November 2026",
+            "31st June 2026",
+            "29th February 2026",
+            "10th November 02026",
+            "10th November 2026 extra",
+            "2026-11-10",
+            "Places/10th November 2026",
+        ] {
+            assert_eq!(day(not), None, "{not}");
+        }
+    }
 
     /// A stem with no path-length limit, which is every other platform's.
     fn file_stem(name: &str) -> String {

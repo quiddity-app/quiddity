@@ -11,5 +11,5 @@ alias:: journals
 	- It can't be renamed, since that would make it a different day. [[Renaming]]
 	- If two devices each make the same day's journal before they sync, the two are merged into one. [[Duplicates]]
 - In the references at the foot of a page, journals come first, newest first. [[Links]]
-- Importing a directory turns files in `journals/` named `2026-10-25.md`, or [[Logseq]]'s `2026_10_25.md`, into journals, by adding the `##journal` line. [[Export and import]]
+- Importing a directory turns files in `journals/` named `2026-10-25.md`, or [[Logseq]]'s `2026_10_25.md`, into journals, by adding the `##journal` line. From a Logseq graph, a journal that is linked to by Logseq's name for the day (`[[10th November 2026]]`) also gets that as an `alias`. [[Export and import]] [[Logseq]]
 - This documentation has journals too: an entry for each day's work on Quiddity, which people write in commit messages and a job saves here. [[Journal entries]]
