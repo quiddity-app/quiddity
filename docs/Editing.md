@@ -19,7 +19,7 @@
 	- Each entry shows the page's properties. When several pages share the title, the link written also carries the qualifiers that tell them apart: `Mercury#type(planet)`. [[Links]]
 	- The list is offered when the link's name is typed in or the link is new, not when the caret merely arrives. A link already written is left alone until it is edited.
 	- Down and Up, or a click, move into the list and write the entry into the link, so the text is what was chosen. Past either end is back to what was typed, and Escape with an entry chosen puts that back too.
-	- Enter accepts what is written, chosen or not, and moves the caret past the brackets. Enter in a link whose list was never offered since the caret came in follows the link instead, making the page if it goes nowhere. An ambiguous link goes nowhere yet. [[Links to nowhere]]
+	- Enter accepts what is written, chosen or not, and moves the caret past the brackets. Enter in a link whose list was never offered since the caret came in follows the link instead, making the page if it goes nowhere. An ambiguous link opens its [[Disambiguation]] page. [[Links to nowhere]]
 	- Code: `lib/link-completion.ts` and `lib/auto-brackets.ts`.
 - Every edit other than typing is a step of its own. [[Undo]]
 - Leaving a block saves it.

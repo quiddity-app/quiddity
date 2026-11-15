@@ -11,7 +11,7 @@
 	- `[text](destination)` is drawn the same way with `text` in place of the name, whether the destination is `[[an entity]]`, `((a block))` or an app page such as `/graph/`. The plugin finds those with a space in the name itself, since Markdown does not, and reads the rest from the parsed link, so formatting in the text survives. [[Links]]
 - A link shows its name and nothing else. Qualifiers such as `#type(library)` only pick the target, so `[[Loro#type(library)]]` reads as "Loro" and the qualifiers appear on hover. [[Links to nowhere]]
 	- The view reports each link's name and qualifiers with where it goes, so the UI never parses link text itself.
-	- On a link to nowhere the tooltip also says that opening it makes the entity, with the qualifiers it will have. On an ambiguous link it says which qualifiers several entities match.
+	- On a link to nowhere the tooltip also says that opening it makes the entity, with the qualifiers it will have. On an ambiguous link it says which qualifiers several entities match, and the link goes to its [[Disambiguation]] page.
 - Block text comes from other devices, so it is untrusted.
 	- Raw HTML is shown as text, never run. There is no `rehype-raw` and none should be added.
 	- Only `http(s)` and `mailto` links, entity and block destinations, and the app's own pages (`/graph/`, `/all/`, `/journals/`, `/devices/`) are links. Web links open in the system's browser rather than replacing the app. Anything else is inert text.

@@ -154,6 +154,7 @@ name as names are compared (`id_of`, `name_of`); nothing is stored for it.
   them to the links. A virtual key has no references, only `uses`, and its chip's
   `definition` is its `~` ID. A key in a block that is not a properties block
   makes none.
+- **`link_matches(key)` lists what a link matches** (none, one or several) for the disambiguation page, and makes nothing.
 - **Reading never makes anything.** `follow_link(key)` answers `~name` for an
   unqualified link that goes nowhere; an ambiguous link is an error.
 - **Writing makes it real, in the same edit.** `create_block` and

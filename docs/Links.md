@@ -10,7 +10,7 @@ alias:: [link, qualifier, backlinks, references]
 - Links are resolved when they are followed, not when they are written.
 	- Exactly one match: it goes there. Click opens it in the middle, shift-click at the side. [[The UI]]
 	- No match: the link makes the entity, with the properties its qualifiers name. [[Links to nowhere]]
-	- Several matches: the link is ambiguous, and its tooltip says which qualifiers several entities match. A page to choose between them and narrow the link in place is planned, not built.
+	- Several matches: the link is ambiguous. Following it opens a [[Disambiguation]] page listing the entities it matches, each with its properties block, and its tooltip says which qualifiers several entities match.
 	- A renamed entity keeps its old name as an [[alias]], so links to the old name still resolve. [[Renaming]]
 - References
 	- The foot of every page lists the blocks that link to it, grouped by the entity they are in, journals first and newest first.

@@ -66,6 +66,27 @@ impl View {
         Ok(id)
     }
 
+    /// The entities a link matches, for the page that lets someone choose
+    /// between them: those with its name or an alias whose properties have all
+    /// its qualifiers, in a stable order. Several when the link is ambiguous,
+    /// one when it isn't, and none when it goes nowhere. `key` is as for
+    /// [`View::follow_link`].
+    pub fn link_matches(&self, key: &str) -> Result<Vec<String>> {
+        let (_, link) = links_in(&format!("[[{key}]]"))
+            .into_iter()
+            .next()
+            .ok_or_else(|| Error::NotALink(key.to_owned()))?;
+        let index = self.index()?;
+        Ok(match index.resolve(&link) {
+            Resolution::Unique(id) => vec![index.canonical(id).to_string()],
+            Resolution::Ambiguous(ids) => ids
+                .into_iter()
+                .map(|id| index.canonical(id).to_string())
+                .collect(),
+            Resolution::Missing => Vec::new(),
+        })
+    }
+
     /// The entity that holds the block whose `##id` is `id`, which is where a
     /// block reference goes until blocks can be shown in place. Nothing is
     /// made for a reference to nowhere: there is no way to say what it was

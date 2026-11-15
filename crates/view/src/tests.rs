@@ -1227,6 +1227,26 @@ mod nowhere {
     }
 
     #[test]
+    fn a_link_matches_the_entities_its_qualifiers_allow() {
+        let v = view_with(|g| {
+            g.create_entity("Mercury", &[("kind", text("planet"))])
+                .unwrap();
+            g.create_entity("Mercury", &[("kind", text("metal"))])
+                .unwrap();
+            g.create_entity("Solo", &[]).unwrap();
+        });
+        assert_eq!(v.link_matches("Mercury").unwrap().len(), 2);
+        let before = names(&v);
+        let planet = v.link_matches("Mercury #kind(planet)").unwrap();
+        assert_eq!(planet.len(), 1);
+        assert_eq!(v.follow_link("Mercury #kind(planet)").unwrap(), planet[0]);
+        assert_eq!(v.link_matches("Solo").unwrap().len(), 1);
+        assert!(v.link_matches("Nobody").unwrap().is_empty());
+        assert!(matches!(v.link_matches(""), Err(Error::NotALink(_))));
+        assert_eq!(names(&v), before, "nothing was made");
+    }
+
+    #[test]
     fn following_a_link_to_what_exists_changes_nothing() {
         let (v, page, _) = page(&["x"]);
         assert_eq!(v.follow_link("Page").unwrap(), page);
