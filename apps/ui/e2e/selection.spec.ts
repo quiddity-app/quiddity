@@ -141,3 +141,43 @@ test("dragging within one block selects text, not blocks, and a click still edit
   await block(page, LEAF).click();
   await expect(editor(page)).toBeFocused();
 });
+
+/** How many blocks are at the top level of the main pane. */
+const topLevel = (page: Page) => page.locator("main article > ul > li").count();
+
+test("Tab and Shift-Tab indent and outdent what is selected, in one undo step", async ({ page }) => {
+  expect(await topLevel(page)).toBe(3);
+  // Open questions, with what is under it.
+  await block(page, QUESTIONS).click();
+  for (let i = 0; i < 3; i++) await page.keyboard.press("Control+a");
+  expect(await selected(page)).toEqual([QUESTIONS, EVICTION]);
+
+  // It nests under the block before it, and what was under it goes along.
+  await page.keyboard.press("Tab");
+  await expect.poll(() => topLevel(page)).toBe(2);
+  expect(await selected(page)).toEqual([QUESTIONS, EVICTION]);
+
+  await page.keyboard.press("Shift+Tab");
+  await expect.poll(() => topLevel(page)).toBe(3);
+
+  await page.keyboard.press("Tab");
+  await expect.poll(() => topLevel(page)).toBe(2);
+  await page.keyboard.press("Control+z");
+  await expect.poll(() => topLevel(page)).toBe(3);
+});
+
+test("a run with nothing before it can't be indented", async ({ page }) => {
+  // The parent's two children: the first has no sibling to nest under.
+  await block(page, LEAF).click();
+  for (let i = 0; i < 3; i++) await page.keyboard.press("Control+a");
+  expect(await selected(page)).toHaveLength(2);
+  await page.keyboard.press("Tab");
+  expect(await topLevel(page)).toBe(3);
+  expect(await selected(page)).toHaveLength(2);
+});
+
+test("Tab with nothing selected is left to the browser", async ({ page }) => {
+  await page.keyboard.press("Tab");
+  expect(await selected(page)).toEqual([]);
+  expect(await topLevel(page)).toBe(3);
+});

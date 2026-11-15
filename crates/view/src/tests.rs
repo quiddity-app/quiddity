@@ -490,6 +490,153 @@ mod edits {
     }
 }
 
+/// Edits to several blocks at once, which are one undo step and treat a block
+/// with its children as one thing.
+mod blocks_together {
+    use proptest::collection::vec;
+    use proptest::prelude::*;
+
+    use super::*;
+
+    /// A page whose edits can be undone, with `blocks` at its top level.
+    fn undoable(blocks: &[&str]) -> (View, String, Vec<String>) {
+        let (v, page, ids) = page(blocks);
+        v.graph().enable_undo();
+        (v, page, ids)
+    }
+
+    /// Every block's text in reading order, with how deep it is.
+    fn outline(v: &View, page: &str) -> Vec<(usize, String)> {
+        fn walk(blocks: &[Block], depth: usize, out: &mut Vec<(usize, String)>) {
+            for b in blocks {
+                out.push((depth, b.text.clone()));
+                walk(&b.children, depth + 1, out);
+            }
+        }
+        let mut out = Vec::new();
+        walk(&v.entity(page).unwrap().blocks, 0, &mut out);
+        out
+    }
+
+    /// The outline as `depth:text`, so a test can say what shape it expects.
+    fn shape(v: &View, page: &str) -> Vec<String> {
+        outline(v, page)
+            .into_iter()
+            .map(|(depth, text)| format!("{depth}:{text}"))
+            .collect()
+    }
+
+    #[test]
+    fn a_run_indents_under_the_sibling_before_it_and_keeps_its_order() {
+        let (v, page, ids) = undoable(&["a", "b", "c", "d"]);
+        assert!(v.indent_blocks(&[ids[2].clone(), ids[3].clone()]).unwrap());
+        assert_eq!(shape(&v, &page), ["0:a", "0:b", "1:c", "1:d"]);
+        assert!(v.undo().unwrap());
+        assert_eq!(top_level(&v, &page), ["a", "b", "c", "d"], "one step");
+    }
+
+    #[test]
+    fn a_run_with_nothing_before_it_stays_put() {
+        let (v, page, ids) = undoable(&["a", "b", "c"]);
+        assert!(!v.indent_blocks(&[ids[0].clone(), ids[1].clone()]).unwrap());
+        assert_eq!(top_level(&v, &page), ["a", "b", "c"]);
+    }
+
+    #[test]
+    fn a_block_chosen_with_its_parent_goes_with_it() {
+        let (v, page, ids) = undoable(&["a", "b"]);
+        let kid = v.create_block(&ids[1], None, "kid").unwrap();
+        assert!(v.indent_blocks(&[kid, ids[1].clone()]).unwrap());
+        assert_eq!(
+            shape(&v, &page),
+            ["0:a", "1:b", "2:kid"],
+            "the child stayed a child of its parent"
+        );
+    }
+
+    #[test]
+    fn blocks_in_different_places_each_indent() {
+        let (v, page, ids) = undoable(&["a", "b", "c"]);
+        v.create_block(&ids[0], None, "kid").unwrap();
+        let kid2 = v.create_block(&ids[0], None, "kid2").unwrap();
+        assert!(v.indent_blocks(&[kid2, ids[2].clone()]).unwrap());
+        assert_eq!(shape(&v, &page), ["0:a", "1:kid", "2:kid2", "0:b", "1:c"]);
+    }
+
+    #[test]
+    fn a_run_outdents_after_its_parent_in_its_order() {
+        let (v, page, ids) = undoable(&["a"]);
+        let b = v.create_block(&ids[0], None, "b").unwrap();
+        let c = v.create_block(&ids[0], None, "c").unwrap();
+        v.create_block(&ids[0], None, "d").unwrap();
+        assert!(v.outdent_blocks(&[b, c]).unwrap());
+        assert_eq!(
+            shape(&v, &page),
+            ["0:a", "1:d", "0:b", "0:c"],
+            "what wasn't chosen stays with its parent"
+        );
+        assert!(v.undo().unwrap());
+        assert_eq!(shape(&v, &page), ["0:a", "1:b", "1:c", "1:d"], "one step");
+    }
+
+    #[test]
+    fn blocks_at_the_top_level_have_nowhere_to_outdent_to() {
+        let (v, page, ids) = undoable(&["a", "b"]);
+        assert!(!v.outdent_blocks(&ids).unwrap());
+        assert_eq!(top_level(&v, &page), ["a", "b"]);
+    }
+
+    #[test]
+    fn something_that_isnt_a_block_changes_nothing() {
+        let (v, page, ids) = undoable(&["a", "b"]);
+        assert!(
+            v.indent_blocks(&[ids[1].clone(), "nonsense".into()])
+                .is_err()
+        );
+        assert!(v.outdent_blocks(&["nonsense".into()]).is_err());
+        assert_eq!(top_level(&v, &page), ["a", "b"]);
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(64))]
+
+        /// Indenting never reorders what is read, whichever blocks are
+        /// chosen, and takes one undo step to take back. (Outdenting does
+        /// reorder: a block lands after its parent's other children.)
+        #[test]
+        fn indenting_blocks_keeps_the_reading_order_and_undoes_whole(
+            parents in vec(0usize..10, 1..9),
+            chosen in vec(any::<bool>(), 9),
+        ) {
+            let (v, page, _) = undoable(&[]);
+            let mut ids: Vec<String> = Vec::new();
+            for (i, p) in parents.iter().enumerate() {
+                let parent = match p % (i + 1) {
+                    0 => page.clone(),
+                    n => ids[n - 1].clone(),
+                };
+                ids.push(v.create_block(&parent, None, &i.to_string()).unwrap());
+            }
+            let before = outline(&v, &page);
+            let picked: Vec<String> = ids
+                .iter()
+                .zip(&chosen)
+                .filter(|(_, c)| **c)
+                .map(|(id, _)| id.clone())
+                .collect();
+            let moved = v.indent_blocks(&picked).unwrap();
+            let after = outline(&v, &page);
+            let read = |o: &[(usize, String)]| o.iter().map(|(_, t)| t.clone()).collect::<Vec<_>>();
+            prop_assert_eq!(read(&before), read(&after));
+            prop_assert_eq!(moved, before != after);
+            if moved {
+                prop_assert!(v.undo().unwrap());
+                prop_assert_eq!(outline(&v, &page), before);
+            }
+        }
+    }
+}
+
 mod properties {
     use super::*;
     use crate::{Property, PropertyValue};
