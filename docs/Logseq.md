@@ -11,3 +11,7 @@ type:: prior art
 	- Each namespaced page gets a `parent` property naming the page above it, so `Places/Scotland/Edinburgh` has `parent:: [[Places/Scotland]]`. A namespace with no page of its own is made, as Logseq does. A page that already writes a `parent` keeps it.
 	- If the graph doesn't define `parent`, the import does, as a property with `##inverse(children)`, so each page lists its children. [[Built-in properties]]
 	- Only an import without `quiddity.json` does this: Quiddity's own exports keep a `/` in a name as it is.
+- Percent-encoded file names
+	- Logseq writes the characters a file name can't hold as `%XX`, so a page called `What?` is in `What%3F.md`. Without a `title::` the import decodes the file name, after reading `___` as `/`, so that `%5F%5F%5F` stays three underscores.
+	- A name that wouldn't be UTF-8 once decoded, or would hold a control character or nothing but space, is left as written: it wasn't encoded by Logseq. A `%` with no two hex digits after it is a `%`.
+	- A graph imported before this has the encoded names. `quiddity-node decode-names` renames them, once, keeping the old name as an `alias` so that anything written against it still resolves, `parent` lines included. `--dry-run` lists what it would do. An entity whose decoded name is another's is left and reported, and journals are never touched. A `%2F` becomes a `/` in the name but doesn't make a `parent`: only the import does that. The node must not be serving while it runs. [[Export and import]]

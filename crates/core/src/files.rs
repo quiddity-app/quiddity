@@ -149,7 +149,9 @@ fn write_export(graph: &Graph, dir: &Path, limit_path: bool) -> Result<usize> {
 /// In a Logseq graph (no `quiddity.json`), a page name with a `/` in it is a
 /// namespace: `Places/Scotland` is a child of `Places`. Logseq writes the
 /// slash as `___` in file names, so that is read back as `/` when the file has
-/// no `title::`. Each namespaced page gets a `parent` property naming the page
+/// no `title::`; it also percent-encodes the characters a file name can't hold
+/// (`What%3F.md` is `What?`), which are decoded after that, so that an encoded
+/// underscore stays one. Each namespaced page gets a `parent` property naming the page
 /// above it, ancestors that have no page of their own are made, and `parent`
 /// is defined, with `children` as its inverse, unless the graph has it already.
 ///
@@ -222,7 +224,8 @@ pub fn import_dir(graph: &Graph, dir: &Path) -> Result<Vec<BlockId>> {
             }
             journalled.insert(date);
         } else if logseq {
-            let name = (outline.title.clone()).unwrap_or_else(|| stem.replace("___", "/"));
+            let name = (outline.title.clone())
+                .unwrap_or_else(|| percent_decode(&stem.replace("___", "/")));
             if let Some(parent) = namespace_parent(&name) {
                 add_parent(&mut outline, &parent);
                 ancestors.push(parent);
@@ -253,6 +256,90 @@ pub fn import_dir(graph: &Graph, dir: &Path) -> Result<Vec<BlockId>> {
     }
     debug!(entities = ids.len(), "imported");
     Ok(ids)
+}
+
+/// `s` with each `%XX` read as the byte it stands for, as Logseq encodes the
+/// characters of a page name that a file name can't have. Text that wouldn't
+/// be UTF-8 once decoded isn't percent-encoding, so it is returned as it was,
+/// whole: half a name decoded would be worse than none. The same goes for a
+/// result that couldn't be a name (it has a control character, so `%0A` would
+/// end the name's one line, or is blank). A `%` that isn't followed by two hex
+/// digits is just a `%`.
+fn percent_decode(s: &str) -> String {
+    fn hex(b: u8) -> Option<u8> {
+        char::from(b).to_digit(16).map(|d| d as u8)
+    }
+    // An iterator, not an index: a loop that steps by a counter can be sent
+    // round for ever by a mutant, and the run counts that as a failure.
+    let mut bytes = s.bytes();
+    let mut out = Vec::with_capacity(s.len());
+    while let Some(b) = bytes.next() {
+        if b == b'%' {
+            let mut rest = bytes.clone();
+            let pair = rest.next().zip(rest.next());
+            if let Some((hi, lo)) = pair.and_then(|(hi, lo)| hex(hi).zip(hex(lo))) {
+                out.push(hi * 16 + lo);
+                bytes = rest;
+                continue;
+            }
+        }
+        out.push(b);
+    }
+    match String::from_utf8(out) {
+        Ok(d) if !d.trim().is_empty() && !d.chars().any(char::is_control) => d,
+        _ => s.to_owned(),
+    }
+}
+
+/// What [`decode_page_names`] did.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct DecodedNames {
+    /// The entities renamed, as `(was, now)`; with `dry_run`, those that would be.
+    pub renamed: Vec<(String, String)>,
+    /// Entities left as they were because another entity has the decoded name,
+    /// as `(name, the name it would have had)`.
+    pub clashing: Vec<(String, String)>,
+}
+
+/// A one-off repair for a Logseq graph imported before the import decoded
+/// percent-encoded file names: renames each entity whose name decodes to
+/// something else (`What%3F` to `What?`). The old name stays as an `alias`
+/// ([`Graph::rename_entity`]), which is what keeps the `parent` lines the import
+/// wrote, naming it, pointing somewhere.
+///
+/// Journals are left alone, since their names are their days. An entity whose
+/// decoded name is another's is left as it is and reported, as is any two that
+/// would decode to one name, since a rename must not make a duplicate. Nothing
+/// is changed with `dry_run`. A namespace written as `%2F` becomes a `/` in the
+/// name but gets no `parent`: only the import makes those.
+pub fn decode_page_names(graph: &Graph, dry_run: bool) -> Result<DecodedNames> {
+    let index = Index::build(graph)?;
+    let mut taken = HashSet::new();
+    let mut done = DecodedNames::default();
+    let mut roots = graph.roots();
+    roots.sort_unstable();
+    for entity in roots {
+        let info = index.entity(entity).expect("every root is indexed");
+        if matches!(info.identity(), Some(Identity::Journal(_))) {
+            continue;
+        }
+        let decoded = percent_decode(&info.name);
+        if decoded == info.name || is_spent_duplicate(graph, &index, entity)? {
+            continue;
+        }
+        let key = normalise_name(&decoded);
+        let clash = !index.named(&decoded).is_empty() || !taken.insert(key);
+        if clash {
+            done.clashing.push((info.name.clone(), decoded));
+            continue;
+        }
+        if !dry_run {
+            graph.rename_entity(entity, &decoded)?;
+        }
+        done.renamed.push((info.name.clone(), decoded));
+    }
+    graph.commit();
+    Ok(done)
 }
 
 /// Whether the outline's properties block says it is a day's journal.
@@ -590,6 +677,60 @@ mod tests {
                 let name = logseq_day_name(date);
                 prop_assert_eq!(logseq_day(&name), Some(date));
                 prop_assert_eq!(logseq_day(&name.to_uppercase()), Some(date));
+            }
+        }
+    }
+
+    mod percent {
+        use super::*;
+        use proptest::prelude::*;
+
+        /// Every byte of `s` that isn't an ASCII letter or digit, as `%XX`, in
+        /// either case of hex.
+        fn encode(s: &str, upper: bool) -> String {
+            s.bytes()
+                .map(|b| match b {
+                    b if b.is_ascii_alphanumeric() => char::from(b).to_string(),
+                    b if upper => format!("%{b:02X}"),
+                    b => format!("%{b:02x}"),
+                })
+                .collect()
+        }
+
+        proptest! {
+            /// What is encoded decodes to what it was, whatever the case of the
+            /// hex, unless it couldn't be a name.
+            #[test]
+            fn decoding_undoes_encoding(s in "[a-z0-9 %?:#é日/_.\u{1f600}]{1,12}", upper: bool) {
+                prop_assume!(!s.trim().is_empty());
+                prop_assert_eq!(percent_decode(&encode(&s, upper)), s);
+            }
+
+            /// Text with no `%` in it is a name already.
+            #[test]
+            fn text_without_a_percent_is_unchanged(s in "[^%]{0,12}") {
+                prop_assert_eq!(percent_decode(&s), s);
+            }
+        }
+
+        #[test]
+        fn only_what_is_encoded_utf8_and_a_name_is_decoded() {
+            for (name, expected) in [
+                ("What%3F", "What?"),
+                ("a%2fb", "a/b"),
+                ("caf%C3%A9", "café"),
+                // Not hex, or cut short: a `%` is itself.
+                ("100%", "100%"),
+                ("100%2", "100%2"),
+                ("%zz", "%zz"),
+                ("5%%41", "5%A"),
+                // Not UTF-8 once decoded, and not a name: left whole.
+                ("a%C3", "a%C3"),
+                ("a%0Ab", "a%0Ab"),
+                ("%20", "%20"),
+                ("a%20", "a "),
+            ] {
+                assert_eq!(percent_decode(name), expected, "{name}");
             }
         }
     }

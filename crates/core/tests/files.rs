@@ -3,7 +3,7 @@ use std::fs;
 use std::path::Path;
 
 use proptest::prelude::*;
-use quiddity_core::files::{export_dir, import_dir};
+use quiddity_core::files::{decode_page_names, export_dir, import_dir};
 use quiddity_core::syntax::{Link, Value};
 use quiddity_core::{Graph, Index, Resolution, Result, ensure_journal};
 
@@ -215,6 +215,96 @@ fn logseq_namespaces_become_parents() -> Result<()> {
     // A parent the page names itself is left alone.
     assert!(!children.contains(&find("Places/Ireland")));
     assert!(index.property_entity("parent").is_some());
+    Ok(())
+}
+
+/// Logseq writes what a file name can't hold as `%XX`. A title says the name
+/// itself, and `___` is a `/` before anything is decoded.
+#[test]
+fn logseq_file_names_are_decoded() -> Result<()> {
+    let tmp = tempfile::tempdir()?;
+    let dir = tmp.path();
+    fs::create_dir_all(dir.join("pages"))?;
+    fs::write(dir.join("pages/What%3F.md"), "- Who knows\n")?;
+    fs::write(dir.join("pages/Places___St%3A Kilda.md"), "- Far\n")?;
+    fs::write(dir.join("pages/a%5F%5F%5Fb.md"), "- Underscores\n")?;
+    fs::write(
+        dir.join("pages/Kept%3F.md"),
+        "title:: Kept%3F\n\n- As said\n",
+    )?;
+    let graph = Graph::new();
+    import_dir(&graph, dir)?;
+    let index = Index::build(&graph)?;
+    let mut names: Vec<_> = graph
+        .roots()
+        .into_iter()
+        .map(|r| graph.entity_name(r))
+        .collect::<Result<_>>()?;
+    names.sort();
+    assert_eq!(
+        names,
+        [
+            "Kept%3F",
+            "Places",
+            "Places/St: Kilda",
+            "What?",
+            "a___b",
+            "parent"
+        ]
+    );
+    assert!(index.property_entity("parent").is_some());
+    Ok(())
+}
+
+/// A graph imported before names were decoded is put right once, with the old
+/// name kept as an alias, and left alone after that.
+#[test]
+fn encoded_names_can_be_decoded_after_the_fact() -> Result<()> {
+    let graph = Graph::new();
+    let what = graph.create_entity("What%3F", &[])?;
+    graph.create_entity("Plain", &[])?;
+    graph.create_entity("Taken?", &[])?;
+    graph.create_entity("Taken%3F", &[])?;
+    graph.create_entity("100%", &[])?;
+    let day = ensure_journal(
+        &graph,
+        &Index::build(&graph)?,
+        "2026-10-25".parse().unwrap(),
+    )?;
+    let linker = graph.create_entity(
+        "Linker",
+        &[(
+            "see",
+            Some(Value::Link(Link {
+                name: "What%3F".into(),
+                qualifiers: vec![],
+            })),
+        )],
+    )?;
+
+    let before = graph.snapshot()?;
+    let dry = decode_page_names(&graph, true)?;
+    assert_eq!(dry.renamed, [("What%3F".to_owned(), "What?".to_owned())]);
+    assert_eq!(dry.clashing, [("Taken%3F".to_owned(), "Taken?".to_owned())]);
+    assert_eq!(graph.entity_name(what)?, "What%3F");
+    assert_eq!(graph.snapshot()?.len(), before.len());
+
+    let done = decode_page_names(&graph, false)?;
+    assert_eq!(done, dry);
+    assert_eq!(graph.entity_name(what)?, "What?");
+    assert_eq!(graph.entity_name(day)?, "2026-10-25");
+    let index = Index::build(&graph)?;
+    let link = |name: &str| Link {
+        name: name.into(),
+        qualifiers: vec![],
+    };
+    // The old name still finds it, so the link written with it does too.
+    assert_eq!(index.resolve(&link("What%3F")), Resolution::Unique(what));
+    assert_eq!(index.backlinks(what).len(), 1);
+    assert!(graph.entity_name(linker).is_ok());
+
+    let again = decode_page_names(&graph, false)?;
+    assert!(again.renamed.is_empty());
     Ok(())
 }
 
