@@ -181,6 +181,7 @@ function blockAtHeight(scope: string, y: number): string | null {
  * - Mod-A in an editor selects its text, as it always did. With the text
  *   selected, or in a block that isn't being edited, it selects the block, and
  *   each press after that takes in more (`expandSelection`).
+ * - Tab and Shift-Tab indent and outdent the selected blocks.
  * - A drag from one block to another selects the blocks between them.
  * - Escape, or pressing anywhere, lets go.
  */
@@ -200,6 +201,16 @@ function selectionHandlers(
     const { blocks, editing, selection } = live.current;
     if (e.key === "Escape" && selection && !editing.current) {
       setSelection(null);
+      return;
+    }
+    // Tab and Shift-Tab indent and outdent what is selected, as they do the
+    // block being edited. With nothing selected, Tab is the browser's.
+    if (e.key === "Tab" && selection && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      if (e.target !== document.body && blockOf(e.target, scope) === null) return;
+      e.preventDefault();
+      const ids = [...editing.selected];
+      if (e.shiftKey) editing.graph.outdentBlocks(ids);
+      else editing.graph.indentBlocks(ids);
       return;
     }
     if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey || e.key.toLowerCase() !== "a") return;

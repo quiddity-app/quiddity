@@ -264,17 +264,8 @@ impl View {
     pub fn indent(&self, id: &str) -> Result<bool> {
         self.structural();
         let block = self.block_id(id)?;
-        let parent = self
-            .graph
-            .parent(block)
-            .ok_or(Error::NotABlock(id.to_owned()))?;
-        let siblings = self.graph.children(parent);
-        let here = siblings.iter().position(|&s| s == block).unwrap_or(0);
-        let Some(&before) = here.checked_sub(1).and_then(|i| siblings.get(i)) else {
-            return Ok(false);
-        };
-        let moved = self.graph.move_block(block, Some(before), None);
-        self.edited_by(moved.map(|()| true).map_err(Error::from), Change::Structure)
+        let indented = self.indent_one(block, &BTreeSet::new());
+        self.edited_by(indented, Change::Structure)
     }
 
     /// Makes a block the next sibling of its parent. False if its parent is
@@ -282,10 +273,95 @@ impl View {
     pub fn outdent(&self, id: &str) -> Result<bool> {
         self.structural();
         let block = self.block_id(id)?;
+        let outdented = self.outdent_one(block);
+        self.edited_by(outdented, Change::Structure)
+    }
+
+    /// Indents each of `ids` as [`View::indent`] does, with their children,
+    /// in one undo step. Blocks inside another of `ids` go with it. The
+    /// blocks nest under the sibling before the first of a run of siblings,
+    /// so they stay in order; if that run has nothing before it, none of it
+    /// moves. True if any block did.
+    pub fn indent_blocks(&self, ids: &[String]) -> Result<bool> {
+        self.structural();
+        let tops = self.top_blocks(ids)?;
+        let held: BTreeSet<_> = tops.iter().copied().collect();
+        let moved = tops
+            .into_iter()
+            .try_fold(false, |any, block| Ok(self.indent_one(block, &held)? | any));
+        self.edited_by(moved, Change::Structure)
+    }
+
+    /// Outdents each of `ids` as [`View::outdent`] does, in one undo step. A
+    /// run of siblings follows their parent in the order they had, which
+    /// takes the last first, since each lands straight after the parent. True
+    /// if any block moved.
+    pub fn outdent_blocks(&self, ids: &[String]) -> Result<bool> {
+        self.structural();
+        let tops = self.top_blocks(ids)?;
+        let moved = tops
+            .into_iter()
+            .rev()
+            .try_fold(false, |any, block| Ok(self.outdent_one(block)? | any));
+        self.edited_by(moved, Change::Structure)
+    }
+
+    /// The blocks of `ids` that aren't inside another of them, in reading
+    /// order. Each is a whole subtree to act on, so what is inside one isn't
+    /// acted on again.
+    fn top_blocks(&self, ids: &[String]) -> Result<Vec<BlockId>> {
+        let wanted = ids
+            .iter()
+            .map(|id| self.block_id(id))
+            .collect::<Result<BTreeSet<_>>>()?;
+        let mut entities = Vec::new();
+        for &block in &wanted {
+            let entity = self.graph.entity_of(block);
+            if !entities.contains(&entity) {
+                entities.push(entity);
+            }
+        }
+        let inside_another = |block: BlockId| {
+            std::iter::successors(self.graph.parent(block), |&b| self.graph.parent(b))
+                .any(|ancestor| wanted.contains(&ancestor))
+        };
+        let mut tops = Vec::new();
+        for entity in entities {
+            let mut order = Vec::new();
+            self.reading_order(entity, &mut order);
+            tops.extend(
+                order
+                    .into_iter()
+                    .filter(|&b| wanted.contains(&b) && !inside_another(b)),
+            );
+        }
+        Ok(tops)
+    }
+
+    /// Indents a block, unless the sibling before it is one of `held`, which
+    /// didn't move and so would be what it nested under.
+    fn indent_one(&self, block: BlockId, held: &BTreeSet<BlockId>) -> Result<bool> {
         let parent = self
             .graph
             .parent(block)
-            .ok_or(Error::NotABlock(id.to_owned()))?;
+            .ok_or_else(|| Error::NotABlock(block.to_string()))?;
+        let siblings = self.graph.children(parent);
+        let here = siblings.iter().position(|&s| s == block).unwrap_or(0);
+        let Some(&before) = here.checked_sub(1).and_then(|i| siblings.get(i)) else {
+            return Ok(false);
+        };
+        if held.contains(&before) {
+            return Ok(false);
+        }
+        let moved = self.graph.move_block(block, Some(before), None);
+        moved.map(|()| true).map_err(Error::from)
+    }
+
+    fn outdent_one(&self, block: BlockId) -> Result<bool> {
+        let parent = self
+            .graph
+            .parent(block)
+            .ok_or_else(|| Error::NotABlock(block.to_string()))?;
         let Some(grandparent) = self.graph.parent(parent) else {
             return Ok(false);
         };
@@ -295,7 +371,7 @@ impl View {
             .position(|&u| u == parent)
             .map_or(0, |i| i + 1);
         let moved = self.graph.move_block(block, Some(grandparent), Some(at));
-        self.edited_by(moved.map(|()| true).map_err(Error::from), Change::Structure)
+        moved.map(|()| true).map_err(Error::from)
     }
 
     /// Swaps a block with the sibling `delta` places away (-1 is up). False

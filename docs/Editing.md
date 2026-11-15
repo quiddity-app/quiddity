@@ -25,7 +25,10 @@
 	- Dragging from one block to another selects the blocks between them in reading order, whichever way the drag goes. Dragging past the first or last block reaches it. A drag that starts in the block being edited and leaves it closes the editor; one that stays inside selects text, as usual.
 	- A selection made by dragging grows from the block the drag started in, to the first step that holds it and more.
 	- Escape, or pressing anywhere, lets go. The selected blocks are shaded with the editor's selection colour, each block's own text and not its children's, so a selected parent and child are not painted twice.
-	- Nothing acts on the selection yet: copying, deleting and moving a selection are not built.
+	- Tab and Shift-Tab indent and outdent the selected blocks, as one undo step, the same as in the editor for one block.
+		- A block chosen along with its parent isn't acted on twice: it goes with the parent.
+		- Indenting nests a run of siblings under the one before the run, so they keep their order; if nothing is before the run, none of it moves. Outdenting puts the run after its parent in the order it had.
+		- Copying, deleting and moving a selection are not built yet.
 	- Code: `lib/block-selection.ts` for the steps, and `selectionHandlers` in `components/editing.tsx` for the keys and the drag.
 - Links
 	- `[` makes `[]` with the caret inside, so `[[` makes `[[]]`. With a selection, the brackets go round it. `]` steps over a closer rather than doubling it, and Backspace in an empty pair removes both. A `[` before a word is left alone.

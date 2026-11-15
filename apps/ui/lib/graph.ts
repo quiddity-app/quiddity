@@ -352,6 +352,15 @@ export class Graph {
     return this.edited(this.replica.dropEmptyFirstBlock(id));
   }
 
+  /** Indents each block with its children, as one undo step. True if any moved. */
+  indentBlocks(ids: string[]) {
+    return this.edited(this.replica.indentBlocks(ids));
+  }
+
+  outdentBlocks(ids: string[]) {
+    return this.edited(this.replica.outdentBlocks(ids));
+  }
+
   moveSibling(id: string, delta: number) {
     return this.edited(this.replica.moveSibling(id, delta));
   }

@@ -340,6 +340,18 @@ impl Replica {
         Ok(self.view.outdent(id)?)
     }
 
+    /// Indents each block, with its children, as one undo step.
+    #[wasm_bindgen(js_name = indentBlocks)]
+    pub fn indent_blocks(&self, ids: Vec<String>) -> Result<bool, JsError> {
+        Ok(self.view.indent_blocks(&ids)?)
+    }
+
+    /// Outdents each block, with its children, as one undo step.
+    #[wasm_bindgen(js_name = outdentBlocks)]
+    pub fn outdent_blocks(&self, ids: Vec<String>) -> Result<bool, JsError> {
+        Ok(self.view.outdent_blocks(&ids)?)
+    }
+
     /// Swaps a block with the sibling `delta` places away.
     #[wasm_bindgen(js_name = moveSibling)]
     pub fn move_sibling(&self, id: &str, delta: i32) -> Result<bool, JsError> {
