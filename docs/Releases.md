@@ -1,14 +1,14 @@
-- Publish a GitHub release with a tag such as `v1.2.3` and `.github/workflows/release.yml` builds everything for that tag, attaches it to the release, attests it and signs the manifest [[packslip]] reads. Nothing is built until the release is published, and a draft does nothing. [[Nightly builds]]
+- Publish a GitHub release with a tag such as `v1.2.3` and `.github/workflows/release.yml` builds everything for that tag, attaches it to the release, attests it and signs the manifest [[packslip]] reads. Nothing is built until the release is published, and a draft does nothing.
 - Making one
 	- Tag the commit `vX.Y.Z` (or `vX.Y.Z-rc.1`; the `v` is optional) and publish a release from it. The tag must be a semantic version: the workflow stops at once if it isn't, since packslip reads the version from the tag and consumers don't list a release whose tag it can't read.
 	- Re-run the workflow from the Actions tab if a job fails. Files are attached with `--clobber`, so a second run replaces the first's.
 - What you get
-	- What [[Nightly builds]] make, named for the version: the desktop app for Linux, macOS and Windows on x64 and arm64, and an Android APK.
+	- The desktop app ([[The shell]]) named for the version, for Linux, macOS and Windows on x64 and arm64: `.deb`, `.rpm` and `.AppImage`, `.dmg`, and an `.msi` and a `-setup.exe`. And an Android APK, for every Android ABI in one file.
 	- `quiddity-node-1.2.3-<target>.tar.gz` for Linux and macOS and `.zip` for Windows, with the executable at the root of each. These are what packslip publishes.
 	- `packslip.sigstore.json`, the signed manifest.
 - Version numbers
 	- The tag without its `v` is the version everywhere. `scripts/set-version.sh` writes it into the workspace and the shell's `Cargo.toml` and runs `cargo update --workspace` in both, so the lock files change only in those versions and `--locked` still holds. `quiddity-node --version` therefore says what was released. The checked-in `0.1.0` is a placeholder.
-	- The apps get it from `--config`, as the nightlies do.
+	- The apps get it from `--config`, so `tauri.conf.json` still says `0.1.0`.
 	- The Windows `.msi` takes X.Y.Z without any pre-release part, since WiX allows neither, and stops at 255 in the major and minor. Android's version code is major × 1,000,000 + minor × 1,000 + patch. The workflow refuses a tag that doesn't fit either.
 - Attestations and metadata
 	- Every file is given SLSA build provenance with `actions/attest`, so `gh attestation verify <file> --repo quiddity-app/quiddity` works on any of them.
@@ -17,10 +17,15 @@
 	- Only the node is in the manifest: packslip installs archives of binaries, and never picks an installer such as `.deb`, `.dmg` or `.msi`.
 - No caches
 	- Nothing in the workflow restores a cache, not Rust's, and not the one `setup-node` would make for pnpm: a release builds from clean, so that a poisoned cache entry can't reach the published files. The zizmor and jactionlint checks insist on it for any workflow triggered by a release. Releases are slower than CI for it.
+- How it is built
+	- The UI is built once, in the first job, and every app embeds it; the platform jobs skip `beforeBuildCommand`.
+	- Each desktop platform is a matrix entry that builds the node and then the app. The Linux and Windows arm64 builds run natively on GitHub's arm64 runners (free for public repositories only). Both macOS builds run on one Apple silicon runner, and x64 is cross-compiled.
+	- The Android job runs `tauri android init`, which generates a project that holds nothing of ours, and builds an unsigned release APK.
+	- The jobs use the plain setup actions that [[GitHub Pages]] does, not mise and [[mbx]], so they don't depend on either supporting every runner.
 - Updates
 	- The release also makes what the apps' updater needs: a signed update bundle per platform and `latest.json`, which names them. The release fails without the update signing key. [[Updates]]
 - Signing
-	- The Android APK must be signed with the real key, from the secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD` and `ANDROID_KEY_ALIAS`. Unlike a nightly, a release fails without them: a throwaway key would make the release impossible to update in place.
+	- The Android APK must be signed with the real key, from the secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD` and `ANDROID_KEY_ALIAS`. A release fails without them: a throwaway key would make the release impossible to update in place.
 	- The builds are unsigned. One job, `sign`, signs the update bundles and the APK, and is the only job that runs in the `release` environment, where the private keys are kept: `TAURI_SIGNING_PRIVATE_KEY` (and its password), `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD` and `ANDROID_KEY_ALIAS`. So nothing else can read them, and the environment's protection rules, required reviewers say, ask for one approval however many builds there are. The environment must allow the release's tag (`v*`) to deploy to it.
 	- `UPDATER_PUBKEY` is not in the environment but a plain repository variable, because the builds embed it and they don't run there. It is a public key.
 	- The macOS and Windows installers are not signed or notarised. Those need an Apple developer account and a code-signing certificate, which the repository has none of. If they're added, sign before the `assets` job: packslip records digests, and any later change to a file fails verification.

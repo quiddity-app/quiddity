@@ -29,4 +29,4 @@ favourite:: true
 	- [[Recovery]]: what to do if the app can't open the graph on a device.
 	- How syncing works is described for developers under [[Sync]].
 - [[Updates]]: the desktop app offers a new release when it opens, once there is one.
-- Running it: there is no release yet, though [[Releases]] describes how one is made. Each week's [[Nightly builds]] have the app for Linux, macOS, Windows and Android, or it can be built from source. [[Running the app]]
+- Running it: there is no release yet, though [[Releases]] describes how one is made, so for now it is built from source. [[Running the app]]
