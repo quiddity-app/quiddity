@@ -83,7 +83,7 @@ graph records no devices.
 ## Sync indicator
 
 A cloud with a coloured dot, left of the search button
-(`components/sync-indicator.tsx`), links to the Devices page. **A backend may
+(`components/sync-indicator.tsx`), links to the Devices page, which is in the More menu rather than the sidebar. **A backend may
 have `subscribeStatus`**, which tells the page how this device stands (`alone`,
 `offline`, `behind`, `synced` or `present`; `docs/Sync status.md`); the graph
 keeps the latest, and the indicator draws nothing until a backend has said, so
@@ -92,6 +92,24 @@ the published site, which can't say, shows none. The memory backend says
 `window.__quiddityRemote.setStatus`, for `e2e/sync-status.spec.ts`. **Each
 state has a label, which is its accessible name, and a colour**; the tests
 check both, and that the colours differ.
+
+## More menu
+
+`components/more-menu.tsx`, right of search in the action strip: Devices (the
+entrypoints with `in: "menu"` in `lib/nav.ts`, the one list the sidebar and the
+app's Go menu share) and Delete Entity for the main pane's entity
+(`docs/Menus.md`).
+
+- **Delete asks first**, inline as in All entities, with Cancel focused.
+  **Confirming navigates away first and deletes once `main` has left the
+  entity** (`leaving`): deleting under the main pane would have `graph.entity` fail
+  and the page flashes its error boundary.
+- **The same component hears the app's native menu** (`lib/menu.ts`): the shell
+  sends one string on the `menu` event (`delete-entity`, or `go:<path>` for an
+  entrypoint; anything else is ignored), and the page tells the shell
+  whether an entity is open (`set_entity_open`) so File ▸ Delete Entity is only
+  on then. A browser has no menu, and both do nothing there. Go navigates as
+  the sidebar's links do, so it drops the side pane.
 
 ## Joining
 

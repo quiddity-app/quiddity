@@ -7,6 +7,7 @@
 //! the one on the network.
 
 mod appearance;
+mod menu;
 mod session;
 mod updates;
 
@@ -183,6 +184,14 @@ async fn allow_device(state: Shared<'_>, device: String) -> Result<(), Error> {
     state.lock().expect("session lock poisoned").allow(&device)
 }
 
+/// Whether the UI has an entity open, which is what Delete Entity in the File
+/// menu needs. There is no such menu on other systems, and it then does nothing.
+#[tauri::command]
+async fn set_entity_open(app: tauri::AppHandle, open: bool) -> Result<(), Error> {
+    menu::set_entity_open(&app, open);
+    Ok(())
+}
+
 /// Keeps the bytes of a file, the request body, and returns their hash. The
 /// UI then says in the graph what the file is, as it does any edit.
 #[tauri::command]
@@ -293,6 +302,9 @@ pub fn run() {
     let builder = builder
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(updates::Pending::default());
+    // The menu bar only tells the page what was chosen.
+    #[cfg(target_os = "macos")]
+    let builder = builder.on_menu_event(menu::on_event);
     builder
         .setup(|app| {
             let dir = graph_dir(app)?;
@@ -316,6 +328,8 @@ pub fn run() {
             if let Some(window) = app.get_webview_window("main") {
                 appearance::follow_theme(&window);
             }
+            #[cfg(target_os = "macos")]
+            menu::install(app.handle())?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -330,6 +344,7 @@ pub fn run() {
             allow_device,
             put_blob,
             get_blob,
+            set_entity_open,
             updates::check_for_update,
             updates::install_update
         ])

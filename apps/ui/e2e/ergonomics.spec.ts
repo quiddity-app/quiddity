@@ -44,7 +44,7 @@ test.describe("on a touch screen", () => {
       [
         page.locator("main").getByRole("searchbox", { name: "Filter entities by title" }),
         page.getByRole("button", { name: /^Search/ }),
-        page.getByRole("link", { name: "Devices", exact: true }),
+        page.getByRole("button", { name: "More" }),
       ].map(async (target) => (await target.boundingBox())!.height),
     );
     for (const height of heights) expect(height).toBeGreaterThanOrEqual(44);

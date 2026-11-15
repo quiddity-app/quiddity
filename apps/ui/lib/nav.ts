@@ -69,8 +69,20 @@ export function viewHref({ path, main, open }: View, names?: Names | null): stri
   return `${main ? "/entity/" : path}${query}`;
 }
 
+/**
+ * Fixed places in the app, as opposed to entities in the graph. The sidebar
+ * lists the ones in it; the others are in the More menu. The app's Go menu
+ * (`apps/app/src-tauri/src/menu.rs`) lists all of them, with these paths.
+ */
+export const entrypoints = [
+  { title: "Journals", href: "/journals/", in: "sidebar" },
+  { title: "All entities", href: "/all/", in: "sidebar" },
+  { title: "Graph", href: "/graph/", in: "sidebar" },
+  { title: "Devices", href: "/devices/", in: "menu" },
+] as const;
+
 /** The pages a link in a block's text may name by path, as `[text](/graph/)`. */
-const APP_PAGES = ["/journals/", "/all/", "/graph/", "/devices/"];
+const APP_PAGES: string[] = entrypoints.map((e) => e.href);
 
 /** The app page `href` names, as `Link` wants it, or null if it names none. */
 export function appPage(href: string | undefined): string | null {

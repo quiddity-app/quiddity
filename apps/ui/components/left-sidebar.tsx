@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { EntityRef } from "@/lib/model";
+import { entrypoints } from "@/lib/nav";
 import { useRecents } from "@/lib/recents";
 import { useRead } from "@/lib/use-graph";
 import { Region, Skeleton } from "./boundary";
@@ -55,20 +56,14 @@ function Favourites() {
   return <Items items={useRead((g) => g.favourites())} />;
 }
 
-/** Fixed places in the app, as opposed to entities in the graph. */
-const entrypoints = [
-  { title: "Journals", href: "/journals/" },
-  { title: "All entities", href: "/all/" },
-  { title: "Graph", href: "/graph/" },
-  { title: "Devices", href: "/devices/" },
-];
+const sidebarEntrypoints = entrypoints.filter((e) => e.in === "sidebar");
 
 function Entrypoints() {
   const pathname = usePathname();
   const { main } = useView();
   return (
     <ul>
-      {entrypoints.map(({ title, href }) => {
+      {sidebarEntrypoints.map(({ title, href }) => {
         const here = !main && pathname.startsWith(href.slice(0, -1));
         return (
           <li key={href}>
