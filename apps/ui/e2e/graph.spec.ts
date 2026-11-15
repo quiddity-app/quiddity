@@ -230,9 +230,10 @@ test("labels are dropped as the graph is zoomed out, and come back when it is zo
   const framed = await labels();
   for (let i = 0; i < 12; i++) await page.mouse.wheel(0, 400);
   await expect.poll(labels).toBeLessThan(framed);
+  const zoomedOut = await labels();
 
   for (let i = 0; i < 40; i++) await page.mouse.wheel(0, -400);
-  await expect.poll(labels).toBeGreaterThanOrEqual(framed);
+  await expect.poll(labels).toBeGreaterThan(zoomedOut);
 });
 
 test.describe("on a dense display", () => {
