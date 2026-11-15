@@ -12,6 +12,7 @@
 	- `Link` and the router add it themselves.
 	- Anything that writes an `href` by hand has to, and the graph view's nodes do.
 - Limits
-	- The graph only exists in the browser, so the pages are a shell until the snapshot has loaded.
+	- Only the named pages (`/page/<name>/`) are drawn at export time, from the snapshot being published, which `lib/prerender.ts` reads from `public/graph.loro`. The sidebars, the side pane and every other route still wait for the browser to load the graph, and show a skeleton until then.
+	- A named page's HTML has the page's own content only: its text, its properties and the links between pages. References are loaded on request, as in the app.
 	- Nothing is saved: the backend discards edits, so a reload starts again from the published graph.
 - See [[Publishing]] for how CI uses this, and [[The UI]] for the UI model.

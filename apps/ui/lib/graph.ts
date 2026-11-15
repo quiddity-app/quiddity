@@ -424,8 +424,29 @@ export async function chooseBackend(): Promise<Backend> {
       : (await import("./backend-memory")).memoryBackend;
 }
 
-/** Loads the replica from wherever the graph lives. Once per page. */
+/**
+ * The replica a published build's export renders pages from: the snapshot it
+ * is publishing, read from disk. Nothing is edited, listened for or saved, and
+ * today's page isn't made, so the pages are the published graph and no more.
+ */
+async function bootForExport(): Promise<Graph> {
+  const { wasmBytes, snapshotBytes } = await import("./prerender");
+  await init({ module_or_path: wasmBytes() });
+  return new Graph(new Replica(snapshotBytes()), { load: async () => snapshotBytes(), push: async () => {} });
+}
+
+/**
+ * Loads the replica from wherever the graph lives. Once per page, or, when a
+ * published site is exported, once per build: that is the one place it is
+ * loaded outside a browser, to render the pages it can on the server.
+ */
 export function bootGraph(): Promise<Graph> {
+  if (typeof window === "undefined") {
+    if (!process.env.NEXT_PUBLIC_QUIDDITY_STATIC_GRAPH) {
+      return Promise.reject(new Error("The graph only exists in the browser, or in a published build."));
+    }
+    return (booted ??= bootForExport());
+  }
   booted ??= (async () => {
     await init();
     const backend = await chooseBackend();

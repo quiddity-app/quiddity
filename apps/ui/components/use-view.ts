@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useSearchParams } from "next/navigation";
-import { useMemo } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import type { EntityId } from "@/lib/model";
 import { parseView, viewHref, type Names, type View } from "@/lib/nav";
 import { useRead } from "@/lib/use-graph";
@@ -41,10 +41,32 @@ const useNames: () => Names | null = process.env.NEXT_PUBLIC_QUIDDITY_PAGE_NAMES
   ? usePublishedNames
   : () => null;
 
+const NO_PARAMS = new URLSearchParams();
+const subscribe = () => () => {};
+
+/**
+ * The query string. A page exported on a server has none to read, and
+ * `useSearchParams` would give up rendering it there, so it is read only in
+ * the browser, and only once that has hydrated: until then the page is what
+ * the export drew, with no side pane open.
+ */
+const useQuery: () => URLSearchParams =
+  typeof window === "undefined"
+    ? () => NO_PARAMS
+    : () => {
+        const params = useSearchParams();
+        const hydrated = useSyncExternalStore(
+          subscribe,
+          () => true,
+          () => false,
+        );
+        return hydrated ? params : NO_PARAMS;
+      };
+
 /** The current view, and hrefs derived from it that keep the rest of it. */
 export function useView() {
   const pathname = usePathname();
-  const params = useSearchParams();
+  const params = useQuery();
   const names = useNames();
   const view = useMemo(() => parseView(pathname, params, names), [pathname, params, names]);
   const href = (v: View) => viewHref(v, names);

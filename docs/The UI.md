@@ -21,7 +21,8 @@
 	- A static export cannot enumerate entities for path segments, and the right pane is a list, not a route.
 - Nothing blocks anything else.
 	- Reading the URL suspends, so each pane, and each secondary within the right pane, has its own `Suspense` and error boundary. A card's header sits outside its content's boundary so it can always be closed.
-- The graph only exists in the browser, so everything that reads it renders inside `ClientOnly`.
+- The graph only exists in the browser, so everything that reads it renders inside `ClientOnly`, the pages through `ClientPage`.
+	- The exception is a published site's named pages, which are drawn at export time from the graph being published. [[Page names]]
 	- A static export never renders those panes on a server, but `next dev` does, on every request. A pane left outside `ClientOnly` works in the export and fails in development with a server error, so there are tests that run against `next dev` too. [[Testing]]
 - Three backends, chosen when the app starts.
 	- Tauri: the shell holds the graph and the UI asks it for a snapshot. `QUIDDITY_GRAPH` names the graph the shell opens.
