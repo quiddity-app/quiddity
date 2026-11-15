@@ -15,6 +15,12 @@ export interface Editing {
   current: { id: string; caret: Caret } | null;
   /** Every block of the entity, in reading order. */
   order: string[];
+  /** The blocks selected as blocks, which is not selecting text in one. None
+   * is being edited while any is selected. */
+  selected: ReadonlySet<string>;
+  /** Marks this outline's rows (`data-outline`), so a press or a key can be
+   * told from one in another outline on the page, such as at the side. */
+  scope: string;
   edit(id: string, caret: Caret): void;
   /** Stops editing `id`, unless something else has been started since. */
   stop(id: string): void;
