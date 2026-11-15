@@ -27,6 +27,11 @@ The reference parser and formatter for block text: `key:: value` lines,
 - **References come from structure.** Links and block refs in a value count
   at the top level or in a list, but not inside quoted text or qualifiers.
   `Refs` collects them for line values and `##key:: value` lines, whose text it reads again when the value isn't exactly a list, quote, link or reference.
+- **Values are untyped here, so the schema's reading is `ref_items`.** A
+  reference property's text is split on top-level commas (outside `[[…]]` and
+  `((…))`) and trimmed, so `a, [[b]]` and `[a, [[b]]]` are the same items. It
+  works on a `Value`, whose quotes and escapes are gone, so a quoted comma
+  splits too. `text_with_links` is the other reading, for text shown as text.
 - **A tag has no value.** `#key(value)` is the tag `key` and then the text
   `(value)`, so what follows a tag can't change what the tag is (the `block`
   fuzz target's "each property can be parsed from its span alone"). Only a

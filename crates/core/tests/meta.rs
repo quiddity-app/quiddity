@@ -289,6 +289,30 @@ fn inheritance() -> Result<()> {
     Ok(())
 }
 
+/// A reference property's items are the same written with or without
+/// brackets, and only a reference property is read that way.
+#[test]
+fn reference_items_need_no_brackets() -> Result<()> {
+    let graph = Graph::new();
+    entity(&graph, "knows", "##value-type(ref)")?;
+    let jane = entity(&graph, "Jane", "")?;
+    let smith = entity(&graph, "Smith, John", "")?;
+    let bare = entity(&graph, "bare", "knows:: Jane, [[Smith, John]]")?;
+    let listed = entity(&graph, "listed", "knows:: [Jane, [[Smith, John]]]")?;
+    let bracketed = entity(&graph, "bracketed", "knows:: [[Jane]], [[Smith, John]]")?;
+    let text = entity(&graph, "text", "note:: Jane, [[Smith, John]]")?;
+    let index = Index::build(&graph)?;
+
+    for who in [bare, listed, bracketed] {
+        assert_eq!(index.effective_values(who, "knows").len(), 2);
+        assert_eq!(targets(&index, who, "knows"), [jane, smith].into());
+    }
+    let one = index.effective_values(text, "note");
+    assert_eq!(one.len(), 1, "text is not split: {one:?}");
+    assert_eq!(one[0].target, None);
+    Ok(())
+}
+
 /// Inheriting doesn't carry the inheriting property itself unless it is
 /// transitive, nor what identifies an entity.
 #[test]

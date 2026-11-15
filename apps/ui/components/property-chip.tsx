@@ -100,6 +100,14 @@ export function Value({
       return <LinkOrNot linkKey={value.key} fallback={value.name} links={links} />;
     case "ref":
       return <span className="text-ink-muted">(({value.id}))</span>;
+    case "parts":
+      return (
+        <>
+          {value.items.map((item, i) => (
+            <Value key={i} value={item} links={links} />
+          ))}
+        </>
+      );
     case "list":
       return (
         <>

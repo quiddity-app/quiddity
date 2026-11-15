@@ -4,7 +4,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
-use quiddity_syntax::{Link, Value, normalise_name};
+use quiddity_syntax::{Link, Value, normalise_name, ref_items};
 
 use crate::schema::ValueType;
 use crate::{BlockId, Index, Resolution, canonical_value};
@@ -54,15 +54,18 @@ impl Index {
             let key = normalise_name(&p.key);
             let reference = self.schema(&key).value_type == ValueType::Ref;
             let items = own.entry(key).or_default();
-            let values: Vec<Option<&Value>> = match &p.value {
+            let values: Vec<Option<Value>> = match &p.value {
                 None => vec![None],
-                Some(Value::List(list)) => list.iter().map(Some).collect(),
-                Some(v) => vec![Some(v)],
+                // A reference property's text is a list of names, written
+                // with or without brackets.
+                Some(v) if reference => ref_items(v).into_iter().map(Some).collect(),
+                Some(Value::List(list)) => list.iter().cloned().map(Some).collect(),
+                Some(v) => vec![Some(v.clone())],
             };
             for value in values {
                 items.push(Item {
-                    target: value.and_then(|v| self.target(v, reference)),
-                    value: value.cloned(),
+                    target: value.as_ref().and_then(|v| self.target(v, reference)),
+                    value,
                     from: None,
                 });
             }

@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use jiff::civil::Date;
 use quiddity_syntax::{
     Block, Link, MetaProperty, Property, PropertyStyle, Qualifier, Value, normalise_name,
-    parse_block, parse_properties_block,
+    parse_block, parse_properties_block, ref_items,
 };
 
 use crate::effective::Effective;
@@ -110,11 +110,8 @@ impl EntityInfo {
     /// The entity's types, from its `type` property.
     pub fn types(&self) -> BTreeSet<String> {
         self.values("type")
-            .flat_map(|v| match v {
-                Value::List(items) => items.iter().collect(),
-                v => vec![v],
-            })
-            .map(canonical_value)
+            .flat_map(ref_items)
+            .map(|v| canonical_value(&v))
             .collect()
     }
 

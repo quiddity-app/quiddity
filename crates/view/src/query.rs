@@ -4,10 +4,11 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use jiff::Timestamp;
 use jiff::civil::Date;
-use quiddity_core::schema::{Typed, coerce};
+use quiddity_core::schema::{Typed, ValueType, coerce};
 use quiddity_core::syntax::{
     Link, MetaProperty, Property as Prop, PropertyStyle, Value, format_link, format_value,
-    is_properties_block, normalise_name, parse_block, parse_properties_block,
+    is_properties_block, normalise_name, parse_block, parse_properties_block, ref_items,
+    text_with_links,
 };
 use quiddity_core::{BlockId, Home, Identity, Index, Resolution, ensure_journal};
 use serde::Serialize;
@@ -156,6 +157,10 @@ pub enum PropertyValue {
     List {
         items: Vec<PropertyValue>,
     },
+    /// Text with links or block references written in it, in order.
+    Parts {
+        items: Vec<PropertyValue>,
+    },
 }
 
 /// Records where a link goes, under its [`link_key`].
@@ -203,9 +208,67 @@ pub(crate) fn link_qualifiers(link: &Link) -> String {
     link_key(link)[link_key(&bare).len()..].to_owned()
 }
 
+/// Records where the names written without brackets in a reference property's
+/// value go, as [`typed_property_value`] shows them as links.
+pub(crate) fn add_ref_links(
+    index: &Index,
+    key: &str,
+    value: &Value,
+    links: &mut BTreeMap<String, ResolvedLink>,
+) {
+    if index.schema(key).value_type != ValueType::Ref {
+        return;
+    }
+    // A link written in brackets is one of its block's links already.
+    for item in ref_items(value) {
+        if let Value::Text(name) = item {
+            let link = Link {
+                name,
+                qualifiers: Vec::new(),
+            };
+            add_link(index, &link, links);
+        }
+    }
+}
+
+/// A property's value as `key`'s schema reads it: a reference property's
+/// items are links whether or not they were written in brackets, and any other
+/// text shows the links written in it.
+pub(crate) fn typed_property_value(index: &Index, key: &str, value: &Value) -> PropertyValue {
+    if index.schema(key).value_type == ValueType::Ref {
+        let mut items: Vec<PropertyValue> = ref_items(value)
+            .into_iter()
+            .map(|v| match v {
+                Value::Text(name) => {
+                    let link = Link {
+                        name,
+                        qualifiers: Vec::new(),
+                    };
+                    PropertyValue::Link {
+                        key: link_key(&link),
+                        name: link.name,
+                    }
+                }
+                v => property_value(&v),
+            })
+            .collect();
+        return match value {
+            Value::List(_) => PropertyValue::List { items },
+            _ if items.len() == 1 => items.remove(0),
+            _ => PropertyValue::List { items },
+        };
+    }
+    property_value(value)
+}
+
 pub(crate) fn property_value(value: &Value) -> PropertyValue {
     match value {
-        Value::Text(text) => PropertyValue::Text { text: text.clone() },
+        Value::Text(text) => match text_with_links(text).as_slice() {
+            [Value::Text(_)] | [] => PropertyValue::Text { text: text.clone() },
+            parts => PropertyValue::Parts {
+                items: parts.iter().map(property_value).collect(),
+            },
+        },
         Value::Link(link) => PropertyValue::Link {
             name: link.name.clone(),
             key: link_key(link),
@@ -245,7 +308,10 @@ fn property(text: &str, p: &Prop, index: &Index) -> Property {
     Property {
         definition,
         key: p.key.clone(),
-        value: p.value.as_ref().map(property_value),
+        value: p
+            .value
+            .as_ref()
+            .map(|v| typed_property_value(index, &p.key, v)),
         inline: p.style == PropertyStyle::Inline,
         start: utf16_at(text, p.span.start),
         end: utf16_at(text, p.span.end),
@@ -858,6 +924,11 @@ impl View {
         let index = self.index()?;
         for link in &parsed.links {
             add_link(&index, link, links);
+        }
+        for p in &parsed.properties {
+            if let Some(value) = &p.value {
+                add_ref_links(&index, &p.key, value, links);
+            }
         }
         let mut properties: Vec<Property> = parsed
             .properties

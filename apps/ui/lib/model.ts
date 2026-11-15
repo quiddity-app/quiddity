@@ -53,7 +53,9 @@ export type PropertyValue =
   /** `key` is how the link is written between its brackets: a key of `links`. */
   | { kind: "link"; name: string; key: string }
   | { kind: "ref"; id: string }
-  | { kind: "list"; items: PropertyValue[] };
+  | { kind: "list"; items: PropertyValue[] }
+  /** Text with links or block references in it: shown as it is, with no separators. */
+  | { kind: "parts"; items: PropertyValue[] };
 
 /** One property written in a block's text. */
 export interface Property {

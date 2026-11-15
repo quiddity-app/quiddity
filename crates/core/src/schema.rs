@@ -10,7 +10,9 @@ use std::fmt;
 
 use jiff::Timestamp;
 use jiff::civil::Date;
-use quiddity_syntax::{Link, MetaProperty, Query, Value, format_link, normalise_name, parse_query};
+use quiddity_syntax::{
+    Link, MetaProperty, Query, Value, format_link, normalise_name, parse_query, ref_items,
+};
 
 use crate::Flag;
 
@@ -278,6 +280,9 @@ pub struct Mismatch {
 /// Reads a value according to a schema. A list is always allowed, and is
 /// read item by item.
 pub fn coerce(value: &Value, schema: &PropertySchema) -> Result<Typed, Mismatch> {
+    if schema.value_type == ValueType::Ref {
+        return coerce_refs(value);
+    }
     match value {
         Value::List(items) => items
             .iter()
@@ -285,6 +290,25 @@ pub fn coerce(value: &Value, schema: &PropertySchema) -> Result<Typed, Mismatch>
             .collect::<Result<_, _>>()
             .map(Typed::List),
         _ => coerce_scalar(value, schema.value_type),
+    }
+}
+
+/// Reads a reference property's value by its items, so that bare text and
+/// links read alike (`a, b` is `[[a]], [[b]]`), and one item is no list.
+fn coerce_refs(value: &Value) -> Result<Typed, Mismatch> {
+    let mut items = ref_items(value);
+    let typed = items
+        .iter()
+        .map(|v| coerce_scalar(v, ValueType::Ref))
+        .collect::<Result<Vec<_>, _>>()?;
+    match (value, typed.len()) {
+        (Value::List(_), _) | (_, 2..) => Ok(Typed::List(typed)),
+        (_, 1) => Ok(typed.into_iter().next().expect("one item")),
+        // Nothing but commas and space.
+        _ => Err(mismatch(
+            "ref",
+            &items.pop().unwrap_or_else(|| value.clone()),
+        )),
     }
 }
 
