@@ -155,6 +155,12 @@ never writes the `##blob` line: Rust does.
   boundary so it can always be closed.
 - **The graph only exists in the browser**, so everything that reads it (the
   page, and both sidebars) renders inside `ClientOnly` and isn't prerendered.
+  Each route wraps its page in `ClientPage`; the layout doesn't, because the
+  published build's `/page/[name]` is drawn at export time instead.
+  `bootGraph` loads the snapshot from disk there (`lib/prerender.ts`, which
+  fetches `node:fs` with `process.getBuiltinModule`: Turbopack refuses to
+  bundle it for the browser), and `useView` reads no query string until
+  hydrated, since `useSearchParams` would make the export give up on the page.
   A static export never renders them on a server, but **`next dev` does, on
   every request**: a pane left outside `ClientOnly` works in the export and
   fails in development with a server error. The `e2e-dev` tests exist for

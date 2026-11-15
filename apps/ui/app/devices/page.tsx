@@ -1,5 +1,10 @@
+import { ClientPage } from "@/components/client-page";
 import { Devices } from "@/components/devices";
 
 export default function DevicesPage() {
-  return <Devices />;
+  return (
+    <ClientPage>
+      <Devices />
+    </ClientPage>
+  );
 }

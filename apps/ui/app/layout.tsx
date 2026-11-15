@@ -80,10 +80,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </ClientOnly>
           }
         >
-          {/* The graph only exists in the browser, so the page isn't prerendered. */}
-          <ClientOnly fallback={<Skeleton className="m-8 h-8 w-1/3" />}>
-            <Suspense fallback={<Skeleton className="m-8 h-8 w-1/3" />}>{children}</Suspense>
-          </ClientOnly>
+          {/* The graph only exists in the browser, so each page waits for it
+              (`ClientPage`), except the named pages of a published site, which
+              are drawn from its graph when it is exported. */}
+          {children}
         </Shell>
       </body>
     </html>
