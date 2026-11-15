@@ -40,7 +40,11 @@ function diff(from: string, to: string) {
  * continues; the blocks it moved are remounted by React, so the caret travels
  * as part of the state rather than in the editor.
  */
-function outlinerKeys(id: string, latest: { current: Editing }): KeyBinding[] {
+function outlinerKeys(
+  id: string,
+  latest: { current: Editing },
+  properties: { current: boolean },
+): KeyBinding[] {
   const head = (view: EditorView) => view.state.selection.main.head;
   const collapsed = (view: EditorView) => view.state.selection.main.empty;
   const neighbour = (delta: -1 | 1) => {
@@ -58,6 +62,16 @@ function outlinerKeys(id: string, latest: { current: Editing }): KeyBinding[] {
       run: (view) => {
         if (!collapsed(view)) return false;
         const { graph, edit } = latest.current;
+        // In the properties block each property is a line, so Enter starts
+        // another, until it is pressed on the empty last line: that line was
+        // only waiting for a property, so it goes and the body begins.
+        if (properties.current && view.state.doc.length > 0) {
+          const line = view.state.doc.lineAt(head(view));
+          if (line.number !== view.state.doc.lines || line.length > 0) return insertNewline(view);
+          view.dispatch({ changes: { from: line.from - 1, to: line.to } });
+          edit(graph.split(id, view.state.doc.length), "start");
+          return true;
+        }
         // Enter in an empty block steps out a level, as in most outliners;
         // at the top level there is nowhere to go, so it splits as usual.
         if (view.state.doc.length === 0) {
@@ -234,7 +248,7 @@ export function BlockEditor({
               active: () => isProperties.current,
             }),
           ),
-          Prec.highest(keymap.of(outlinerKeys(id, latest))),
+          Prec.highest(keymap.of(outlinerKeys(id, latest, isProperties))),
           keymap.of(defaultKeymap),
           EditorView.updateListener.of((update) => {
             if (!update.docChanged) return;
