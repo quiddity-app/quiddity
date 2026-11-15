@@ -220,7 +220,16 @@ never writes the `##blob` line: Rust does.
   `EditableOutline` offers `AddProperties` (an empty first block) while there
   is none, and remembers the block it made (`offered`): leaving it with no text
   deletes it (`graph.dropEmptyFirstBlock`, one undo step of its own). Any other
-  empty first block is left alone. Completion in it is not built.
+  empty first block is left alone.
+  **Completion in it is `@codemirror/autocomplete`** (`lib/property-completion.ts`):
+  keys at the start of a line and a key's values after `::`, from
+  `graph.propertyKeys` and `propertyValues`, which are Rust (`completion.rs`) and
+  not cached. The source is `Prec.highest` before the outliner's keys so Enter
+  chooses an entry, with `interactionDelay: 0`: the default ignores keys for
+  75 ms after the list opens, and a quick Enter would then split the block.
+  It offers nothing unless the block is a properties block or the one the offer
+  made (`BlockEditor`'s `properties`, read through a ref so a block that becomes
+  one is completed). The list takes the page's colours from tokens.
 - **Meta-properties** (`meta-sections.tsx`): flags with no chip go under the
   title, and Inherited and the inverse trees go below the body. A line with
   `flags` is ringed and carries `data-flagged`, with the reasons as its

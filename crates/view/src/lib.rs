@@ -6,6 +6,7 @@
 //! splitting, merging, indenting and moving blocks. The UI runs this compiled
 //! to WASM (`quiddity-wasm`), so every replica answers from its own copy.
 
+mod completion;
 mod edit;
 mod fts;
 mod links;
@@ -19,6 +20,7 @@ use std::collections::{HashMap, HashSet};
 use jiff::Timestamp;
 use quiddity_core::{BlockId, Graph, Index, Scanned, Version};
 
+pub use completion::{KeyHit, ValueHit};
 pub use edit::Merged;
 pub use fts::BlockHit;
 pub use meta::{INVERSE_LIMIT, Inherited, Inverse, InverseNode};

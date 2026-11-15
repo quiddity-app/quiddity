@@ -169,6 +169,23 @@ impl Replica {
         js(&self.view.references(id)?)
     }
 
+    /// The property keys to offer for what has been typed in a properties block.
+    #[wasm_bindgen(js_name = propertyKeys)]
+    pub fn property_keys(&self, query: &str, limit: usize) -> Result<JsValue, JsError> {
+        js(&self.view.property_keys(query, limit)?)
+    }
+
+    /// The values already given to `key`, to offer for what is typed after it.
+    #[wasm_bindgen(js_name = propertyValues)]
+    pub fn property_values(
+        &self,
+        key: &str,
+        query: &str,
+        limit: usize,
+    ) -> Result<JsValue, JsError> {
+        js(&self.view.property_values(key, query, limit)?)
+    }
+
     /// Who has the property the entity defines, grouped by entity.
     pub fn uses(&self, id: &str) -> Result<JsValue, JsError> {
         js(&self.view.uses(id)?)
