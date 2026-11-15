@@ -5,6 +5,12 @@
 - Weak links
 	- A property with a value joins the entity that has it, and each entity its value links to, to the entity that defines the property: `author:: [[Jane]]` on a book draws a line from the book to `author` and from Jane to `author`. Each edge has `weak: true` and is drawn much fainter. [[Properties]]
 	- They are not references. A pair already joined by a link, in either direction, has only the strong edge. A tag makes none, and neither does a property with no value. A key nobody has made an entity for is joined to its virtual entity.
+- Options
+	- A panel at the top left, which its button hides and shows, has a checkbox each for property links, journal pages and orphan pages. **All three start unticked**, so the graph is the written links between pages that have some. The choices are not remembered.
+	- Property links are the weak links above: with them off, every `weak` edge is left out.
+	- Journal pages are the nodes `View::connections()` says are `journal`, and their links go with them.
+	- An orphan is a page with no links in or out, **judged on the whole graph before anything is hidden**, property links included. So hiding journals does not turn the pages only they link to into orphans and hide those too, and a page that only has a property is not an orphan, though with property links off it is drawn with no line to it.
+	- Hidden entities lose their remembered position when the layout is next saved, and are placed afresh when shown. [[Properties]]
 - The drawing is d3 on a canvas, with React owning only the elements.
 	- `d3-force` lays it out, `d3-zoom` pans and zooms and `d3-drag` moves nodes. d3 owns what is drawn.
 	- It is a canvas because an element for every node and line, moved on every step of the layout, was slow. The page finds the node under the pointer itself.
@@ -25,7 +31,7 @@
 	- Positions of entities that have gone are dropped when next saved.
 - Things worth knowing
 	- Setting the initial zoom ends a zoom, which used to save an empty layout over the remembered one before it could be restored. Nothing is saved before the first nodes are drawn.
-	- Every entity is drawn, journals included. Labels are hidden once a node is under 5 pixels across on screen, so zoomed out the hubs keep their names and the leaves lose them, and always shown for the one hovered or focused. Filtering is still wanted as graphs grow.
+	- Labels are hidden once a node is under 5 pixels across on screen, so zoomed out the hubs keep their names and the leaves lose them, and always shown for the one hovered or focused.
 	- Links use d3's default strength, so a link between two well-connected entities is a weak spring and hubs do not collapse into a knot.
 	- Dragging lets every node go first, so the rest can untangle around the dragged one, but only once the pointer moves, so a click does not stir the layout.
 	- The canvas, its hit-testing and its repaint once per frame follow a similar graph viewer of Logseq pages. A drawing is seen only by sight, so what a screen reader gets is the list of links, not the drawing.

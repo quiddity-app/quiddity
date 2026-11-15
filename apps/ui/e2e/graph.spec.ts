@@ -249,3 +249,76 @@ test.describe("on a dense display", () => {
     expect(x).toBeLessThan(size.css);
   });
 });
+
+const options = (page: Page) => graph(page).getByRole("group", { name: "Graph options" });
+const option = (page: Page, name: string) => options(page).getByRole("checkbox", { name });
+const today = () => {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+
+test("property links, journal pages and orphan pages are left out to begin with", async ({ page }) => {
+  await page.goto("/");
+  await openGraph(page);
+  for (const name of ["Property links", "Journal pages", "Orphan pages"]) {
+    await expect(option(page, name)).not.toBeChecked();
+  }
+  await expect(canvas(page)).toHaveAttribute("data-weak", "0");
+  await expect(node(page, today())).toHaveCount(0);
+  await expect(node(page, "Reading list")).toHaveCount(0);
+  // Linked from the journals as well as itself linking on, so it stays.
+  await expect(node(page, "Quiddity")).toBeAttached();
+});
+
+test("each option brings back what it names, and only that", async ({ page }) => {
+  await page.goto("/");
+  await openGraph(page);
+  const links = async () => Number(await canvas(page).getAttribute("data-links"));
+  const before = await links();
+
+  await option(page, "Property links").check();
+  await expect.poll(async () => Number(await canvas(page).getAttribute("data-weak"))).toBeGreaterThan(0);
+  expect(await links()).toBeGreaterThan(before);
+  await expect(node(page, today())).toHaveCount(0);
+  await expect(node(page, "Reading list")).toHaveCount(0);
+  await option(page, "Property links").uncheck();
+  await expect(canvas(page)).toHaveAttribute("data-weak", "0");
+
+  await option(page, "Orphan pages").check();
+  await expect(node(page, "Reading list")).toBeAttached();
+  await expect(node(page, today())).toHaveCount(0);
+  await option(page, "Orphan pages").uncheck();
+  await expect(node(page, "Reading list")).toHaveCount(0);
+
+  await option(page, "Journal pages").check();
+  await expect(node(page, today())).toBeAttached();
+  await expect(node(page, "Reading list")).toHaveCount(0);
+});
+
+test("hiding journals doesn't turn what only they link to into orphans", async ({ page }) => {
+  await page.goto("/");
+  await openGraph(page);
+  // Journals link to Quiddity, and a journal with nothing in it is an orphan:
+  // it is the pages with no links at all that go, not those whose links are hidden.
+  await option(page, "Orphan pages").check();
+  await option(page, "Journal pages").check();
+  const withJournals = await graph(page).locator("a").count();
+  await option(page, "Journal pages").uncheck();
+  expect(await graph(page).locator("a").count()).toBeLessThan(withJournals);
+  await expect(node(page, "Quiddity")).toBeAttached();
+});
+
+test("the options panel can be hidden and shown, and keeps its choices", async ({ page }) => {
+  await page.goto("/");
+  await openGraph(page);
+  await option(page, "Orphan pages").check();
+  const toggle = graph(page).getByRole("button", { name: "Hide options" });
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await toggle.click();
+  await expect(options(page)).toBeHidden();
+  // Hiding the panel doesn't undo what it chose.
+  await expect(node(page, "Reading list")).toBeAttached();
+  await graph(page).getByRole("button", { name: "Options" }).click();
+  await expect(option(page, "Orphan pages")).toBeChecked();
+});

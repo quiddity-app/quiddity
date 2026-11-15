@@ -1484,6 +1484,25 @@ mod connections {
     }
 
     #[test]
+    fn a_node_says_whether_it_is_a_journal() {
+        let v = view_with(|g| {
+            let index = quiddity_core::Index::build(g).unwrap();
+            let day = quiddity_core::ensure_journal(g, &index, today()).unwrap();
+            note(g, day, "see [[Not a journal]] and [[Nowhere]]");
+            g.create_entity("Not a journal", &[]).unwrap();
+        });
+        let nodes = v.connections().unwrap().nodes;
+        assert_eq!(nodes.len(), 3);
+        for n in &nodes {
+            assert_eq!(
+                n.journal,
+                n.title != "Not a journal" && n.title != "Nowhere",
+                "{n:?}"
+            );
+        }
+    }
+
+    #[test]
     fn each_end_of_a_property_is_weakly_linked_to_the_entity_that_defines_it() {
         let v = view_with(|g| {
             g.create_entity("author", &[]).unwrap();

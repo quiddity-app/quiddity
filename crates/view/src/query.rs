@@ -39,9 +39,19 @@ pub struct DeviceInfo {
 #[derive(Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Connections {
-    /// As [`View::entities`].
-    pub nodes: Vec<EntityRef>,
+    /// As [`View::entities`], with whether each is a journal page.
+    pub nodes: Vec<Node>,
     pub edges: Vec<Edge>,
+}
+
+/// An entity as the graph draws it.
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct Node {
+    pub id: String,
+    pub title: String,
+    /// Whether it is a journal page, which the graph can leave out.
+    pub journal: bool,
 }
 
 /// One row of the list of every entity.
@@ -562,8 +572,26 @@ impl View {
             }
         }
         self.add_weak_edges(&mut edges)?;
+        let journals: BTreeSet<String> = {
+            let index = self.index()?;
+            index
+                .entities()
+                .filter(|e| matches!(e.identity(), Some(Identity::Journal(_))))
+                .map(|e| e.id.to_string())
+                .collect()
+        };
+        // A name nobody has made isn't in the index, and isn't a journal.
+        let nodes = self
+            .entities()?
+            .into_iter()
+            .map(|EntityRef { id, title }| Node {
+                journal: journals.contains(&id),
+                id,
+                title,
+            })
+            .collect();
         Ok(Connections {
-            nodes: self.entities()?,
+            nodes,
             edges: edges.into_iter().collect(),
         })
     }

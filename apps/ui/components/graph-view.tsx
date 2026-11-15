@@ -16,7 +16,8 @@ import { pointer, select, type Selection } from "d3-selection";
 import "d3-transition";
 import { zoom, zoomIdentity, type ZoomBehavior, type ZoomTransform } from "d3-zoom";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { filterConnections, HIDE_ALL, type GraphShow } from "@/lib/graph-filter";
 import { fitTransform, largestGroup } from "@/lib/graph-fit";
 import { LABEL_PX, labelFits, radius as nodeRadius } from "@/lib/graph-style";
 import { cachedPosition, cachedTransform, remember } from "@/lib/graph-layout";
@@ -421,6 +422,9 @@ function draw(
       }
       edges = data.edges;
       links = data.edges.map(({ source, target, weak }) => ({ source, target, weak }));
+      // For tests: how many links are drawn, and how many of them are weak.
+      canvas.dataset.links = String(links.length);
+      canvas.dataset.weak = String(links.filter((l) => l.weak).length);
 
       items = select(list)
         .selectAll<HTMLAnchorElement, Node>("a")
@@ -474,8 +478,18 @@ function draw(
   };
 }
 
+const OPTIONS: [keyof GraphShow, string][] = [
+  ["propertyLinks", "Property links"],
+  ["journals", "Journal pages"],
+  ["orphans", "Orphan pages"],
+];
+
 function Canvas() {
-  const data = useRead((g) => g.connections());
+  const all = useRead((g) => g.connections());
+  const [show, setShow] = useState<GraphShow>(HIDE_ALL);
+  const [panel, setPanel] = useState(true);
+  const panelId = useId();
+  const data = useMemo(() => filterConnections(all, show), [all, show]);
   const view = useView();
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -522,9 +536,38 @@ function Canvas() {
       >
         Reset view
       </Button>
+      <div className="absolute left-3 top-3 flex flex-col items-start gap-1">
+        <Button
+          compact
+          variant="overlay"
+          aria-expanded={panel}
+          aria-controls={panelId}
+          onClick={() => setPanel(!panel)}
+        >
+          {panel ? "Hide options" : "Options"}
+        </Button>
+        <div
+          id={panelId}
+          role="group"
+          aria-label="Graph options"
+          hidden={!panel}
+          className="flex flex-col gap-1 rounded border border-border bg-surface/90 p-2 text-sm shadow-overlay"
+        >
+          {OPTIONS.map(([key, label]) => (
+            <label key={key} className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={show[key]}
+                onChange={(e) => setShow({ ...show, [key]: e.target.checked })}
+              />
+              {label}
+            </label>
+          ))}
+        </div>
+      </div>
       {data.nodes.length === 0 && (
-        <p className="absolute inset-x-0 top-8 text-center text-ink-muted">
-          Nothing to draw yet.
+        <p className="absolute inset-x-0 top-16 text-center text-ink-muted">
+          Nothing to draw.
         </p>
       )}
     </div>
