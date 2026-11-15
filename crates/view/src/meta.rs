@@ -7,7 +7,9 @@ use quiddity_core::syntax::{Value, normalise_name};
 use quiddity_core::{BlockId, Flag, Index};
 use serde::Serialize;
 
-use crate::query::{EntityRef, Property, PropertyValue, ResolvedLink, add_link, property_value};
+use crate::query::{
+    EntityRef, Property, PropertyValue, ResolvedLink, add_link, add_ref_links, typed_property_value,
+};
 use crate::{Result, View};
 
 /// How many entities an inverse tree shows before it stops expanding.
@@ -150,9 +152,15 @@ impl View {
                 if let Some(Value::Link(link)) = &item.value {
                     add_link(&index, link, links);
                 }
+                if let Some(value) = &item.value {
+                    add_ref_links(&index, &key, value, links);
+                }
                 out.push(Inherited {
                     key: shown.clone(),
-                    value: item.value.as_ref().map(property_value),
+                    value: item
+                        .value
+                        .as_ref()
+                        .map(|v| typed_property_value(&index, &key, v)),
                     from: EntityRef {
                         id: from.to_string(),
                         title: index

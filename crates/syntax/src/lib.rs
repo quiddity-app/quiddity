@@ -32,6 +32,6 @@ pub use name::{fold, is_mark, is_word_char, nfc, normalise_name};
 pub use parse::{
     Block, Link, MetaProperty, PropertiesBlock, Property, PropertyStyle, Qualifier, Value,
     is_properties_block, parse_block, parse_line_value, parse_meta_line, parse_meta_value_line,
-    parse_properties_block, parse_property_line,
+    parse_properties_block, parse_property_line, ref_items, text_with_links,
 };
 pub use query::{Query, QueryError, format_query, parse_query};

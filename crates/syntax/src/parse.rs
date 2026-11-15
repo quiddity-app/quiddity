@@ -657,6 +657,90 @@ pub(crate) fn parse_quoted(sc: &mut Scanner) -> Option<String> {
     None
 }
 
+/// Reads the items of a reference property's value, so that `a, [[b]]`,
+/// `[a, [[b]]]` and `[[a]], [[b]]` all mean the same. Lists are flattened and
+/// each text in them is split on its top-level commas, trimmed, with empty
+/// pieces dropped. A comma inside `[[…]]` or `((…))` doesn't split, which is
+/// how a name with a comma in it is written.
+///
+/// Text has lost its quotes and escapes by the time it is a [`Value`], so a
+/// quoted or escaped comma splits here too: use `[[…]]` for those names.
+pub fn ref_items(value: &Value) -> Vec<Value> {
+    match value {
+        Value::Text(text) => text_parts(text, true),
+        Value::List(items) => items.iter().flat_map(ref_items).collect(),
+        other => vec![other.clone()],
+    }
+}
+
+/// Reads text as it should be shown: the links and block references written
+/// in it as values, and the text between them as text. Text with neither is
+/// returned as it is, in one piece.
+pub fn text_with_links(text: &str) -> Vec<Value> {
+    text_parts(text, false)
+}
+
+/// Splits `text` into text, links and block references, and also on top-level
+/// commas (trimming each piece) if `split`.
+fn text_parts(text: &str, split: bool) -> Vec<Value> {
+    let mut parts = Vec::new();
+    let mut sc = Scanner::new(text);
+    // Where the piece being read starts.
+    let mut from = 0;
+    while let Some(c) = sc.peek() {
+        let at = sc.pos;
+        let found = if sc.rest().starts_with("[[") {
+            parse_link(&mut sc).map(Value::Link)
+        } else if sc.rest().starts_with("((") {
+            parse_block_ref(&mut sc).map(Value::BlockRef)
+        } else {
+            None
+        };
+        match found {
+            Some(v) if !split => {
+                push_text(&mut parts, &text[from..at], false);
+                parts.push(v);
+                from = sc.pos;
+            }
+            Some(_) => {}
+            None if split && c == ',' => {
+                push_text(&mut parts, &text[from..at], true);
+                sc.bump();
+                from = sc.pos;
+            }
+            None => {
+                sc.bump();
+            }
+        }
+    }
+    push_text(&mut parts, &text[from..], split);
+    parts
+}
+
+/// Adds `piece` as a value: when `whole`, trimmed and, if it is exactly one
+/// link or block reference, as that.
+fn push_text(parts: &mut Vec<Value>, piece: &str, whole: bool) {
+    let piece = if whole { piece.trim() } else { piece };
+    if piece.is_empty() {
+        return;
+    }
+    if whole {
+        let mut sc = Scanner::new(piece);
+        let single = if piece.starts_with("[[") {
+            parse_link(&mut sc).map(Value::Link)
+        } else if piece.starts_with("((") {
+            parse_block_ref(&mut sc).map(Value::BlockRef)
+        } else {
+            None
+        };
+        if let Some(v) = single.filter(|_| sc.at_end()) {
+            parts.push(v);
+            return;
+        }
+    }
+    parts.push(Value::Text(piece.to_owned()));
+}
+
 fn parse_block_ref(sc: &mut Scanner) -> Option<String> {
     let inner = sc.rest().strip_prefix("((")?;
     let end = inner.find("))")?;
@@ -879,6 +963,37 @@ mod tests {
         assert_eq!(parse_line_value("[unterminated"), text("[unterminated"));
         assert_eq!(parse_line_value("[a] and more"), text("[a] and more"));
         assert_eq!(parse_line_value("\"a\" b"), text("\"a\" b"));
+    }
+
+    #[test]
+    fn reference_items_split_on_commas_outside_links() {
+        let items = |s: &str| ref_items(&parse_line_value(s));
+        let want = vec![Value::Link(link("a")), Value::Link(link("b"))];
+        assert_eq!(items("[[a]], [[b]]"), want);
+        assert_eq!(items("[a, [[b]]]").len(), 2);
+        assert_eq!(items(" [[a]] ,b"), vec![Value::Link(link("a")), text("b")]);
+        assert_eq!(
+            items("[[a, b]], c"),
+            vec![Value::Link(link("a, b")), text("c")]
+        );
+        assert_eq!(items("x [[a, b]] y"), vec![text("x [[a, b]] y")]);
+        assert_eq!(
+            items("((abc)), d"),
+            vec![Value::BlockRef("abc".into()), text("d")]
+        );
+        assert_eq!(items("a,, ,b"), vec![text("a"), text("b")]);
+        assert_eq!(items("[[a]]"), vec![Value::Link(link("a"))]);
+        assert!(items(",").is_empty());
+    }
+
+    #[test]
+    fn text_with_links_keeps_the_text_between() {
+        assert_eq!(
+            text_with_links("a, [[b]] c"),
+            vec![text("a, "), Value::Link(link("b")), text(" c")]
+        );
+        assert_eq!(text_with_links("plain, text"), vec![text("plain, text")]);
+        assert_eq!(text_with_links("[[unclosed"), vec![text("[[unclosed")]);
     }
 
     #[test]

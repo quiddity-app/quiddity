@@ -667,6 +667,89 @@ mod properties {
         );
     }
 
+    /// The value and links of `knows` as written in `written`, where `knows`
+    /// is a reference property and `Jane` and `Smith, John` exist.
+    fn knows(written: &str) -> (Option<PropertyValue>, Vec<(String, bool)>) {
+        let v = view_with(|g| {
+            let knows = g.create_entity("knows", &[]).unwrap();
+            note(g, knows, "##value-type(ref)");
+            g.create_entity("Jane", &[]).unwrap();
+            g.create_entity("Smith, John", &[]).unwrap();
+            let a = g.create_entity("A", &[]).unwrap();
+            note(g, a, &format!("knows:: {written}"));
+        });
+        let a = id_of(&v, "A");
+        let mut entity = v.entity(&a).unwrap();
+        let value = entity.blocks[0].properties[0].value.take();
+        let links = entity
+            .links
+            .iter()
+            .map(|(k, l)| {
+                (
+                    k.clone(),
+                    matches!(l.target, crate::LinkTarget::Entity { .. }),
+                )
+            })
+            .collect();
+        (value, links)
+    }
+
+    /// A reference property is the same whether or not its items are in
+    /// brackets, and `[[…]]` is how a name with a comma is written.
+    #[test]
+    fn a_reference_property_reads_alike_with_or_without_brackets() {
+        let (bracketed, _) = knows("[[Jane]], [[Smith, John]]");
+        for written in [
+            "Jane, [[Smith, John]]",
+            "[Jane, [[Smith, John]]]",
+            " Jane ,[[Smith, John]] ",
+        ] {
+            let (value, links) = knows(written);
+            assert_eq!(value, bracketed, "{written}");
+            let names: Vec<_> = links.iter().map(|(k, _)| k.as_str()).collect();
+            assert_eq!(names, ["Jane", "Smith, John"], "{written}");
+            assert!(
+                links.iter().all(|(_, found)| *found),
+                "{written}: {links:?}"
+            );
+        }
+        let Some(PropertyValue::List { items }) = bracketed else {
+            panic!("a list")
+        };
+        assert_eq!(items.len(), 2);
+        assert!(matches!(&items[1], PropertyValue::Link { name, .. } if name == "Smith, John"));
+        // One item is no list, unless it was written as one.
+        let single = knows("Jane").0;
+        assert_eq!(single, knows("[[Jane]]").0);
+        assert!(matches!(single, Some(PropertyValue::Link { .. })));
+        let Some(PropertyValue::List { items }) = knows("[Jane]").0 else {
+            panic!("a list of one")
+        };
+        assert_eq!(items.len(), 1);
+    }
+
+    #[test]
+    fn text_shows_the_links_written_in_it() {
+        let props = of("note:: met [[Jane]] at lunch");
+        let Some(PropertyValue::Parts { items }) = &props[0].value else {
+            panic!("parts")
+        };
+        assert_eq!(items.len(), 3);
+        assert_eq!(
+            items[0],
+            PropertyValue::Text {
+                text: "met ".into()
+            }
+        );
+        assert!(matches!(&items[1], PropertyValue::Link { name, .. } if name == "Jane"));
+        assert_eq!(
+            items[2],
+            PropertyValue::Text {
+                text: " at lunch".into()
+            }
+        );
+    }
+
     #[test]
     fn values_can_be_links_block_refs_and_lists() {
         let props = of("a:: [[Some Page]]\nb:: ((abc))\nc:: [x, [[Y]]]");

@@ -19,6 +19,8 @@ alias:: property
 	- Value types: `text`, `number` (a double), `boolean` (`true`, `false`, `yes` or `no`), `date` (an ISO 8601 date), `datetime` (RFC 3339, with an offset) or `ref`. More will come, such as `blob`. [[Binaries]]
 	- A property nobody has described is text, with any number of values. A value may always be a list.
 	- References: for a `ref` property, bare text is a name, so `type:: person` means `type:: [[person]]`. [[Links]]
+	- A `ref` property's value is its items, written with or without brackets: `knows:: Jane, [[Smith, John]]`, `knows:: [Jane, [[Smith, John]]]` and `knows:: [[Jane]], [[Smith, John]]` are the same, in the page and in queries. Bare text is split on commas outside `[[…]]` and trimmed, so a name with a comma in it is written in brackets. A quoted or escaped comma splits too, as quotes and escapes are gone by then.
+	- Any other property shows the links written in its text as links: `note:: met [[Jane]] at lunch`.
 	- Quiddity's own properties have built-in schemas, so a new graph needs nothing written into it first. A property entity's meta-properties override them.
 	- A schema can't reject anything: the text is what it is. A value that doesn't fit is flagged instead.
 - In the UI
