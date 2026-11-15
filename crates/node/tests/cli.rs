@@ -363,3 +363,34 @@ fn a_graph_can_be_named_by_its_file() {
     let again = node(&file).arg("init").output().unwrap();
     assert!(!again.status.success());
 }
+
+/// A graph imported before names were decoded is put right by `decode-names`,
+/// which says what it would do first when asked, and has nothing to do twice.
+#[test]
+fn decode_names_repairs_an_earlier_import() {
+    let tmp = tempfile::tempdir().unwrap();
+    let graph = tmp.path().join("g");
+    let logseq = tmp.path().join("logseq-graph");
+    fs::create_dir_all(logseq.join("pages")).unwrap();
+    // A title is taken as it stands, which is how a graph came to hold this name.
+    fs::write(
+        logseq.join("pages/What.md"),
+        "title:: What%3F\n\n- Who knows\n",
+    )
+    .unwrap();
+    run(node(&graph).arg("init"));
+    run(node(&graph).arg("import").arg(&logseq));
+
+    let dry = run(node(&graph).args(["decode-names", "--dry-run"]));
+    assert_eq!(dry, "What%3F -> What?\nwould rename 1 entities");
+    let done = run(node(&graph).arg("decode-names"));
+    assert_eq!(done, "What%3F -> What?\nrenamed 1 entities");
+    assert_eq!(run(node(&graph).arg("decode-names")), "renamed 0 entities");
+
+    let export = tmp.path().join("export");
+    run(node(&graph).arg("export").arg(&export));
+    let exported = files(&export);
+    let page = exported.values().find(|t| t.contains("Who knows")).unwrap();
+    assert!(page.starts_with("title:: What?\n"), "{page}");
+    assert!(page.contains("alias:: What%3F"), "{page}");
+}

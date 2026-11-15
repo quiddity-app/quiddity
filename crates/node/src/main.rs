@@ -10,7 +10,7 @@ use std::time::Duration;
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::{Verbosity, WarnLevel};
 use iroh::{Endpoint, EndpointAddr, EndpointId};
-use quiddity_core::files::{discard_export, export_dir, import_dir};
+use quiddity_core::files::{decode_page_names, discard_export, export_dir, import_dir};
 use quiddity_core::{Graph, Index, merge_duplicates};
 use quiddity_node::blobs::{Blobs, Exported};
 use quiddity_node::gc;
@@ -47,6 +47,15 @@ enum Command {
     },
     /// Import a directory of Markdown: a Quiddity export or a Logseq graph.
     Import { dir: PathBuf },
+    /// A one-off repair for a Logseq graph imported before the import decoded
+    /// percent-encoded file names: rename the entities called `What%3F` to
+    /// `What?`, keeping the old name as an alias. The node must not be serving:
+    /// this saves the graph it loaded, over what a serving node has saved since.
+    DecodeNames {
+        /// Say what would be renamed, and change nothing.
+        #[arg(long)]
+        dry_run: bool,
+    },
     /// Export the graph as a directory of Markdown.
     Export { dir: PathBuf },
     /// Write the graph's snapshot, and nothing else, to a file: what a static
@@ -242,6 +251,24 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
                 }
                 println!();
             }
+        }
+        Command::DecodeNames { dry_run } => {
+            let graph = store.load()?;
+            if graph.version() == quiddity_core::Version::default() {
+                anyhow::bail!("this is a blank replica: sync it before renaming in it");
+            }
+            let done = decode_page_names(&graph, dry_run)?;
+            for (was, now) in &done.renamed {
+                println!("{was} -> {now}");
+            }
+            for (was, now) in &done.clashing {
+                println!("left {was}: {now} is another entity's name");
+            }
+            if !dry_run {
+                store.save(&graph)?;
+            }
+            let verb = if dry_run { "would rename" } else { "renamed" };
+            println!("{verb} {} entities", done.renamed.len());
         }
         Command::Export { dir } => {
             let graph = store.load()?;
