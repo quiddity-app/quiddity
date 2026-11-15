@@ -18,9 +18,11 @@
 - No caches
 	- Nothing in the workflow restores a cache, not Rust's, and not the one `setup-node` would make for pnpm: a release builds from clean, so that a poisoned cache entry can't reach the published files. The zizmor and jactionlint checks insist on it for any workflow triggered by a release. Releases are slower than CI for it.
 - Updates
-	- The release also makes what the apps' updater needs: a signed update bundle per platform and `latest.json`, which names them. The build fails without the update signing key. [[Updates]]
+	- The release also makes what the apps' updater needs: a signed update bundle per platform and `latest.json`, which names them. The release fails without the update signing key. [[Updates]]
 - Signing
-	- The Android APK must be signed with the real key, from the repository secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD` and `ANDROID_KEY_ALIAS`. Unlike a nightly, a release fails without them: a throwaway key would make the release impossible to update in place.
+	- The Android APK must be signed with the real key, from the secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD` and `ANDROID_KEY_ALIAS`. Unlike a nightly, a release fails without them: a throwaway key would make the release impossible to update in place.
+	- The builds are unsigned. One job, `sign`, signs the update bundles and the APK, and is the only job that runs in the `release` environment, where the private keys are kept: `TAURI_SIGNING_PRIVATE_KEY` (and its password), `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD` and `ANDROID_KEY_ALIAS`. So nothing else can read them, and the environment's protection rules, required reviewers say, ask for one approval however many builds there are. The environment must allow the release's tag (`v*`) to deploy to it.
+	- `UPDATER_PUBKEY` is not in the environment but a plain repository variable, because the builds embed it and they don't run there. It is a public key.
 	- The macOS and Windows installers are not signed or notarised. Those need an Apple developer account and a code-signing certificate, which the repository has none of. If they're added, sign before the `assets` job: packslip records digests, and any later change to a file fails verification.
 - Not tried yet
 	- The update feed, for the same reason: see [[Updates]].
