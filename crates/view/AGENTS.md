@@ -101,6 +101,9 @@ entity's links to itself and links to nowhere make no edge. It walks every
 backlink, so like the other queries it is a whole-graph cost the UI pays once
 per revision.
 
+Each node (`Node`) is an `EntityRef` that says whether it is a `journal`, so
+the graph can leave journals out. A virtual entity never is.
+
 **Weak edges** (`Edge::weak`) join each end of a property with a value (the
 entity, and each entity its value links to) to the entity that defines the
 key, found by name (`Index::property_entity`). A pair already joined by a

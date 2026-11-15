@@ -129,7 +129,7 @@ export interface Summary extends EntityRef {
 
 /** Every entity, and which link to which: one edge per pair, however many links. */
 export interface Connections {
-  nodes: EntityRef[];
+  nodes: (EntityRef & { /** Whether it is a journal page. */ journal: boolean })[];
   /** `weak` ones are made by a property, between each end of it and the
    * entity that defines it, and are drawn lighter. */
   edges: { source: EntityId; target: EntityId; weak: boolean }[];

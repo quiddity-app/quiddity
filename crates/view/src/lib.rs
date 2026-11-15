@@ -25,7 +25,7 @@ pub use edit::Merged;
 pub use fts::BlockHit;
 pub use meta::{INVERSE_LIMIT, Inherited, Inverse, InverseNode};
 pub use query::{
-    BlobInfo, Block, Connections, DeviceInfo, Edge, Entity, EntityRef, LinkTarget, Property,
+    BlobInfo, Block, Connections, DeviceInfo, Edge, Entity, EntityRef, LinkTarget, Node, Property,
     PropertyValue, Reference, ResolvedLink, Start, Summary,
 };
 pub use search::{HitProperty, Match, TitleHit, fuzzy_match};
