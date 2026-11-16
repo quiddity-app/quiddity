@@ -342,10 +342,10 @@ jobs:
         # SonarCloud splits the Cargo workspace into a module per crate and
         # reads a relative path from each one's own directory, so only the root
         # found the report, and it couldn't place the crates' files. An absolute
-        # path is the same from every module.
-        # TODO: drop sonar.verbose once the log has shown how each LCOV entry
-        # is matched; it is noisy.
-        args: -Dsonar.rust.lcov.reportPaths=${{ github.workspace }}/lcov.info -Dsonar.verbose=true
+        # path is the same from every module. Each module still logs the files
+        # that belong to the others as "problems in LCOV report"; that is
+        # expected, and not coverage lost.
+        args: -Dsonar.rust.lcov.reportPaths=${{ github.workspace }}/lcov.info
 
   gate:
     # The one check to require, so that adding, splitting or renaming a job
