@@ -518,6 +518,15 @@ mod blocks_together {
         out
     }
 
+    /// A block and everything under it, in reading order.
+    fn subtree(v: &View, block: BlockId) -> Vec<BlockId> {
+        let mut out = vec![block];
+        for child in v.graph().children(block) {
+            out.extend(subtree(v, child));
+        }
+        out
+    }
+
     /// The outline as `depth:text`, so a test can say what shape it expects.
     fn shape(v: &View, page: &str) -> Vec<String> {
         outline(v, page)
@@ -684,6 +693,80 @@ mod blocks_together {
         assert_eq!(top_level(&v, &page), ["a", "b"]);
     }
 
+    #[test]
+    fn copying_writes_an_outline_with_each_block_once() {
+        let (v, _, ids) = undoable(&["a", "b", "c"]);
+        let kid = v.create_block(&ids[0], None, "kid").unwrap();
+        // A child chosen with its parent is part of it, not a second copy.
+        let all = [ids[0].clone(), kid, ids[2].clone()];
+        assert_eq!(v.copy_blocks(&all).unwrap(), "- a\n\t- kid\n- c\n");
+        assert_eq!(v.copy_blocks(&[]).unwrap(), "");
+        assert!(v.copy_blocks(&["nonsense".into()]).is_err());
+    }
+
+    #[test]
+    fn copying_keeps_a_blocks_lines_together() {
+        let (v, _, ids) = undoable(&["one\ntwo"]);
+        assert_eq!(v.copy_blocks(&ids).unwrap(), "- one\n  two\n");
+    }
+
+    #[test]
+    fn pasting_adds_the_outline_after_a_block_among_its_siblings() {
+        let (v, page, ids) = undoable(&["a", "z"]);
+        let kid = v.create_block(&ids[0], None, "kid").unwrap();
+        let made = v.paste_blocks(&ids[0], "- x\n\t- y\n- w\n").unwrap();
+        assert_eq!(made.len(), 3, "the child is counted too");
+        assert_eq!(
+            shape(&v, &page),
+            ["0:a", "1:kid", "0:x", "1:y", "0:w", "0:z"]
+        );
+        // Beside a nested block, it is among that block's siblings.
+        v.paste_blocks(&kid, "- n\n").unwrap();
+        assert_eq!(
+            shape(&v, &page),
+            ["0:a", "1:kid", "1:n", "0:x", "1:y", "0:w", "0:z"]
+        );
+        assert!(v.undo().unwrap());
+        assert!(v.undo().unwrap());
+        assert_eq!(top_level(&v, &page), ["a", "z"], "one step each");
+    }
+
+    #[test]
+    fn the_blocks_made_come_back_in_reading_order() {
+        let (v, _, ids) = undoable(&["a"]);
+        let made = v.paste_blocks(&ids[0], "- x\n\t- y\n- w\n").unwrap();
+        let texts: Vec<_> = made.iter().map(|id| v.block_text(id).unwrap()).collect();
+        assert_eq!(texts, ["x", "y", "w"]);
+    }
+
+    #[test]
+    fn text_that_is_not_an_outline_is_one_block_and_nothing_is_none() {
+        let (v, page, ids) = undoable(&["a"]);
+        assert_eq!(v.paste_blocks(&ids[0], "just words").unwrap().len(), 1);
+        assert_eq!(v.paste_blocks(&ids[0], "").unwrap().len(), 0);
+        assert_eq!(top_level(&v, &page), ["a", "just words"]);
+    }
+
+    #[test]
+    fn a_title_is_left_out_and_properties_are_a_block() {
+        let (v, page, ids) = undoable(&["a"]);
+        v.paste_blocks(&ids[0], "title:: Other\ntype:: thing\n\n- x\n")
+            .unwrap();
+        assert_eq!(top_level(&v, &page), ["a", "type:: thing", "x"]);
+    }
+
+    #[test]
+    fn pasting_after_something_that_isnt_a_block_pastes_nothing() {
+        let (v, page, ids) = undoable(&["a"]);
+        assert!(v.paste_blocks("nonsense", "- x\n").is_err());
+        assert!(
+            v.paste_blocks(&page, "- x\n").is_err(),
+            "an entity has no siblings"
+        );
+        assert_eq!(top_level(&v, &page), ["a"]);
+        let _ = ids;
+    }
+
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(64))]
 
@@ -720,6 +803,48 @@ mod blocks_together {
                 prop_assert!(v.undo().unwrap());
                 prop_assert_eq!(outline(&v, &page), before);
             }
+        }
+
+        /// What is copied is what is pasted: the outline of the blocks, texts
+        /// with lines and spaces and all, comes back as new blocks, and one
+        /// undo takes them away.
+        #[test]
+        fn pasting_a_copy_makes_the_same_blocks(
+            parents in vec(0usize..10, 1..7),
+            texts in vec("[a-z]{0,3}( [a-z]{1,2})?(\\n[a-z][a-z ]{0,2})?", 7),
+            chosen in vec(any::<bool>(), 7),
+        ) {
+            let (v, page, _) = undoable(&[]);
+            let mut ids: Vec<String> = Vec::new();
+            for (i, p) in parents.iter().enumerate() {
+                let parent = match p % (i + 1) {
+                    0 => page.clone(),
+                    n => ids[n - 1].clone(),
+                };
+                ids.push(v.create_block(&parent, None, &texts[i]).unwrap());
+            }
+            let picked: Vec<String> = ids
+                .iter()
+                .zip(&chosen)
+                .filter(|(_, c)| **c)
+                .map(|(id, _)| id.clone())
+                .collect();
+            let copied = v.copy_blocks(&picked).unwrap();
+            let tops = v.top_blocks(&picked).unwrap();
+            let before = outline(&v, &page);
+            let made = v.paste_blocks(&ids[0], &copied).unwrap();
+            // However deep the copied blocks were, the copy has them from the top.
+            let original: Vec<_> = tops
+                .iter()
+                .flat_map(|&t| subtree(&v, t))
+                .map(|b| v.block_text(&b.to_string()).unwrap())
+                .collect();
+            let pasted: Vec<_> = made.iter().map(|id| v.block_text(id).unwrap()).collect();
+            prop_assert_eq!(pasted, original);
+            if !made.is_empty() {
+                prop_assert!(v.undo().unwrap());
+            }
+            prop_assert_eq!(outline(&v, &page), before);
         }
 
         /// Moving only reorders siblings: nothing changes parent, and one undo

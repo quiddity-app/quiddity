@@ -365,6 +365,19 @@ impl Replica {
         Ok(self.view.delete_blocks(&ids)?)
     }
 
+    /// The blocks, with their children, as the Markdown outline to copy.
+    #[wasm_bindgen(js_name = copyBlocks)]
+    pub fn copy_blocks(&self, ids: Vec<String>) -> Result<String, JsError> {
+        Ok(self.view.copy_blocks(&ids)?)
+    }
+
+    /// Adds the blocks that `text` is an outline of after `after`, as one
+    /// undo step. Returns the IDs of every block made.
+    #[wasm_bindgen(js_name = pasteBlocks)]
+    pub fn paste_blocks(&self, after: &str, text: &str) -> Result<Vec<String>, JsError> {
+        Ok(self.view.paste_blocks(after, text)?)
+    }
+
     /// Moves each block, with its children, `delta` places among its
     /// siblings, as one undo step.
     #[wasm_bindgen(js_name = moveBlocks)]

@@ -6,6 +6,7 @@
 use std::collections::BTreeSet;
 
 use quiddity_core::BlockId;
+use quiddity_core::outline::{Indent, Outline, OutlineBlock, format_outline, parse_outline};
 use serde::Serialize;
 
 use crate::{Change, Error, Result, View};
@@ -321,10 +322,86 @@ impl View {
         self.edited(deleted.map(|()| tops.len()).map_err(Error::from))
     }
 
+    /// The text to put on the clipboard for `ids`: each block with its
+    /// children as a Markdown outline, the same as in a file, so it reads as
+    /// text anywhere and [`View::paste_blocks`] reads it back. Blocks inside
+    /// another of `ids` come with it, once.
+    pub fn copy_blocks(&self, ids: &[String]) -> Result<String> {
+        fn outline_block(graph: &quiddity_core::Graph, block: BlockId) -> Result<OutlineBlock> {
+            Ok(OutlineBlock {
+                text: graph.text(block)?,
+                children: graph
+                    .children(block)
+                    .into_iter()
+                    .map(|child| outline_block(graph, child))
+                    .collect::<Result<_>>()?,
+            })
+        }
+        let blocks = self
+            .top_blocks(ids)?
+            .into_iter()
+            .map(|block| outline_block(&self.graph, block))
+            .collect::<Result<_>>()?;
+        Ok(format_outline(&Outline {
+            blocks,
+            ..Outline::default()
+        }))
+    }
+
+    /// Adds the blocks that `text` is an outline of as the siblings after
+    /// `after`, as one undo step, and returns every block it made, children
+    /// included, in reading order. Anything that isn't an outline is one block
+    /// of that text, and nothing at all makes none. A title is left out, and
+    /// properties are a block of their own.
+    pub fn paste_blocks(&self, after: &str, text: &str) -> Result<Vec<String>> {
+        self.structural();
+        let anchor = self.block_id(after)?;
+        let parent = self
+            .graph
+            .parent(anchor)
+            .ok_or_else(|| Error::NotABlock(after.to_owned()))?;
+        let at = self
+            .graph
+            .children(parent)
+            .iter()
+            .position(|&sibling| sibling == anchor)
+            .map_or(0, |i| i + 1);
+        let outline = parse_outline(text, Indent::Auto);
+        let blocks: Vec<_> = outline
+            .properties
+            .map(|text| OutlineBlock {
+                text,
+                children: Vec::new(),
+            })
+            .into_iter()
+            .chain(outline.blocks)
+            .collect();
+        fn add(
+            graph: &quiddity_core::Graph,
+            parent: BlockId,
+            index: Option<usize>,
+            block: &OutlineBlock,
+            made: &mut Vec<String>,
+        ) -> Result<()> {
+            let id = graph.create_block(Some(parent), index, &block.text)?;
+            made.push(id.to_string());
+            for child in &block.children {
+                add(graph, id, None, child, made)?;
+            }
+            Ok(())
+        }
+        let mut made = Vec::new();
+        let added = blocks
+            .iter()
+            .enumerate()
+            .try_for_each(|(i, block)| add(&self.graph, parent, Some(at + i), block, &mut made));
+        self.edited(added.map(|()| made))
+    }
+
     /// The blocks of `ids` that aren't inside another of them, in reading
     /// order. Each is a whole subtree to act on, so what is inside one isn't
     /// acted on again.
-    fn top_blocks(&self, ids: &[String]) -> Result<Vec<BlockId>> {
+    pub(crate) fn top_blocks(&self, ids: &[String]) -> Result<Vec<BlockId>> {
         let wanted = ids
             .iter()
             .map(|id| self.block_id(id))

@@ -366,6 +366,17 @@ export class Graph {
     return this.edited(this.replica.deleteBlocks(ids));
   }
 
+  /** The blocks with their children as the text to copy: a Markdown outline. */
+  copyBlocks(ids: string[]) {
+    return this.replica.copyBlocks(ids);
+  }
+
+  /** Adds the blocks `text` is an outline of after `after`, as one undo step.
+   * Returns every block made, children included. */
+  pasteBlocks(after: string, text: string) {
+    return this.edited(this.replica.pasteBlocks(after, text));
+  }
+
   /** Moves each block with its children among its siblings, as one undo step. */
   moveBlocks(ids: string[], delta: number) {
     return this.edited(this.replica.moveBlocks(ids, delta));

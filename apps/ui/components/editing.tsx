@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { expandSelection, selectRange } from "@/lib/block-selection";
+import { expandSelection, lastSelected, selectRange } from "@/lib/block-selection";
 import { moveDirection } from "@/lib/move-keys";
 import { EditorView } from "@codemirror/view";
 import { useGraph } from "@/lib/use-graph";
@@ -182,7 +182,8 @@ function blockAtHeight(scope: string, y: number): string | null {
  * - Mod-A in an editor selects its text, as it always did. With the text
  *   selected, or in a block that isn't being edited, it selects the block, and
  *   each press after that takes in more (`expandSelection`).
- * - Backspace and Delete delete the selected blocks.
+ * - Backspace and Delete delete the selected blocks, and copy, cut and paste
+ *   work on them, as a Markdown outline.
  * - Tab and Shift-Tab indent and outdent the selected blocks, and the keys
  *   that move a block (`lib/move-keys.ts`) move them, or the focused block.
  * - A drag from one block to another selects the blocks between them.
@@ -313,6 +314,39 @@ function selectionHandlers(
     window.getSelection()?.removeAllRanges();
     setSelection({ anchor: drag.anchor, ids: selectRange(live.current.order, drag.anchor, over) });
   };
+  // Copy, cut and paste are the browser's events, not keys, so the menu's
+  // work too and the clipboard is written in the user's own gesture.
+  const onClipboard = (e: ClipboardEvent) => {
+    const { blocks, editing, selection } = live.current;
+    // Text being edited, or in a field, keeps its own.
+    if (e.target instanceof Element && e.target.closest("input, textarea, [contenteditable]")) {
+      return;
+    }
+    const own = blockOf(e.target, scope);
+    if (e.target !== document.body && own === null) return;
+    if (e.type === "paste") {
+      // After the selection, or after the block that has the focus.
+      const after = selection ? lastSelected(blocks, editing.selected) : own;
+      if (after === null) return;
+      const text = e.clipboardData?.getData("text/plain") ?? "";
+      e.preventDefault();
+      const made = editing.graph.pasteBlocks(after, text);
+      const [first] = made;
+      if (first !== undefined) setSelection({ anchor: first, ids: new Set(made) });
+      return;
+    }
+    if (!selection) return;
+    e.preventDefault();
+    const ids = [...editing.selected];
+    e.clipboardData?.setData("text/plain", editing.graph.copyBlocks(ids));
+    if (e.type === "cut") {
+      editing.graph.deleteBlocks(ids);
+      setSelection(null);
+    }
+  };
+  document.addEventListener("copy", onClipboard);
+  document.addEventListener("cut", onClipboard);
+  document.addEventListener("paste", onClipboard);
   document.addEventListener("keydown", onKey, true);
   document.addEventListener("pointerdown", onDown, true);
   document.addEventListener("pointermove", onMove);
@@ -320,6 +354,9 @@ function selectionHandlers(
   document.addEventListener("pointercancel", endDrag);
   return () => {
     endDrag();
+    document.removeEventListener("copy", onClipboard);
+    document.removeEventListener("cut", onClipboard);
+    document.removeEventListener("paste", onClipboard);
     document.removeEventListener("keydown", onKey, true);
     document.removeEventListener("pointerdown", onDown, true);
     document.removeEventListener("pointermove", onMove);

@@ -66,3 +66,20 @@ export function selectRange(order: string[], from: string, to: string): Set<stri
   if (a < 0 || b < 0) return new Set();
   return new Set(order.slice(Math.min(a, b), Math.max(a, b) + 1));
 }
+
+/**
+ * The last of the selected blocks, in reading order, that isn't inside another
+ * selected one: what a paste goes after, since a selected block's children are
+ * part of it and a paste among them would be in the middle of the selection.
+ */
+export function lastSelected(blocks: Node[], selected: ReadonlySet<string>): string | null {
+  let found: string | null = null;
+  const walk = (nodes: Node[]) => {
+    for (const node of nodes) {
+      if (selected.has(node.id)) found = node.id;
+      else walk(node.children);
+    }
+  };
+  walk(blocks);
+  return found;
+}

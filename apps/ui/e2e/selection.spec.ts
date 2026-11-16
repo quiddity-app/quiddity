@@ -269,3 +269,91 @@ test("Backspace in an editor is still the editor's", async ({ page }) => {
   await page.keyboard.press("Backspace");
   await expect(editor(page)).toHaveText(EVICTION.slice(0, -1));
 });
+
+/** Plays the browser's paste of `text`, which goes to the focused element. */
+const paste = (page: Page, text: string) =>
+  page.evaluate((text) => {
+    const data = new DataTransfer();
+    data.setData("text/plain", text);
+    (document.activeElement ?? document.body).dispatchEvent(
+      new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }),
+    );
+  }, text);
+
+test("copy and paste duplicate the selected blocks after them, and select the copy", async ({
+  page,
+}) => {
+  const before = await topTexts(page);
+  await block(page, QUESTIONS).click();
+  for (let i = 0; i < 3; i++) await page.keyboard.press("Control+a");
+
+  await page.keyboard.press("Control+c");
+  await page.keyboard.press("Control+v");
+  await expect.poll(() => topTexts(page)).toEqual([...before, QUESTIONS]);
+  // What is selected now is the copy, with its child.
+  expect(await selected(page)).toEqual([QUESTIONS, EVICTION]);
+  await expect(page.getByText(EVICTION)).toHaveCount(2);
+
+  await page.keyboard.press("Control+z");
+  await expect.poll(() => topTexts(page)).toEqual(before);
+});
+
+test("cut takes the blocks away, and paste puts them back where they are pasted", async ({
+  page,
+}) => {
+  const before = await topTexts(page);
+  await block(page, QUESTIONS).click();
+  for (let i = 0; i < 3; i++) await page.keyboard.press("Control+a");
+  await page.keyboard.press("Control+x");
+  await expect.poll(() => topTexts(page)).toEqual(before.slice(0, -1));
+
+  // After the parent, which is above where they were.
+  await block(page, PARENT).click();
+  for (let i = 0; i < 2; i++) await page.keyboard.press("Control+a");
+  await page.keyboard.press("Control+v");
+  await expect.poll(() => topTexts(page)).toEqual([before[0], PARENT, QUESTIONS]);
+  // What was pasted is selected, with its child.
+  expect(await selected(page)).toEqual([QUESTIONS, EVICTION]);
+});
+
+test("pasting text that is an outline adds its blocks, nested as written", async ({ page }) => {
+  await block(page, PARENT).click();
+  for (let i = 0; i < 2; i++) await page.keyboard.press("Control+a");
+  await paste(page, "- first\n\t- under it\n- second\n");
+  await expect.poll(() => topTexts(page)).toContain("second");
+  expect(await topTexts(page)).toEqual([
+    expect.stringContaining("favourite"),
+    PARENT,
+    "first",
+    "second",
+    QUESTIONS,
+  ]);
+  // The copy is selected, children and all.
+  expect(await selected(page)).toEqual(["first", "under it", "second"]);
+});
+
+test("a block with the focus, with nothing selected, takes a paste after it", async ({ page }) => {
+  const questions = page
+    .locator("main article > ul > li > div > [data-block-text]")
+    .filter({ hasText: QUESTIONS });
+  await questions.focus();
+  await paste(page, "plain words");
+  await expect.poll(() => topTexts(page)).toContain("plain words");
+  expect(await selected(page)).toEqual(["plain words"]);
+});
+
+test("copy and paste in an editor are still the text's", async ({ page }) => {
+  await block(page, EVICTION).click();
+  await page.keyboard.press("Control+a");
+  await page.keyboard.press("Control+c");
+  await page.keyboard.press("End");
+  await page.keyboard.press("Control+v");
+  await expect(editor(page)).toHaveText(EVICTION + EVICTION);
+  expect(await selected(page)).toEqual([]);
+});
+
+test("paste with nothing selected or focused does nothing", async ({ page }) => {
+  const before = await topTexts(page);
+  await paste(page, "- stray\n");
+  expect(await topTexts(page)).toEqual(before);
+});

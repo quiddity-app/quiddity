@@ -220,7 +220,13 @@ never writes the `##blob` line: Rust does.
   page-level handler leaves editors alone and moves the selection or, with none,
   the focused block, putting the focus back since the row can be remounted.
   Backspace and Delete delete a selection (`graph.deleteBlocks`, one undo
-  step) and clear it, since the blocks are gone.
+  step) and clear it, since the blocks are gone. **Copy, cut and paste are the
+  browser's `copy`/`cut`/`paste` events**, not keys, so the clipboard is
+  written inside the gesture and the menus work; they leave inputs and editors
+  alone. The clipboard holds the outline text from `graph.copyBlocks`; a paste
+  goes after the last selected block that isn't inside another
+  (`lastSelected`) or after the block with the focus, and selects what it made.
+  A test plays a paste with a `ClipboardEvent` at `document.activeElement`.
 - Removing a focused editor fires a blur that isn't the user leaving, so
   `closing` is set in a layout effect (which runs before the DOM goes).
 - IDs held by editing state go dead across an undo of a deletion; that just
