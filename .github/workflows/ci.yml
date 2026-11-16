@@ -338,6 +338,14 @@ jobs:
     # Right before the scan, since its token is short-lived.
     - uses: SonarSource/sonarqube-auth-action@b372e2c2930aadfcc4f4399446da1e12772709ad # v1.2
     - uses: SonarSource/sonarqube-scan-action@59202af334b4ba7b5db01b701b8e79f8b3bef0f4 # v8.5.0
+      with:
+        # SonarCloud splits the Cargo workspace into a module per crate and
+        # reads a relative path from each one's own directory, so only the root
+        # found the report, and it couldn't place the crates' files. An absolute
+        # path is the same from every module.
+        # TODO: drop sonar.verbose once the log has shown how each LCOV entry
+        # is matched; it is noisy.
+        args: -Dsonar.rust.lcov.reportPaths=${{ github.workspace }}/lcov.info -Dsonar.verbose=true
 
   gate:
     # The one check to require, so that adding, splitting or renaming a job
