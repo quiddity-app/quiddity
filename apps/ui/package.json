@@ -34,7 +34,7 @@
     "unist-util-visit": "^5.2.0"
   },
   "devDependencies": {
-    "@playwright/test": "1.65.0",
+    "@playwright/test": "1.65.1",
     "@tailwindcss/postcss": "4.3.5",
     "@types/d3-drag": "3.0.7",
     "@types/d3-force": "3.0.10",
