@@ -345,8 +345,8 @@ calls `draw()` once on mount and `update(data)` when the graph changes.**
 - **Options** (`lib/graph-filter.ts`): a panel with a checkbox each for property links
   (the `weak` edges), journal pages (`Connections.nodes[].journal`, from Rust) and
   orphan pages, all off to begin with, which `Canvas` applies to the data before
-  `update`. **An orphan is judged on the unfiltered edges**, so hiding journals
-  doesn't orphan what only they link to. The canvas carries `data-links` and
+  `update`. **An orphan is judged after journals and property links are
+  hidden**, so hiding either also hides what only they linked. The canvas carries `data-links` and
   `data-weak`, how many links are drawn and how many are weak, for tests. Choices
   aren't remembered, and a hidden node's position is forgotten when next saved.
 - Labels are not drawn when a node is under `LABEL_DIAMETER` (5px) across
