@@ -9,7 +9,7 @@
 	- Enter at the very start of a block with text adds an empty block before it instead, so the text, its children and the caret stay where they are.
 	- Enter in an empty block outdents it instead, unless it is already at the top level, where it splits as usual.
 	- Shift-Enter inserts a newline.
-	- Tab and Shift-Tab indent and outdent, Backspace at the start joins the block to the one before, and Alt-Up and Alt-Down move it among its siblings.
+	- Tab and Shift-Tab indent and outdent, Backspace at the start joins the block to the one before, and Cmd-Shift-Up and Cmd-Shift-Down (Alt-Shift elsewhere) move it among its siblings.
 	- The arrows move between blocks at the edges, and Escape leaves the editor.
 	- A key that moves the block being edited says where editing continues before it moves it, because moving makes React remount the block.
 	- A block opened by a key, Enter above all, takes focus without the browser scrolling and has CodeMirror bring the caret into view in the pane that scrolls, with room to spare. Left to itself, a new editor's focus either did not scroll at all, so the caret ran off the bottom of the pane, or scrolled by the engine's own rules.
@@ -28,7 +28,9 @@
 	- Tab and Shift-Tab indent and outdent the selected blocks, as one undo step, the same as in the editor for one block.
 		- A block chosen along with its parent isn't acted on twice: it goes with the parent.
 		- Indenting nests a run of siblings under the one before the run, so they keep their order; if nothing is before the run, none of it moves. Outdenting puts the run after its parent in the order it had.
-		- Copying, deleting and moving a selection are not built yet.
+	- Cmd-Shift-Up and Cmd-Shift-Down (Alt-Shift-Up and Alt-Shift-Down off a Mac) move the selected blocks, with their children, among their siblings, as one undo step. With nothing selected they move the block being edited, or the one that has the focus. A run of siblings moves as a run and stops when its first block reaches the end, instead of the rest passing it. Blocks don't change parent: that is what Tab is for.
+		- Alt-Arrow is a Mac's word movement and Ctrl-Shift-Arrow selects words elsewhere, which is why neither is the key.
+	- Copying and deleting a selection are not built yet.
 	- Code: `lib/block-selection.ts` for the steps, and `selectionHandlers` in `components/editing.tsx` for the keys and the drag.
 - Links
 	- `[` makes `[]` with the caret inside, so `[[` makes `[[]]`. With a selection, the brackets go round it. `]` steps over a closer rather than doubling it, and Backspace in an empty pair removes both. A `[` before a word is left alone.

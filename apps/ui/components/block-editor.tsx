@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { autoBrackets } from "@/lib/auto-brackets";
 import { fromGraph } from "@/lib/cm-annotations";
 import { linkCompletion } from "@/lib/link-completion";
+import { moveKeyName } from "@/lib/move-keys";
 import { propertyCompletion } from "@/lib/property-completion";
 import { useEditing, type Caret, type Editing } from "./editing-context";
 import { useView } from "./use-view";
@@ -143,7 +144,7 @@ function outlinerKeys(
           : false,
     },
     ...([-1, 1] as const).map((delta) => ({
-      key: delta < 0 ? "Alt-ArrowUp" : "Alt-ArrowDown",
+      key: moveKeyName(delta < 0 ? "ArrowUp" : "ArrowDown"),
       run: (view: EditorView) => {
         const { graph, edit } = latest.current;
         edit(id, head(view));

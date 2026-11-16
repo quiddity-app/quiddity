@@ -214,7 +214,11 @@ never writes the `##blob` line: Rust does.
   follows its release, which would edit the block. What is selected is
   filtered by the blocks still there. **Tab and Shift-Tab act on a selection**
   through `graph.indentBlocks`/`outdentBlocks`, which are one undo step in
-  Rust and treat a block chosen with its parent as the parent's.
+  Rust and treat a block chosen with its parent as the parent's. **So do the
+  move keys** (`lib/move-keys.ts`: Cmd-Shift-arrow on a Mac, Alt-Shift elsewhere):
+  an editor has them in its own keymap, so its caret is kept, and the
+  page-level handler leaves editors alone and moves the selection or, with none,
+  the focused block, putting the focus back since the row can be remounted.
 - Removing a focused editor fires a blur that isn't the user leaving, so
   `closing` is set in a layout effect (which runs before the DOM goes).
 - IDs held by editing state go dead across an undo of a deletion; that just

@@ -358,6 +358,13 @@ impl Replica {
         Ok(self.view.move_sibling(id, delta as isize)?)
     }
 
+    /// Moves each block, with its children, `delta` places among its
+    /// siblings, as one undo step.
+    #[wasm_bindgen(js_name = moveBlocks)]
+    pub fn move_blocks(&self, ids: Vec<String>, delta: i32) -> Result<bool, JsError> {
+        Ok(self.view.move_blocks(&ids, delta as isize)?)
+    }
+
     /// Joins a block to the one before it. Returns `{ into, at }`, or
     /// `undefined` if it can't be.
     #[wasm_bindgen(js_name = mergeIntoPrevious)]
