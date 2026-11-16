@@ -256,8 +256,42 @@ fn logseq_file_names_are_decoded() -> Result<()> {
     Ok(())
 }
 
-/// A graph imported before names were decoded is put right once, with the old
-/// name kept as an alias, and left alone after that.
+fn link(name: &str) -> Link {
+    Link {
+        name: name.into(),
+        qualifiers: vec![],
+    }
+}
+
+/// The names of every entity, in order.
+fn names(graph: &Graph) -> Result<Vec<String>> {
+    let mut names = graph
+        .roots()
+        .into_iter()
+        .map(|r| graph.entity_name(r))
+        .collect::<Result<Vec<_>>>()?;
+    names.sort();
+    Ok(names)
+}
+
+/// The page the entity's own `parent` names, if it names one.
+fn parent_of(graph: &Graph, name: &str) -> Result<Option<String>> {
+    let index = Index::build(graph)?;
+    let Resolution::Unique(id) = index.resolve(&link(name)) else {
+        panic!("{name} isn't one entity");
+    };
+    Ok(graph
+        .entity_properties(id)?
+        .into_iter()
+        .find(|p| p.key == "parent")
+        .and_then(|p| match p.value {
+            Some(Value::Link(l)) => Some(l.name),
+            _ => None,
+        }))
+}
+
+/// A graph imported before names were decoded is put right once, without the
+/// old name kept, and left alone after that. Nothing changes on a dry run.
 #[test]
 fn encoded_names_can_be_decoded_after_the_fact() -> Result<()> {
     let graph = Graph::new();
@@ -271,40 +305,124 @@ fn encoded_names_can_be_decoded_after_the_fact() -> Result<()> {
         &Index::build(&graph)?,
         "2026-10-25".parse().unwrap(),
     )?;
-    let linker = graph.create_entity(
-        "Linker",
-        &[(
-            "see",
-            Some(Value::Link(Link {
-                name: "What%3F".into(),
-                qualifiers: vec![],
-            })),
-        )],
-    )?;
+    // A journal is its day, whatever its first line says.
+    graph.set_text(day, "2026-10-25%3F")?;
 
-    let before = graph.snapshot()?;
+    let before = names(&graph)?;
     let dry = decode_page_names(&graph, true)?;
     assert_eq!(dry.renamed, [("What%3F".to_owned(), "What?".to_owned())]);
     assert_eq!(dry.clashing, [("Taken%3F".to_owned(), "Taken?".to_owned())]);
-    assert_eq!(graph.entity_name(what)?, "What%3F");
-    assert_eq!(graph.snapshot()?.len(), before.len());
+    assert!(dry.reparented.is_empty());
+    assert_eq!(names(&graph)?, before);
 
     let done = decode_page_names(&graph, false)?;
     assert_eq!(done, dry);
     assert_eq!(graph.entity_name(what)?, "What?");
-    assert_eq!(graph.entity_name(day)?, "2026-10-25");
+    assert_eq!(graph.entity_name(day)?, "2026-10-25%3F");
+    // The old name is gone, and nothing was added to say it was there.
+    assert!(graph.entity_properties(what)?.is_empty());
     let index = Index::build(&graph)?;
-    let link = |name: &str| Link {
-        name: name.into(),
-        qualifiers: vec![],
-    };
-    // The old name still finds it, so the link written with it does too.
-    assert_eq!(index.resolve(&link("What%3F")), Resolution::Unique(what));
-    assert_eq!(index.backlinks(what).len(), 1);
-    assert!(graph.entity_name(linker).is_ok());
+    assert!(!matches!(
+        index.resolve(&link("What%3F")),
+        Resolution::Unique(_)
+    ));
 
     let again = decode_page_names(&graph, false)?;
     assert!(again.renamed.is_empty());
+    assert!(again.reparented.is_empty());
+    Ok(())
+}
+
+/// A `%2F` in an old name is a namespace now, so the page is put under the
+/// page above it, which is made if it has none. A `parent` that names a page
+/// that was renamed follows it, wherever it is written; one the import
+/// wouldn't have written is left.
+#[test]
+fn decoded_names_get_the_namespaces_they_now_have() -> Result<()> {
+    let graph = Graph::new();
+    let parent = |name: &str| ("parent", Some(Value::Link(link(name))));
+    graph.create_entity("Places", &[])?;
+    graph.create_entity("Places/X%3F", &[parent("Places")])?;
+    graph.create_entity("Places/X%3F/Y", &[parent("Places/X%3F")])?;
+    graph.create_entity("Foo", &[parent("Places/X%3F")])?;
+    // The import named `Places` above this, when it was `Places/A%2FB`.
+    graph.create_entity("Places/A%2FB", &[parent("Places")])?;
+    graph.create_entity("Kept%2FIt", &[parent("Elsewhere")])?;
+    graph.create_entity("Q%2FR%2FS", &[])?;
+    // It has other properties, so the `parent` is added to them.
+    graph.create_entity("Z%2FW", &[("type", text("thing"))])?;
+    // A namespace with no `parent`: the import would have given it one, so it
+    // was taken off, and stays off.
+    graph.create_entity("Orphan/Page%3F", &[])?;
+
+    let dry = decode_page_names(&graph, true)?;
+    let mut expected: Vec<(String, String)> = [
+        ("Foo", "Places/X?"),
+        ("Places/A/B", "Places/A"),
+        ("Places/X?/Y", "Places/X?"),
+        ("Q/R/S", "Q/R"),
+        ("Z/W", "Z"),
+    ]
+    .map(|(a, b)| (a.to_owned(), b.to_owned()))
+    .into();
+    expected.sort();
+    let mut seen = dry.reparented.clone();
+    seen.sort();
+    assert_eq!(seen, expected);
+    assert_eq!(names(&graph)?.len(), 9, "a dry run adds nothing");
+    assert_eq!(parent_of(&graph, "Foo")?.as_deref(), Some("Places/X%3F"));
+
+    decode_page_names(&graph, false)?;
+    assert_eq!(
+        names(&graph)?,
+        [
+            "Foo",
+            "Kept/It",
+            "Orphan/Page?",
+            "Places",
+            "Places/A",
+            "Places/A/B",
+            "Places/X?",
+            "Places/X?/Y",
+            "Q",
+            "Q/R",
+            "Q/R/S",
+            "Z",
+            "Z/W",
+            "parent",
+        ]
+    );
+    for (name, parent) in [
+        ("Foo", Some("Places/X?")),
+        ("Kept/It", Some("Elsewhere")),
+        ("Places", None),
+        ("Places/A", Some("Places")),
+        ("Places/A/B", Some("Places/A")),
+        ("Places/X?", Some("Places")),
+        ("Places/X?/Y", Some("Places/X?")),
+        ("Q", None),
+        ("Q/R", Some("Q")),
+        ("Q/R/S", Some("Q/R")),
+        ("Orphan/Page?", None),
+        ("Z", None),
+        ("Z/W", Some("Z")),
+    ] {
+        assert_eq!(parent_of(&graph, name)?.as_deref(), parent, "{name}");
+    }
+    assert!(Index::build(&graph)?.property_entity("parent").is_some());
+    let index = Index::build(&graph)?;
+    let Resolution::Unique(zw) = index.resolve(&link("Z/W")) else {
+        panic!("Z/W")
+    };
+    let keys: Vec<_> = graph
+        .entity_properties(zw)?
+        .into_iter()
+        .map(|p| p.key)
+        .collect();
+    assert_eq!(keys, ["type", "parent"]);
+
+    let again = decode_page_names(&graph, false)?;
+    assert_eq!(again, Default::default());
     Ok(())
 }
 
