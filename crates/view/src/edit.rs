@@ -379,10 +379,37 @@ impl View {
     pub fn move_sibling(&self, id: &str, delta: isize) -> Result<bool> {
         self.structural();
         let block = self.block_id(id)?;
+        let moved = self.move_one(block, delta, &BTreeSet::new());
+        self.edited_by(moved, Change::Structure)
+    }
+
+    /// Moves each of `ids`, with its children, `delta` places among its
+    /// siblings, as one undo step. Blocks inside another of `ids` go with it.
+    /// Blocks that are chosen together stay together: a run of siblings moves
+    /// as a run, and stops when its first (or last) block reaches the end,
+    /// rather than the rest passing it. True if any block moved.
+    pub fn move_blocks(&self, ids: &[String], delta: isize) -> Result<bool> {
+        self.structural();
+        let mut tops = self.top_blocks(ids)?;
+        // The leading blocks go first, so that each finds out whether the one
+        // it would swap with is chosen and stuck.
+        if delta.is_positive() {
+            tops.reverse();
+        }
+        let held: BTreeSet<_> = tops.iter().copied().collect();
+        let moved = tops.into_iter().try_fold(false, |any, block| {
+            Ok(self.move_one(block, delta, &held)? | any)
+        });
+        self.edited_by(moved, Change::Structure)
+    }
+
+    /// Swaps a block with the sibling `delta` places away, unless that is one
+    /// of `held`, which didn't move.
+    fn move_one(&self, block: BlockId, delta: isize, held: &BTreeSet<BlockId>) -> Result<bool> {
         let parent = self
             .graph
             .parent(block)
-            .ok_or(Error::NotABlock(id.to_owned()))?;
+            .ok_or_else(|| Error::NotABlock(block.to_string()))?;
         let siblings = self.graph.children(parent);
         let here = siblings.iter().position(|&s| s == block).unwrap_or(0);
         let Some(to) = here
@@ -391,8 +418,11 @@ impl View {
         else {
             return Ok(false);
         };
+        if held.contains(&siblings[to]) {
+            return Ok(false);
+        }
         let moved = self.graph.move_block(block, Some(parent), Some(to));
-        self.edited_by(moved.map(|()| true).map_err(Error::from), Change::Structure)
+        moved.map(|()| true).map_err(Error::from)
     }
 
     /// Appends a childless block's text to the block before it in reading

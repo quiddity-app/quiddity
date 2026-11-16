@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { expandSelection, selectRange } from "@/lib/block-selection";
+import { moveDirection } from "@/lib/move-keys";
 import { EditorView } from "@codemirror/view";
 import { useGraph } from "@/lib/use-graph";
 import type { Block, EntityId, ResolvedLink } from "@/lib/model";
@@ -181,7 +182,8 @@ function blockAtHeight(scope: string, y: number): string | null {
  * - Mod-A in an editor selects its text, as it always did. With the text
  *   selected, or in a block that isn't being edited, it selects the block, and
  *   each press after that takes in more (`expandSelection`).
- * - Tab and Shift-Tab indent and outdent the selected blocks.
+ * - Tab and Shift-Tab indent and outdent the selected blocks, and the keys
+ *   that move a block (`lib/move-keys.ts`) move them, or the focused block.
  * - A drag from one block to another selects the blocks between them.
  * - Escape, or pressing anywhere, lets go.
  */
@@ -201,6 +203,28 @@ function selectionHandlers(
     const { blocks, editing, selection } = live.current;
     if (e.key === "Escape" && selection && !editing.current) {
       setSelection(null);
+      return;
+    }
+    // The keys that move blocks move what is selected or, with nothing
+    // selected, the block that has the focus. An editor has the same keys
+    // itself, which keep its caret, so it is left to.
+    const direction = moveDirection(e);
+    if (direction !== null) {
+      if (e.target instanceof Element && e.target.closest(".cm-editor")) return;
+      const own = blockOf(e.target, scope);
+      if (selection ? e.target !== document.body && own === null : own === null) return;
+      e.preventDefault();
+      editing.graph.moveBlocks(selection ? [...editing.selected] : [own!], direction);
+      // Moving can remount the row, which drops the focus.
+      if (!selection) {
+        requestAnimationFrame(() =>
+          document
+            .querySelector<HTMLElement>(
+              `[data-block-id="${own}"][data-outline="${scope}"] > div > [data-block-text]`,
+            )
+            ?.focus(),
+        );
+      }
       return;
     }
     // Tab and Shift-Tab indent and outdent what is selected, as they do the

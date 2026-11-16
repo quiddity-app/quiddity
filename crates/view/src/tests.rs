@@ -597,6 +597,61 @@ mod blocks_together {
         assert_eq!(top_level(&v, &page), ["a", "b"]);
     }
 
+    #[test]
+    fn a_run_moves_as_a_run() {
+        let (v, page, ids) = undoable(&["a", "b", "c", "d", "e"]);
+        let run = [ids[1].clone(), ids[2].clone()];
+        assert!(v.move_blocks(&run, 1).unwrap());
+        assert_eq!(top_level(&v, &page), ["a", "d", "b", "c", "e"]);
+        assert!(v.move_blocks(&run, -1).unwrap());
+        assert!(v.move_blocks(&run, -1).unwrap());
+        assert_eq!(top_level(&v, &page), ["b", "c", "a", "d", "e"]);
+        assert!(v.undo().unwrap());
+        assert_eq!(top_level(&v, &page), ["a", "b", "c", "d", "e"], "one step");
+    }
+
+    #[test]
+    fn a_run_stops_at_the_end_whole() {
+        let (v, page, ids) = undoable(&["a", "b", "c"]);
+        let run = [ids[0].clone(), ids[1].clone()];
+        assert!(!v.move_blocks(&run, -1).unwrap(), "already first");
+        assert_eq!(top_level(&v, &page), ["a", "b", "c"]);
+        let run = [ids[1].clone(), ids[2].clone()];
+        assert!(!v.move_blocks(&run, 1).unwrap(), "already last");
+        assert_eq!(top_level(&v, &page), ["a", "b", "c"]);
+    }
+
+    #[test]
+    fn blocks_with_a_gap_between_them_each_move() {
+        let (v, page, ids) = undoable(&["a", "b", "c", "d"]);
+        assert!(
+            v.move_blocks(&[ids[1].clone(), ids[3].clone()], -1)
+                .unwrap()
+        );
+        assert_eq!(top_level(&v, &page), ["b", "a", "d", "c"]);
+    }
+
+    #[test]
+    fn a_block_moves_with_its_children_and_a_child_chosen_with_it_stays_in() {
+        let (v, page, ids) = undoable(&["a", "b", "c"]);
+        let kid = v.create_block(&ids[1], None, "kid").unwrap();
+        assert!(v.move_blocks(&[kid, ids[1].clone()], -1).unwrap());
+        assert_eq!(shape(&v, &page), ["0:b", "1:kid", "0:a", "0:c"]);
+    }
+
+    #[test]
+    fn moving_only_swaps_among_siblings() {
+        let (v, page, ids) = undoable(&["a", "b"]);
+        let kid = v.create_block(&ids[0], None, "kid").unwrap();
+        assert!(
+            !v.move_blocks(&[kid], -1).unwrap(),
+            "an only child has no sibling"
+        );
+        assert!(!v.move_blocks(&[ids[0].clone()], -1).unwrap());
+        assert_eq!(shape(&v, &page), ["0:a", "1:kid", "0:b"]);
+        assert!(v.move_blocks(&["nonsense".into()], 1).is_err());
+    }
+
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(64))]
 
@@ -629,6 +684,43 @@ mod blocks_together {
             let read = |o: &[(usize, String)]| o.iter().map(|(_, t)| t.clone()).collect::<Vec<_>>();
             prop_assert_eq!(read(&before), read(&after));
             prop_assert_eq!(moved, before != after);
+            if moved {
+                prop_assert!(v.undo().unwrap());
+                prop_assert_eq!(outline(&v, &page), before);
+            }
+        }
+
+        /// Moving only reorders siblings: nothing changes parent, and one undo
+        /// takes it all back.
+        #[test]
+        fn moving_blocks_only_reorders_siblings_and_undoes_whole(
+            parents in vec(0usize..10, 1..9),
+            chosen in vec(any::<bool>(), 9),
+            up in any::<bool>(),
+        ) {
+            let (v, page, _) = undoable(&[]);
+            let mut ids: Vec<String> = Vec::new();
+            for (i, p) in parents.iter().enumerate() {
+                let parent = match p % (i + 1) {
+                    0 => page.clone(),
+                    n => ids[n - 1].clone(),
+                };
+                ids.push(v.create_block(&parent, None, &i.to_string()).unwrap());
+            }
+            let parent_of = |v: &View| -> Vec<Option<BlockId>> {
+                ids.iter().map(|id| v.graph().parent(id.parse().unwrap())).collect()
+            };
+            let before = outline(&v, &page);
+            let parents_before = parent_of(&v);
+            let picked: Vec<String> = ids
+                .iter()
+                .zip(&chosen)
+                .filter(|(_, c)| **c)
+                .map(|(id, _)| id.clone())
+                .collect();
+            let moved = v.move_blocks(&picked, if up { -1 } else { 1 }).unwrap();
+            prop_assert_eq!(parent_of(&v), parents_before);
+            prop_assert_eq!(moved, before != outline(&v, &page));
             if moved {
                 prop_assert!(v.undo().unwrap());
                 prop_assert_eq!(outline(&v, &page), before);

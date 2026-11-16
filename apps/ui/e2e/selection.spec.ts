@@ -181,3 +181,59 @@ test("Tab with nothing selected is left to the browser", async ({ page }) => {
   expect(await selected(page)).toEqual([]);
   expect(await topLevel(page)).toBe(3);
 });
+
+/** The text of each top-level block of the main pane. */
+const topTexts = (page: Page) =>
+  page
+    .locator("main article > ul > li > div > [data-block-text]")
+    .evaluateAll((els) => els.map((e) => e.textContent));
+
+// Alt-Shift is how a block is moved except on a Mac, which the tests aren't on.
+test("Alt-Shift-arrows move the selected blocks, with their children, in one undo step", async ({
+  page,
+}) => {
+  const before = await topTexts(page);
+  expect(before.at(-1)).toBe(QUESTIONS);
+  await block(page, QUESTIONS).click();
+  for (let i = 0; i < 3; i++) await page.keyboard.press("Control+a");
+
+  await page.keyboard.press("Alt+Shift+ArrowUp");
+  await expect.poll(() => topTexts(page)).toEqual([before[0], QUESTIONS, PARENT]);
+  expect(await selected(page)).toEqual([QUESTIONS, EVICTION]);
+
+  await page.keyboard.press("Alt+Shift+ArrowDown");
+  await expect.poll(() => topTexts(page)).toEqual(before);
+
+  await page.keyboard.press("Alt+Shift+ArrowUp");
+  await expect.poll(() => topTexts(page)).not.toEqual(before);
+  await page.keyboard.press("Control+z");
+  await expect.poll(() => topTexts(page)).toEqual(before);
+});
+
+test("the move keys move the focused block, though nothing is selected", async ({ page }) => {
+  const before = await topTexts(page);
+  // The block's own element, which is what a Tab to it focuses.
+  const questions = page
+    .locator("main article > ul > li > div > [data-block-text]")
+    .filter({ hasText: QUESTIONS });
+  await questions.focus();
+  await page.keyboard.press("Alt+Shift+ArrowUp");
+  await expect.poll(() => topTexts(page)).toEqual([before[0], QUESTIONS, PARENT]);
+  expect(await selected(page)).toEqual([]);
+  // It keeps the focus, so it can go on.
+  await expect(questions).toBeFocused();
+  await page.keyboard.press("Alt+Shift+ArrowUp");
+  await expect.poll(() => topTexts(page)).toEqual([QUESTIONS, before[0], PARENT]);
+});
+
+test("a selection that includes the first block can't move up", async ({ page }) => {
+  const before = await topTexts(page);
+  await block(page, PARENT).click();
+  // Everything, which has the first block in it.
+  for (let i = 0; i < 6; i++) await page.keyboard.press("Control+a");
+  expect(await selected(page)).toHaveLength(6);
+  await page.keyboard.press("Alt+Shift+ArrowUp");
+  expect(await topTexts(page)).toEqual(before);
+  await page.keyboard.press("Alt+Shift+ArrowDown");
+  expect(await topTexts(page)).toEqual(before);
+});

@@ -99,11 +99,11 @@ test("Enter in an empty block outdents it, unless it is top level", async ({ pag
   expect(await mainBlocks(page)).toEqual([DDIA, NOTES, "", "x"]);
 });
 
-test("Alt-Up and Alt-Down move a block among its siblings", async ({ page }) => {
+test("Alt-Shift-Up and Alt-Shift-Down move a block among its siblings", async ({ page }) => {
   await editBlock(page, NOTES);
-  await page.keyboard.press("Alt+ArrowUp");
+  await page.keyboard.press("Alt+Shift+ArrowUp");
   await expect.poll(() => mainBlocks(page)).toEqual([NOTES, DDIA]);
-  await page.keyboard.press("Alt+ArrowDown");
+  await page.keyboard.press("Alt+Shift+ArrowDown");
   await expect.poll(() => mainBlocks(page)).toEqual([DDIA, NOTES]);
 });
 
