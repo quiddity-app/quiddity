@@ -31,7 +31,11 @@
 	- Cmd-Shift-Up and Cmd-Shift-Down (Alt-Shift-Up and Alt-Shift-Down off a Mac) move the selected blocks, with their children, among their siblings, as one undo step. With nothing selected they move the block being edited, or the one that has the focus. A run of siblings moves as a run and stops when its first block reaches the end, instead of the rest passing it. Blocks don't change parent: that is what Tab is for.
 		- Alt-Arrow is a Mac's word movement and Ctrl-Shift-Arrow selects words elsewhere, which is why neither is the key.
 	- Backspace and Delete delete the selected blocks with their children, as one undo step. The links to what went are left in the text, and point nowhere. [[Undo]] brings them back. In an editor, and with nothing selected, they are what they were.
-	- Copying a selection is not built yet.
+	- Copy and cut put the selected blocks on the clipboard as a Markdown outline, the same as in a file: `- ` bullets, children indented with a tab. A block chosen with its parent is part of it, once. It reads as text anywhere, so it can be pasted into another app.
+	- Paste adds the blocks that the clipboard's text is an outline of, after the selection, among its last block's siblings, and selects them, so a second paste goes after the first. Text that isn't an outline is one block. A title line is left out, and properties are a block of their own. It is one undo step. A block that has the focus with nothing selected takes a paste after it too.
+	- Cut is a copy and then a delete, so undo brings the blocks back.
+	- In an editor, or any field, copy, cut and paste are the text's own: pasting copied blocks into an editor pastes the outline as text. That is not built yet.
+	- Code: `View::copy_blocks` and `paste_blocks`, which read and write the same outline as a file (`outline.rs`).
 	- Code: `lib/block-selection.ts` for the steps, and `selectionHandlers` in `components/editing.tsx` for the keys and the drag.
 - Links
 	- `[` makes `[]` with the caret inside, so `[[` makes `[[]]`. With a selection, the brackets go round it. `]` steps over a closer rather than doubling it, and Backspace in an empty pair removes both. A `[` before a word is left alone.
