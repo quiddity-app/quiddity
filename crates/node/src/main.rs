@@ -49,7 +49,8 @@ enum Command {
     Import { dir: PathBuf },
     /// A one-off repair for a Logseq graph imported before the import decoded
     /// percent-encoded file names: rename the entities called `What%3F` to
-    /// `What?`, keeping the old name as an alias. The node must not be serving:
+    /// `What?`, and give a name that has become a namespace (`Places%2FWales`)
+    /// the `parent` the import would have. The node must not be serving:
     /// this saves the graph it loaded, over what a serving node has saved since.
     DecodeNames {
         /// Say what would be renamed, and change nothing.
@@ -263,6 +264,9 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
             }
             for (was, now) in &done.clashing {
                 println!("left {was}: {now} is another entity's name");
+            }
+            for (name, parent) in &done.reparented {
+                println!("{name}: parent is {parent}");
             }
             if !dry_run {
                 store.save(&graph)?;

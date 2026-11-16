@@ -378,13 +378,19 @@ fn decode_names_repairs_an_earlier_import() {
         "title:: What%3F\n\n- Who knows\n",
     )
     .unwrap();
+    fs::write(
+        logseq.join("pages/Where.md"),
+        "title:: Where%2Fto\n\n- Over there\n",
+    )
+    .unwrap();
     run(node(&graph).arg("init"));
     run(node(&graph).arg("import").arg(&logseq));
 
     let dry = run(node(&graph).args(["decode-names", "--dry-run"]));
-    assert_eq!(dry, "What%3F -> What?\nwould rename 1 entities");
+    let report = "What%3F -> What?\nWhere%2Fto -> Where/to\nWhere/to: parent is Where";
+    assert_eq!(dry, format!("{report}\nwould rename 2 entities"));
     let done = run(node(&graph).arg("decode-names"));
-    assert_eq!(done, "What%3F -> What?\nrenamed 1 entities");
+    assert_eq!(done, format!("{report}\nrenamed 2 entities"));
     assert_eq!(run(node(&graph).arg("decode-names")), "renamed 0 entities");
 
     let export = tmp.path().join("export");
@@ -392,5 +398,10 @@ fn decode_names_repairs_an_earlier_import() {
     let exported = files(&export);
     let page = exported.values().find(|t| t.contains("Who knows")).unwrap();
     assert!(page.starts_with("title:: What?\n"), "{page}");
-    assert!(page.contains("alias:: What%3F"), "{page}");
+    assert!(!page.contains("alias"), "{page}");
+    let whereto = exported
+        .values()
+        .find(|t| t.contains("Over there"))
+        .unwrap();
+    assert!(whereto.contains("parent:: [[Where]]"), "{whereto}");
 }

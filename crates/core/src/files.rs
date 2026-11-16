@@ -10,7 +10,7 @@
 //!   journals/2026-10-25.md
 //! ```
 
-use std::collections::{BTreeSet, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -263,8 +263,8 @@ pub fn import_dir(graph: &Graph, dir: &Path) -> Result<Vec<BlockId>> {
 /// be UTF-8 once decoded isn't percent-encoding, so it is returned as it was,
 /// whole: half a name decoded would be worse than none. The same goes for a
 /// result that couldn't be a name (it has a control character, so `%0A` would
-/// end the name's one line, or is blank). A `%` that isn't followed by two hex
-/// digits is just a `%`.
+/// end the name's one line, or is blank). A name has no space around it, so
+/// `a%20` is `a`. A `%` that isn't followed by two hex digits is just a `%`.
 fn percent_decode(s: &str) -> String {
     fn hex(b: u8) -> Option<u8> {
         char::from(b).to_digit(16).map(|d| d as u8)
@@ -286,7 +286,7 @@ fn percent_decode(s: &str) -> String {
         out.push(b);
     }
     match String::from_utf8(out) {
-        Ok(d) if !d.trim().is_empty() && !d.chars().any(char::is_control) => d,
+        Ok(d) if !d.trim().is_empty() && !d.chars().any(char::is_control) => d.trim().to_owned(),
         _ => s.to_owned(),
     }
 }
@@ -299,47 +299,141 @@ pub struct DecodedNames {
     /// Entities left as they were because another entity has the decoded name,
     /// as `(name, the name it would have had)`.
     pub clashing: Vec<(String, String)>,
+    /// The entities whose `parent` was added or changed, as `(name now, parent
+    /// now)`.
+    pub reparented: Vec<(String, String)>,
 }
 
 /// A one-off repair for a Logseq graph imported before the import decoded
 /// percent-encoded file names: renames each entity whose name decodes to
-/// something else (`What%3F` to `What?`). The old name stays as an `alias`
-/// ([`Graph::rename_entity`]), which is what keeps the `parent` lines the import
-/// wrote, naming it, pointing somewhere.
+/// something else (`What%3F` to `What?`), and sees that the namespaces that
+/// follow from the new names are there.
+///
+/// The old name is not kept as an alias, so a `parent` that names it is
+/// changed to the new one, whichever entity it is on. An entity whose name
+/// gained a `/` (`Places%2FScotland`) and has no `parent` is given one, as the
+/// import would have, and so is a parent the import wrote for the shorter name
+/// (`parent:: [[Places]]` on `Places/A%2FB`, which is now under `Places/A`).
+/// Ancestors with no page of their own are made, and `parent` is defined if the
+/// graph doesn't. A `parent` that is anything else (a list, or a page that isn't
+/// the one the import would have named) is left as it is.
 ///
 /// Journals are left alone, since their names are their days. An entity whose
 /// decoded name is another's is left as it is and reported, as is any two that
 /// would decode to one name, since a rename must not make a duplicate. Nothing
-/// is changed with `dry_run`. A namespace written as `%2F` becomes a `/` in the
-/// name but gets no `parent`: only the import makes those.
+/// is changed with `dry_run`.
 pub fn decode_page_names(graph: &Graph, dry_run: bool) -> Result<DecodedNames> {
     let index = Index::build(graph)?;
     let mut taken = HashSet::new();
     let mut done = DecodedNames::default();
+    // Every entity that isn't a journal, with the name it had and has.
+    let mut entities = Vec::new();
+    // By the old name, as names are matched.
+    let mut renames = HashMap::new();
     let mut roots = graph.roots();
     roots.sort_unstable();
     for entity in roots {
         let info = index.entity(entity).expect("every root is indexed");
+        // Only a journal has an identity to be a duplicate of, so this leaves
+        // out the spent duplicates too.
         if matches!(info.identity(), Some(Identity::Journal(_))) {
             continue;
         }
+        let mut now = info.name.clone();
         let decoded = percent_decode(&info.name);
-        if decoded == info.name || is_spent_duplicate(graph, &index, entity)? {
-            continue;
+        if decoded != info.name {
+            let key = normalise_name(&decoded);
+            if !index.named(&decoded).is_empty() || !taken.insert(key) {
+                done.clashing.push((info.name.clone(), decoded));
+            } else {
+                renames.insert(normalise_name(&info.name), decoded.clone());
+                done.renamed.push((info.name.clone(), decoded.clone()));
+                now = decoded;
+            }
         }
-        let key = normalise_name(&decoded);
-        let clash = !index.named(&decoded).is_empty() || !taken.insert(key);
-        if clash {
-            done.clashing.push((info.name.clone(), decoded));
-            continue;
-        }
+        entities.push((entity, info.name.clone(), now));
+    }
+    let mut ancestors = Vec::new();
+    for (entity, was, now) in entities {
+        let current = graph
+            .entity_properties(entity)?
+            .into_iter()
+            .find(|p| normalise_name(&p.key) == "parent")
+            .map(|p| p.value);
+        let parent = repaired_parent(current.as_ref().map(Option::as_ref), &was, &now, &renames);
         if !dry_run {
-            graph.rename_entity(entity, &decoded)?;
+            if now != was {
+                graph.set_text(entity, &now)?;
+            }
+            if let Some(parent) = &parent {
+                set_parent(graph, entity, parent)?;
+                ancestors.push(parent.clone());
+            }
         }
-        done.renamed.push((info.name.clone(), decoded));
+        if let Some(parent) = parent {
+            done.reparented.push((now, parent));
+        }
+    }
+    if !ancestors.is_empty() {
+        import_namespaces(graph, ancestors)?;
     }
     graph.commit();
     Ok(done)
+}
+
+/// What an entity's `parent` should be named after its name went from `was` to
+/// `now`, if that isn't what it says. `current` is its own `parent` property:
+/// `None` if it has none, and `Some(None)` if it has one with no value.
+fn repaired_parent(
+    current: Option<Option<&Value>>,
+    was: &str,
+    now: &str,
+    renames: &HashMap<String, String>,
+) -> Option<String> {
+    let new_parent = namespace_parent(now);
+    match current {
+        // The import made a parent for every namespace it saw, so a page
+        // with a `/` and none has dropped it on purpose.
+        None => namespace_parent(was).map_or(new_parent, |_| None),
+        Some(Some(Value::Link(link))) => {
+            let key = normalise_name(&link.name);
+            if let Some(renamed) = renames.get(&key) {
+                return Some(renamed.clone());
+            }
+            // The one the import wrote for the old name, which is no longer
+            // the namespace.
+            let wrote = namespace_parent(was).map(|p| normalise_name(&p));
+            new_parent.filter(|p| wrote.as_ref() == Some(&key) && normalise_name(p) != key)
+        }
+        Some(_) => None,
+    }
+}
+
+/// Makes the entity's own `parent` line say `parent`, in its properties block:
+/// the line that is there, or a new one at the end.
+fn set_parent(graph: &Graph, entity: BlockId, parent: &str) -> Result<()> {
+    let line = format_property_line(
+        "parent",
+        Some(&Value::Link(Link {
+            name: parent.to_owned(),
+            qualifiers: vec![],
+        })),
+    );
+    let Some(block) = graph.properties_block(entity)? else {
+        graph.create_block(Some(entity), Some(0), &line)?;
+        return Ok(());
+    };
+    let text = graph.text(block)?;
+    let mut lines: Vec<&str> = text.split('\n').collect();
+    let at = lines
+        .iter()
+        .position(|l| parse_property_line(l).is_some_and(|(k, _)| normalise_name(&k) == "parent"));
+    match at {
+        Some(at) => lines[at] = &line,
+        None => lines.push(&line),
+    }
+    graph.set_text(block, &lines.join("\n"))?;
+    Ok(())
 }
 
 /// Whether the outline's properties block says it is a day's journal.
@@ -702,14 +796,17 @@ mod tests {
             /// hex, unless it couldn't be a name.
             #[test]
             fn decoding_undoes_encoding(s in "[a-z0-9 %?:#é日/_.\u{1f600}]{1,12}", upper: bool) {
-                prop_assume!(!s.trim().is_empty());
+                prop_assume!(!s.trim().is_empty() && s == s.trim());
                 prop_assert_eq!(percent_decode(&encode(&s, upper)), s);
             }
 
-            /// Text with no `%` in it is a name already.
+            /// Text with no `%` in it has nothing to decode: it is only trimmed,
+            /// unless it couldn't be a name, and then it is left as it was.
             #[test]
-            fn text_without_a_percent_is_unchanged(s in "[^%]{0,12}") {
-                prop_assert_eq!(percent_decode(&s), s);
+            fn text_without_a_percent_is_only_trimmed(s in "[^%]{0,12}") {
+                let a_name = !s.trim().is_empty() && !s.chars().any(char::is_control);
+                let expected = if a_name { s.trim().to_owned() } else { s.clone() };
+                prop_assert_eq!(percent_decode(&s), expected);
             }
         }
 
@@ -728,7 +825,8 @@ mod tests {
                 ("a%C3", "a%C3"),
                 ("a%0Ab", "a%0Ab"),
                 ("%20", "%20"),
-                ("a%20", "a "),
+                ("a%20", "a"),
+                (" %41 ", "A"),
             ] {
                 assert_eq!(percent_decode(name), expected, "{name}");
             }
