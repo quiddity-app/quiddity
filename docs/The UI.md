@@ -6,7 +6,7 @@
 	- The current entity in the middle. Opening another entity with a click replaces it; shift-click opens it at the side.
 	- Open secondaries on the right, each its own card.
 - Back and forward
-	- Alt-Left and Alt-Right, or Cmd/Ctrl-`[` and Cmd/Ctrl-`]`, step back and forward through what the main pane has shown. All four work wherever the focus is, including in an editor.
+	- Alt-Left and Alt-Right, or Cmd/Ctrl-`[` and Cmd/Ctrl-`]`, step back and forward through what the main pane has shown. They work wherever the focus is except in an editor or text field, where Alt-Left and Alt-Right move by word and Cmd/Ctrl-`[` and `]` indent.
 	- Only the main pane moves. The side panel stays as it is, and opening, closing or reordering its cards is never a step.
 	- The app keeps this history itself (`lib/history.ts`) rather than using the webview's, which would replay the side panel too, since it is in the URL. Going somewhere new forgets what was forward, as in a browser. The history is in memory, so a reload starts it afresh.
 - The UI holds its own replica of the graph.

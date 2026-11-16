@@ -11,9 +11,14 @@ import { useView } from "./use-view";
  * the side panel stays as it is, and opening or closing a card isn't a step
  * (`lib/history.ts`).
  *
- * The keys are caught before the editors and the webview see them, so the
- * webview's own history, which would replay the side panel, never runs.
+ * The keys are caught before the webview sees them, so the webview's own
+ * history, which would replay the side panel, never runs. They are left alone
+ * in an editor or a text field, where they are word movement and indent.
  */
+const typing = (target: EventTarget | null) =>
+  target instanceof HTMLElement &&
+  (target.isContentEditable || target.closest("input, textarea, [contenteditable]") !== null);
+
 export function HistoryKeys() {
   const router = useRouter();
   const view = useView();
@@ -36,6 +41,7 @@ export function HistoryKeys() {
       router.replace(latest.current.href({ ...latest.current, ...place }));
     };
     const onKey = (e: KeyboardEvent) => {
+      if (typing(e.target)) return;
       const alt = e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey;
       const mod = (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey;
       const back = (alt && e.key === "ArrowLeft") || (mod && e.key === "[");

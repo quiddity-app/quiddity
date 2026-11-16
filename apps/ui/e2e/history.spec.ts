@@ -48,3 +48,40 @@ test("opening and closing a card isn't a step, so forward still works after one"
   await page.keyboard.press("Alt+ArrowRight");
   await expect(heading(page, "Loro")).toBeVisible();
 });
+
+test("in an editor the keys stay with the editor and don't leave the page", async ({ page }) => {
+  await openEntity(page, "Quiddity");
+  await page.locator("main article > ul").getByRole("link", { name: "Loro" }).first().click();
+  await expect(heading(page, "Loro")).toBeVisible();
+  await page.locator("nav").getByRole("link", { name: "Journals" }).click();
+  await expect(page).toHaveURL(/\/journals\/$/);
+  await page.locator("main [data-block-text]").first().click();
+  const editor = page.locator(".cm-content").first();
+  await expect(editor).toBeFocused();
+
+  // Navigation is asynchronous, so a URL that hasn't moved yet proves nothing:
+  // ask instead whether the page took the key from the editor.
+  await page.evaluate(() => {
+    const w = window as unknown as { taken: boolean[] };
+    w.taken = [];
+    window.addEventListener(
+      "keydown",
+      (e) => {
+        // A chord also sends a keydown for its modifier.
+        if (!["Alt", "Control", "Meta", "Shift"].includes(e.key)) w.taken.push(e.defaultPrevented);
+      },
+      true,
+    );
+  });
+  for (const key of ["Alt+ArrowLeft", "Control+[", "Control+]", "Alt+ArrowRight"]) {
+    await page.keyboard.press(key);
+  }
+  expect(await page.evaluate(() => (window as unknown as { taken: boolean[] }).taken)).toEqual([
+    false,
+    false,
+    false,
+    false,
+  ]);
+  await expect(page).toHaveURL(/\/journals\/$/);
+  await expect(editor).toBeFocused();
+});
