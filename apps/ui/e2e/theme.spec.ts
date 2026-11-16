@@ -6,6 +6,12 @@ import { expect, test, editor, openEntity, openSearch } from "./fixtures";
 /** A shadow's visible layers: Tailwind adds empty ones for its ring and inset shadows. */
 const visible = (shadow: string) => shadow.replace(/rgba\(0, 0, 0, 0\) 0px 0px 0px 0px(, )?/g, "");
 
+/** What makes a floating layer look like one. */
+const styleOf = (el: Element) => {
+  const s = getComputedStyle(el);
+  return { shadow: s.boxShadow, radius: s.borderTopLeftRadius, ground: s.backgroundColor, edge: s.borderTopColor };
+};
+
 test("the link list and the search panel are the same kind of layer", async ({ page }) => {
   await openEntity(page, "Quiddity");
   await page.locator("main article > ul").getByText("Local-first").click();
@@ -13,20 +19,21 @@ test("the link list and the search panel are the same kind of layer", async ({ p
   await page.keyboard.type(" [[Lo");
   const list = page.locator(".cm-tooltip.cm-link-completions");
   await expect(list).toBeVisible();
-  const own = await list.evaluate((el) => {
-    const s = getComputedStyle(el);
-    return { shadow: s.boxShadow, radius: s.borderTopLeftRadius, ground: s.backgroundColor, edge: s.borderTopColor };
-  });
+  // CodeMirror may replace the tooltip's element as the list is refreshed, and a
+  // detached element has no computed style (every property reads as ""), so read
+  // again until it has one.
+  let own = await list.evaluate(styleOf);
+  await expect(async () => {
+    own = await list.evaluate(styleOf);
+    expect(own.radius).not.toBe("");
+  }).toPass();
   await page.keyboard.press("Escape");
   await expect(editor(page)).toHaveCount(0);
 
   await openSearch(page);
   const panel = page.getByRole("dialog");
   await expect(panel).toBeVisible();
-  const search = await panel.evaluate((el) => {
-    const s = getComputedStyle(el);
-    return { shadow: s.boxShadow, radius: s.borderTopLeftRadius, ground: s.backgroundColor, edge: s.borderTopColor };
-  });
+  const search = await panel.evaluate(styleOf);
   expect({ ...own, shadow: visible(own.shadow) }).toEqual({ ...search, shadow: visible(search.shadow) });
 });
 
