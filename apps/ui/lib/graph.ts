@@ -361,6 +361,11 @@ export class Graph {
     return this.edited(this.replica.outdentBlocks(ids));
   }
 
+  /** Deletes each block with its children, as one undo step. */
+  deleteBlocks(ids: string[]) {
+    return this.edited(this.replica.deleteBlocks(ids));
+  }
+
   /** Moves each block with its children among its siblings, as one undo step. */
   moveBlocks(ids: string[], delta: number) {
     return this.edited(this.replica.moveBlocks(ids, delta));

@@ -358,6 +358,13 @@ impl Replica {
         Ok(self.view.move_sibling(id, delta as isize)?)
     }
 
+    /// Deletes each block with its children, as one undo step. Returns how
+    /// many were deleted, not counting their children.
+    #[wasm_bindgen(js_name = deleteBlocks)]
+    pub fn delete_blocks(&self, ids: Vec<String>) -> Result<usize, JsError> {
+        Ok(self.view.delete_blocks(&ids)?)
+    }
+
     /// Moves each block, with its children, `delta` places among its
     /// siblings, as one undo step.
     #[wasm_bindgen(js_name = moveBlocks)]

@@ -237,3 +237,35 @@ test("a selection that includes the first block can't move up", async ({ page })
   await page.keyboard.press("Alt+Shift+ArrowDown");
   expect(await topTexts(page)).toEqual(before);
 });
+
+for (const key of ["Backspace", "Delete"]) {
+  test(`${key} deletes the selected blocks with their children, and undo brings them back`, async ({
+    page,
+  }) => {
+    const before = await topTexts(page);
+    await block(page, QUESTIONS).click();
+    for (let i = 0; i < 3; i++) await page.keyboard.press("Control+a");
+    expect(await selected(page)).toEqual([QUESTIONS, EVICTION]);
+
+    await page.keyboard.press(key);
+    await expect.poll(() => topTexts(page)).toEqual(before.slice(0, -1));
+    await expect(page.getByText(EVICTION)).toHaveCount(0);
+    expect(await selected(page)).toEqual([]);
+
+    await page.keyboard.press("Control+z");
+    await expect.poll(() => topTexts(page)).toEqual(before);
+    await expect(page.getByText(EVICTION)).toBeVisible();
+  });
+}
+
+test("Backspace with nothing selected deletes nothing", async ({ page }) => {
+  const before = await topTexts(page);
+  await page.keyboard.press("Backspace");
+  expect(await topTexts(page)).toEqual(before);
+});
+
+test("Backspace in an editor is still the editor's", async ({ page }) => {
+  await block(page, EVICTION).click();
+  await page.keyboard.press("Backspace");
+  await expect(editor(page)).toHaveText(EVICTION.slice(0, -1));
+});

@@ -30,7 +30,8 @@
 		- Indenting nests a run of siblings under the one before the run, so they keep their order; if nothing is before the run, none of it moves. Outdenting puts the run after its parent in the order it had.
 	- Cmd-Shift-Up and Cmd-Shift-Down (Alt-Shift-Up and Alt-Shift-Down off a Mac) move the selected blocks, with their children, among their siblings, as one undo step. With nothing selected they move the block being edited, or the one that has the focus. A run of siblings moves as a run and stops when its first block reaches the end, instead of the rest passing it. Blocks don't change parent: that is what Tab is for.
 		- Alt-Arrow is a Mac's word movement and Ctrl-Shift-Arrow selects words elsewhere, which is why neither is the key.
-	- Copying and deleting a selection are not built yet.
+	- Backspace and Delete delete the selected blocks with their children, as one undo step. The links to what went are left in the text, and point nowhere. [[Undo]] brings them back. In an editor, and with nothing selected, they are what they were.
+	- Copying a selection is not built yet.
 	- Code: `lib/block-selection.ts` for the steps, and `selectionHandlers` in `components/editing.tsx` for the keys and the drag.
 - Links
 	- `[` makes `[]` with the caret inside, so `[[` makes `[[]]`. With a selection, the brackets go round it. `]` steps over a closer rather than doubling it, and Backspace in an empty pair removes both. A `[` before a word is left alone.
