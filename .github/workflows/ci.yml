@@ -310,19 +310,48 @@ jobs:
         name: fuzz-${{ matrix.target }}
         path: fuzz/artifacts/
 
+  sonarcloud:
+    # Static analysis and Rust coverage, reported to SonarCloud. GitHub doesn't
+    # give a PR from a fork an OIDC token, so it couldn't be analysed, and those
+    # skip it (and the gate counts a skip as a pass). The merge queue has
+    # already had the PR's result.
+    if: github.event_name != 'merge_group' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      # Secretless analysis: the job proves who it is with GitHub's OIDC token
+      # and SonarCloud hands back a short-lived one, so there is no secret.
+      id-token: write
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        # Sonar blames new code by history, so it needs all of it.
+        fetch-depth: 0
+        persist-credentials: false
+    - uses: $/.github/actions/setup
+      with:
+        tools: cargo-binstall rust cargo:cargo-nextest cargo:cargo-llvm-cov
+    - run: rustup component add llvm-tools
+    # nextest, as the test job runs it; doctests aren't instrumented.
+    - run: cargo llvm-cov nextest --locked --profile ci --lcov --output-path lcov.info
+    # Right before the scan, since its token is short-lived.
+    - uses: SonarSource/sonarqube-auth-action@b372e2c2930aadfcc4f4399446da1e12772709ad # v1.2
+    - uses: SonarSource/sonarqube-scan-action@59202af334b4ba7b5db01b701b8e79f8b3bef0f4 # v8.5.0
+
   gate:
     # The one check to require, so that adding, splitting or renaming a job
     # never means editing the branch protection. Its name is what the
     # protection matches, so keep it. Add every new job to `needs`. Jobs that
-    # are skipped on purpose (the merge queue skips `changes`, `mutants` and
-    # `fuzz`; a change with no Rust or fuzzed code skips the last two) count as
-    # a pass, so requiring the jobs themselves would hang the queue. `always()`
+    # are skipped on purpose (the merge queue skips `changes`, `mutants`, `fuzz`
+    # and `sonarcloud`; a change with no Rust or fuzzed code skips `mutants`
+    # and `fuzz`; a fork's PR skips `sonarcloud`) count as a pass, so requiring the jobs themselves would hang the queue. `always()`
     # stops a failure upstream skipping this job, which would also count as a
     # pass; the check below fails on anything but success or skipped, which
     # includes a cancelled run.
     name: lint, build, test
     if: always()
-    needs: [lint, test, scripts, ui, site, app, changes, mutants, fuzz, typecheck]
+    needs: [lint, test, scripts, ui, site, app, changes, mutants, fuzz, typecheck, sonarcloud]
     runs-on: ubuntu-latest
     timeout-minutes: 1
     steps:

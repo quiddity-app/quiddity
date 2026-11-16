@@ -12,6 +12,7 @@ emsdk = "6.0.13"
 # these prebuilt rather than compile them.
 cargo-binstall = "1.27.0"
 "cargo:cargo-nextest" = "0.9.152"
+"cargo:cargo-llvm-cov" = "0.9.1"
 "cargo:cargo-mutants" = "27.1.0"
 "cargo:cargo-fuzz" = "0.13.2"
 jactionlint = "v2.6.0"
