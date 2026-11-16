@@ -26,4 +26,3 @@ set_first_version "$root/Cargo.toml"
 set_first_version "$root/apps/app/src-tauri/Cargo.toml"
 
 (cd "$root" && cargo update --workspace)
-(cd "$root/apps/app/src-tauri" && cargo update --workspace)

@@ -170,8 +170,7 @@ jobs:
         pnpm tauri build --target "$TARGET" --config "{\"version\":\"$SEMVER\",\"build\":{\"beforeBuildCommand\":null},\"bundle\":{\"windows\":{\"wix\":{\"version\":\"$MSI_VERSION\"}}},\"plugins\":{\"updater\":{\"pubkey\":\"$UPDATER_PUBKEY\"}}}"
     - name: Collect the app
       run: |
-        # The shell is outside the workspace, so it has its own target directory.
-        bundles=apps/app/src-tauri/target/$TARGET/release/bundle
+        bundles=target/$TARGET/release/bundle
         # Installers and disk images, not the unpacked bundles beside them.
         for ext in deb rpm AppImage dmg msi; do
           find "$bundles" -type f -name "*.$ext" -exec cp {} dist/ \;

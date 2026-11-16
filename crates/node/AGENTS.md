@@ -253,4 +253,3 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
 - **`--local ADDR`** binds to that address only, with no relays or address
   lookup. The tests use it on `127.0.0.1:0`, and iroh tests use
   `presets::Minimal` with relays disabled, so nothing leaves the machine.
-- The node crate needs a newer Rust than the rest (see `rust-version`).
