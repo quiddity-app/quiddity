@@ -1,14 +1,19 @@
 [workspace]
 resolver = "3"
-members = ["crates/*"]
-exclude = ["fuzz", "apps/app/src-tauri"]
+members = ["crates/*", "apps/app/src-tauri"]
+# Plain `cargo` from the root leaves the shell out, so the core's CI doesn't
+# need Tauri's system libraries. `--workspace`, or running from `src-tauri`,
+# includes it.
+default-members = ["crates/*"]
+# Nightly-only, and with its own lockfile.
+exclude = ["fuzz"]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
 repository = "https://github.com/quiddity-app/quiddity"
-rust-version = "1.88"
+rust-version = "1.100"
 
 [workspace.dependencies]
 quiddity-core = { path = "crates/core" }

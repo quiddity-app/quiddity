@@ -117,7 +117,7 @@ sends a mutant into a loop, check for the fast failure first.
   version `crates/wasm` pins (`mise install` gets both). Browser tests need
   Playwright's Chromium: see [apps/ui](apps/ui/AGENTS.md).
 - `cargo mutants` copies the source tree, build output included: delete
-  `apps/app/src-tauri/target` first, or use `-j 1`, if the disk is small.
+  `target` first, or use `-j 1`, if the disk is small.
 
 - `cargo fuzz` installed as a prebuilt binary targets musl; pass
   `--target x86_64-unknown-linux-gnu`.

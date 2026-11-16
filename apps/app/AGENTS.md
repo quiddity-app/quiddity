@@ -4,10 +4,14 @@ The Tauri 2 shell. It holds the graph on disk and hands it to the UI; the UI
 holds its own replica and answers its own queries (see `apps/ui` and
 `crates/wasm`), so there is little here by design.
 
-- **It is outside the Cargo workspace** (`exclude` in the root `Cargo.toml`),
-  because it needs Tauri's system packages (webkit) that the core's CI
-  shouldn't. It has its own `Cargo.lock`, its own CI job, and its own
-  `cargo fmt`, `clippy` and `test` runs (from `src-tauri`).
+- **It is a workspace member, but not a default one** (`default-members` in
+  the root `Cargo.toml`), because it needs Tauri's system packages (webkit)
+  that the core's CI shouldn't. Plain `cargo` from the root leaves it out, so
+  `--workspace` or `-p quiddity-app` (or running from `src-tauri`) includes it.
+  It shares the root `Cargo.lock` and `target`, and has its own CI job. Cargo
+  resolves against the lowest `rust-version` in the workspace, which is why
+  there is one, in the root `Cargo.toml`, and the app and `quiddity-node`
+  inherit it.
 - **Twelve commands.** `load_graph` returns a snapshot and `push_updates`
   takes Loro updates as the request body, imports them, saves and sends them
   to other devices, both as raw bytes rather than JSON arrays. Updates that

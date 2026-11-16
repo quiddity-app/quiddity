@@ -96,7 +96,7 @@ run = "cargo fmt --all --check"
 
 [tasks.lint]
 description = "Run clippy over the workspace and the shell"
-run = ["cargo clippy --workspace --all-targets --locked", "cargo clippy --manifest-path apps/app/src-tauri/Cargo.toml --all-targets --locked"]
+run = "cargo clippy --workspace --all-targets --locked"
 
 [tasks.typecheck]
 description = "Typecheck the UI"
@@ -104,8 +104,8 @@ depends = ["setup", "doctor"]
 run = "pnpm ui typecheck"
 
 [tasks.test]
-description = "Run the Rust tests (the workspace, then the shell)"
-run = ["cargo nextest run --workspace --locked", "cargo test --manifest-path apps/app/src-tauri/Cargo.toml --locked"]
+description = "Run the Rust tests (the workspace, shell included)"
+run = ["cargo nextest run --workspace --exclude quiddity-app --locked", "cargo test -p quiddity-app --locked"]
 
 [tasks.e2e]
 description = "Run the browser tests (installs Chromium for Playwright the first time)"
