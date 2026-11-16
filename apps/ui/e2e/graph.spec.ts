@@ -145,6 +145,9 @@ test("the pan and zoom are kept too, and a new entity joins without moving the r
   await page.keyboard.press("Escape");
   await expect(today.getByRole("link", { name: "Brand new" })).toBeVisible();
   await openGraph(page);
+  // The new entity is linked only from a journal, so it is an orphan unless
+  // journals are shown. They weren't before, so none of them is compared.
+  await option(page, "Journal pages").check();
   await settled(page);
 
   expect(await view(page)).toEqual(zoomed);
@@ -296,12 +299,10 @@ test("each option brings back what it names, and only that", async ({ page }) =>
   await expect(node(page, "Reading list")).toHaveCount(0);
 });
 
-test("hiding journals doesn't turn what only they link to into orphans", async ({ page }) => {
+test("orphans are judged after journals are hidden", async ({ page }) => {
   await page.goto("/");
   await openGraph(page);
-  // Journals link to Quiddity, and a journal with nothing in it is an orphan:
-  // it is the pages with no links at all that go, not those whose links are hidden.
-  await option(page, "Orphan pages").check();
+  // Pages only journals link to are orphans once the journals are hidden.
   await option(page, "Journal pages").check();
   const withJournals = await graph(page).locator("a").count();
   await option(page, "Journal pages").uncheck();

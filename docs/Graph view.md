@@ -9,7 +9,7 @@
 	- A panel at the top left, which its button hides and shows, has a checkbox each for property links, journal pages and orphan pages. **All three start unticked**, so the graph is the written links between pages that have some. The choices are not remembered.
 	- Property links are the weak links above: with them off, every `weak` edge is left out.
 	- Journal pages are the nodes `View::connections()` says are `journal`, and their links go with them.
-	- An orphan is a page with no links in or out, **judged on the whole graph before anything is hidden**, property links included. So hiding journals does not turn the pages only they link to into orphans and hide those too, and a page that only has a property is not an orphan, though with property links off it is drawn with no line to it.
+	- An orphan is a page with no links in or out, **judged after journals and property links are hidden**. So hiding journals also hides the pages only they link to, and with property links off a page that only has a property is an orphan and goes too.
 	- Hidden entities lose their remembered position when the layout is next saved, and are placed afresh when shown. [[Properties]]
 - The drawing is d3 on a canvas, with React owning only the elements.
 	- `d3-force` lays it out, `d3-zoom` pans and zooms and `d3-drag` moves nodes. d3 owns what is drawn.
