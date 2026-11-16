@@ -23,7 +23,7 @@ env:
   # What cargo-fuzz builds with. Pinned to a day so that the fuzz jobs'
   # cache, which keys on rustc's version, stays valid between bumps; Renovate
   # moves it weekly.
-  FUZZ_TOOLCHAIN: nightly-2026-11-10
+  FUZZ_TOOLCHAIN: nightly-2026-11-16
 
 jobs:
   lint:
