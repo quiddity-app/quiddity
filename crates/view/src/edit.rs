@@ -306,6 +306,21 @@ impl View {
         self.edited_by(moved, Change::Structure)
     }
 
+    /// Deletes each of `ids` with its children, as one undo step. Blocks
+    /// inside another of `ids` go with it and aren't counted. An entity is
+    /// not a block to delete here and is left alone: [`View::delete_entities`]
+    /// is for that. Links to what went are left in the text, and point
+    /// nowhere. Returns how many blocks were deleted, not counting their
+    /// children.
+    pub fn delete_blocks(&self, ids: &[String]) -> Result<usize> {
+        self.structural();
+        let tops = self.top_blocks(ids)?;
+        let deleted = tops
+            .iter()
+            .try_for_each(|&block| self.graph.delete_block(block));
+        self.edited(deleted.map(|()| tops.len()).map_err(Error::from))
+    }
+
     /// The blocks of `ids` that aren't inside another of them, in reading
     /// order. Each is a whole subtree to act on, so what is inside one isn't
     /// acted on again.

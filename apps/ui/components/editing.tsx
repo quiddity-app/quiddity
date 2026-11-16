@@ -182,6 +182,7 @@ function blockAtHeight(scope: string, y: number): string | null {
  * - Mod-A in an editor selects its text, as it always did. With the text
  *   selected, or in a block that isn't being edited, it selects the block, and
  *   each press after that takes in more (`expandSelection`).
+ * - Backspace and Delete delete the selected blocks.
  * - Tab and Shift-Tab indent and outdent the selected blocks, and the keys
  *   that move a block (`lib/move-keys.ts`) move them, or the focused block.
  * - A drag from one block to another selects the blocks between them.
@@ -225,6 +226,16 @@ function selectionHandlers(
             ?.focus(),
         );
       }
+      return;
+    }
+    // Backspace and Delete delete what is selected, which undo brings back.
+    // With nothing selected they are the page's, or an editor's.
+    if ((e.key === "Backspace" || e.key === "Delete") && selection) {
+      if (e.target !== document.body && blockOf(e.target, scope) === null) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      e.preventDefault();
+      editing.graph.deleteBlocks([...editing.selected]);
+      setSelection(null);
       return;
     }
     // Tab and Shift-Tab indent and outdent what is selected, as they do the

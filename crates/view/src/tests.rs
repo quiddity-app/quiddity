@@ -652,6 +652,38 @@ mod blocks_together {
         assert!(v.move_blocks(&["nonsense".into()], 1).is_err());
     }
 
+    #[test]
+    fn deleting_takes_the_children_and_is_one_step() {
+        let (v, page, ids) = undoable(&["a", "b", "c", "d"]);
+        let kid = v.create_block(&ids[1], None, "kid").unwrap();
+        let grandkid = v.create_block(&kid, None, "grandkid").unwrap();
+        // The child is chosen along with its parent, and isn't counted again.
+        let doomed = [ids[1].clone(), grandkid, ids[3].clone(), kid];
+        assert_eq!(v.delete_blocks(&doomed).unwrap(), 2);
+        assert_eq!(top_level(&v, &page), ["a", "c"]);
+        assert!(v.undo().unwrap());
+        assert_eq!(
+            shape(&v, &page),
+            ["0:a", "0:b", "1:kid", "2:grandkid", "0:c", "0:d"]
+        );
+    }
+
+    #[test]
+    fn deleting_nothing_or_something_that_isnt_a_block_deletes_nothing() {
+        let (v, page, ids) = undoable(&["a", "b"]);
+        assert_eq!(v.delete_blocks(&[]).unwrap(), 0);
+        assert!(
+            v.delete_blocks(&[ids[0].clone(), "nonsense".into()])
+                .is_err()
+        );
+        assert_eq!(
+            v.delete_blocks(std::slice::from_ref(&page)).unwrap(),
+            0,
+            "an entity is deleted as one, not as a block"
+        );
+        assert_eq!(top_level(&v, &page), ["a", "b"]);
+    }
+
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(64))]
 
