@@ -122,11 +122,13 @@ function draw(
 
     // Links in one path each, dimmed when something is focused, then those
     // that touch the focus on top at full strength.
-    const stroke = (wanted: (l: Link) => boolean, alpha: number) => {
+    let drawn = 0;
+    const stroke = (wanted: (l: Link) => boolean, alpha: number, count = false) => {
       ctx.beginPath();
       for (const l of links) {
         const { source, target } = l as { source: Node; target: Node };
         if (!wanted(l) || source.x === undefined || target.x === undefined) continue;
+        if (count) drawn++;
         ctx.moveTo(source.x, source.y ?? 0);
         ctx.lineTo(target.x, target.y ?? 0);
       }
@@ -138,8 +140,11 @@ function draw(
     ctx.strokeStyle = colours.link;
     ctx.lineWidth = px;
     const dim = focused === null ? 1 : 0.1;
-    stroke((l) => !l.weak, dim);
-    stroke((l) => l.weak, dim * WEAK_ALPHA);
+    stroke((l) => !l.weak, dim, true);
+    stroke((l) => l.weak, dim * WEAK_ALPHA, true);
+    // For tests: how many links the last paint drew, as `data-links` is only
+    // how many there are to draw.
+    if (canvas.dataset.drawn !== String(drawn)) canvas.dataset.drawn = String(drawn);
     if (focused !== null) {
       stroke((l) => !l.weak && touches(l), 1);
       stroke((l) => l.weak && touches(l), WEAK_ALPHA);
@@ -495,6 +500,13 @@ function draw(
         .attr("aria-label", (n) => n.title)
         .text((n) => n.title);
 
+      // The simulation is what turns a link's IDs into the nodes it joins, so
+      // it must always be given them: when every entity has a remembered place
+      // nothing is unsettled, and without this the links stay as IDs and are
+      // never drawn.
+      simulation.nodes(nodes);
+      simulation.force<ReturnType<typeof forceLink<Node, Link>>>("link")?.links(links);
+
       if (unsettled.size > 0) {
         for (const n of nodes) {
           if (unsettled.has(n.id)) continue;
@@ -504,8 +516,6 @@ function draw(
           if (n.fx !== undefined) n.x = n.fx;
           if (n.fy !== undefined) n.y = n.fy;
         }
-        simulation.nodes(nodes);
-        simulation.force<ReturnType<typeof forceLink<Node, Link>>>("link")?.links(links);
         settle(false);
         simulation.alpha(1).restart();
       } else {
