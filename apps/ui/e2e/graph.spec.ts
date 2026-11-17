@@ -122,6 +122,22 @@ test("going away and back finds every entity where it was", async ({ page }) => 
   }
 });
 
+test("coming back draws the links, not only the entities", async ({ page }) => {
+  await page.goto("/");
+  await openGraph(page);
+  await settled(page);
+  const links = Number(await canvas(page).getAttribute("data-links"));
+  expect(links).toBeGreaterThan(0);
+  await expect(canvas(page)).toHaveAttribute("data-drawn", String(links));
+
+  await clickNode(page, "Loro");
+  await expect(page.getByRole("heading", { name: "Loro", level: 1 })).toBeVisible();
+  await openGraph(page);
+  await settled(page);
+  // Every entity has a remembered place now, so nothing is laid out afresh.
+  await expect(canvas(page)).toHaveAttribute("data-drawn", String(links));
+});
+
 test("the pan and zoom are kept too, and a new entity joins without moving the rest", async ({ page }) => {
   await page.goto("/");
   await openGraph(page);

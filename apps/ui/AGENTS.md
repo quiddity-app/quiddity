@@ -355,7 +355,9 @@ calls `draw()` once on mount and `update(data)` when the graph changes.**
   orphan pages, all off to begin with, which `Canvas` applies to the data before
   `update`. **An orphan is judged after journals and property links are
   hidden**, so hiding either also hides what only they linked. The canvas carries `data-links` and
-  `data-weak`, how many links are drawn and how many are weak, for tests. Choices
+  `data-weak`, how many links there are and how many are weak, and `data-drawn`,
+  how many the last paint stroked (fewer if the simulation was never given the
+  links, which `update` must always do), for tests. Choices
   aren't remembered, and a hidden node's position is forgotten when next saved.
 - Labels are not drawn when a node is under `LABEL_DIAMETER` (6px) across
   on screen, except for the node hovered or focused. The canvas carries
