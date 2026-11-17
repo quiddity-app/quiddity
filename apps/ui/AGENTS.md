@@ -376,7 +376,12 @@ calls `draw()` once on mount and `update(data)` when the graph changes.**
   hidden**, so hiding either also hides what only they linked. The canvas carries `data-links` and
   `data-weak`, how many links there are and how many are weak, and `data-drawn`,
   how many the last paint stroked (fewer if the simulation was never given the
-  links, which `update` must always do), for tests. Choices
+  links, which `update` must always do), for tests.
+  **`update` always gives the simulation its nodes and links**, placing
+  anything or not: the link force is what turns a link's ends from IDs into
+  nodes, and `paint` skips a link that still has IDs. So those two counts are of
+  the links whose ends were found, which is what lets a test notice one that
+  wasn't. Choices
   aren't remembered, and a hidden node's position is forgotten when next saved.
 - Labels are not drawn when a node is under `LABEL_DIAMETER` (6px) across
   on screen, except for the node hovered or focused. The canvas carries
