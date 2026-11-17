@@ -20,7 +20,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { filterConnections, HIDE_ALL, type GraphShow } from "@/lib/graph-filter";
 import { fitTransform, largestGroup } from "@/lib/graph-fit";
 import { LABEL_PX, labelFits, radius as nodeRadius } from "@/lib/graph-style";
-import { cachedPosition, cachedTransform, remember } from "@/lib/graph-layout";
+import { cachedPosition as cachedPositionOf, cachedTransform as cachedTransformOf, remember } from "@/lib/graph-layout";
 import type { Connections } from "@/lib/model";
 import { useRead } from "@/lib/use-graph";
 import { Region, Skeleton } from "./boundary";
@@ -53,6 +53,7 @@ const readColours = () => {
     fill: get("--graph-node"),
     stroke: get("--graph-node-stroke"),
     text: get("--graph-label"),
+    current: get("--graph-current"),
   };
 };
 
@@ -61,6 +62,8 @@ interface Drawing {
   update(data: Connections): void;
   /** Frames the main body of the graph. */
   fit(): void;
+  /** Picks out one entity as the one the graph is about, or none. */
+  highlight(id: string | null): void;
   stop(): void;
 }
 
@@ -71,12 +74,21 @@ interface Drawing {
  * and are not positioned, so they cost nothing while the layout runs. Both
  * are owned here rather than by React.
  */
-function draw(
+export function draw(
   canvas: HTMLCanvasElement,
   list: HTMLElement,
   open: (id: string, aside: boolean) => void,
   hrefOf: (id: string) => string,
+  /**
+   * `persist` is whether the layout and view are remembered, and restored. The
+   * graph of everything does; a view of part of it must neither read the whole
+   * graph's positions nor overwrite them.
+   */
+  { persist = true }: { persist?: boolean } = {},
 ): Drawing {
+  const cachedPosition = persist ? cachedPositionOf : () => undefined;
+  const cachedTransform = persist ? cachedTransformOf : () => null;
+  let current: string | null = null;
   const root = select(canvas);
   const dark = matchMedia("(prefers-color-scheme: dark)");
   let colours = readColours();
@@ -194,6 +206,19 @@ function draw(
       }
     }
 
+    // The entity the graph is about, over the rest and always at full strength.
+    const subject = current === null ? undefined : nodes.find((n) => n.id === current);
+    if (subject && subject.x !== undefined) {
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = colours.current;
+      ctx.strokeStyle = colours.stroke;
+      ctx.lineWidth = 2 * px;
+      ctx.beginPath();
+      ctx.arc(subject.x, subject.y ?? 0, radius(subject) + 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+
     ctx.font = `${LABEL_PX * px}px ui-sans-serif, system-ui, sans-serif`;
     ctx.textBaseline = "middle";
     ctx.fillStyle = colours.text;
@@ -205,7 +230,7 @@ function draw(
     for (const n of nodes) {
       if (n.x === undefined) continue;
       if (n.x < x0 - 200 || n.x > x1 + 50 || (n.y ?? 0) < y0 - 50 || (n.y ?? 0) > y1 + 50) continue;
-      if (n.id !== focused && !labelFits(radius(n), view.k)) continue;
+      if (n.id !== focused && n.id !== current && !labelFits(radius(n), view.k)) continue;
       labels++;
       ctx.globalAlpha = near && n.id !== focused && !near.has(n.id) ? 0.25 : 1;
       ctx.fillText(n.title, n.x + radius(n) + 3 * px, n.y ?? 0);
@@ -255,7 +280,7 @@ function draw(
   // zoom ends a zoom, which would otherwise forget the layout it is about to
   // restore.
   const save = () => {
-    if (nodes.length > 0) remember(nodes, view);
+    if (persist && nodes.length > 0) remember(nodes, view);
   };
   // Entities placed by this layout run and not yet settled: they are the only
   // ones free to move.
@@ -493,6 +518,7 @@ function draw(
         )
         .attr("href", (n) => hrefOf(n.id))
         .attr("aria-label", (n) => n.title)
+        .attr("aria-current", (n) => (n.id === current ? "page" : null))
         .text((n) => n.title);
 
       if (unsettled.size > 0) {
@@ -517,6 +543,12 @@ function draw(
       repaint();
     },
     fit: () => fit(null, true),
+    highlight(id) {
+      current = id;
+      // Links carry it for assistive technology, and for tests.
+      items?.attr("aria-current", (n) => (n.id === id ? "page" : null));
+      repaint();
+    },
     stop() {
       simulation.stop();
       save();

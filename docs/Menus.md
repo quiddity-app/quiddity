@@ -1,5 +1,6 @@
 - The More menu is three dots to the right of the search button. [[The UI]]
 	- **Devices** is where another device is added. [[Add a device]]
+	- **Show Page Graph** opens a [[Page graph]] in the right pane, and becomes **Hide Page Graph** while it is open. It is greyed out where there is no entity in the main pane.
 	- **Delete Entity** deletes the entity in the main pane, and is greyed out where there is none (the journals, the graph). It asks first, naming the entity, and the answer that keeps it has the focus. Links to a deleted entity stay in the text, as links to nothing, and Undo brings it back. [[Links to nowhere]] [[Undo]]
 	- Escape closes it, and the arrow keys move through it.
 - On macOS the menu bar has the same things. [[The shell]]

@@ -35,6 +35,7 @@
   --graph-node: #0284c7; /* sky 600 */
   --graph-node-stroke: #0c4a6e; /* sky 900 */
   --graph-label: #1e293b; /* slate 800 */
+  --graph-current: #f59e0b; /* amber 500 */
   --selection: rgb(56 189 248 / 0.35); /* sky 400: text in the editor, and selected blocks */
 
   /*
@@ -68,6 +69,7 @@
     --graph-node: #38bdf8; /* sky 400 */
     --graph-node-stroke: #e0f2fe; /* sky 100 */
     --graph-label: #e2e8f0; /* slate 200 */
+    --graph-current: #fbbf24; /* amber 400 */
   }
 }
 

@@ -104,6 +104,13 @@ app's Go menu share) and Delete Entity for the main pane's entity
   **Confirming navigates away first and deletes once `main` has left the
   entity** (`leaving`): deleting under the main pane would have `graph.entity` fail
   and the page flashes its error boundary.
+- **Show Page Graph** toggles `View.pageGraph` (`pagegraph=1` in the URL), which
+  `RightPane` draws above the open cards as `PageGraph` for `main`. **It draws
+  with the graph view's `draw` and `persist: false`**, so it neither restores nor
+  overwrites the whole graph's remembered layout; `highlight(id)` picks out the
+  entity (`--graph-current`, and `aria-current` on its link). The entities
+  are `pageGraph` in `lib/page-graph.ts` (`docs/Page graph.md`). The sr-only links
+  have no size, so a test focuses one and presses Enter.
 - **The same component hears the app's native menu** (`lib/menu.ts`): the shell
   sends one string on the `menu` event (`delete-entity`, or `go:<path>` for an
   entrypoint; anything else is ignored), and the page tells the shell

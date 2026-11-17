@@ -82,6 +82,7 @@ export function useView() {
       }),
     toClosed: (id: EntityId) => href({ ...view, open: view.open.filter((o) => o !== id) }),
     toAllClosed: () => href({ ...view, open: [] }),
+    togglePageGraph: () => href({ ...view, pageGraph: !view.pageGraph }),
     toMainFromSide: (id: EntityId) =>
       href({ ...view, main: id, open: view.open.filter((o) => o !== id) }),
   } satisfies View & Record<string, unknown>;
