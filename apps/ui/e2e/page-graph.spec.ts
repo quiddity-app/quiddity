@@ -24,9 +24,11 @@ test("the page graph needs an entity to be about", async ({ page }) => {
 test("the page graph shows the page and its neighbours, and picks out the page", async ({ page }) => {
   await openEntity(page, "Quiddity");
   await show(page);
-  // Loro and iroh are linked from it. CRDT is only a step beyond Loro, with
-  // nothing else tying it in, and journals that mention it are left out.
-  await expect.poll(() => nodes(page)).toEqual(["Loro", "Quiddity", "iroh"]);
+  // Loro and iroh are linked from it, and so is `project`, which its
+  // `type:: project` names: nobody has made that page, but the link is there.
+  // CRDT is only a step beyond Loro, with nothing else tying it in, and
+  // journals that mention it are left out.
+  await expect.poll(() => nodes(page)).toEqual(["Loro", "Quiddity", "iroh", "project"]);
   await expect(graph(page).locator('[aria-current="page"]')).toHaveText("Quiddity");
 
   await page.getByRole("button", { name: "More" }).click();
@@ -66,6 +68,6 @@ test("two steps away is in only if it touches two neighbours", async ({ page }) 
   await sidebar.click();
   await expect(page.getByRole("heading", { name: "Quiddity", level: 1 })).toBeVisible();
   await show(page);
-  await expect.poll(() => nodes(page)).toEqual(["CRDT", "Loro", "Quiddity", "iroh"]);
+  await expect.poll(() => nodes(page)).toEqual(["CRDT", "Loro", "Quiddity", "iroh", "project"]);
   await expect(graph(page).locator('[aria-current="page"]')).toHaveText("Quiddity");
 });

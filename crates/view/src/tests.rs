@@ -1662,8 +1662,10 @@ mod nowhere {
         assert!(edit(&v, &ids[0], "[[Foo]]").is_empty());
         let typed = only(edit(&v, &ids[0], "[[Foo #type(person)]]"));
         assert_eq!(v.entity(&typed).unwrap().title, "Foo");
-        // `type` is a key nobody has made an entity for, so it has a virtual one.
-        assert_eq!(names(&v), ["Foo", "Page", "type"]);
+        // `type` is a key nobody has made an entity for, so it has a virtual
+        // one, and it is a reference: `type:: person` links to `person` as
+        // `type:: [[person]]` would, and nobody has made that either.
+        assert_eq!(names(&v), ["Foo", "Page", "person", "type"]);
     }
 
     #[test]
@@ -2022,6 +2024,40 @@ mod connections {
         assert_eq!(
             by_weight(&v, false),
             [pair("Book", "Jane"), pair("Book", "Joe")]
+        );
+    }
+
+    /// A reference property's value is a link with or without brackets, so
+    /// the same edges are drawn for each. Each form names a target of its own,
+    /// so that neither can stand in for the other.
+    #[test]
+    fn a_reference_property_makes_the_same_edges_bare_or_bracketed() {
+        let v = view_with(|g| {
+            let parent = g.create_entity("parent", &[]).unwrap();
+            note(g, parent, "##value-type(ref)");
+            g.create_entity("Places", &[]).unwrap();
+            g.create_entity("Spaces", &[]).unwrap();
+            let bare = g.create_entity("Bare", &[]).unwrap();
+            note(g, bare, "parent:: Places");
+            let bracketed = g.create_entity("Bracketed", &[]).unwrap();
+            note(g, bracketed, "parent:: [[Spaces]]");
+            let plain = g.create_entity("Plain", &[]).unwrap();
+            note(g, plain, "note:: Places");
+        });
+        assert_eq!(
+            by_weight(&v, false),
+            [pair("Bare", "Places"), pair("Bracketed", "Spaces")]
+        );
+        assert_eq!(
+            by_weight(&v, true),
+            [
+                pair("Bare", "parent"),
+                pair("Bracketed", "parent"),
+                pair("Places", "parent"),
+                // Not a reference property, so its text links to nothing.
+                pair("Plain", "note"),
+                pair("Spaces", "parent")
+            ]
         );
     }
 

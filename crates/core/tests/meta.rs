@@ -313,6 +313,39 @@ fn reference_items_need_no_brackets() -> Result<()> {
     Ok(())
 }
 
+/// A reference property's bare names are links like any other: they are
+/// backlinks, and a name nobody has made is a mention, as with brackets.
+#[test]
+fn bare_reference_items_are_links() -> Result<()> {
+    let graph = Graph::new();
+    entity(&graph, "knows", "##value-type(ref)")?;
+    let jane = entity(&graph, "Jane", "")?;
+    let bare = entity(&graph, "bare", "knows:: Jane, Nobody")?;
+    let bracketed = entity(&graph, "bracketed", "knows:: [[Jane]], [[Nobody]]")?;
+    let text = entity(&graph, "text", "note:: Jane, Somebody")?;
+    let index = Index::build(&graph)?;
+
+    let from = |target| -> Vec<_> {
+        index
+            .backlinks(target)
+            .iter()
+            .map(|b| index.entity_of(b.source).unwrap())
+            .collect()
+    };
+    assert_eq!(from(jane), [bare, bracketed], "{:?}", from(jane));
+    let nobody: Vec<_> = index
+        .mention("Nobody")
+        .iter()
+        .map(|m| index.entity_of(m.source).unwrap())
+        .collect();
+    assert_eq!(nobody, [bare, bracketed]);
+    assert!(
+        index.mention("Somebody").is_empty() && !from(jane).contains(&text),
+        "only a reference property is read that way"
+    );
+    Ok(())
+}
+
 /// Inheriting doesn't carry the inheriting property itself unless it is
 /// transitive, nor what identifies an entity.
 #[test]

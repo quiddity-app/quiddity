@@ -2,9 +2,15 @@ import { expect, test, editor, openEntity } from "./fixtures";
 
 // CRDT's properties block is `kind of:: data structure` and `merges:: without
 // coordination`, so those are the keys and values the graph already uses.
+// The first properties block is the entity's own: any after it belong to
+// entities listed as linking here, `kind of:: CRDT` among them.
+function ownProperties(page: import("@playwright/test").Page) {
+  return page.locator("main article [data-properties-block] [data-block-text]").first();
+}
+
 async function editProperties(page: import("@playwright/test").Page) {
   await openEntity(page, "CRDT");
-  await page.locator("main article [data-properties-block] [data-block-text]").click();
+  await ownProperties(page).click();
   await page.keyboard.press("End");
 }
 
@@ -42,9 +48,7 @@ test("Enter in a properties block starts a line, and on an empty last line start
   // On the empty last line it makes a block after, and drops the empty line.
   await page.keyboard.press("Enter");
   await expect(blocks).toHaveCount(before + 1);
-  await expect(
-    page.locator("main article [data-properties-block] [data-block-text]"),
-  ).not.toContainText(/\n\s*$/);
+  await expect(ownProperties(page)).not.toContainText(/\n\s*$/);
   await expect(editor(page)).toHaveText("");
 });
 
