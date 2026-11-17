@@ -383,7 +383,7 @@ calls `draw()` once on mount and `update(data)` when the graph changes.**
   the links whose ends were found, which is what lets a test notice one that
   wasn't. Choices
   aren't remembered, and a hidden node's position is forgotten when next saved.
-- Labels are not drawn when a node is under `LABEL_DIAMETER` (6px) across
+- Labels are not drawn when a node is under `LABEL_DIAMETER` (10px) across
   on screen, except for the node hovered or focused. The canvas carries
   `data-labels`, how many the last paint drew, for tests.
 

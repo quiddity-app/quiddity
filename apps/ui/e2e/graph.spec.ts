@@ -243,12 +243,17 @@ test("labels are dropped as the graph is zoomed out, and come back when it is zo
   const box = (await canvas(page).boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
 
-  const framed = await labels();
-  for (let i = 0; i < 12; i++) await page.mouse.wheel(0, 400);
-  await expect.poll(labels).toBeLessThan(framed);
+  // Framed, the whole graph is smaller than life and nothing is yet big enough
+  // to name, so zoom in until some labels show before testing that they go.
+  for (let i = 0; i < 40; i++) await page.mouse.wheel(0, -400);
+  await expect.poll(labels).toBeGreaterThan(0);
+  const zoomedIn = await labels();
+
+  for (let i = 0; i < 60; i++) await page.mouse.wheel(0, 400);
+  await expect.poll(labels).toBeLessThan(zoomedIn);
   const zoomedOut = await labels();
 
-  for (let i = 0; i < 40; i++) await page.mouse.wheel(0, -400);
+  for (let i = 0; i < 60; i++) await page.mouse.wheel(0, -400);
   await expect.poll(labels).toBeGreaterThan(zoomedOut);
 });
 
