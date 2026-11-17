@@ -33,6 +33,7 @@
 - Things worth knowing
 	- Setting the initial zoom ends a zoom, which used to save an empty layout over the remembered one before it could be restored. Nothing is saved before the first nodes are drawn.
 	- Labels are hidden once a node is under 10 pixels across on screen, so zoomed out the hubs keep their names and the leaves lose them. While one is hovered or focused, its label is always shown when visible.
-	- Links use d3's default strength, scaled by a weight (1 for a link, 0.8 for one a property makes to the entity defining it), so a link between two well-connected entities is a weak spring and hubs do not collapse into a knot.
+	- Links use d3's default strength, scaled by a weight (1 for a link, 0.7 for one a property makes to the entity defining it), so a link between two well-connected entities is a weak spring and hubs do not collapse into a knot.
+	- The forces follow the Logseq graph viewer's: links 60 apart, repulsion −40, a collision radius of 1.25 times a node's, and a pull of 0.02 towards the middle, which is gentle enough not to disturb positions already settled.
 	- Dragging lets every node go first, so the rest can untangle around the dragged one, but only once the pointer moves, so a click does not stir the layout.
 	- The canvas, its hit-testing and its repaint once per frame follow a similar graph viewer of Logseq pages. A drawing is seen only by sight, so what a screen reader gets is the list of links, not the drawing.

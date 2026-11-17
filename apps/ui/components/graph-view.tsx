@@ -105,17 +105,17 @@ export function draw(
       "link",
       forceLink<Node, Link>()
         .id((n) => n.id)
-        .distance(50)
+        .distance(60)
         .strength((l) => {
           const { source: a, target: b } = l as { source: Node; target: Node };
           return linkStrength(linkWeight(l.weak), a.degree, b.degree);
         }),
     )
-    .force("charge", forceManyBody<Node>().strength(-90).distanceMax(400))
-    .force("collide", forceCollide<Node>().radius((n) => radius(n) + 2))
+    .force("charge", forceManyBody<Node>().strength(-40))
+    .force("collide", forceCollide<Node>().radius((n) => radius(n) * 1.25))
     // Loose islands drift towards the middle rather than away for good.
-    .force("x", forceX<Node>().strength(0.04))
-    .force("y", forceY<Node>().strength(0.04))
+    .force("x", forceX<Node>().strength(0.02))
+    .force("y", forceY<Node>().strength(0.02))
     .stop();
 
   let neighbours = new Map<string, Set<string>>();

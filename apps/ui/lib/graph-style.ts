@@ -25,7 +25,7 @@ export const labelFits = (r: number, k: number): boolean => 2 * r * k >= LABEL_D
 /** How hard a link pulls, before its ends' degrees are taken into account:
  * a link a property makes to the entity defining it is a little looser than
  * one a person wrote. */
-export const linkWeight = (weak: boolean): number => (weak ? 0.8 : 1);
+export const linkWeight = (weak: boolean): number => (weak ? 0.7 : 1);
 
 /** A spring's strength: d3's default, 1 over the fewer links of its two
  * ends, scaled by the link's weight, so a link between two hubs is slack. The
