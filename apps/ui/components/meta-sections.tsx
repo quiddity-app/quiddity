@@ -49,38 +49,57 @@ function InheritedValues({ entity }: { entity: Entity }) {
   );
 }
 
+/**
+ * Every row has a marker column of the same width, empty for a leaf, so a
+ * title sits at its level's indent whether or not it can be expanded; the
+ * browser's own marker would take room only on the rows that have one.
+ */
+const markerColumn = "inline-block w-4 shrink-0";
+
 function Tree({ nodes }: { nodes: InverseNode[] }) {
   return (
     <ul className="space-y-0.5 pl-4">
-      {nodes.map((node) => (
-        <li key={node.entity.id}>
-          {node.children.length > 0 ? (
-            <details open>
-              <summary className="cursor-pointer">
-                <EntityLink id={node.entity.id} className={linkClass}>
-                  {node.entity.title}
-                </EntityLink>
-              </summary>
-              <Tree nodes={node.children} />
-              {node.hidden > 0 && <More count={node.hidden} />}
-            </details>
-          ) : (
-            <>
-              <EntityLink id={node.entity.id} className={linkClass}>
-                {node.entity.title}
-              </EntityLink>
-              {node.hidden > 0 && <More count={node.hidden} />}
-            </>
-          )}
-        </li>
-      ))}
+      {nodes.map((node) => {
+        const title = (
+          <EntityLink id={node.entity.id} className={linkClass}>
+            {node.entity.title}
+          </EntityLink>
+        );
+        return (
+          <li key={node.entity.id}>
+            {node.children.length > 0 ? (
+              <details open className="group">
+                <summary className="flex cursor-pointer list-none items-baseline [&::-webkit-details-marker]:hidden">
+                  <span
+                    aria-hidden
+                    className={`${markerColumn} text-ink-muted motion-safe:transition-transform group-open:rotate-90`}
+                  >
+                    ▸
+                  </span>
+                  {title}
+                </summary>
+                <Tree nodes={node.children} />
+                {node.hidden > 0 && <More count={node.hidden} />}
+              </details>
+            ) : (
+              <>
+                <div className="flex items-baseline">
+                  <span aria-hidden className={markerColumn} />
+                  {title}
+                </div>
+                {node.hidden > 0 && <More count={node.hidden} />}
+              </>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }
 
 function More({ count }: { count: number }) {
   return (
-    <p className="pl-4 text-xs text-ink-muted">
+    <p className="pl-8 text-xs text-ink-muted">
       and {count} more, on its own page
     </p>
   );
