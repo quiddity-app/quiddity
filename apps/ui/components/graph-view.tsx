@@ -19,7 +19,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { filterConnections, HIDE_ALL, type GraphShow } from "@/lib/graph-filter";
 import { fitTransform, largestGroup } from "@/lib/graph-fit";
-import { LABEL_PX, labelFits, radius as nodeRadius } from "@/lib/graph-style";
+import { LABEL_PX, labelFits, linkStrength, linkWeight, radius as nodeRadius } from "@/lib/graph-style";
 import { cachedPosition as cachedPositionOf, cachedTransform as cachedTransformOf, remember } from "@/lib/graph-layout";
 import type { Connections } from "@/lib/model";
 import { useRead } from "@/lib/use-graph";
@@ -98,9 +98,19 @@ export function draw(
   let edges: Connections["edges"] = [];
   let view: ZoomTransform = zoomIdentity;
   const simulation: Simulation<Node, Link> = forceSimulation<Node>()
-    // d3's default strength, 1 / the fewer links of the two ends: a spring
-    // between two hubs is slack, so hubs don't drag each other into a knot.
-    .force("link", forceLink<Node, Link>().id((n) => n.id).distance(50))
+    // d3's default strength, 1 / the fewer links of the two ends, scaled by
+    // the link's weight: a spring between two hubs is slack, so hubs don't
+    // drag each other into a knot.
+    .force(
+      "link",
+      forceLink<Node, Link>()
+        .id((n) => n.id)
+        .distance(50)
+        .strength((l) => {
+          const { source: a, target: b } = l as { source: Node; target: Node };
+          return linkStrength(linkWeight(l.weak), a.degree, b.degree);
+        }),
+    )
     .force("charge", forceManyBody<Node>().strength(-90).distanceMax(400))
     .force("collide", forceCollide<Node>().radius((n) => radius(n) + 2))
     // Loose islands drift towards the middle rather than away for good.
