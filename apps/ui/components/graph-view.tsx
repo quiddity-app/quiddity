@@ -504,9 +504,16 @@ export function draw(
       }
       edges = data.edges;
       links = data.edges.map(({ source, target, weak }) => ({ source, target, weak }));
-      // For tests: how many links are drawn, and how many of them are weak.
-      canvas.dataset.links = String(links.length);
-      canvas.dataset.weak = String(links.filter((l) => l.weak).length);
+      // Whether or not anything moves, the simulation is told what there is:
+      // it is what turns a link's ends from IDs into the nodes `paint` draws
+      // between, and a link left as IDs is not drawn.
+      simulation.nodes(nodes);
+      simulation.force<ReturnType<typeof forceLink<Node, Link>>>("link")?.links(links);
+      // For tests: how many links are drawn (those whose ends were found), and
+      // how many of them are weak.
+      const drawn = links.filter((l) => typeof l.source === "object");
+      canvas.dataset.links = String(drawn.length);
+      canvas.dataset.weak = String(drawn.filter((l) => l.weak).length);
 
       items = select(list)
         .selectAll<HTMLAnchorElement, Node>("a")

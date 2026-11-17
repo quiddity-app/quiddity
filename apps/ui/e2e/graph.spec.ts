@@ -327,6 +327,21 @@ test("orphans are judged after journals are hidden", async ({ page }) => {
   await expect(node(page, "Quiddity")).toBeAttached();
 });
 
+// What is left when nothing is new to place used to lose its lines: the
+// simulation was only told of the links when something had to be placed.
+test("hiding what an option showed leaves the other links drawn", async ({ page }) => {
+  await page.goto("/");
+  await openGraph(page);
+  const links = async () => Number(await canvas(page).getAttribute("data-links"));
+  const before = await links();
+  expect(before).toBeGreaterThan(0);
+
+  await option(page, "Journal pages").check();
+  await expect.poll(links).toBeGreaterThan(before);
+  await option(page, "Journal pages").uncheck();
+  await expect.poll(links).toBe(before);
+});
+
 test("the options panel can be hidden and shown, and keeps its choices", async ({ page }) => {
   await page.goto("/");
   await openGraph(page);
