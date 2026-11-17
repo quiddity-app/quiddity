@@ -146,6 +146,18 @@ export function MoreMenu() {
             type="button"
             role="menuitem"
             disabled={main === null}
+            className={itemClass}
+            onClick={() => {
+              setOpen(false);
+              router.push(view.togglePageGraph());
+            }}
+          >
+            {view.pageGraph ? "Hide Page Graph" : "Show Page Graph"}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={main === null}
             className={`${itemClass} text-danger`}
             onClick={() => {
               setOpen(false);

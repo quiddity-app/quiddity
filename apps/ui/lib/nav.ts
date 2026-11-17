@@ -17,6 +17,8 @@ export interface View {
   open: EntityId[];
   /** On `/disambiguate/`, the link whose matches are listed, as written between its brackets. */
   link?: string | null;
+  /** Whether the right pane shows the graph around the main entity. */
+  pageGraph?: boolean;
 }
 
 /**
@@ -55,11 +57,12 @@ export function parseView(pathname: string, params: URLSearchParams, names?: Nam
   const path =
     ["/journals/", "/all/", "/graph/", "/disambiguate/"].find((p) => pathname.startsWith(p.slice(0, -1))) ?? "/";
   const link = path === "/disambiguate/" ? params.get("link") : null;
-  return { path, main, open: [...new Set(open)], link };
+  return { path, main, open: [...new Set(open)], link, pageGraph: params.get("pagegraph") === "1" };
 }
 
-export function viewHref({ path, main, open, link }: View, names?: Names | null): string {
+export function viewHref({ path, main, open, link, pageGraph }: View, names?: Names | null): string {
   const params = new URLSearchParams();
+  if (main && pageGraph) params.set("pagegraph", "1");
   if (!main && path === "/disambiguate/" && link) params.set("link", link);
   const mainName = main && names?.name(main);
   if (main && !mainName) params.set("id", main);

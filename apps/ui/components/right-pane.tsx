@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { EntityId } from "@/lib/model";
 import { Region, Skeleton } from "./boundary";
 import { EntityBody, EntityTitle } from "./entity-view";
+import { PageGraph } from "./page-graph";
 import { useView } from "./use-view";
 import { ErrorLine, iconButtonClass, paneHeading } from "./ui";
 
@@ -63,21 +64,27 @@ function Secondary({ id }: { id: EntityId }) {
 }
 
 export function RightPane() {
-  const { open, toAllClosed } = useView();
-  if (open.length === 0) return null;
+  const { main, open, pageGraph, toAllClosed } = useView();
+  const graph = main !== null && pageGraph === true;
+  if (open.length === 0 && !graph) return null;
   return (
     <>
-      <div className="flex items-center justify-between px-3 py-2">
-        <h2 className={paneHeading}>Open</h2>
-        <Link href={toAllClosed()} className={iconButtonClass}>
-          Close all
-        </Link>
-      </div>
-      <div className="space-y-3 overflow-y-auto px-3 pb-3">
-        {open.map((id) => (
-          <Secondary key={id} id={id} />
-        ))}
-      </div>
+      {graph && <PageGraph id={main} />}
+      {open.length > 0 && (
+        <>
+          <div className="flex items-center justify-between px-3 py-2">
+            <h2 className={paneHeading}>Open</h2>
+            <Link href={toAllClosed()} className={iconButtonClass}>
+              Close all
+            </Link>
+          </div>
+          <div className="space-y-3 overflow-y-auto px-3 pb-3">
+            {open.map((id) => (
+              <Secondary key={id} id={id} />
+            ))}
+          </div>
+        </>
+      )}
     </>
   );
 }
