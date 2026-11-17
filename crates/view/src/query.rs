@@ -416,6 +416,26 @@ pub struct Use {
     pub values: Vec<String>,
 }
 
+/// The links a property's value makes: those written in brackets, and for a
+/// reference property the names written without, as [`typed_property_value`]
+/// reads them.
+fn value_links(index: &Index, key: &str, value: &Value) -> Vec<Link> {
+    if index.schema(key).value_type != ValueType::Ref {
+        return links_of(value).into_iter().cloned().collect();
+    }
+    ref_items(value)
+        .into_iter()
+        .filter_map(|item| match item {
+            Value::Link(link) => Some(link),
+            Value::Text(name) => Some(Link {
+                name,
+                qualifiers: Vec::new(),
+            }),
+            _ => None,
+        })
+        .collect()
+}
+
 /// The links in a property's value, which may be a list of them.
 fn links_of(value: &Value) -> Vec<&Link> {
     match value {
@@ -737,7 +757,7 @@ impl View {
                     None => continue,
                 };
                 let mut ends = vec![owner.to_string()];
-                for link in links_of(value) {
+                for link in &value_links(&index, &property.key, value) {
                     if let Resolution::Unique(id) = index.resolve(link) {
                         ends.push(index.canonical(id).to_string());
                     }

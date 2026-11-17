@@ -8,7 +8,7 @@ use quiddity_syntax::{
 };
 
 use crate::effective::Effective;
-use crate::schema::PropertySchema;
+use crate::schema::{PropertySchema, ValueType};
 use crate::tags;
 use crate::{BlockId, Flag, Graph, Result, Scanned};
 
@@ -258,6 +258,9 @@ impl Index {
         }
 
         index.read_undefined_keys(blocks);
+        // Before the links are read: which bare text is a link depends on
+        // each property's type.
+        index.read_schemas();
 
         let mut references = Vec::new();
         for (at, scanned) in blocks.iter().enumerate() {
@@ -267,10 +270,12 @@ impl Index {
             let block = scanned.id;
             // An entity's first child comes straight after it, and if it is a
             // properties block only its own lines are read.
-            let first_child = at
+            let owner = at
                 .checked_sub(1)
                 .and_then(|before| blocks.get(before))
-                .is_some_and(|before| before.parent.is_none());
+                .filter(|before| before.parent.is_none())
+                .map(|before| before.id);
+            let first_child = owner.is_some();
             let read = read_block(&scanned.text, first_child);
             if let Some(line) = crate::Asset::line_of(&scanned.text) {
                 index.blob_lines.push(line.unwrap_or_default());
@@ -283,6 +288,16 @@ impl Index {
                 *entry = (*entry).min(block);
             }
             references.extend(read.links.into_iter().map(|link| (block, link)));
+            // Only a properties block's lines are the entity's properties, so
+            // for any other first child this finds nothing.
+            if let Some(entity) = owner {
+                references.extend(
+                    index
+                        .bare_references(entity)
+                        .into_iter()
+                        .map(|link| (block, link)),
+                );
+            }
         }
         let references_for_mentions = references.clone();
         for (source, link) in references {
@@ -300,9 +315,37 @@ impl Index {
         for &(source, ref link) in &references_for_mentions {
             index.add_mention(source, link, None);
         }
-        index.read_schemas();
         index.compute_effective();
         index
+    }
+
+    /// The links an entity's properties make without brackets: the names in
+    /// the text of a `ref` property, which mean what `[[name]]` would. They
+    /// are links like any other, so they are backlinks and mentions too.
+    fn bare_references(&self, entity: BlockId) -> Vec<Link> {
+        let Some(info) = self.entities.get(&entity) else {
+            return Vec::new();
+        };
+        let mut links = Vec::new();
+        for property in &info.properties {
+            let Some(value) = &property.value else {
+                continue;
+            };
+            if self.schema(&property.key).value_type != ValueType::Ref {
+                continue;
+            }
+            for item in ref_items(value) {
+                if let Value::Text(name) = item
+                    && !name.trim().is_empty()
+                {
+                    links.push(Link {
+                        name,
+                        qualifiers: Vec::new(),
+                    });
+                }
+            }
+        }
+        links
     }
 
     /// Notes each property key, written as a line in an entity's properties

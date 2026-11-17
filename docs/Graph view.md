@@ -5,6 +5,7 @@
 - Weak links
 	- A property with a value joins the entity that has it, and each entity its value links to, to the entity that defines the property: `author:: [[Jane]]` on a book draws a line from the book to `author` and from Jane to `author`. Each edge has `weak: true` and is drawn much fainter. [[Properties]]
 	- They are not references. A pair already joined by a link, in either direction, has only the strong edge. A tag makes none, and neither does a property with no value. A key nobody has made an entity for is joined to its virtual entity.
+	- A `ref` property's value links to what it names with or without brackets, so `parent:: Places` and `parent:: [[Places]]` draw the same two edges: a strong one to `Places` and a weak one from `Places` to `parent`. [[Properties]]
 - Options
 	- A panel at the top left, which its button hides and shows, has a checkbox each for property links, journal pages and orphan pages. **All three start unticked**, so the graph is the written links between pages that have some. The choices are not remembered.
 	- Property links are the weak links above: with them off, every `weak` edge is left out.

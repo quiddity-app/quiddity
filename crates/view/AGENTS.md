@@ -104,6 +104,10 @@ per revision.
 Each node (`Node`) is an `EntityRef` that says whether it is a `journal`, so
 the graph can leave journals out. A virtual entity never is.
 
+A reference property's value links whether or not it is bracketed, so
+`parent:: Places` makes the same edges as `parent:: [[Places]]`: the strong one
+comes from the index's backlinks, the weak one from `value_links`.
+
 **Weak edges** (`Edge::weak`) join each end of a property with a value (the
 entity, and each entity its value links to) to the entity that defines the
 key, found by name (`Index::property_entity`). A pair already joined by a

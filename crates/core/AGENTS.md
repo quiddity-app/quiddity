@@ -235,6 +235,11 @@ checks it. A property entity may be: the alias keeps its key.
   checked (`check.rs`); queries see effective ones, inverse labels included.
 - A reference refers to an entity only if it resolves uniquely. Bare text
   refers only in a `ref` property.
+  **It is a link in every way**: `Index::from_scan` reads schemas before the
+  links, and adds the names in a `ref` property's text to the properties
+  block's links (`bare_references`), so they are backlinks and mentions as
+  `[[name]]` is. Keep that order: moving `read_schemas` after the links
+  would leave them out.
 
 ## The outline format
 
