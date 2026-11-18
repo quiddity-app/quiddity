@@ -20,7 +20,7 @@ quiddity-core = { path = "crates/core" }
 quiddity-identity = { path = "crates/identity" }
 quiddity-syntax = { path = "crates/syntax" }
 # No time zone database: the UI only needs civil dates and timestamps.
-jiff = { version = "0.2", default-features = false, features = ["std"] }
+jiff = { version = "1.0", default-features = false, features = ["std"] }
 loro = "1.17"
 proptest = "1"
 serde = { version = "1", features = ["derive"] }
