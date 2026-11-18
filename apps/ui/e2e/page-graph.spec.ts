@@ -45,7 +45,7 @@ test("a node of the page graph opens its entity, keeping the graph", async ({ pa
   await expect(graph(page).locator('[aria-current="page"]')).toHaveText("Loro");
 });
 
-test("two steps away is in only if it touches two others", async ({ page }) => {
+test("two steps away is in only if it touches two neighbours", async ({ page }) => {
   // CRDT is a step beyond Loro, but only a property of it, which is no link
   // here. Once Loro and iroh both link to it, it ties two neighbours together.
   // A reload would start the graph over, so it moves by links.

@@ -2,11 +2,10 @@
 	- What is drawn
 		- The entity itself, picked out in amber.
 		- Every entity it is linked to or from: its neighbours.
-		- Entities two links away, but only those that touch **two or more** of the others shown (neighbours, or other two-links-away entities). One that hangs off a single neighbour is left out, so the page is not drowned; one that ties two neighbours together is kept, since it explains how they relate.
+		- Entities two links away, but only those that touch **two or more neighbours**. Other two-links-away entities don't count. One that hangs off a single neighbour is left out, so the page is not drowned; one that ties two neighbours together is kept, since it explains how they relate.
 		- The links between everything drawn, whichever way they point.
 	- What is left out
 		- As in the [[Graph view]]'s defaults, journal pages and property links are hidden. Otherwise a date's page would make every page that mentions it a neighbour. A journal page being looked at is still drawn.
-		- The count of links "touching two" is made among all the entities two links away, not only those that are kept, so the answer does not depend on the order they are looked at.
 	- Using it
 		- Click a node to open it in the main pane, shift-click to open it at the side. The graph follows the main pane, and stays open.
 		- It is open or closed in the address (`pagegraph=1`), so Back and a copied link keep it. It is drawn with the same code as the Graph view, with its own layout that is not remembered, so it neither reads nor disturbs the whole graph's positions. It is also in the list of links beside the canvas, where the current entity has `aria-current="page"`.

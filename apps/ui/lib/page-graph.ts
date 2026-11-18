@@ -2,11 +2,10 @@ import type { Connections, EntityId } from "./model";
 
 /**
  * The part of the graph around one page: the page, its neighbours, and those
- * entities two steps away that are tied to the neighbourhood by more than one
- * link. A lone second-degree entity is one more hanging off a neighbour, and
- * the page would drown in them; one that touches two or more of the others
- * (neighbours, or other second-degree entities) is a link between the page's
- * neighbours that would otherwise be missing.
+ * entities two steps away that touch two or more of those neighbours. A lone
+ * second-degree entity is one more hanging off a neighbour, and the page would
+ * drown in them; one that touches two neighbours is a link between them that
+ * would otherwise be missing. Other second-degree entities don't count.
  *
  * Like the graph view's defaults, **property links and journals are left out**,
  * so a date's page doesn't make every page that mentions it a neighbour. The
@@ -39,12 +38,10 @@ export function pageGraph(all: Connections, current: EntityId): Connections {
     }
   }
 
-  // Counted among every candidate, not just those that make it in, so that
-  // the answer doesn't depend on the order they are considered in.
   const kept = new Set<EntityId>([current, ...first]);
   for (const m of second) {
     let ties = 0;
-    for (const x of adjacent.get(m) ?? []) if (first.has(x) || second.has(x)) ties++;
+    for (const x of adjacent.get(m) ?? []) if (first.has(x)) ties++;
     if (ties >= 2) kept.add(m);
   }
 
