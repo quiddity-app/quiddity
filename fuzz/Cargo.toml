@@ -9,7 +9,7 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-jiff = "0.2"
+jiff = "1.0"
 quiddity-core = { path = "../crates/core" }
 quiddity-identity = { path = "../crates/identity" }
 quiddity-sync = { path = "../crates/sync" }
