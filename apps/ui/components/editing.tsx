@@ -213,15 +213,178 @@ function blockAtHeight(scope: string, y: number): string | null {
   return found?.dataset.blockId ?? null;
 }
 
-type BlockSelection = { anchor: string; ids: ReadonlySet<string> };
+type BlockSelection = { anchor: string; ids: ReadonlySet<string> } | null;
 
-/** Pastes what is on the clipboard as blocks after `after`, and selects them. */
-function pasteAfter(
+/** What the handlers read when they run: the latest of everything, not what it was when they were attached. */
+interface Live {
+  current: {
+    blocks: Block[];
+    order: string[];
+    editing: Editing;
+    selection: BlockSelection;
+  };
+}
+
+type SetSelection = (selection: BlockSelection) => void;
+
+/** Whether a key press is the page's or this outline's, and not some other field's. */
+function isForBlocks(e: Event, scope: string): boolean {
+  return e.target === document.body || blockOf(e.target, scope) !== null;
+}
+
+/**
+ * The keys that move blocks move what is selected or, with nothing selected,
+ * the block that has the focus. An editor has the same keys itself, which keep
+ * its caret, so it is left to.
+ */
+function moveBlocks(e: KeyboardEvent, direction: -1 | 1, live: Live, scope: string) {
+  const { editing, selection } = live.current;
+  if (e.target instanceof Element && e.target.closest(".cm-editor")) return;
+  const own = blockOf(e.target, scope);
+  if (selection ? e.target !== document.body && own === null : own === null) return;
+  e.preventDefault();
+  const moved = editing.graph.moveBlocks(selection ? [...editing.selected] : [own!], direction);
+  const way = direction < 0 ? "up" : "down";
+  editing.announce(moved ? `Moved ${way}` : `Can't move ${way}`);
+  // Moving can remount the row, which drops the focus.
+  if (!selection) {
+    requestAnimationFrame(() =>
+      document
+        .querySelector<HTMLElement>(
+          `[data-block-id="${own}"][data-outline="${scope}"] > div > [data-block-text]`,
+        )
+        ?.focus(),
+    );
+  }
+}
+
+/** Backspace and Delete delete what is selected, which undo brings back. */
+function deleteSelected(e: KeyboardEvent, live: Live, scope: string, setSelection: SetSelection) {
+  if (!isForBlocks(e, scope)) return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  e.preventDefault();
+  const { editing } = live.current;
+  const ids = [...editing.selected];
+  editing.graph.deleteBlocks(ids);
+  setSelection(null);
+  editing.announce(`${plural(ids.length)} deleted`);
+}
+
+/** Tab and Shift-Tab indent and outdent what is selected, as they do the block being edited. */
+function indentSelected(e: KeyboardEvent, live: Live, scope: string) {
+  if (!isForBlocks(e, scope)) return;
+  e.preventDefault();
+  const { graph, selected, announce } = live.current.editing;
+  const ids = [...selected];
+  const moved = e.shiftKey ? graph.outdentBlocks(ids) : graph.indentBlocks(ids);
+  const [did, cant] = e.shiftKey ? ["Outdented", "Can't outdent"] : ["Indented", "Can't indent"];
+  announce(moved ? did : cant);
+}
+
+/**
+ * Whether Select All in this target should go on to the block. In an editor
+ * the first press is the editor's, selecting the block's text; it is the next,
+ * with the text all selected (or none to select), that goes on.
+ */
+function editorHasNoTextLeft(target: EventTarget | null): boolean {
+  const host = target instanceof Element ? target.closest<HTMLElement>(".cm-editor") : null;
+  const view = host ? EditorView.findFromDOM(host) : null;
+  if (!view) return true;
+  const { from, to } = view.state.selection.main;
+  return from === 0 && to === view.state.doc.length;
+}
+
+function selectAll(e: KeyboardEvent, live: Live, scope: string, setSelection: SetSelection) {
+  if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey || e.key.toLowerCase() !== "a") return;
+  const { blocks, editing, selection } = live.current;
+  // With blocks selected nothing has the focus; the body is where keys land.
+  const anchor =
+    blockOf(e.target, scope) ??
+    (selection && e.target === document.body ? selection.anchor : null);
+  if (anchor === null) return;
+  if (!editorHasNoTextLeft(e.target)) return;
+  e.preventDefault();
+  // Before the editor, which would select its text.
+  e.stopPropagation();
+  const from = selection?.anchor ?? anchor;
+  const next = expandSelection(blocks, from, selection?.ids ?? new Set());
+  if (!next) return;
+  if (editing.current) editing.stop(editing.current.id);
+  setSelection({ anchor: from, ids: next });
+}
+
+function handleKey(e: KeyboardEvent, live: Live, scope: string, setSelection: SetSelection) {
+  const { editing, selection } = live.current;
+  if (e.key === "Escape" && selection && !editing.current) {
+    setSelection(null);
+    editing.announce("Selection cleared");
+    return;
+  }
+  const direction = moveDirection(e);
+  if (direction !== null) {
+    moveBlocks(e, direction, live, scope);
+  } else if ((e.key === "Backspace" || e.key === "Delete") && selection) {
+    deleteSelected(e, live, scope, setSelection);
+  } else if (e.key === "Tab" && selection && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    indentSelected(e, live, scope);
+  } else {
+    selectAll(e, live, scope, setSelection);
+  }
+}
+
+/** A drag from one block to another, which selects the blocks between them. */
+function dragSelection(scope: string, live: Live, setSelection: SetSelection) {
+  let drag: { anchor: string; crossed: boolean } | null = null;
+  let userSelect = "";
+  const end = () => {
+    if (!drag) return;
+    if (drag.crossed) {
+      document.body.style.userSelect = userSelect;
+      // The release would otherwise click the block it was over, and edit it.
+      const swallow = (e: Event) => e.stopPropagation();
+      window.addEventListener("click", swallow, { capture: true, once: true });
+      setTimeout(() => window.removeEventListener("click", swallow, true));
+    }
+    drag = null;
+  };
+  const down = (e: PointerEvent) => {
+    end();
+    if (e.button !== 0) return;
+    if (live.current.selection) setSelection(null);
+    // A finger drags to scroll.
+    if (e.pointerType === "touch") return;
+    const anchor = blockOf(e.target, scope);
+    if (anchor === null || (e.target as Element).closest("a, button, input")) return;
+    drag = { anchor, crossed: false };
+  };
+  const move = (e: PointerEvent) => {
+    if (!drag) return;
+    if (!(e.buttons & 1)) return end();
+    const over = blockAtHeight(scope, e.clientY);
+    if (over === null || (!drag.crossed && over === drag.anchor)) return;
+    if (!drag.crossed) {
+      drag.crossed = true;
+      userSelect = document.body.style.userSelect;
+      document.body.style.userSelect = "none";
+      const { editing } = live.current;
+      if (editing.current) editing.stop(editing.current.id);
+    }
+    window.getSelection()?.removeAllRanges();
+    setSelection({ anchor: drag.anchor, ids: selectRange(live.current.order, drag.anchor, over) });
+  };
+  return { down, move, end };
+}
+
+/** Paste goes after the last selected block or the one with the focus, and selects what it made. */
+function pasteBlocks(
   e: ClipboardEvent,
-  after: string,
-  editing: Editing,
-  setSelection: (selection: BlockSelection | null) => void,
+  own: string | null,
+  live: Live,
+  setSelection: SetSelection,
 ) {
+  const { blocks, editing, selection } = live.current;
+  const after = selection ? lastSelected(blocks, editing.selected) : own;
+  if (after === null) return;
   const text = e.clipboardData?.getData("text/plain") ?? "";
   e.preventDefault();
   const made = editing.graph.pasteBlocks(after, text);
@@ -230,12 +393,23 @@ function pasteAfter(
   editing.announce(made.length > 0 ? `${plural(made.length)} pasted` : "Nothing to paste");
 }
 
-/** Puts the selected blocks on the clipboard, and takes them away if it is a cut. */
-function copySelected(
-  e: ClipboardEvent,
-  editing: Editing,
-  setSelection: (selection: BlockSelection | null) => void,
-) {
+/**
+ * Copy, cut and paste are the browser's events, not keys, so the menu's work
+ * too and the clipboard is written in the user's own gesture.
+ */
+function handleClipboard(e: ClipboardEvent, live: Live, scope: string, setSelection: SetSelection) {
+  const { editing, selection } = live.current;
+  // Text being edited, or in a field, keeps its own.
+  if (e.target instanceof Element && e.target.closest("input, textarea, [contenteditable]")) {
+    return;
+  }
+  const own = blockOf(e.target, scope);
+  if (e.target !== document.body && own === null) return;
+  if (e.type === "paste") {
+    pasteBlocks(e, own, live, setSelection);
+    return;
+  }
+  if (!selection) return;
   e.preventDefault();
   const ids = [...editing.selected];
   e.clipboardData?.setData("text/plain", editing.graph.copyBlocks(ids));
@@ -263,179 +437,27 @@ function copySelected(
  * - A drag from one block to another selects the blocks between them.
  * - Escape, or pressing anywhere, lets go.
  */
-function selectionHandlers(
-  scope: string,
-  live: {
-    current: {
-      blocks: Block[];
-      order: string[];
-      editing: Editing;
-      selection: { anchor: string; ids: ReadonlySet<string> } | null;
-    };
-  },
-  setSelection: (selection: { anchor: string; ids: ReadonlySet<string> } | null) => void,
-): () => void {
-  const onKey = (e: KeyboardEvent) => {
-    const { blocks, editing, selection } = live.current;
-    if (e.key === "Escape" && selection && !editing.current) {
-      setSelection(null);
-      editing.announce("Selection cleared");
-      return;
-    }
-    // The keys that move blocks move what is selected or, with nothing
-    // selected, the block that has the focus. An editor has the same keys
-    // itself, which keep its caret, so it is left to.
-    const direction = moveDirection(e);
-    if (direction !== null) {
-      if (e.target instanceof Element && e.target.closest(".cm-editor")) return;
-      const own = blockOf(e.target, scope);
-      if (selection ? e.target !== document.body && own === null : own === null) return;
-      e.preventDefault();
-      const moved = editing.graph.moveBlocks(
-        selection ? [...editing.selected] : [own!],
-        direction,
-      );
-      const way = direction < 0 ? "up" : "down";
-      editing.announce(moved ? `Moved ${way}` : `Can't move ${way}`);
-      // Moving can remount the row, which drops the focus.
-      if (!selection) {
-        requestAnimationFrame(() =>
-          document
-            .querySelector<HTMLElement>(
-              `[data-block-id="${own}"][data-outline="${scope}"] > div > [data-block-text]`,
-            )
-            ?.focus(),
-        );
-      }
-      return;
-    }
-    // Backspace and Delete delete what is selected, which undo brings back.
-    // With nothing selected they are the page's, or an editor's.
-    if ((e.key === "Backspace" || e.key === "Delete") && selection) {
-      if (e.target !== document.body && blockOf(e.target, scope) === null) return;
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-      e.preventDefault();
-      const ids = [...editing.selected];
-      editing.graph.deleteBlocks(ids);
-      setSelection(null);
-      editing.announce(`${plural(ids.length)} deleted`);
-      return;
-    }
-    // Tab and Shift-Tab indent and outdent what is selected, as they do the
-    // block being edited. With nothing selected, Tab is the browser's.
-    if (e.key === "Tab" && selection && !e.metaKey && !e.ctrlKey && !e.altKey) {
-      if (e.target !== document.body && blockOf(e.target, scope) === null) return;
-      e.preventDefault();
-      const ids = [...editing.selected];
-      const moved = e.shiftKey
-        ? editing.graph.outdentBlocks(ids)
-        : editing.graph.indentBlocks(ids);
-      const [did, cant] = e.shiftKey
-        ? ["Outdented", "Can't outdent"]
-        : ["Indented", "Can't indent"];
-      editing.announce(moved ? did : cant);
-      return;
-    }
-    if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey || e.key.toLowerCase() !== "a") return;
-    // With blocks selected nothing has the focus; the body is where keys land.
-    const anchor =
-      blockOf(e.target, scope) ??
-      (selection && e.target === document.body ? selection.anchor : null);
-    if (anchor === null) return;
-    // In an editor the first press is the editor's, selecting the block's text;
-    // it is the next, with the text all selected (or none to select), that
-    // goes on to the block.
-    const view =
-      e.target instanceof Element && e.target.closest(".cm-editor")
-        ? EditorView.findFromDOM(e.target.closest<HTMLElement>(".cm-editor")!)
-        : null;
-    if (view) {
-      const { from, to } = view.state.selection.main;
-      if (from !== 0 || to !== view.state.doc.length) return;
-    }
-    e.preventDefault();
-    // Before the editor, which would select its text.
-    e.stopPropagation();
-    const from = selection?.anchor ?? anchor;
-    const next = expandSelection(blocks, from, selection?.ids ?? new Set());
-    if (!next) return;
-    if (editing.current) editing.stop(editing.current.id);
-    setSelection({ anchor: from, ids: next });
-  };
-
-  let drag: { anchor: string; crossed: boolean } | null = null;
-  let userSelect = "";
-  const endDrag = () => {
-    if (!drag) return;
-    if (drag.crossed) {
-      document.body.style.userSelect = userSelect;
-      // The release would otherwise click the block it was over, and edit it.
-      const swallow = (e: Event) => e.stopPropagation();
-      window.addEventListener("click", swallow, { capture: true, once: true });
-      setTimeout(() => window.removeEventListener("click", swallow, true));
-    }
-    drag = null;
-  };
-  const onDown = (e: PointerEvent) => {
-    endDrag();
-    if (e.button !== 0) return;
-    if (live.current.selection) setSelection(null);
-    // A finger drags to scroll.
-    if (e.pointerType === "touch") return;
-    const anchor = blockOf(e.target, scope);
-    if (anchor === null || (e.target as Element).closest("a, button, input")) return;
-    drag = { anchor, crossed: false };
-  };
-  const onMove = (e: PointerEvent) => {
-    if (!drag) return;
-    if (!(e.buttons & 1)) return endDrag();
-    const over = blockAtHeight(scope, e.clientY);
-    if (over === null || (!drag.crossed && over === drag.anchor)) return;
-    if (!drag.crossed) {
-      drag.crossed = true;
-      userSelect = document.body.style.userSelect;
-      document.body.style.userSelect = "none";
-      const { editing } = live.current;
-      if (editing.current) editing.stop(editing.current.id);
-    }
-    window.getSelection()?.removeAllRanges();
-    setSelection({ anchor: drag.anchor, ids: selectRange(live.current.order, drag.anchor, over) });
-  };
-  // Copy, cut and paste are the browser's events, not keys, so the menu's
-  // work too and the clipboard is written in the user's own gesture.
-  const onClipboard = (e: ClipboardEvent) => {
-    const { blocks, editing, selection } = live.current;
-    // Text being edited, or in a field, keeps its own.
-    if (e.target instanceof Element && e.target.closest("input, textarea, [contenteditable]")) {
-      return;
-    }
-    const own = blockOf(e.target, scope);
-    if (e.target !== document.body && own === null) return;
-    if (e.type === "paste") {
-      // After the selection, or after the block that has the focus.
-      const after = selection ? lastSelected(blocks, editing.selected) : own;
-      if (after !== null) pasteAfter(e, after, editing, setSelection);
-    } else if (selection) {
-      copySelected(e, editing, setSelection);
-    }
-  };
+function selectionHandlers(scope: string, live: Live, setSelection: SetSelection): () => void {
+  const onKey = (e: KeyboardEvent) => handleKey(e, live, scope, setSelection);
+  const onClipboard = (e: ClipboardEvent) => handleClipboard(e, live, scope, setSelection);
+  const drag = dragSelection(scope, live, setSelection);
   document.addEventListener("copy", onClipboard);
   document.addEventListener("cut", onClipboard);
   document.addEventListener("paste", onClipboard);
   document.addEventListener("keydown", onKey, true);
-  document.addEventListener("pointerdown", onDown, true);
-  document.addEventListener("pointermove", onMove);
-  document.addEventListener("pointerup", endDrag);
-  document.addEventListener("pointercancel", endDrag);
+  document.addEventListener("pointerdown", drag.down, true);
+  document.addEventListener("pointermove", drag.move);
+  document.addEventListener("pointerup", drag.end);
+  document.addEventListener("pointercancel", drag.end);
   return () => {
-    endDrag();
+    drag.end();
     document.removeEventListener("copy", onClipboard);
     document.removeEventListener("cut", onClipboard);
     document.removeEventListener("paste", onClipboard);
     document.removeEventListener("keydown", onKey, true);
-    document.removeEventListener("pointerdown", onDown, true);
-    document.removeEventListener("pointermove", onMove);
-    document.removeEventListener("pointerup", endDrag);
-    document.removeEventListener("pointercancel", endDrag);
+    document.removeEventListener("pointerdown", drag.down, true);
+    document.removeEventListener("pointermove", drag.move);
+    document.removeEventListener("pointerup", drag.end);
+    document.removeEventListener("pointercancel", drag.end);
   };
 }
