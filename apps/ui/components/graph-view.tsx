@@ -67,6 +67,72 @@ interface Drawing {
   stop(): void;
 }
 
+/** The nodes that pass `wanted`, as circles in one path, filled and stroked. */
+function circles(ctx: CanvasRenderingContext2D, nodes: Node[], wanted: (n: Node) => boolean) {
+  ctx.beginPath();
+  for (const n of nodes) {
+    if (n.x === undefined || !wanted(n)) continue;
+    const r = radius(n);
+    ctx.moveTo(n.x + r, n.y ?? 0);
+    ctx.arc(n.x, n.y ?? 0, r, 0, Math.PI * 2);
+  }
+  ctx.fill();
+  ctx.stroke();
+}
+
+/** The links that pass `wanted`, in one path at one strength; how many were drawn. */
+function strokeLinks(
+  ctx: CanvasRenderingContext2D,
+  links: Link[],
+  wanted: (l: Link) => boolean,
+  alpha: number,
+): number {
+  let drawn = 0;
+  ctx.beginPath();
+  for (const l of links) {
+    const { source, target } = l as { source: Node; target: Node };
+    if (!wanted(l) || source.x === undefined || target.x === undefined) continue;
+    drawn++;
+    ctx.moveTo(source.x, source.y ?? 0);
+    ctx.lineTo(target.x, target.y ?? 0);
+  }
+  ctx.globalAlpha = alpha;
+  ctx.stroke();
+  return drawn;
+}
+
+/**
+ * The nodes with the focus dimmed except for it and its neighbours, the focus
+ * itself ringed more heavily. Lines are a fixed size on screen, so `px` is the
+ * zoom divided out.
+ */
+function drawFocused(
+  ctx: CanvasRenderingContext2D,
+  nodes: Node[],
+  focused: string,
+  near: ReadonlySet<string>,
+  px: number,
+) {
+  ctx.lineWidth = px;
+  ctx.globalAlpha = 0.25;
+  circles(ctx, nodes, (n) => n.id !== focused && !near.has(n.id));
+  ctx.globalAlpha = 1;
+  circles(ctx, nodes, (n) => n.id !== focused && near.has(n.id));
+  const focusNode = nodes.find((n) => n.id === focused);
+  if (focusNode?.x !== undefined) {
+    ctx.lineWidth = 2 * px;
+    ctx.beginPath();
+    ctx.arc(focusNode.x, focusNode.y ?? 0, radius(focusNode), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+}
+
+/** Whether a node is near enough to what is on screen for its label to matter. */
+function inLabelRange(x: number, y: number, x0: number, x1: number, y0: number, y1: number) {
+  return x >= x0 - 200 && x <= x1 + 50 && y >= y0 - 50 && y <= y1 + 50;
+}
+
 /**
  * Draws on `canvas`, with `list` holding a real link for each entity. The
  * canvas is what is seen, and is much cheaper than an element per node and
@@ -144,32 +210,20 @@ export function draw(
 
     // Links in one path each, dimmed when something is focused, then those
     // that touch the focus on top at full strength.
-    let drawn = 0;
-    const stroke = (wanted: (l: Link) => boolean, alpha: number, count = false) => {
-      ctx.beginPath();
-      for (const l of links) {
-        const { source, target } = l as { source: Node; target: Node };
-        if (!wanted(l) || source.x === undefined || target.x === undefined) continue;
-        if (count) drawn++;
-        ctx.moveTo(source.x, source.y ?? 0);
-        ctx.lineTo(target.x, target.y ?? 0);
-      }
-      ctx.globalAlpha = alpha;
-      ctx.stroke();
-    };
     // Lines and text are a fixed size on screen, so the zoom is divided out.
     const px = 1 / view.k;
     ctx.strokeStyle = colours.link;
     ctx.lineWidth = px;
     const dim = focused === null ? 1 : 0.1;
-    stroke((l) => !l.weak, dim, true);
-    stroke((l) => l.weak, dim * WEAK_ALPHA, true);
+    const drawn =
+      strokeLinks(ctx, links, (l) => !l.weak, dim) +
+      strokeLinks(ctx, links, (l) => l.weak, dim * WEAK_ALPHA);
     // For tests: how many links the last paint drew, as `data-links` is only
     // how many there are to draw.
     if (canvas.dataset.drawn !== String(drawn)) canvas.dataset.drawn = String(drawn);
     if (focused !== null) {
-      stroke((l) => !l.weak && touches(l), 1);
-      stroke((l) => l.weak && touches(l), WEAK_ALPHA);
+      strokeLinks(ctx, links, (l) => !l.weak && touches(l), 1);
+      strokeLinks(ctx, links, (l) => l.weak && touches(l), WEAK_ALPHA);
     }
 
     ctx.fillStyle = colours.fill;
@@ -178,47 +232,9 @@ export function draw(
     if (focused === null) {
       ctx.globalAlpha = 1;
       ctx.lineWidth = px;
-      ctx.beginPath();
-      for (const n of nodes) {
-        if (n.x === undefined) continue;
-        const r = radius(n);
-        ctx.moveTo(n.x + r, n.y ?? 0);
-        ctx.arc(n.x, n.y ?? 0, r, 0, Math.PI * 2);
-      }
-      ctx.fill();
-      ctx.stroke();
+      circles(ctx, nodes, () => true);
     } else {
-      ctx.lineWidth = px;
-      ctx.globalAlpha = 0.25;
-      ctx.beginPath();
-      for (const n of nodes) {
-        if (n.x === undefined || n.id === focused || near?.has(n.id)) continue;
-        const r = radius(n);
-        ctx.moveTo(n.x + r, n.y ?? 0);
-        ctx.arc(n.x, n.y ?? 0, r, 0, Math.PI * 2);
-      }
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.globalAlpha = 1;
-      ctx.beginPath();
-      for (const n of nodes) {
-        if (n.x === undefined || n.id === focused || !near?.has(n.id)) continue;
-        const r = radius(n);
-        ctx.moveTo(n.x + r, n.y ?? 0);
-        ctx.arc(n.x, n.y ?? 0, r, 0, Math.PI * 2);
-      }
-      ctx.fill();
-      ctx.stroke();
-
-      const focusNode = nodes.find((n) => n.id === focused);
-      if (focusNode && focusNode.x !== undefined) {
-        ctx.lineWidth = 2 * px;
-        ctx.beginPath();
-        ctx.arc(focusNode.x, focusNode.y ?? 0, radius(focusNode), 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-      }
+      drawFocused(ctx, nodes, focused, near ?? new Set<string>(), px);
     }
 
     // The entity the graph is about, over the rest and always at full strength.
@@ -243,8 +259,7 @@ export function draw(
     const y1 = (cssHeight - view.y) / view.k;
     let labels = 0;
     for (const n of nodes) {
-      if (n.x === undefined) continue;
-      if (n.x < x0 - 200 || n.x > x1 + 50 || (n.y ?? 0) < y0 - 50 || (n.y ?? 0) > y1 + 50) continue;
+      if (n.x === undefined || !inLabelRange(n.x, n.y ?? 0, x0, x1, y0, y1)) continue;
       if (n.id !== focused && n.id !== current && !labelFits(radius(n), view.k)) continue;
       labels++;
       ctx.globalAlpha = near && n.id !== focused && !near.has(n.id) ? 0.25 : 1;
