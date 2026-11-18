@@ -204,7 +204,7 @@ impl Blobs {
             let path = entry.path();
             let named = path
                 .file_stem()
-                .and_then(|s| s.to_str())
+                .and_then(std::ffi::OsStr::to_str)
                 // Only a name of 64 characters, which `Hash` reads as lower-case hex
                 // and nothing else: any other length it would try as base32.
                 .filter(|s| s.len() == 64)

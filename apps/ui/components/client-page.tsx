@@ -8,7 +8,7 @@ import { ClientOnly } from "./client-only";
  * a published site (`app/page/[name]`) don't use this, since they are
  * rendered at export time, from the graph being published.
  */
-export function ClientPage({ children }: { children: ReactNode }) {
+export function ClientPage({ children }: Readonly<{ children: ReactNode }>) {
   const skeleton = <Skeleton className="m-8 h-8 w-1/3" />;
   return (
     <ClientOnly fallback={skeleton}>

@@ -51,7 +51,7 @@ export function formatSize(bytes: number): string {
   return `${shown} ${units[unit]}`;
 }
 
-function File({ blob: asset }: { blob: BlobInfo }) {
+function File({ blob: asset }: Readonly<{ blob: BlobInfo }>) {
   const graph = useGraph();
   const [attempt, setAttempt] = useState(0);
   const file = useFileUrl(asset.hash, asset.mime, attempt);
@@ -92,7 +92,7 @@ function File({ blob: asset }: { blob: BlobInfo }) {
 
 /** A blob block's file, drawn from its bytes, where the block is. The caption
  * is drawn by the block, after it. */
-export function BlobFile({ blob }: { blob: BlobInfo }) {
+export function BlobFile({ blob }: Readonly<{ blob: BlobInfo }>) {
   return (
     <section aria-label="File" className="mb-1">
       <File blob={blob} />

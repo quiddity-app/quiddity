@@ -9,7 +9,7 @@ import { useView } from "./use-view";
 import { linkClass, pageTitle } from "./ui";
 
 /** One entity the link might mean: its title, and its properties block, which is what tells it apart. */
-function Candidate({ id }: { id: EntityId }) {
+function Candidate({ id }: Readonly<{ id: EntityId }>) {
   const entity = useRead((g) => g.entity(id));
   const properties = entity.blocks.filter((b) => b.propertiesBlock);
   return (
@@ -30,7 +30,7 @@ function Candidate({ id }: { id: EntityId }) {
   );
 }
 
-function Matches({ link }: { link: string }) {
+function Matches({ link }: Readonly<{ link: string }>) {
   const ids = useRead((g) => g.linkMatches(link));
   if (ids.length === 0) {
     return <p className="text-ink-muted">Nothing matches this link.</p>;

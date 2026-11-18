@@ -46,7 +46,7 @@ export function Search() {
 }
 
 /** `label` with the runs in `ranges` marked. */
-function Highlighted({ hit }: { hit: Hit }) {
+function Highlighted({ hit }: Readonly<{ hit: Hit }>) {
   const parts: ReactNode[] = [];
   let at = 0;
   for (const [start, end] of hit.ranges ?? []) {
@@ -62,7 +62,7 @@ function Highlighted({ hit }: { hit: Hit }) {
   return <>{parts}</>;
 }
 
-function Panel({ onClose }: { onClose: () => void }) {
+function Panel({ onClose }: Readonly<{ onClose: () => void }>) {
   const router = useRouter();
   const view = useView();
   const [query, setQuery] = useState("");

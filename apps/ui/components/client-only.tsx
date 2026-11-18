@@ -9,10 +9,10 @@ const subscribe = () => () => {};
 export function ClientOnly({
   fallback,
   children,
-}: {
+}: Readonly<{
   fallback?: ReactNode;
   children: ReactNode;
-}) {
+}>) {
   const client = useSyncExternalStore(
     subscribe,
     () => true,

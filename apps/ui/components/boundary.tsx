@@ -23,11 +23,11 @@ export function Region({
   pending,
   failed,
   children,
-}: {
+}: Readonly<{
   pending: ReactNode;
   failed: (error: Error) => ReactNode;
   children: ReactNode;
-}) {
+}>) {
   return (
     <ErrorBoundary fallback={failed}>
       <Suspense fallback={pending}>{children}</Suspense>
@@ -35,7 +35,7 @@ export function Region({
   );
 }
 
-export function Skeleton({ className = "" }: { className?: string }) {
+export function Skeleton({ className = "" }: Readonly<{ className?: string }>) {
   return (
     <div
       aria-hidden

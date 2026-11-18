@@ -18,7 +18,7 @@ function flatten(blocks: Block[], out: string[] = []): string[] {
   return out;
 }
 
-function AddBlock({ empty }: { empty: boolean }) {
+function AddBlock({ empty }: Readonly<{ empty: boolean }>) {
   const editing = useEditing()!;
   return (
     <AddRow
@@ -55,11 +55,11 @@ export function EditableOutline({
   entityId,
   blocks,
   links,
-}: {
+}: Readonly<{
   entityId: EntityId;
   blocks: Block[];
   links: Record<string, ResolvedLink>;
-}) {
+}>) {
   const graph = useGraph();
   const [current, setCurrent] = useState<Editing["current"]>(null);
   const order = useMemo(() => flatten(blocks), [blocks]);
@@ -136,7 +136,7 @@ export function EditableOutline({
   }, [graph, open]);
   // Leaving the page is leaving the block.
   useEffect(
-    () => () => [...opened.current.keys()].forEach(save),
+    () => () => [...opened.current.keys()].forEach((key) => save(key)),
     [entityId, save],
   );
   const editing = useMemo<Editing>(
@@ -150,7 +150,7 @@ export function EditableOutline({
       announce,
       edit: (id, caret) => {
         graph.settle();
-        [...opened.current.keys()].filter((other) => other !== id).forEach(save);
+        [...opened.current.keys()].filter((other) => other !== id).forEach((key) => save(key));
         if (!opened.current.has(id)) opened.current.set(id, graph.blockText(id));
         setSelection(null);
         setCurrent({ id, caret });
@@ -165,7 +165,7 @@ export function EditableOutline({
         const id = graph.createBlock(entityId, 0, "");
         offered.current.add(id);
         graph.settle();
-        [...opened.current.keys()].forEach(save);
+        [...opened.current.keys()].forEach((key) => save(key));
         opened.current.set(id, graph.blockText(id));
         setSelection(null);
         setCurrent({ id, caret: "start" });
@@ -181,7 +181,7 @@ export function EditableOutline({
     <EditingContext.Provider value={editing}>
       <Outline blocks={blocks} links={links} />
       <AddBlock empty={blocks.length === 0} />
-      {!blocks.some((b) => b.propertiesBlock) && !(blocks[0]?.text === "") && (
+      {!blocks.some((b) => b.propertiesBlock) && blocks[0]?.text !== "" && (
         <AddProperties />
       )}
       <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
@@ -195,7 +195,7 @@ export function EditableOutline({
 /** The id of the block whose own row `target` is in, if it is one of `scope`'s. */
 function blockOf(target: EventTarget | null, scope: string): string | null {
   const row = target instanceof Element ? target.closest<HTMLElement>("[data-block-id]") : null;
-  return row && row.dataset.outline === scope ? (row.dataset.blockId ?? null) : null;
+  return row?.dataset.outline === scope ? (row.dataset.blockId ?? null) : null;
 }
 
 /**

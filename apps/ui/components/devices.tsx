@@ -8,7 +8,7 @@ import { Button, ErrorLine, Input, pageTitle, sectionTitle } from "./ui";
 const when = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 
 /** An ID, drawn to be read and copied: long, and no use cut short. */
-function Id({ id }: { id: string }) {
+function Id({ id }: Readonly<{ id: string }>) {
   return <code className="break-all font-mono text-sm">{id}</code>;
 }
 

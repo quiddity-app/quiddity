@@ -9,7 +9,7 @@ import { EditingContext } from "./editing-context";
 import { RenderedBlock, splitBlock } from "./rendered-block";
 
 /** One block: its text, rendered or being edited, then its children. */
-function BlockRow({ block, links }: { block: Block; links: Record<string, ResolvedLink> }) {
+function BlockRow({ block, links }: Readonly<{ block: Block; links: Record<string, ResolvedLink> }>) {
   const editing = useContext(EditingContext);
   const current = editing?.current;
   const isEditing = current?.id === block.id;
@@ -77,10 +77,10 @@ function BlockRow({ block, links }: { block: Block; links: Record<string, Resolv
 export function Outline({
   blocks,
   links,
-}: {
+}: Readonly<{
   blocks: Block[];
   links: Record<string, ResolvedLink>;
-}) {
+}>) {
   return (
     <ul className="space-y-1">
       {blocks.map((block) => (
@@ -91,11 +91,11 @@ export function Outline({
 }
 
 /** An entity's blocks, editable in place. Throws if there is no such entity. */
-export function EntityBody({ id }: { id: EntityId }) {
+export function EntityBody({ id }: Readonly<{ id: EntityId }>) {
   const entity = useRead((g) => g.entity(id));
   return <EditableOutline entityId={id} blocks={entity.blocks} links={entity.links} />;
 }
 
-export function EntityTitle({ id }: { id: EntityId }) {
+export function EntityTitle({ id }: Readonly<{ id: EntityId }>) {
   return <>{useRead((g) => g.entity(id)).title}</>;
 }

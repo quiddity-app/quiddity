@@ -8,7 +8,7 @@ import { linkClass, sectionHeading } from "./ui";
 
 
 /** What doesn't fit a schema and has no chip of its own to show on. */
-export function EntityFlags({ id }: { id: EntityId }) {
+export function EntityFlags({ id }: Readonly<{ id: EntityId }>) {
   const { flags } = useRead((g) => g.entity(id));
   if (flags.length === 0) return null;
   return (
@@ -21,7 +21,7 @@ export function EntityFlags({ id }: { id: EntityId }) {
 }
 
 /** Values the entity has from others, each saying where it is written. */
-function InheritedValues({ entity }: { entity: Entity }) {
+function InheritedValues({ entity }: Readonly<{ entity: Entity }>) {
   if (entity.inherited.length === 0) return null;
   return (
     <section aria-label="Inherited" className="mt-6">
@@ -56,7 +56,7 @@ function InheritedValues({ entity }: { entity: Entity }) {
  */
 const markerColumn = "inline-block w-4 shrink-0";
 
-function Tree({ nodes }: { nodes: InverseNode[] }) {
+function Tree({ nodes }: Readonly<{ nodes: InverseNode[] }>) {
   return (
     <ul className="space-y-0.5 pl-4">
       {nodes.map((node) => {
@@ -97,7 +97,7 @@ function Tree({ nodes }: { nodes: InverseNode[] }) {
   );
 }
 
-function More({ count }: { count: number }) {
+function More({ count }: Readonly<{ count: number }>) {
   return (
     <p className="pl-8 text-xs text-ink-muted">
       and {count} more, on its own page
@@ -106,7 +106,7 @@ function More({ count }: { count: number }) {
 }
 
 /** For each inverse label, the entities related to this one the other way round. */
-function Inverses({ entity }: { entity: Entity }) {
+function Inverses({ entity }: Readonly<{ entity: Entity }>) {
   return (
     <>
       {entity.inverses.map(({ label, tree }) => (
@@ -122,7 +122,7 @@ function Inverses({ entity }: { entity: Entity }) {
 }
 
 /** What meta-properties add below an entity's body. */
-export function MetaSections({ id }: { id: EntityId }) {
+export function MetaSections({ id }: Readonly<{ id: EntityId }>) {
   const entity = useRead((g) => g.entity(id));
   return (
     <>

@@ -17,13 +17,13 @@ export function Shell({
   right,
   actions,
   children,
-}: {
+}: Readonly<{
   left: ReactNode;
   right: ReactNode;
   /** The strip's controls, at its right-hand end. */
   actions: ReactNode;
   children: ReactNode;
-}) {
+}>) {
   const [drawer, setDrawer] = useState(false);
   const pane = "bg-surface-pane";
   return (

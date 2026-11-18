@@ -120,7 +120,7 @@ impl Network {
             }
             Step::Focus(a, blocks) => {
                 let a = a.index(DEVICES);
-                let focus = blocks.iter().map(|b| b.to_string()).collect();
+                let focus = blocks.iter().map(ToString::to_string).collect();
                 if let Some(node) = self.nodes[a].as_mut() {
                     node.set_focus(focus);
                 }

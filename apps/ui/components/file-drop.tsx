@@ -4,7 +4,7 @@ import { useState, type ClipboardEvent, type DragEvent } from "react";
 import { bootGraph } from "@/lib/graph";
 import type { EntityId } from "@/lib/model";
 
-const hasFiles = (data: DataTransfer | null) => data !== null && data.types.includes("Files");
+const hasFiles = (data: DataTransfer | null) => data?.types.includes("Files") === true;
 
 /**
  * Lets files be dropped or pasted onto a page: spread `handlers` on the

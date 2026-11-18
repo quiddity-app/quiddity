@@ -34,7 +34,7 @@ const DATE_FILE = /^(\d{4}-\d{2}-\d{2})\.md$/;
 
 /** The outline lines of a message's journal block, or [] if it has none. */
 export function parseJournal(message) {
-  const lines = message.replace(/\r/g, "").split("\n");
+  const lines = message.replaceAll("\r", "").split("\n");
   const start = lines.findIndex((l) => l.trimEnd() === "Journal:");
   if (start < 0) return [];
   const block = [];
@@ -48,8 +48,11 @@ export function parseJournal(message) {
 
 /** A commit's subject without the ` (#123)` GitHub appends when squashing. */
 export function splitSubject(subject) {
-  const m = /^(.*?)\s*\(#(\d+)\)$/.exec(subject.trim());
-  return m ? { title: m[1], number: Number(m[2]) } : { title: subject.trim(), number: null };
+  const trimmed = subject.trim();
+  const m = /\(#(\d+)\)$/.exec(trimmed);
+  return m
+    ? { title: trimmed.slice(0, m.index).trimEnd(), number: Number(m[1]) }
+    : { title: trimmed, number: null };
 }
 
 /** One day's page: a bullet per commit, with its journal under the title. */

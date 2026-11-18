@@ -81,7 +81,7 @@ pub fn format_link(link: &Link) -> String {
         // link reads back the same wherever it appears.
         let next = chars.peek().copied();
         let special = match c {
-            '\\' | '[' | ']' => true,
+            '['..=']' => true,
             '#' => next.is_some_and(|n| n == '[' || n.is_alphanumeric() || n == '_'),
             _ => false,
         };

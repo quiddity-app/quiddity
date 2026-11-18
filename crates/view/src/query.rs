@@ -995,7 +995,7 @@ impl View {
             .into_iter()
             .map(|child| self.block(child, links))
             .collect::<Result<_>>()?;
-        let blob = blob.and_then(|b| b.ok()).map(|a| BlobInfo {
+        let blob = blob.and_then(std::result::Result::ok).map(|a| BlobInfo {
             hash: a.hash,
             mime: a.mime,
             size: a.size,

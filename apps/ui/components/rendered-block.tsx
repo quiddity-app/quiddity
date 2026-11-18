@@ -39,7 +39,7 @@ const muted = "text-ink-muted";
 
 /** An element of this tag with these classes, for the renderer to use. */
 const styled = (tag: string, className: string) =>
-  function Styled({ children }: { children?: ReactNode }) {
+  function Styled({ children }: Readonly<{ children?: ReactNode }>) {
     return createElement(tag, { className }, children);
   };
 
@@ -55,7 +55,7 @@ function components(links: Record<string, ResolvedLink>, inline: Property[]): Co
     ul: styled("ul", "list-disc pl-5"),
     ol: styled("ol", "list-decimal pl-5"),
     // A task's checkbox is its marker.
-    li: ({ className, children }: { className?: string; children?: ReactNode }) => (
+    li: ({ className, children }: Readonly<{ className?: string; children?: ReactNode }>) => (
       <li className={className?.includes("task-list-item") ? "list-none" : undefined}>{children}</li>
     ),
     blockquote: styled(
@@ -68,43 +68,49 @@ function components(links: Record<string, ResolvedLink>, inline: Property[]): Co
     th: styled("th", "border border-control px-2 py-1"),
     td: styled("td", "border border-control px-2 py-1"),
     // Inline code only: inside a `pre` the block's own background is enough.
-    code: ({ className, children }: { className?: string; children?: ReactNode }) => (
+    code: ({ className, children }: Readonly<{ className?: string; children?: ReactNode }>) => (
       <code className={className ?? code}>{children}</code>
     ),
     // A remote image would be a request to whoever wrote it.
-    img: ({ alt }: { alt?: string }) => <span className={muted}>[{alt || "image"}]</span>,
-    a: ({ href, children }: { href?: string; children?: ReactNode }) =>
-      isExternal(href) ? (
-        <a
-          href={href}
-          rel="noopener noreferrer"
-          className={linkClass}
-          onClick={(e) => {
-            e.preventDefault();
-            void openExternal(href);
-          }}
-        >
-          {children}
-        </a>
-      ) : appPage(href) ? (
-        <Link href={appPage(href)!} className={linkClass}>
-          {children}
-        </Link>
-      ) : (
-        <span className={muted}>{children}</span>
-      ),
+    img: ({ alt }: Readonly<{ alt?: string }>) => <span className={muted}>[{alt || "image"}]</span>,
+    a: ({ href, children }: Readonly<{ href?: string; children?: ReactNode }>) => {
+      if (isExternal(href)) {
+        return (
+          <a
+            href={href}
+            rel="noopener noreferrer"
+            className={linkClass}
+            onClick={(e) => {
+              e.preventDefault();
+              void openExternal(href);
+            }}
+          >
+            {children}
+          </a>
+        );
+      }
+      const page = appPage(href);
+      if (page) {
+        return (
+          <Link href={page} className={linkClass}>
+            {children}
+          </Link>
+        );
+      }
+      return <span className={muted}>{children}</span>;
+    },
     // Elements of our own, made by remarkQuiddity.
-    "quiddity-link": ({ name }: { name?: string }) => (
+    "quiddity-link": ({ name }: Readonly<{ name?: string }>) => (
       <LinkOrNot linkKey={name ?? ""} links={links} />
     ),
-    "quiddity-to": ({ kind, to, children }: { kind?: string; to?: string; children?: ReactNode }) =>
+    "quiddity-to": ({ kind, to, children }: Readonly<{ kind?: string; to?: string; children?: ReactNode }>) =>
       kind === "block" ? (
         <BlockRefLink id={to ?? ""}>{children}</BlockRefLink>
       ) : (
         <LinkOrNot linkKey={to ?? ""} links={links} label={children} />
       ),
-    "quiddity-ref": ({ id }: { id?: string }) => <span className={muted}>(({id}))</span>,
-    "quiddity-prop": ({ index }: { index?: string }) => {
+    "quiddity-ref": ({ id }: Readonly<{ id?: string }>) => <span className={muted}>(({id}))</span>,
+    "quiddity-prop": ({ index }: Readonly<{ index?: string }>) => {
       const property = inline[Number(index)];
       return property ? <PropertyChip property={property} links={links} /> : null;
     },
@@ -116,10 +122,10 @@ function components(links: Record<string, ResolvedLink>, inline: Property[]): Co
 export const RenderedBlock = memo(function RenderedBlock({
   block,
   links,
-}: {
+}: Readonly<{
   block: Pick<Block, "text" | "properties" | "blob">;
   links: Record<string, ResolvedLink>;
-}): ReactNode {
+}>): ReactNode {
   const { prose, lineProps, inlineProps } = useMemo(() => {
     const split = splitBlock(block);
     // A blob's own line is the file, drawn above: not a chip as well. What

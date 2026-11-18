@@ -161,9 +161,27 @@ function outlinerKeys(
       },
     },
     // Undo is the graph's, so it covers structure and other blocks too.
-    { key: "Mod-z", run: () => (latest.current.graph.undo(), true) },
-    { key: "Mod-Shift-z", run: () => (latest.current.graph.redo(), true) },
-    { key: "Mod-y", run: () => (latest.current.graph.redo(), true) },
+    {
+      key: "Mod-z",
+      run: () => {
+        latest.current.graph.undo();
+        return true;
+      },
+    },
+    {
+      key: "Mod-Shift-z",
+      run: () => {
+        latest.current.graph.redo();
+        return true;
+      },
+    },
+    {
+      key: "Mod-y",
+      run: () => {
+        latest.current.graph.redo();
+        return true;
+      },
+    },
   ];
 }
 
@@ -176,12 +194,12 @@ export function BlockEditor({
   id,
   caret,
   properties,
-}: {
+}: Readonly<{
   id: string;
   caret: Caret;
   /** Whether this is its entity's properties block, which is completed. */
   properties: boolean;
-}) {
+}>) {
   const editing = useEditing()!;
   const { graph } = editing;
   const host = useRef<HTMLDivElement>(null);
@@ -210,8 +228,9 @@ export function BlockEditor({
 
   useEffect(() => {
     const doc = graph.blockText(id);
-    const anchor =
-      caret === "start" ? 0 : caret === "end" ? doc.length : Math.min(caret, doc.length);
+    let anchor = 0;
+    if (caret === "end") anchor = doc.length;
+    else if (caret !== "start") anchor = Math.min(caret, doc.length);
     const editor = new EditorView({
       parent: host.current!,
       state: EditorState.create({

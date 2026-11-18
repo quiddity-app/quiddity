@@ -10,7 +10,7 @@ import { ErrorLine, pageTitle, sectionTitle } from "./ui";
 
 const PAGE = 5;
 
-function Day({ day }: { day: EntityRef }) {
+function Day({ day }: Readonly<{ day: EntityRef }>) {
   return (
     <section className="py-4">
       <h2 className={sectionTitle}>
