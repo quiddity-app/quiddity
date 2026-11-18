@@ -43,7 +43,7 @@ export const viewport: Viewport = {
  * only there (`ClientOnly`). A static export never renders them on a server
  * anyway, but `next dev` does, on every request.
  */
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en-GB">
       <body>

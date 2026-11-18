@@ -43,11 +43,9 @@ function decode(segment: string): string {
 export function parseView(pathname: string, params: URLSearchParams, names?: Names | null): View {
   const named = pathname.startsWith("/page/");
   const mainName = named ? decode((pathname.slice("/page/".length).split("/")[0] ?? "")) : null;
-  const main = pathname.startsWith("/entity")
-    ? params.get("id")
-    : mainName !== null
-      ? (names?.id(mainName) ?? null)
-      : null;
+  let main: string | null = null;
+  if (pathname.startsWith("/entity")) main = params.get("id");
+  else if (mainName !== null) main = names?.id(mainName) ?? null;
   // Names are written as they are, so unlike IDs they can't be split on a comma.
   const open = [
     ...params.getAll("open").flatMap((value) => (names ? [value] : value.split(","))),

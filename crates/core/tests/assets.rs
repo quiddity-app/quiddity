@@ -126,7 +126,7 @@ fn a_block_that_starts_with_a_blob_line_is_a_blob() -> Result<()> {
     // The first child is a blob, which isn't a properties block, so the page
     // has no properties and nothing is flagged.
     let info = index.entity(page).unwrap();
-    assert!((info.properties.is_empty() && info.meta.is_empty() && info.stray.is_empty()));
+    assert!(info.properties.is_empty() && info.meta.is_empty() && info.stray.is_empty());
     assert_eq!(index.flags(page), []);
     Ok(())
 }

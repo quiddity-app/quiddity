@@ -79,7 +79,7 @@ export function today(): string {
  */
 export class Graph {
   private revision = 0;
-  private listeners = new Set<() => void>();
+  private readonly listeners = new Set<() => void>();
   private cache = new Map<string, unknown>();
   private pushed: Uint8Array;
   /** Blocks typed in since the last push, and whether anything else changed. */
@@ -104,7 +104,9 @@ export class Graph {
   /** For `useSyncExternalStore`. */
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);
-    return () => void this.listeners.delete(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
   };
 
   /** Changes whenever something a view may have read has. */
@@ -164,13 +166,15 @@ export class Graph {
   searchText = (query: string, limit: number) =>
     this.replica.searchText(query, limit) as BlockHit[];
 
-  private statusListeners = new Set<() => void>();
+  private readonly statusListeners = new Set<() => void>();
   private status: SyncState | undefined;
 
   /** For `useSyncExternalStore`: how this device stands with the others. */
   subscribeToStatus = (listener: () => void) => {
     this.statusListeners.add(listener);
-    return () => void this.statusListeners.delete(listener);
+    return () => {
+      this.statusListeners.delete(listener);
+    };
   };
 
   /** How this device stands with the others, once the backend has said. */
@@ -478,11 +482,11 @@ let booted: Promise<Graph> | undefined;
 /** Where the graph lives: the app's shell, a published build, or memory. */
 export async function chooseBackend(): Promise<Backend> {
   const inTauri = "__TAURI_INTERNALS__" in window;
-  return process.env.NEXT_PUBLIC_QUIDDITY_STATIC_GRAPH
-    ? (await import("./backend-static")).staticBackend
-    : inTauri
-      ? (await import("./backend-tauri")).tauriBackend
-      : (await import("./backend-memory")).memoryBackend;
+  if (process.env.NEXT_PUBLIC_QUIDDITY_STATIC_GRAPH) {
+    return (await import("./backend-static")).staticBackend;
+  }
+  if (inTauri) return (await import("./backend-tauri")).tauriBackend;
+  return (await import("./backend-memory")).memoryBackend;
 }
 
 /**
@@ -506,7 +510,8 @@ export function bootGraph(): Promise<Graph> {
     if (!process.env.NEXT_PUBLIC_QUIDDITY_STATIC_GRAPH) {
       return Promise.reject(new Error("The graph only exists in the browser, or in a published build."));
     }
-    return (booted ??= bootForExport());
+    booted ??= bootForExport();
+    return booted;
   }
   booted ??= (async () => {
     await init();

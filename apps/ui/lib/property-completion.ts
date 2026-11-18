@@ -59,6 +59,11 @@ export function propertyCompletion(source: PropertySource): Extension {
   ];
 }
 
+function useCount(uses: number): string {
+  if (uses === 0) return "defined";
+  return `${uses} ${uses === 1 ? "use" : "uses"}`;
+}
+
 function completion(source: PropertySource): Extension {
   return autocompletion({
     defaultKeymap: false,
@@ -107,7 +112,7 @@ function complete(context: CompletionContext, source: PropertySource): Completio
       (hit): Completion => ({
         label: hit.key,
         apply: `${hit.key}:: `,
-        detail: hit.uses > 0 ? `${hit.uses} ${hit.uses === 1 ? "use" : "uses"}` : "defined",
+        detail: useCount(hit.uses),
       }),
     ),
     filter: false,

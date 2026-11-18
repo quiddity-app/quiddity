@@ -328,7 +328,9 @@ impl Store {
     }
 
     fn durable(&self) -> MutexGuard<'_, Version> {
-        self.durable.lock().unwrap_or_else(|e| e.into_inner())
+        self.durable
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
     /// Saves in one transaction, and durably: a crash mid-save, even a power

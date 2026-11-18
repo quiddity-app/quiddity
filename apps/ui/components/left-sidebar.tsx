@@ -11,7 +11,7 @@ import { EntityLink } from "./entity-link";
 import { useView } from "./use-view";
 import { paneHeading } from "./ui";
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children }: Readonly<{ title: string; children: React.ReactNode }>) {
   return (
     <section className="px-2 py-2">
       <h2 className={`px-2 pb-1 ${paneHeading}`}>
@@ -22,7 +22,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Items({ items }: { items: EntityRef[] }) {
+function Items({ items }: Readonly<{ items: EntityRef[] }>) {
   const { main } = useView();
   if (items.length === 0) {
     return <p className="px-2 text-sm text-ink-muted">Nothing yet.</p>;

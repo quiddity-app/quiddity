@@ -12,12 +12,12 @@ export function EntityLink({
   className,
   title,
   children,
-}: {
+}: Readonly<{
   id: EntityId;
   className?: string;
   title?: string;
   children: ReactNode;
-}) {
+}>) {
   const view = useView();
   const router = useRouter();
   return (

@@ -13,7 +13,7 @@ import { ErrorLine, iconButtonClass, paneHeading } from "./ui";
  * The header is outside the region that suspends, so a card can always be
  * collapsed or closed, even while its content is loading or has failed.
  */
-function Secondary({ id }: { id: EntityId }) {
+function Secondary({ id }: Readonly<{ id: EntityId }>) {
   const view = useView();
   const [collapsed, setCollapsed] = useState(false);
   return (

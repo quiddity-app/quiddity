@@ -87,7 +87,7 @@ impl Asset {
             .name
             .as_deref()
             .and_then(|n| std::path::Path::new(n).extension())
-            .and_then(|e| e.to_str())
+            .and_then(std::ffi::OsStr::to_str)
             .map(str::to_ascii_lowercase)
             .filter(|e| (1..=8).contains(&e.len()) && e.bytes().all(|b| b.is_ascii_alphanumeric()));
         named.unwrap_or_else(|| {

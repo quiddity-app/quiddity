@@ -12,13 +12,13 @@ import { EntityFlags, MetaSections } from "./meta-sections";
 import { References } from "./references";
 import { ErrorLine } from "./ui";
 
-function Visit({ id }: { id: EntityId }) {
+function Visit({ id }: Readonly<{ id: EntityId }>) {
   const { id: canonical, title } = useRead((g) => g.entity(id));
   useEffect(() => recordVisit({ id: canonical, title }), [canonical, title]);
   return null;
 }
 
-export function MainEntity({ id }: { id: EntityId }) {
+export function MainEntity({ id }: Readonly<{ id: EntityId }>) {
   const { handlers, problem } = useFileDrop(id);
   return (
     // `cqw` needs a container to measure, and an element can't be its own, so

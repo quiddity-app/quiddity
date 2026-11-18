@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { EntityId, Reference, Use } from "@/lib/model";
+import type { EntityId, Reference } from "@/lib/model";
 import { useRead } from "@/lib/use-graph";
 import { Region, Skeleton } from "./boundary";
 import { EntityLink } from "./entity-link";
@@ -9,7 +9,7 @@ import { Outline } from "./entity-view";
 import { ErrorLine, linkClass, sectionHeading, subsectionTitle } from "./ui";
 
 
-function Groups({ references }: { references: Reference[] }) {
+function Groups({ references }: Readonly<{ references: Reference[] }>) {
   return (
     <ul className="space-y-4">
       {references.map(({ source, blocks, links }) => (
@@ -32,7 +32,7 @@ function Groups({ references }: { references: Reference[] }) {
 const count = (references: Reference[]) =>
   references.reduce((n, r) => n + r.blocks.length, 0);
 
-function Linked({ id }: { id: EntityId }) {
+function Linked({ id }: Readonly<{ id: EntityId }>) {
   const references = useRead((g) => g.references(id));
   if (references.length === 0) return null;
   return (
@@ -44,7 +44,7 @@ function Linked({ id }: { id: EntityId }) {
 }
 
 /** On a property's page: who has it, with what, a row per entity. */
-function Uses({ id }: { id: EntityId }) {
+function Uses({ id }: Readonly<{ id: EntityId }>) {
   const uses = useRead((g) => g.uses(id));
   if (uses.length === 0) return null;
   return (
@@ -69,7 +69,7 @@ function Uses({ id }: { id: EntityId }) {
   );
 }
 
-function UnlinkedList({ id }: { id: EntityId }) {
+function UnlinkedList({ id }: Readonly<{ id: EntityId }>) {
   const references = useRead((g) => g.unlinkedReferences(id));
   if (references.length === 0) {
     return <p className="text-sm text-ink-muted">None.</p>;
@@ -78,7 +78,7 @@ function UnlinkedList({ id }: { id: EntityId }) {
 }
 
 /** Fetched only once opened, since finding them means reading every block. */
-function Unlinked({ id }: { id: EntityId }) {
+function Unlinked({ id }: Readonly<{ id: EntityId }>) {
   const [shown, setShown] = useState(false);
   return (
     <details onToggle={(e) => setShown(e.currentTarget.open)}>
@@ -100,7 +100,7 @@ function Unlinked({ id }: { id: EntityId }) {
 }
 
 /** At the foot of an entity. Each part loads, and fails, on its own. */
-export function References({ id }: { id: EntityId }) {
+export function References({ id }: Readonly<{ id: EntityId }>) {
   return (
     <footer className="mt-10 space-y-6 border-t border-border pt-6">
       <Region

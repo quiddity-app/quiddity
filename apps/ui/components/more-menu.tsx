@@ -184,11 +184,11 @@ function ConfirmDelete({
   entity,
   onConfirm,
   onCancel,
-}: {
+}: Readonly<{
   entity: EntityId;
   onConfirm: () => void;
   onCancel: () => void;
-}) {
+}>) {
   const { title } = useRead((g) => g.entity(entity));
   const heading = useId();
   return (

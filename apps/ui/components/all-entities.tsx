@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import type { Summary } from "@/lib/model";
 import { useGraph, useRead } from "@/lib/use-graph";
 import { Region, Skeleton } from "./boundary";
@@ -25,7 +25,7 @@ const columns: { key: Column; label: string; numeric: boolean }[] = [
 
 const when = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 
-function When({ seconds }: { seconds: number | null }) {
+function When({ seconds }: Readonly<{ seconds: number | null }>) {
   if (seconds === null) return null;
   const date = new Date(seconds * 1000);
   return <time dateTime={date.toISOString()}>{when.format(date)}</time>;
@@ -51,7 +51,7 @@ function compare(column: Column, a: Summary, b: Summary): number {
 const unknown = (column: Column, row: Summary) =>
   (column === "created" || column === "modified") && row[column] === null;
 
-function List({ filter, journals }: { filter: string; journals: boolean }) {
+function List({ filter, journals }: Readonly<{ filter: string; journals: boolean }>) {
   const everything = useRead((g) => g.summaries());
   const needle = filter.trim().toLowerCase();
   // Selection only counts what is shown, so nothing is deleted out of sight.
@@ -110,34 +110,40 @@ function List({ filter, journals }: { filter: string; journals: boolean }) {
     }));
   };
   const numeric = "px-3 py-1 coarse:py-3 text-right tabular-nums";
+  let toolbar: ReactNode = null;
+  if (selected.length > 0 && confirming) {
+    toolbar = (
+      <div role="alertdialog" aria-label="Confirm deletion" className="flex flex-wrap items-center gap-3">
+        <p>
+          Delete {selected.length === 1 ? `“${selected[0]?.title}”` : `${selected.length} entities`} and
+          everything in {them}? Links to {them} will point nowhere. Undo brings {them} back.
+        </p>
+        <Button
+          variant="danger"
+          onClick={() => {
+            graph.deleteEntities(selected.map((r) => r.id));
+            choose([]);
+          }}
+        >
+          Delete
+        </Button>
+        <Button autoFocus onClick={() => setConfirming(false)}>
+          Cancel
+        </Button>
+      </div>
+    );
+  } else if (selected.length > 0) {
+    toolbar = (
+      <>
+        <span>{selected.length} selected</span>
+        <Button onClick={() => setConfirming(true)}>Delete…</Button>
+      </>
+    );
+  }
   return (
     <>
       <div className="mb-3 flex min-h-8 items-center gap-3" role="toolbar" aria-label="Selected entities">
-        {selected.length === 0 ? null : confirming ? (
-          <div role="alertdialog" aria-label="Confirm deletion" className="flex flex-wrap items-center gap-3">
-            <p>
-              Delete {selected.length === 1 ? `“${selected[0]?.title}”` : `${selected.length} entities`} and
-              everything in {them}? Links to {them} will point nowhere. Undo brings {them} back.
-            </p>
-            <Button
-              variant="danger"
-              onClick={() => {
-                graph.deleteEntities(selected.map((r) => r.id));
-                choose([]);
-              }}
-            >
-              Delete
-            </Button>
-            <Button autoFocus onClick={() => setConfirming(false)}>
-              Cancel
-            </Button>
-          </div>
-        ) : (
-          <>
-            <span>{selected.length} selected</span>
-            <Button onClick={() => setConfirming(true)}>Delete…</Button>
-          </>
-        )}
+        {toolbar}
       </div>
       <table className="w-full border-collapse text-left">
         <thead>
@@ -153,11 +159,17 @@ function List({ filter, journals }: { filter: string; journals: boolean }) {
             </th>
             {columns.map((c) => {
               const active = sort.column === c.key;
+              let ariaSort: "ascending" | "descending" | undefined;
+              let arrow = "";
+              if (active) {
+                ariaSort = sort.descending ? "descending" : "ascending";
+                arrow = sort.descending ? " ↓" : " ↑";
+              }
               return (
                 <th
                   key={c.key}
                   scope="col"
-                  aria-sort={active ? (sort.descending ? "descending" : "ascending") : undefined}
+                  aria-sort={ariaSort}
                   className={`px-3 py-1 coarse:py-3 font-medium ${c.numeric ? "text-right" : ""}`}
                 >
                   <button
@@ -166,7 +178,7 @@ function List({ filter, journals }: { filter: string; journals: boolean }) {
                     className="font-medium hover:underline"
                   >
                     {c.label}
-                    <span aria-hidden="true">{active ? (sort.descending ? " ↓" : " ↑") : ""}</span>
+                    <span aria-hidden="true">{arrow}</span>
                   </button>
                 </th>
               );

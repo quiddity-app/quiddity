@@ -14,7 +14,7 @@ export const text: Facet = {
       // becomes a space one for one, so the ranges still fit.
       let from = Math.max(0, (ranges[0]?.[0] ?? 0) - LEAD);
       // Don't start in the middle of a surrogate pair.
-      const unit = text.charCodeAt(from);
+      const unit = text.codePointAt(from) ?? 0;
       if (from > 0 && unit >= 0xdc00 && unit <= 0xdfff) from++;
       const shown = text.slice(from, from + WIDTH).replace(/\s/g, " ");
       const lead = from > 0 ? "…" : "";

@@ -77,7 +77,7 @@ export function Input({ className = "", ...rest }: InputHTMLAttributes<HTMLInput
 }
 
 /** What went wrong, in words, where it went wrong. */
-export function ErrorLine({ children, className = "" }: { children: ReactNode; className?: string }) {
+export function ErrorLine({ children, className = "" }: Readonly<{ children: ReactNode; className?: string }>) {
   return (
     <p role="alert" className={`text-danger ${className}`}>
       {children}
@@ -86,7 +86,7 @@ export function ErrorLine({ children, className = "" }: { children: ReactNode; c
 }
 
 /** The key or chord that triggers an action. */
-export function Kbd({ children }: { children: ReactNode }) {
+export function Kbd({ children }: Readonly<{ children: ReactNode }>) {
   return <kbd className="rounded bg-surface-hover px-1 text-xs">{children}</kbd>;
 }
 
@@ -103,12 +103,12 @@ export function AddRow({
   emptyLabel,
   label,
   onAdd,
-}: {
+}: Readonly<{
   empty: boolean;
   emptyLabel: string;
   label: string;
   onAdd: () => void;
-}) {
+}>) {
   return (
     <button
       type="button"

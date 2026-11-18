@@ -20,13 +20,13 @@ export function LinkOrNot({
   fallback = linkKey,
   links,
   label,
-}: {
+}: Readonly<{
   linkKey: string;
   fallback?: string;
   links: Record<string, ResolvedLink>;
   /** What to show instead of the link's name, as in `[label]([[Name]])`. */
   label?: ReactNode;
-}) {
+}>) {
   const view = useView();
   const resolved = links[linkKey];
   const target = resolved ?? { kind: "missing" };
@@ -62,11 +62,11 @@ function NewEntityLink({
   name,
   linkKey,
   qualifiers,
-}: {
+}: Readonly<{
   name: ReactNode;
   linkKey: string;
   qualifiers: string;
-}) {
+}>) {
   const graph = useGraph();
   const view = useView();
   const router = useRouter();
@@ -89,10 +89,10 @@ function NewEntityLink({
 export function Value({
   value,
   links,
-}: {
+}: Readonly<{
   value: PropertyValue;
   links: Record<string, ResolvedLink>;
-}) {
+}>) {
   switch (value.kind) {
     case "text":
       return <>{value.text}</>;
@@ -123,7 +123,7 @@ export function Value({
 }
 
 /** A link to the entity holding a block, written `[label](((id)))`. */
-export function BlockRefLink({ id, children }: { id: string; children: ReactNode }) {
+export function BlockRefLink({ id, children }: Readonly<{ id: string; children: ReactNode }>) {
   const graph = useGraph();
   const view = useView();
   const router = useRouter();
@@ -156,11 +156,11 @@ function PropertyKey({
   property,
   className,
   children,
-}: {
+}: Readonly<{
   property: Property;
   className: string;
   children: ReactNode;
-}) {
+}>) {
   const graph = useGraph();
   const view = useView();
   const router = useRouter();
@@ -202,14 +202,14 @@ const flaggedChip = "ring-1 ring-flag-ring";
 export function PropertyLine({
   property,
   links,
-}: {
+}: Readonly<{
   property: Property;
   links: Record<string, ResolvedLink>;
-}) {
+}>) {
   const flagged = property.flags.length > 0;
   return (
     <div
-      className={`break-words ${flagged ? `rounded ${flaggedChip}` : ""}`}
+      className={flagged ? `break-words rounded ${flaggedChip}` : "break-words"}
       title={flagged ? property.flags.join("\n") : undefined}
       data-flagged={flagged || undefined}
     >
@@ -240,6 +240,33 @@ export function PropertyLine({
   );
 }
 
+/** What follows a chip's opening: a bare tag, or its key and value. */
+function Body({
+  property,
+  links,
+}: Readonly<{
+  property: Property;
+  links: Record<string, ResolvedLink>;
+}>) {
+  if (property.value === null) {
+    return (
+      <PropertyKey property={property} className="">
+        #{property.key}
+      </PropertyKey>
+    );
+  }
+  return (
+    <>
+      <PropertyKey property={property} className="text-ink-muted">
+        {property.key}
+      </PropertyKey>
+      <span>
+        <Value value={property.value} links={links} />
+      </span>
+    </>
+  );
+}
+
 /**
  * A tag, as a pill: the key, then its value if it has one. A
  * meta-property shows `##key` and its parameter as written. A chip whose
@@ -248,10 +275,10 @@ export function PropertyLine({
 export function PropertyChip({
   property,
   links,
-}: {
+}: Readonly<{
   property: Property;
   links: Record<string, ResolvedLink>;
-}) {
+}>) {
   const flagged = property.flags.length > 0;
   return (
     <span
@@ -264,19 +291,8 @@ export function PropertyChip({
           <span className="text-ink-muted">##{property.key}</span>
           {property.value?.kind === "text" && <code>{property.value.text}</code>}
         </>
-      ) : property.value === null ? (
-        <PropertyKey property={property} className="">
-          #{property.key}
-        </PropertyKey>
       ) : (
-        <>
-          <PropertyKey property={property} className="text-ink-muted">
-            {property.key}
-          </PropertyKey>
-          <span>
-            <Value value={property.value} links={links} />
-          </span>
-        </>
+        <Body property={property} links={links} />
       )}
     </span>
   );

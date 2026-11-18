@@ -10,8 +10,8 @@ export const PROP_CLOSE = "";
 // for them too; the label here is plain text, as the Markdown parser has
 // already taken the formatted ones.
 const TOKEN = new RegExp(
-  `\\[([^\\[\\]]+)\\]\\(\\s*(?:\\[\\[([^\\]]+)\\]\\]|\\(\\(([^)\\s]+)\\)\\))\\s*\\)|` +
-    `\\[\\[([^\\]]+)\\]\\]|\\(\\(([^)]+)\\)\\)|${PROP_OPEN}(\\d+)${PROP_CLOSE}`,
+  String.raw`\[([^\[\]]+)\]\(\s*(?:\[\[([^\]]+)\]\]|\(\(([^)\s]+)\)\))\s*\)|` +
+    String.raw`\[\[([^\]]+)\]\]|\(\(([^)]+)\)\)|${PROP_OPEN}(\d+)${PROP_CLOSE}`,
   "g",
 );
 

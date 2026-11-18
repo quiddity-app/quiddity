@@ -11,7 +11,7 @@ import { useGraph, useRead } from "@/lib/use-graph";
  * property entities are identified by their date or name, so theirs is just a
  * heading.
  */
-export function EditableTitle({ id }: { id: EntityId }) {
+export function EditableTitle({ id }: Readonly<{ id: EntityId }>) {
   const graph = useGraph();
   const { title, renamable } = useRead((g) => g.entity(id));
   const [draft, setDraft] = useState<string | null>(null);

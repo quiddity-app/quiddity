@@ -30,6 +30,9 @@ export function UpdateNotice() {
       setState("failed");
     });
   };
+  let label = `Update to ${update.version}`;
+  if (state === "installing") label = "Updating…";
+  else if (state === "failed") label = "Update failed: retry";
   return (
     <Button
       compact
@@ -42,11 +45,7 @@ export function UpdateNotice() {
           : `Update to ${update.version} and restart`
       }
     >
-      {state === "installing"
-        ? "Updating…"
-        : state === "failed"
-          ? "Update failed: retry"
-          : `Update to ${update.version}`}
+      {label}
     </Button>
   );
 }
