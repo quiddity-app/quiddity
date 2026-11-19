@@ -20,6 +20,7 @@ favourite:: true
 	- [[Publish gate]]: holding back typing nobody can see.
 	- [[Blob transfer]]: fetching the bytes of binaries from another device.
 	- [[Compaction]]: what history each device keeps.
+	- [[History]]: planned, keeping a coarse history indefinitely and dropping Loro's op log, so that a device away too long can still come back.
 	- [[Duplicates]]: merging what two devices made at once.
 - On disk
 	- [[Storage]]: the graph's file, and what is derived.

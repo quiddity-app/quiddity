@@ -1,0 +1,57 @@
+alias:: [op log, horizon, lane, session]
+
+- **Planned, not built.** How a [[Graph]] will keep its history indefinitely, at a coarser and coarser grain, while [[Loro]] keeps its changes only as long as [[Sync]] needs them. The idea is [[jj]]'s: operations and history are kept apart. It replaces [[Compaction]]'s eviction, which strands a device that has been away too long, and answers the [[Design]] question of what happens to that device's edits.
+- What the user will see
+	- **The graph as it looked at any point in its history**, read-only, with what changed there and which device changed it. Recent history is block by block. Older history is coarser, but never deleted.
+	- **A device that has been away for a long time still syncs.** Its edits are replayed on top of what the others did meanwhile, as new edits, and merged block by block, as concurrent edits are now.
+- Two layers
+	- **The op log** is Loro's own record of changes: the block tree, every block's text and the sync metadata, merged character by character as now. It is kept only until every active device has it, then dropped with a shallow snapshot, as [[Compaction]] does today. Concurrent heads merge themselves: that is what Loro is for.
+	- **History** is a set of points in the op log, each a state of the whole graph, kept long after the op log has dropped the changes that made it. Each point is a commit. A commit's contents are written down as a blob before the op log drops it, so it can still be read afterwards.
+	- Changes to history are ops too. Tidying it, rewriting a returning device's commits, and later perhaps redacting a secret are edits to the history's records in the document, and sync like any other edit.
+- No clocks
+	- Nothing about history's shape depends on a wall clock, since devices' clocks disagree. Times are recorded only to be shown.
+	- **A commit is a Loro version, and ancestry is containment**: one commit is before another if the other has every change it has. Two commits where neither contains the other are a fork. The newest commits are history's heads, and their merged state is the live document.
+	- **Parents are worked out, not stored.** A commit's parents are the newest kept commits it contains. Folding one away is then only dropping a point, so devices that tidy in different orders agree. Stored parents would make folding depend on order as soon as one device's commit referred to another's.
+- Lanes: where a change came from
+	- **Each device has a lane**, and a commit holds one device's changes: the range of that device's changes in the op log since its previous commit, read from Loro's per-node counters. Two devices editing different blocks at once make two lanes side by side, not one line that keeps switching between them.
+	- **A device is not one node ID.** The UI's replica starts with a new node ID each time it is launched, and a rebase or a retired twin also starts a new one. So the graph needs a record of which device each node ID belongs to. The shell can write it when updates first arrive from a new UI replica. [[Identity]]
+	- **A commit's state is what its device had at that moment**, which is a state Loro can rebuild. It includes whatever the device had received from others, so viewing it can show another device's half-typed block. That is what the device showed at the time, and it is accepted.
+- Making commits
+	- **One commit per block edit**: cut when the editor leaves a block, and when an edit that isn't typing ends (a move, a creation, a deletion), where [[quiddity-view]] already ends an [[Undo]] group. The app's own edits, such as making today's [[Journal]] or merging [[Duplicates]], are commits too.
+	- **Sessions are marked by the author.** A device starts a new session after a gap of at least 30 minutes, or 2 hours after the session began, timed by its own process's monotonic clock, and records the boundary on the commit. Skew between devices doesn't matter: a device is only ever compared with itself.
+	- A commit's record is keyed by its device's node ID and change count, so it is unique without a clock. It holds the version, the block and entity it touched, the session boundary, a content hash once it has one, and the wall time for display.
+- Tidying
+	- Tidying folds a commit into the next one in its lane, dropping the point but losing nothing from the states that are left. The rules look only at a commit and its neighbours, and the set of folded commits only grows, so tidies made concurrently on different devices merge into the same result, and repeating one changes nothing.
+	- **Block edits** are kept as they are at first.
+	- **Entity runs**: once a commit is at least an hour old, it is folded into the next commit in its lane if both touched the same single entity.
+	- **Sessions**: once a day old, every commit in a session is folded into the session's last. Sessions on two devices that received each other's changes fold into one shared point, the merge of their versions, which is still a whole state. That is where most forks close. Sessions that never saw each other stay a fork until a later commit contains both.
+	- Sessions are kept indefinitely. If that turns out to take too much room, the grain is the thing to revisit, not the principle.
+	- The hour and the day are each device's own "not before", from when it first saw the commit. A device only tidies commits that every active device has seen. Neither changes what the result is, only when it can happen.
+- Horizons and eviction
+	- **Each device records, for every device it has synced with, a horizon**: the heads it knows that device has seen. Entries are keyed by who wrote them and who they are about, so nobody writes over anyone else's, as in the [[Device list]] now. Vouching for a newcomer becomes the first horizon recorded for it.
+	- **What a device has stored stays as it is**, written by the device itself. Having seen a version is not having saved it, and dropping op log is safe only up to what every active device has saved.
+	- **A device is evicted when too much has happened beyond its horizon**: when the changes since it pass a budget kept in [[Graph settings]]. That bounds what holding a device back costs, the op log, and needs no clock. A quiet graph evicts nobody. This replaces 30 days of silence. The budget's size is still to be chosen.
+	- Horizons are heads rather than version vectors, which gain an entry for every node ID ever used. Heads older than the op log can't be compared, but such a device is behind anyway.
+- Keeping commits' contents
+	- **The order is tidy, write the commits that are left as blobs, then drop op log.** Op log is never dropped past a commit that hasn't been written down. A commit is a version, so every device that holds its changes writes the same blob without anything being sent. A device that joins later fetches older commits from a peer, when someone opens them. [[Blob transfer]]
+	- **The encoding is Quiddity's own**, since Loro's snapshots aren't the same byte for byte from two devices. It is a manifest of entities, each pointing at a chunk of that entity's outline that includes each block's ID, all hashed with [[BLAKE3]]. A commit shares every chunk it didn't change with the one before it.
+	- A redacted commit would no longer be the state at its version, so its record carries its content hash, and that hash is what is shown and fetched. Nothing more is planned for redaction yet.
+	- Created and modified dates can be read from history, so they would stop disappearing when the op log is dropped.
+- A device that comes back
+	- A device behind where the others' op log starts can't send them its changes: they would never apply. It finds the newest commit it holds that the others' history contains, rebuilds the base state from it, and merges three ways: the base, its own state, and the others' latest.
+		- Blocks it created are created again. Deletions and moves apply if the block is still there. Text both sides changed is merged by replaying both diffs in a scratch Loro document, so it merges as concurrent typing does.
+		- It then continues under a fresh node ID.
+	- **Its late commits are rewritten**, as jj rewrites commits it rebases: they become new commits at the tip, attributed to the device, with the original times kept for display. History therefore only grows at its tip, which is what keeps tidying of the past settled.
+	- The rebase records which old block IDs became which new ones. Two devices that were away together, syncing with each other but not the rest, would otherwise each replay the other's blocks and duplicate them.
+- Getting there from today's graphs
+	- **Offline, with no sync across the change.** `quiddity-node migrate` rewrites a graph's file. The graph keeps its ID. The schema version and the sync protocol's name change, so a device that hasn't migrated is refused when it connects. Other devices start blank and sync again. [[Versioning]] [[Sync]]
+	- The first commit is the graph as migrated. Whatever op log the file still holds can be cut into earlier commits, as a start to its history.
+	- The steps, one pull request each:
+		- [[quiddity-core]]: the content encoding and its hash, tested to be the same whatever order replicas imported changes in.
+		- [[quiddity-core]]: the history records, the map from node ID to device, horizons, and tidying as a pure function, tested to commute and to change nothing when repeated.
+		- [[quiddity-view]]: cutting commits at block edits, with sessions marked.
+		- [[quiddity-node]]: writing commits' contents before dropping op log, with the chunks in the graph's file, and eviction by budget.
+		- [[quiddity-core]]: the three-way rebase and the record of rewritten block IDs.
+		- [[quiddity-sync]]: a new protocol whose hello carries history's heads, where a device that is behind rebases instead of stopping.
+		- [[quiddity-node]] and [[The shell]]: the migration, and starting the other devices again.
+		- [[The UI]]: viewing history.
