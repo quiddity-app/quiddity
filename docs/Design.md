@@ -25,7 +25,7 @@
 	- **Every device is equal**, the headless node included. An earlier plan had a node that acknowledged stored history for the others; it was dropped for this. [[Compaction]]
 	- **[[Tauri]] on every platform.** Networking, storage and indexing run in native Rust. A WebView can't reliably listen for connections or find devices on the local network, and iOS evicts browser storage when it likes. [[Architecture]]
 - Open questions
-	- **Unsynced edits on eviction.** What happens to edits made on a device that was evicted: diff and re-apply, or keep them as a separate entity to sort out by hand? [[Compaction]]
+	- **Unsynced edits on eviction.** Planned answer: a device that comes back rebases its edits onto the others' latest, merging three ways from the newest commit they share, and eviction is by how much has happened rather than by time. [[History]]
 	- **Encryption at rest on the headless node.** Is the user's own node trusted with plaintext, or should it eventually run "blind" and store only encrypted snapshots?
 	- **Identity.** A device key that is never used directly, a graph ID in the graph and a node ID per replica, written as checksummed, prefixed tokens that secret scanning can find. [[Identity]] [[Copied graphs]]
 	- **Concurrent edits to one property value.** Since properties are text, two devices editing the same value offline get a character-level merge. Is that acceptable, or should the UI notice a value that changed on both sides and ask?

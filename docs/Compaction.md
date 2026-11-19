@@ -20,7 +20,8 @@ alias:: [vouching, eviction]
 	- A compacted replica cannot update a peer behind where its history starts: the updates would never apply.
 	- A compacted replica refuses edits made on the history it dropped.
 - Eviction: a device that is silent for 30 days stops holding compaction back.
-	- If it returns, edits it made on history the others have dropped cannot be applied. The plan is for it to re-sync from a snapshot, with its unsynced edits saved as a diff against the fresh one and offered for re-applying. Exactly how is an open question. [[Design]]
+	- If it returns, edits it made on history the others have dropped cannot be applied.
+	- Planned: [[History]] replaces this. A device is evicted when too much has happened beyond its horizon, not after a time, and one that comes back rebases its edits onto the others' latest.
 - Planned: undo will bound it further, never compacting past the start of the local undo stack. [[Undo]]
 - Devices
 	- The same list says who may connect. Authorising a device is a graph edit. [[Device list]]
