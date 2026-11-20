@@ -12,6 +12,7 @@ import { Recovery } from "@/components/recovery";
 import { LeftSidebar } from "@/components/left-sidebar";
 import { MoreMenu } from "@/components/more-menu";
 import { RightPane } from "@/components/right-pane";
+import { ScrollRestore } from "@/components/scroll-restore";
 import { Search } from "@/components/search";
 import { SyncIndicator } from "@/components/sync-indicator";
 import { Shell } from "@/components/shell";
@@ -51,6 +52,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Suspense fallback={null}>
             <UndoKeys />
             <HistoryKeys />
+            <ScrollRestore />
           </Suspense>
         </ClientOnly>
         <Shell
