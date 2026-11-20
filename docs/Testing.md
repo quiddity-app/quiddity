@@ -31,5 +31,6 @@
 	- A loop whose exit test is flipped by a mutant runs forever. Written as a recursion it overflows the stack at once instead, which is a quick failure.
 - Check that a new test fails without the fix before trusting it.
 - CI builds the documentation site as Pages does (the `site` job) and runs `scripts/check-export.mjs` over it: every named page must have its own heading and title in its HTML, so a change that leaves the export a shell fails before it is merged. `mise run docs` and the Pages workflow run the same check. [[Publishing]]
+- The jobs that install system packages (`ui`, for Playwright's libraries, and `app`, for Tauri's) cache apt's downloads with [[actions-cache]], since the Azure mirror can be slow. Each runs `scripts/apt-prune.sh` after its installs, so only what installed is saved.
 - `cargo nextest run` is the suite. It has profiles for CI and for mutants, where the first failing test ends the run.
 - CI has one check to require, `lint, build, test`, which passes when every other job succeeded or was skipped on purpose. Branch protection names only that, so adding, splitting or renaming a job means adding it to the gate's `needs` in `.github/workflows/ci.yml` and nothing else.

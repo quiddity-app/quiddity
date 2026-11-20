@@ -102,6 +102,11 @@ jobs:
     - run: pnpm ui build
     - id: playwright
       run: echo "version=$(pnpm --filter @quiddity/ui exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+    # Playwright's system libraries are the slow part of this job: the Azure
+    # mirror can take minutes. The packages it asks for change with its version.
+    - uses: $/.github/actions/apt-cache
+      with:
+        hash: ${{ steps.playwright.outputs.version }}
     - id: browsers
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
@@ -109,9 +114,11 @@ jobs:
         key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
     - if: steps.browsers.outputs.cache-hit != 'true'
       run: pnpm --filter @quiddity/ui exec playwright install --with-deps chromium
-    # The browser is cached, but the system libraries it needs are not.
+    # The browser is cached, but the system libraries it needs are installed
+    # each time, from the packages cached above.
     - if: steps.browsers.outputs.cache-hit == 'true'
       run: pnpm --filter @quiddity/ui exec playwright install-deps chromium
+    - run: sudo scripts/apt-prune.sh
     - run: pnpm ui test:e2e
     - if: failure()
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -165,8 +172,12 @@ jobs:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         persist-credentials: false
+    - uses: $/.github/actions/apt-cache
+      with:
+        hash: ${{ hashFiles('.github/workflows/ci.yml') }}
     - run: >-
         sudo apt-get update && sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev
+    - run: sudo scripts/apt-prune.sh
     - uses: $/.github/actions/setup
       with:
         tools: cargo-binstall rust

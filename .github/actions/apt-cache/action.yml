@@ -1,0 +1,43 @@
+name: Cache apt's downloads
+description: Restores apt's download directory before a job installs packages and saves it afterwards. Run `sudo scripts/apt-prune.sh` after the last install, so that only what was installed is saved.
+
+inputs:
+  name:
+    description: Whose cache to keep. Jobs install different packages, so each has its own by default.
+    default: ${{ github.job }}
+  hash:
+    description: Anything that changes which packages are installed (a package list, a tool's version), so that a change is saved at once instead of when the week turns.
+    default: ""
+
+runs:
+  using: composite
+  steps:
+  # The release is in the key because a package's file name carries its
+  # version, which differs between releases, and the architecture because the
+  # arm64 runner's files are not the x64 runner's. The week is there because
+  # an exact hit is never saved over: without it the cache would keep whatever
+  # it first held while the mirror moved on. A miss still restores the latest
+  # of an earlier week, and apt downloads only what that lacks.
+  - id: key
+    shell: bash
+    env:
+      CACHE_NAME: ${{ inputs.name }}
+    run: |
+      release="$(. /etc/os-release && echo "$VERSION_ID")"
+      echo "prefix=apt-${RUNNER_OS}-${RUNNER_ARCH}-${release}-${CACHE_NAME}" >> "$GITHUB_OUTPUT"
+      echo "week=$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
+  # The cache is restored and saved as the runner's user, and the directory is
+  # root's.
+  - shell: bash
+    run: sudo chown "$(id -un)" /var/cache/apt/archives
+  - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+    with:
+      path: /var/cache/apt/archives
+      key: ${{ steps.key.outputs.prefix }}-${{ inputs.hash }}-${{ steps.key.outputs.week }}
+      restore-keys: |
+        ${{ steps.key.outputs.prefix }}-${{ inputs.hash }}-
+        ${{ steps.key.outputs.prefix }}-
+  # apt downloads as `_apt`, into `partial`, which isn't saved and so isn't
+  # there after a restore.
+  - shell: bash
+    run: sudo install -d -o _apt -g root -m 700 /var/cache/apt/archives/partial
