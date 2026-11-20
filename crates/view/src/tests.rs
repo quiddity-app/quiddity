@@ -518,6 +518,32 @@ mod blocks_together {
         out
     }
 
+    /// A page with blocks grown under it, for the property tests: block `i`
+    /// goes under the page or one of the blocks before it, as `parents[i]`
+    /// says, with the text `text(i)` gives. Returns the view, the page and the
+    /// blocks in the order they were made.
+    fn grown(parents: &[usize], text: impl Fn(usize) -> String) -> (View, String, Vec<String>) {
+        let (v, page, _) = undoable(&[]);
+        let mut ids: Vec<String> = Vec::new();
+        for (i, p) in parents.iter().enumerate() {
+            let parent = match p % (i + 1) {
+                0 => page.clone(),
+                n => ids[n - 1].clone(),
+            };
+            ids.push(v.create_block(&parent, None, &text(i)).unwrap());
+        }
+        (v, page, ids)
+    }
+
+    /// The blocks of `ids` that `chosen` says are chosen.
+    fn chosen_of(ids: &[String], chosen: &[bool]) -> Vec<String> {
+        ids.iter()
+            .zip(chosen)
+            .filter(|(_, c)| **c)
+            .map(|(id, _)| id.clone())
+            .collect()
+    }
+
     /// A block and everything under it, in reading order.
     fn subtree(v: &View, block: BlockId) -> Vec<BlockId> {
         let mut out = vec![block];
@@ -821,6 +847,91 @@ mod blocks_together {
     }
 
     #[test]
+    fn text_is_an_outline_only_if_it_starts_with_a_bullet() {
+        use crate::{PastedText::*, classify_paste};
+        assert_eq!(classify_paste(""), Plain);
+        assert_eq!(classify_paste("words"), Plain);
+        assert_eq!(classify_paste("a - b\n- c"), Plain, "the dash isn't first");
+        assert_eq!(
+            classify_paste("-not a bullet\n- x"),
+            Plain,
+            "no space after it"
+        );
+        assert_eq!(
+            classify_paste("title:: x\n\n- a\n- b\n"),
+            Plain,
+            "starts with a property"
+        );
+        assert_eq!(classify_paste("- a\n- b\n"), Outline);
+        assert_eq!(
+            classify_paste("\n  \t- a\n- b"),
+            Outline,
+            "after blank space"
+        );
+        assert_eq!(
+            classify_paste("- a\n\t- b\n"),
+            Outline,
+            "a block with a child"
+        );
+    }
+
+    #[test]
+    fn one_bullet_is_the_blocks_text_without_it() {
+        use crate::{PastedText::*, classify_paste};
+        assert_eq!(classify_paste("- a\n"), Block("a".into()));
+        assert_eq!(classify_paste("- one\n  two\n"), Block("one\ntwo".into()));
+        assert_eq!(
+            classify_paste("- - x\n"),
+            Block("- x".into()),
+            "its own dash stays"
+        );
+        assert_eq!(classify_paste("-\n"), Block(String::new()));
+    }
+
+    #[test]
+    fn pasting_into_a_block_goes_after_it() {
+        let (v, page, ids) = undoable(&["a", "z"]);
+        let made = v.paste_into_block(&ids[0], "- x\n\t- y\n- w\n").unwrap();
+        assert_eq!(made.len(), 3);
+        assert_eq!(shape(&v, &page), ["0:a", "0:x", "1:y", "0:w", "0:z"]);
+        assert!(v.undo().unwrap());
+        assert_eq!(top_level(&v, &page), ["a", "z"], "one step");
+    }
+
+    #[test]
+    fn pasting_into_an_empty_block_takes_its_place() {
+        let (v, page, ids) = undoable(&["a", "", "z"]);
+        let made = v.paste_into_block(&ids[1], "- x\n- y\n").unwrap();
+        assert_eq!(made.len(), 2);
+        assert_eq!(top_level(&v, &page), ["a", "x", "y", "z"]);
+        assert!(v.undo().unwrap());
+        assert_eq!(
+            top_level(&v, &page),
+            ["a", "", "z"],
+            "the empty block is back"
+        );
+    }
+
+    #[test]
+    fn an_empty_block_with_children_or_a_paste_of_nothing_is_left_alone() {
+        let (v, page, ids) = undoable(&["a", ""]);
+        v.create_block(&ids[1], None, "kid").unwrap();
+        v.paste_into_block(&ids[1], "- x\n- y\n").unwrap();
+        assert_eq!(
+            shape(&v, &page),
+            ["0:a", "0:", "1:kid", "0:x", "0:y"],
+            "it has a child, so it is kept"
+        );
+        let (v, page, ids) = undoable(&["a", ""]);
+        assert!(v.paste_into_block(&ids[1], "").unwrap().is_empty());
+        assert_eq!(
+            top_level(&v, &page),
+            ["a", ""],
+            "nothing came, so nothing went"
+        );
+    }
+
+    #[test]
     fn the_blocks_made_come_back_in_reading_order() {
         let (v, _, ids) = undoable(&["a"]);
         let made = v.paste_blocks(&ids[0], "- x\n\t- y\n- w\n").unwrap();
@@ -867,22 +978,9 @@ mod blocks_together {
             parents in vec(0usize..10, 1..9),
             chosen in vec(any::<bool>(), 9),
         ) {
-            let (v, page, _) = undoable(&[]);
-            let mut ids: Vec<String> = Vec::new();
-            for (i, p) in parents.iter().enumerate() {
-                let parent = match p % (i + 1) {
-                    0 => page.clone(),
-                    n => ids[n - 1].clone(),
-                };
-                ids.push(v.create_block(&parent, None, &i.to_string()).unwrap());
-            }
+            let (v, page, ids) = grown(&parents, |i| i.to_string());
             let before = outline(&v, &page);
-            let picked: Vec<String> = ids
-                .iter()
-                .zip(&chosen)
-                .filter(|(_, c)| **c)
-                .map(|(id, _)| id.clone())
-                .collect();
+            let picked = chosen_of(&ids, &chosen);
             let moved = v.indent_blocks(&picked).unwrap();
             let after = outline(&v, &page);
             let read = |o: &[(usize, String)]| o.iter().map(|(_, t)| t.clone()).collect::<Vec<_>>();
@@ -894,6 +992,29 @@ mod blocks_together {
             }
         }
 
+        /// What copying makes is told apart the way it should be: nothing is
+        /// plain, one block with nothing under it is that block's text, and
+        /// anything bigger is an outline.
+        #[test]
+        fn a_copy_is_classified_by_what_it_holds(
+            parents in vec(0usize..10, 1..7),
+            texts in vec("[a-z]{1,3}( [a-z]{1,2})?(\\n[a-z][a-z ]{0,2})?", 7),
+            chosen in vec(any::<bool>(), 7),
+        ) {
+            use crate::{PastedText, classify_paste};
+            let (v, _page, ids) = grown(&parents, |i| texts[i].clone());
+            let picked = chosen_of(&ids, &chosen);
+            let tops = v.top_blocks(&picked).unwrap();
+            let count: usize = tops.iter().map(|&t| subtree(&v, t).len()).sum();
+            let copied = v.copy_blocks(&picked).unwrap();
+            let expected = match count {
+                0 => PastedText::Plain,
+                1 => PastedText::Block(v.graph().text(tops[0]).unwrap()),
+                _ => PastedText::Outline,
+            };
+            prop_assert_eq!(classify_paste(&copied), expected);
+        }
+
         /// What is copied is what is pasted: the outline of the blocks, texts
         /// with lines and spaces and all, comes back as new blocks, and one
         /// undo takes them away.
@@ -903,21 +1024,8 @@ mod blocks_together {
             texts in vec("[a-z]{0,3}( [a-z]{1,2})?(\\n[a-z][a-z ]{0,2})?", 7),
             chosen in vec(any::<bool>(), 7),
         ) {
-            let (v, page, _) = undoable(&[]);
-            let mut ids: Vec<String> = Vec::new();
-            for (i, p) in parents.iter().enumerate() {
-                let parent = match p % (i + 1) {
-                    0 => page.clone(),
-                    n => ids[n - 1].clone(),
-                };
-                ids.push(v.create_block(&parent, None, &texts[i]).unwrap());
-            }
-            let picked: Vec<String> = ids
-                .iter()
-                .zip(&chosen)
-                .filter(|(_, c)| **c)
-                .map(|(id, _)| id.clone())
-                .collect();
+            let (v, page, ids) = grown(&parents, |i| texts[i].clone());
+            let picked = chosen_of(&ids, &chosen);
             let copied = v.copy_blocks(&picked).unwrap();
             let tops = v.top_blocks(&picked).unwrap();
             let before = outline(&v, &page);
@@ -945,21 +1053,8 @@ mod blocks_together {
             chosen in vec(any::<bool>(), 9),
             up in any::<bool>(),
         ) {
-            let (v, page, _) = undoable(&[]);
-            let mut ids: Vec<String> = Vec::new();
-            for (i, p) in parents.iter().enumerate() {
-                let parent = match p % (i + 1) {
-                    0 => page.clone(),
-                    n => ids[n - 1].clone(),
-                };
-                ids.push(v.create_block(&parent, None, &i.to_string()).unwrap());
-            }
-            let picked: Vec<String> = ids
-                .iter()
-                .zip(&chosen)
-                .filter(|(_, c)| **c)
-                .map(|(id, _)| id.clone())
-                .collect();
+            let (v, page, ids) = grown(&parents, |i| i.to_string());
+            let picked = chosen_of(&ids, &chosen);
             let tops = v.top_blocks(&picked).unwrap();
             let moving: std::collections::BTreeSet<BlockId> =
                 tops.iter().flat_map(|&t| subtree(&v, t)).collect();

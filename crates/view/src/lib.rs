@@ -21,7 +21,7 @@ use jiff::Timestamp;
 use quiddity_core::{BlockId, Graph, Index, Scanned, Version};
 
 pub use completion::{KeyHit, ValueHit};
-pub use edit::Merged;
+pub use edit::{Merged, PastedText, classify_paste};
 pub use fts::BlockHit;
 pub use meta::{INVERSE_LIMIT, Inherited, Inverse, InverseNode};
 pub use query::{

@@ -9,6 +9,7 @@ import type {
   EntityId,
   EntityRef,
   Merged,
+  PastedText,
   KeyHit,
   Reference,
   Use,
@@ -375,6 +376,17 @@ export class Graph {
    * Returns every block made, children included. */
   pasteBlocks(after: string, text: string) {
     return this.edited(this.replica.pasteBlocks(after, text));
+  }
+
+  /** What pasting `text` into a block being edited should do. */
+  classifyPaste(text: string) {
+    return this.replica.classifyPaste(text) as PastedText;
+  }
+
+  /** Pastes the outline `text` into the block `id` being edited, replacing
+   * it if it is empty, as one undo step. Returns every block made. */
+  pasteIntoBlock(id: string, text: string) {
+    return this.edited(this.replica.pasteIntoBlock(id, text));
   }
 
   /** Moves each block with its children among its siblings, as one undo step. */

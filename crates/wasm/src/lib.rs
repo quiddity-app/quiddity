@@ -378,6 +378,20 @@ impl Replica {
         Ok(self.view.paste_blocks(after, text)?)
     }
 
+    /// What pasting `text` into a block being edited should do, as
+    /// `{ kind: "plain" }`, `{ kind: "block", text }` or `{ kind: "outline" }`.
+    #[wasm_bindgen(js_name = classifyPaste)]
+    pub fn classify_paste(&self, text: &str) -> Result<JsValue, JsError> {
+        js(&quiddity_view::classify_paste(text))
+    }
+
+    /// Pastes the outline `text` into the block being edited, replacing it
+    /// if it is empty, as one undo step. Returns every block made.
+    #[wasm_bindgen(js_name = pasteIntoBlock)]
+    pub fn paste_into_block(&self, id: &str, text: &str) -> Result<Vec<String>, JsError> {
+        Ok(self.view.paste_into_block(id, text)?)
+    }
+
     /// Moves each block, with its children, `delta` places among its
     /// siblings, as one undo step.
     #[wasm_bindgen(js_name = moveBlocks)]

@@ -269,6 +269,29 @@ export function BlockEditor({
             blur: () => {
               if (!closing.current && document.hasFocus()) latest.current.stop(id);
             },
+            // An outline pastes as blocks, and one bullet as its text; anything
+            // else is left to the editor as the text it is.
+            paste: (event, view) => {
+              const text = event.clipboardData?.getData("text/plain");
+              if (!text) return false;
+              const pasted = graph.classifyPaste(text);
+              if (pasted.kind === "plain") return false;
+              event.preventDefault();
+              if (pasted.kind === "block") {
+                view.dispatch({
+                  ...view.state.replaceSelection(pasted.text),
+                  userEvent: "input.paste",
+                  scrollIntoView: true,
+                });
+                return true;
+              }
+              // The block's own text is saved first: it may be about to go.
+              graph.settle();
+              const made = graph.pasteIntoBlock(id, text);
+              const last = made.at(-1);
+              if (last !== undefined) latest.current.edit(last, "end");
+              return true;
+            },
           }),
           EditorView.theme({
             "&": { backgroundColor: "transparent", color: "inherit" },

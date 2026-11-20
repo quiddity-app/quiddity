@@ -167,6 +167,15 @@ export interface BlobInfo {
   name: string | null;
 }
 
+/** What pasting text into a block being edited should do. */
+export type PastedText =
+  /** Not an outline: it goes in as text. */
+  | { kind: "plain" }
+  /** One block of an outline: its text goes in, without the bullet. */
+  | { kind: "block"; text: string }
+  /** Several blocks, or one with children: they become blocks. */
+  | { kind: "outline" };
+
 /** What typing Backspace at the start of a block did: joined it to another. */
 export interface Merged {
   /** The block that took the text. */

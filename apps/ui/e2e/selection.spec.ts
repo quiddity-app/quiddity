@@ -431,3 +431,88 @@ test("the keys move a block being edited past its siblings too, keeping the care
   await page.keyboard.type("!");
   await expect(editor(page)).toHaveText(`!${LEAF}`);
 });
+
+test("an outline pasted into an editor becomes blocks after it, and editing carries on", async ({
+  page,
+}) => {
+  await block(page, LEAF).click();
+  await paste(page, "- first\n\t- under it\n- second\n");
+  await expect
+    .poll(() => shape(page))
+    .toEqual([
+      `0:${PARENT}`,
+      `1:${BUILT}`,
+      `1:${LEAF}`,
+      "1:first",
+      "2:under it",
+      "1:second",
+      `0:${QUESTIONS}`,
+      `1:${EVICTION}`,
+    ]);
+  // The caret is at the end of the last block, which is being edited.
+  await expect(editor(page)).toHaveText("second");
+  await page.keyboard.type("!");
+  await expect(editor(page)).toHaveText("second!");
+
+  // One step to undo the lot.
+  await page.keyboard.press("Control+z");
+  await page.keyboard.press("Control+z");
+  await expect.poll(() => shape(page)).toContain(`1:${LEAF}`);
+  expect(await shape(page)).not.toContain("1:first");
+});
+
+test("an outline pasted into an empty block takes its place", async ({ page }) => {
+  await page.locator("main").getByRole("button", { name: "+ Add a block" }).click();
+  await expect(editor(page)).toBeFocused();
+  await paste(page, "- x\n- y\n");
+  await expect.poll(() => shape(page)).toEqual([
+    `0:${PARENT}`,
+    `1:${BUILT}`,
+    `1:${LEAF}`,
+    `0:${QUESTIONS}`,
+    `1:${EVICTION}`,
+    "0:x",
+    "0:y",
+  ]);
+  // No empty block is left behind: the paste went into it.
+  expect(await shape(page)).not.toContain("0:");
+});
+
+test("one pasted bullet goes in as its text, without the bullet", async ({ page }) => {
+  await block(page, EVICTION).click();
+  await paste(page, "- more\n");
+  await expect(editor(page)).toHaveText(`${EVICTION}more`);
+  // Nothing became a block.
+  expect(await shape(page)).toHaveLength(5);
+});
+
+test("text that isn't an outline is pasted as text, as the editor does", async ({ page }) => {
+  await block(page, EVICTION).click();
+  await page.keyboard.press("Control+a");
+  await page.keyboard.press("Control+c");
+  await page.keyboard.press("End");
+  await page.keyboard.press("Control+v");
+  await expect(editor(page)).toHaveText(EVICTION + EVICTION);
+  expect(await shape(page)).toHaveLength(5);
+});
+
+test("copied blocks paste into an editor as blocks", async ({ page }) => {
+  await block(page, QUESTIONS).click();
+  for (let i = 0; i < 3; i++) await page.keyboard.press("Control+a");
+  await page.keyboard.press("Control+c");
+  await block(page, PARENT).click();
+  await page.keyboard.press("Control+v");
+  await expect
+    .poll(() => shape(page))
+    .toEqual([
+      `0:${PARENT}`,
+      `1:${BUILT}`,
+      `1:${LEAF}`,
+      `0:${QUESTIONS}`,
+      `1:${EVICTION}`,
+      `0:${QUESTIONS}`,
+      `1:${EVICTION}`,
+    ]);
+  // Editing carries on at the end of the last block pasted.
+  await expect(editor(page)).toHaveText(EVICTION);
+});
