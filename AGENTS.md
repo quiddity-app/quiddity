@@ -112,6 +112,14 @@ sends a mutant into a loop, check for the fast failure first.
   can't install (Tauri's system libraries on Linux) and is the first step of the
   tasks that need it. Keep the tasks in step with CI when either changes.
 
+- **Cloud environments carry an older Rust than `mise.toml` pins**, and
+  `rust-version` in the root `Cargo.toml` (the MSRV) is set to what they have,
+  so plain `cargo` works without fetching a toolchain. `mise install` or
+  `mise run` would fetch the pinned one each time a session starts. If you are
+  running in the cloud and the `rustc` on `PATH` is more recent than the MSRV,
+  flag it to the user: the environment has moved on, so the MSRV can be raised
+  to match it. Don't fetch the pinned toolchain unasked.
+
 - The UI embeds the core compiled to WASM, so it needs the
   `wasm32-unknown-unknown` target and a `wasm-bindgen` CLI of exactly the
   version `crates/wasm` pins (`mise install` gets both). Browser tests need

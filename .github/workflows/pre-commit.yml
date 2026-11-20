@@ -21,8 +21,8 @@ jobs:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         persist-credentials: false
-    # The cargo hooks run on the toolchain mise.toml pins, which is what the
-    # workspace's rust-version asks for; the runner image's Rust can be older.
+    # The cargo hooks run on the toolchain mise.toml pins, which satisfies the
+    # workspace's rust-version; the runner image's Rust can be older.
     - uses: $/.github/actions/setup
       with:
         tools: rust
