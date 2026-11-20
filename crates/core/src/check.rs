@@ -3,9 +3,9 @@
 
 use std::collections::BTreeMap;
 
-use quiddity_syntax::normalise_name;
+use quiddity_syntax::{Value, normalise_name};
 
-use crate::schema::{Cardinality, Mismatch, coerce};
+use crate::schema::{Cardinality, Mismatch, ValueType, coerce};
 use crate::tags;
 use crate::{BlockId, Index};
 
@@ -58,7 +58,11 @@ impl Index {
         for p in &info.properties {
             let key = normalise_name(&p.key);
             let schema = self.schema(&key);
-            if let Some(Err(mismatch)) = p.value.as_ref().map(|v| coerce(v, &schema)) {
+            let read = |v: &Value| match schema.value_type {
+                ValueType::Date => coerce(&self.read_days(v), &schema),
+                _ => coerce(v, &schema),
+            };
+            if let Some(Err(mismatch)) = p.value.as_ref().map(read) {
                 flags.push(Flag::Mismatch {
                     key: p.key.clone(),
                     mismatch,

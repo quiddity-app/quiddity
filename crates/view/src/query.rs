@@ -208,15 +208,50 @@ pub(crate) fn link_qualifiers(link: &Link) -> String {
     link_key(link)[link_key(&bare).len()..].to_owned()
 }
 
+/// The day a date property's value is written as, and the journal for it, if
+/// there is one.
+fn day_journal(index: &Index, value: &Value) -> Option<(String, BlockId)> {
+    let Value::Text(text) = value else {
+        return None;
+    };
+    let day: Date = text.trim().parse().ok()?;
+    Some((day.to_string(), index.journal(day)?))
+}
+
+/// The scalar values of a date property, a list's items one by one.
+fn day_items(value: &Value) -> Vec<&Value> {
+    match value {
+        Value::List(items) => items.iter().flat_map(day_items).collect(),
+        v => vec![v],
+    }
+}
+
 /// Records where the names written without brackets in a reference property's
-/// value go, as [`typed_property_value`] shows them as links.
+/// value go, and the journals that the days in a date property's value go to,
+/// as [`typed_property_value`] shows them as links.
 pub(crate) fn add_ref_links(
     index: &Index,
     key: &str,
     value: &Value,
     links: &mut BTreeMap<String, ResolvedLink>,
 ) {
-    if index.schema(key).value_type != ValueType::Ref {
+    let value_type = index.schema(key).value_type;
+    if value_type == ValueType::Date {
+        for (day, journal) in day_items(value)
+            .into_iter()
+            .filter_map(|v| day_journal(index, v))
+        {
+            // A link written in the block, if there is one, is as good.
+            links.entry(day.clone()).or_insert(ResolvedLink {
+                name: day,
+                qualifiers: String::new(),
+                target: LinkTarget::Entity {
+                    id: index.canonical(journal).to_string(),
+                },
+            });
+        }
+    }
+    if value_type != ValueType::Ref {
         return;
     }
     // A link written in brackets is one of its block's links already.
@@ -256,6 +291,21 @@ pub(crate) fn typed_property_value(index: &Index, key: &str, value: &Value) -> P
             Value::List(_) => PropertyValue::List { items },
             _ if items.len() == 1 => items.remove(0),
             _ => PropertyValue::List { items },
+        };
+    }
+    if index.schema(key).value_type == ValueType::Date {
+        let item = |v: &Value| match day_journal(index, v) {
+            Some((day, _)) => PropertyValue::Link {
+                key: day.clone(),
+                name: day,
+            },
+            None => property_value(v),
+        };
+        return match value {
+            Value::List(items) => PropertyValue::List {
+                items: items.iter().map(item).collect(),
+            },
+            v => item(v),
         };
     }
     property_value(value)
@@ -417,9 +467,22 @@ pub struct Use {
 }
 
 /// The links a property's value makes: those written in brackets, and for a
-/// reference property the names written without, as [`typed_property_value`]
-/// reads them.
+/// reference property the names written without, and for a date property the
+/// journal of each day, as [`typed_property_value`] reads them.
 fn value_links(index: &Index, key: &str, value: &Value) -> Vec<Link> {
+    if index.schema(key).value_type == ValueType::Date {
+        let mut links: Vec<Link> = links_of(value).into_iter().cloned().collect();
+        links.extend(
+            day_items(value)
+                .into_iter()
+                .filter_map(|v| day_journal(index, v))
+                .map(|(day, _)| Link {
+                    name: day,
+                    qualifiers: Vec::new(),
+                }),
+        );
+        return links;
+    }
     if index.schema(key).value_type != ValueType::Ref {
         return links_of(value).into_iter().cloned().collect();
     }

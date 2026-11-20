@@ -179,6 +179,13 @@ name as names are compared (`id_of`, `name_of`); nothing is stored for it.
 - **`follow_block_ref(id)`** answers a `[text](((id)))` link with the entity
   holding the block, or `NoSuchBlockRef`. It makes nothing.
 
+A date property's value goes to the day's journal the same way: `typed_property_value`
+shows each day that has a journal as a `Link`, keyed by the day, and
+`add_ref_links` puts that key in `links` (a link the block wrote wins).
+`value_links` adds the journal so the weak edges see it. A day with no journal
+stays text: reading never makes one. The other half, a link to a journal read as
+its day, is `Index::read_days` in `quiddity-core`.
+
 A property's key goes to the entity that defines it: `Property::definition` is
 that entity's id (found by name as `Index::property_entity` does) or `None`, and
 `define_property(key)` makes one, an entity named for the key with an empty

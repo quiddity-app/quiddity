@@ -3573,3 +3573,93 @@ fn adding_a_file_is_one_undo_step() {
     assert!(v.undo().unwrap());
     assert_eq!(v.entity(&page).unwrap().blocks.len(), 1);
 }
+
+/// A date property's value goes to that day's journal, and a link to a
+/// journal is as good as the day it is for.
+mod dates {
+    use super::*;
+
+    /// A page with a `born` property of the given value, where `born` is a
+    /// date and only 2026-10-20 has a journal.
+    fn born(value: &str) -> (View, Entity) {
+        let v = view_with(|g| {
+            let property = g.create_entity("born", &[]).unwrap();
+            note(g, property, "##value-type(date)");
+            quiddity_core::create_journal(g, "2026-10-20".parse().unwrap()).unwrap();
+            let page = g.create_entity("Page", &[]).unwrap();
+            note(g, page, &format!("born:: {value}"));
+        });
+        let page = v.entity(&id_of(&v, "Page")).unwrap();
+        (v, page)
+    }
+
+    fn value(page: &Entity) -> &PropertyValue {
+        page.blocks[0].properties[0].value.as_ref().unwrap()
+    }
+
+    #[test]
+    fn a_day_with_a_journal_links_to_it() {
+        let (v, page) = born("2026-10-20");
+        let journal = id_of(&v, "2026-10-20");
+        assert_eq!(
+            value(&page),
+            &PropertyValue::Link {
+                name: "2026-10-20".into(),
+                key: "2026-10-20".into()
+            }
+        );
+        assert_eq!(
+            page.links["2026-10-20"].target,
+            LinkTarget::Entity { id: journal }
+        );
+        assert!(page.blocks[0].properties[0].flags.is_empty());
+    }
+
+    #[test]
+    fn a_day_without_a_journal_stays_text() {
+        let (_, page) = born("2026-10-21");
+        assert_eq!(
+            value(&page),
+            &PropertyValue::Text {
+                text: "2026-10-21".into()
+            }
+        );
+        assert!(page.links.is_empty());
+    }
+
+    #[test]
+    fn a_list_links_the_days_that_have_journals() {
+        let (_, page) = born("[2026-10-20, 2026-10-21]");
+        let PropertyValue::List { items } = value(&page) else {
+            panic!("{:?}", value(&page));
+        };
+        assert!(matches!(items[0], PropertyValue::Link { .. }));
+        assert!(matches!(items[1], PropertyValue::Text { .. }));
+    }
+
+    #[test]
+    fn a_link_to_a_journal_is_its_day() {
+        let (_, page) = born("[[2026-10-20]]");
+        assert!(page.blocks[0].properties[0].flags.is_empty());
+        assert!(!page.flags.iter().any(|f| f.contains("date")));
+    }
+
+    #[test]
+    fn a_link_to_anything_else_is_not_a_day() {
+        let (_, page) = born("[[Elsewhere]]");
+        assert_eq!(page.blocks[0].properties[0].flags.len(), 1);
+    }
+
+    #[test]
+    fn the_journal_is_connected_to_the_property() {
+        let (v, _) = born("2026-10-20");
+        let connections = v.connections().unwrap();
+        let id = |t: &str| id_of(&v, t);
+        assert!(
+            connections
+                .edges
+                .iter()
+                .any(|e| e.weak && e.source == id("2026-10-20") && e.target == id("born"))
+        );
+    }
+}
