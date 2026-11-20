@@ -10,6 +10,10 @@ alias:: journals
 - A journal is identified by its date.
 	- It can't be renamed, since that would make it a different day. [[Renaming]]
 	- If two devices each make the same day's journal before they sync, the two are merged into one. [[Duplicates]]
+- A date is a link to its journal.
+	- A property whose `##value-type` is `date` shows each day it holds as a link to that day's journal, if there is one: `born:: 2026-10-20` goes to the page for the 20th. A day with no journal stays plain text, since nothing makes one until it is wanted. [[Built-in properties]]
+	- The other way round, a link to a journal is that journal's day, so `born:: [[2026-10-20]]` is a date and isn't flagged as a mismatch. A link to anything else still is.
+	- Such a value is a link in the graph too, so the journal shows among a property's weak edges. [[Graph view]]
 - In the references at the foot of a page, journals come first, newest first. [[Links]]
 - Importing a directory turns files in `journals/` named `2026-10-25.md`, or [[Logseq]]'s `2026_10_25.md`, into journals, by adding the `##journal` line. From a Logseq graph, a journal that is linked to by Logseq's name for the day (`[[10th November 2026]]`) also gets that as an `alias`. [[Export and import]] [[Logseq]]
 - This documentation has journals too: an entry for each day's work on Quiddity, which people write in commit messages and a job saves here. [[Journal entries]]

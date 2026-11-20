@@ -633,6 +633,29 @@ impl Index {
         self.by_identity(&Identity::Journal(date))
     }
 
+    /// The day a link names, if it leads to a journal.
+    pub fn link_day(&self, link: &Link) -> Option<Date> {
+        let Resolution::Unique(id) = self.resolve(link) else {
+            return None;
+        };
+        match self.entity(self.canonical(id))?.identity()? {
+            Identity::Journal(day) => Some(day),
+        }
+    }
+
+    /// A date property's value with each link to a journal read as its day,
+    /// so that `[[2026-10-25]]` and `2026-10-25` mean the same. Anything else
+    /// is left as it was.
+    pub fn read_days(&self, value: &Value) -> Value {
+        match value {
+            Value::Link(link) => self
+                .link_day(link)
+                .map_or_else(|| value.clone(), |day| Value::Text(day.to_string())),
+            Value::List(items) => Value::List(items.iter().map(|v| self.read_days(v)).collect()),
+            _ => value.clone(),
+        }
+    }
+
     /// The entity that defines the property `key`: the only entity with that
     /// name or alias, found as a link to the name alone would. With none, or
     /// several, the property has no entity to define it.
@@ -758,6 +781,42 @@ mod tests {
         );
         assert_eq!(keys(real), ["key"]);
         Ok(())
+    }
+
+    /// A link to a journal is its day, and nothing else is.
+    #[test]
+    fn a_link_to_a_journal_reads_as_its_day() -> Result<()> {
+        let graph = Graph::new();
+        let on: Date = "2026-10-25".parse().unwrap();
+        crate::create_journal(&graph, on)?;
+        graph.create_entity("Elsewhere", &[])?;
+        let index = Index::build(&graph)?;
+        let link = |name: &str| Link {
+            name: name.to_owned(),
+            qualifiers: Vec::new(),
+        };
+
+        assert_eq!(index.link_day(&link("2026-10-25")), Some(on));
+        assert_eq!(index.link_day(&link("Elsewhere")), None);
+        assert_eq!(index.link_day(&link("2026-10-26")), None, "no journal");
+        let read = |v: Value| index.read_days(&v);
+        assert_eq!(
+            read(Value::List(vec![
+                Value::Link(link("2026-10-25")),
+                Value::Link(link("Elsewhere")),
+                text_value("2026-10-27"),
+            ])),
+            Value::List(vec![
+                text_value("2026-10-25"),
+                Value::Link(link("Elsewhere")),
+                text_value("2026-10-27"),
+            ])
+        );
+        Ok(())
+    }
+
+    fn text_value(s: &str) -> Value {
+        Value::Text(s.to_owned())
     }
 
     #[test]
