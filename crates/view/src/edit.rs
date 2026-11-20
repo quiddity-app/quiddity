@@ -466,8 +466,9 @@ impl View {
         moved.map(|()| true).map_err(Error::from)
     }
 
-    /// Swaps a block with the sibling `delta` places away (-1 is up). False
-    /// if there is none.
+    /// Moves a block one place up (-1) or down (1) among its siblings, and
+    /// past the first or last of them into the next parent. False if it
+    /// is at the very top or bottom of its entity.
     pub fn move_sibling(&self, id: &str, delta: isize) -> Result<bool> {
         self.structural();
         let block = self.block_id(id)?;
@@ -475,16 +476,21 @@ impl View {
         self.edited_by(moved, Change::Structure)
     }
 
-    /// Moves each of `ids`, with its children, `delta` places among its
-    /// siblings, as one undo step. Blocks inside another of `ids` go with it.
-    /// Blocks that are chosen together stay together: a run of siblings moves
-    /// as a run, and stops when its first (or last) block reaches the end,
-    /// rather than the rest passing it. True if any block moved.
+    /// Moves each of `ids`, with its children, one place up (-1) or down (1),
+    /// as one undo step. Blocks inside another of `ids` go with it.
+    ///
+    /// A block swaps with the sibling beyond it. At the end of its siblings it
+    /// moves on into the neighbouring parent instead, as the last child of the
+    /// parent before it or the first of the one after, or if there is none, out
+    /// beside its own parent. Blocks that are chosen together stay together: a
+    /// run of siblings moves as a run, and a run at the top level stops whole,
+    /// rather than the rest passing its first block. True if any block moved.
     pub fn move_blocks(&self, ids: &[String], delta: isize) -> Result<bool> {
         self.structural();
         let mut tops = self.top_blocks(ids)?;
         // The leading blocks go first, so that each finds out whether the one
-        // it would swap with is chosen and stuck.
+        // it would swap with is chosen and stuck, and so that a run leaving
+        // its parent arrives in the order it had.
         if delta.is_positive() {
             tops.reverse();
         }
@@ -495,8 +501,9 @@ impl View {
         self.edited_by(moved, Change::Structure)
     }
 
-    /// Swaps a block with the sibling `delta` places away, unless that is one
-    /// of `held`, which didn't move.
+    /// Swaps a block with the sibling beyond it, unless that is one of `held`,
+    /// which didn't move, or moves it on into the next parent if there is no
+    /// sibling that way and the parent beyond isn't one of `held` either.
     fn move_one(&self, block: BlockId, delta: isize, held: &BTreeSet<BlockId>) -> Result<bool> {
         let parent = self
             .graph
@@ -508,12 +515,56 @@ impl View {
             .checked_add_signed(delta)
             .filter(|&t| t < siblings.len())
         else {
-            return Ok(false);
+            return self.move_out(block, parent, delta, held);
         };
         if held.contains(&siblings[to]) {
             return Ok(false);
         }
         let moved = self.graph.move_block(block, Some(parent), Some(to));
+        moved.map(|()| true).map_err(Error::from)
+    }
+
+    /// Moves the first or last child of `parent` (the direction `delta` says)
+    /// on to where it goes next: into the end of the parent's previous sibling,
+    /// or the start of its next, or beside the parent when there is no such
+    /// sibling. An entity's properties block takes no children, so it doesn't
+    /// count. Nothing moves from the top level, whose parent is the entity.
+    fn move_out(
+        &self,
+        block: BlockId,
+        parent: BlockId,
+        delta: isize,
+        held: &BTreeSet<BlockId>,
+    ) -> Result<bool> {
+        let Some(grandparent) = self.graph.parent(parent) else {
+            return Ok(false);
+        };
+        let uncles = self.graph.children(grandparent);
+        let at = uncles.iter().position(|&u| u == parent).unwrap_or(0);
+        let properties = self
+            .graph
+            .properties_block(self.graph.entity_of(parent))
+            .ok()
+            .flatten();
+        let neighbour = at
+            .checked_add_signed(delta)
+            .and_then(|i| uncles.get(i))
+            .copied()
+            .filter(|&n| Some(n) != properties);
+        // A parent that is chosen and stuck isn't one to move into: the block
+        // would end up inside another that is being moved.
+        if neighbour.is_some_and(|n| held.contains(&n)) {
+            return Ok(false);
+        }
+        let up = delta.is_negative();
+        let moved = match neighbour {
+            Some(n) if up => self.graph.move_block(block, Some(n), None),
+            Some(n) => self.graph.move_block(block, Some(n), Some(0)),
+            None if up => self.graph.move_block(block, Some(grandparent), Some(at)),
+            None => self
+                .graph
+                .move_block(block, Some(grandparent), Some(at + 1)),
+        };
         moved.map(|()| true).map_err(Error::from)
     }
 
