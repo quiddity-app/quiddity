@@ -27,4 +27,4 @@ jobs:
       with:
         tools: rust
         mbx: "false"
-    - uses: andrewaylett/pre-commit-action@88a6b26595c0a32286adb3ce36ff2d1694fc071b # v4.7.0-13
+    - uses: andrewaylett/pre-commit-action@ee547ed4dd5ac65c593a6e7dfc329206518ceb52 # v4.7.0-14
