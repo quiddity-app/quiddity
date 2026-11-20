@@ -45,6 +45,11 @@
 		- Anything else is pasted as the text it is, including a sentence with a dash in it, or a list that doesn't start with its bullet.
 		- Code: `classify_paste` and `View::paste_into_block`.
 	- Code: `View::copy_blocks` and `paste_blocks`, which read and write the same outline as a file (`outline.rs`).
+	- A screen reader is told what happens, through a polite live region under the outline, since a selection or a move is otherwise only seen.
+		- Selecting says how many blocks are selected once the count settles, so a drag isn't said at every step, and reads out the one block if there is only one. Escape says the selection is cleared.
+		- Indenting, outdenting and moving say so, and say "Can't indent" or "Can't move up" when nothing moved. Delete, copy, cut and paste say how many blocks. The editor's own Tab, Shift-Tab and move keys say the same.
+		- Saying the same thing twice in a row still says it twice, which a live region only does if its content changes: a non-breaking space comes and goes after it.
+		- What is selected is shaded, and is not otherwise marked up: a block in a list has no state a screen reader would read as selected.
 	- Code: `lib/block-selection.ts` for the steps, and `selectionHandlers` in `components/editing.tsx` for the keys and the drag.
 - Links
 	- `[` makes `[]` with the caret inside, so `[[` makes `[[]]`. With a selection, the brackets go round it. `]` steps over a closer rather than doubling it, and Backspace in an empty pair removes both. A `[` before a word is left alone.

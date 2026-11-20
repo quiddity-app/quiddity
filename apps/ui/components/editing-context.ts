@@ -21,6 +21,9 @@ export interface Editing {
   /** Marks this outline's rows (`data-outline`), so a press or a key can be
    * told from one in another outline on the page, such as at the side. */
   scope: string;
+  /** Says something to a screen reader, politely: what an edit did that
+   * can't otherwise be seen or heard, such as a block that has moved. */
+  announce(text: string): void;
   edit(id: string, caret: Caret): void;
   /** Stops editing `id`, unless something else has been started since. */
   stop(id: string): void;
