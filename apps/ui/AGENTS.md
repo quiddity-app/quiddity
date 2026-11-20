@@ -176,6 +176,18 @@ never writes the `##blob` line: Rust does.
   choosing a search result, says so with `noteFollowed`. `e2e/pages.spec.ts` follows the link the moment it
   is drawn, with the destination slow, to hold the race open, and
   `e2e/search.spec.ts` does the same for a search result.
+- **The main pane's scroll position is remembered per place** (`ScrollRestore`,
+  `lib/scroll-memory.ts`), because `main` scrolls rather than the window, so the
+  browser has nothing to restore. A place is `path` and `main`, as in
+  `PlaceHistory`. A page that has just been shown is usually too short to
+  scroll to where it was, and Next scrolls a `router.replace` route to the top
+  after our layout effect, so **the position is put back whenever it moves, until
+  the person scrolls** (wheel, touch, pointer or key), the page has been quiet
+  for a second, or five have passed. The scroll events in that time aren't
+  remembered. A test that scrolls then must use the mouse wheel: a programmatic
+  `scrollTop` is undone. **A test must also not let Playwright scroll a link into
+  view to click it**, or it moves the pane after its position was read: click
+  from the page (`el.click()`), and give the scroll event two frames to be heard.
 - Reading the URL suspends, so each pane, and each secondary within the right
   pane, has its own `Suspense` and error boundary (`Region`): a slow or broken
   one holds up nothing else. A card's header sits outside its content's

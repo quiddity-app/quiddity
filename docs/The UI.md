@@ -9,6 +9,7 @@
 	- Alt-Left and Alt-Right, or Cmd/Ctrl-`[` and Cmd/Ctrl-`]`, step back and forward through what the main pane has shown. They work wherever the focus is except in an editor or text field, where Alt-Left and Alt-Right move by word and Cmd/Ctrl-`[` and `]` indent.
 	- Only the main pane moves. The side panel stays as it is, and opening, closing or reordering its cards is never a step.
 	- The app keeps this history itself (`lib/history.ts`) rather than using the webview's, which would replay the side panel too, since it is in the URL. Going somewhere new forgets what was forward, as in a browser. The history is in memory, so a reload starts it afresh.
+	- Going back, by key or by the browser's button, finds each page scrolled to where it was left; a page not seen before starts at the top. Where each was left is kept in memory for the most recent 200 places, so a reload forgets it. A feed that loads more as you scroll (journals) comes back only as far as it has loaded by then. The scrolling pane is `main`, not the window, which is why the browser can't do this itself (`lib/scroll-memory.ts`, `components/scroll-restore.tsx`).
 - The UI holds its own replica of the graph.
 	- The core is compiled to WASM (`crates/wasm`, over `crates/view`) and loaded from a snapshot at startup. Every query is answered locally and every edit applies locally, so nothing typed waits on IPC. [[Editing]]
 	- The shell is sent the updates a moment later, 300 ms after the last edit.
