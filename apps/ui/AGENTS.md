@@ -234,6 +234,11 @@ never writes the `##blob` line: Rust does.
   goes after the last selected block that isn't inside another
   (`lastSelected`) or after the block with the focus, and selects what it made.
   A test plays a paste with a `ClipboardEvent` at `document.activeElement`.
+  **An editor's own paste handler** (`block-editor.tsx`) asks
+  `graph.classifyPaste` what the text is: plain text is left to CodeMirror, one
+  bullet is inserted as its text, and an outline goes to
+  `graph.pasteIntoBlock` (after the block, or in place of it if it is empty),
+  with editing continuing at the end of the last block made.
 - Removing a focused editor fires a blur that isn't the user leaving, so
   `closing` is set in a layout effect (which runs before the DOM goes).
 - IDs held by editing state go dead across an undo of a deletion; that just

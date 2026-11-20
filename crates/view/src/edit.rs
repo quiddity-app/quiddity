@@ -20,6 +20,36 @@ pub struct Merged {
     pub at: usize,
 }
 
+/// What pasting some text into a block being edited should do.
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(tag = "kind", content = "text", rename_all = "camelCase")]
+pub enum PastedText {
+    /// Not an outline: it goes in as the text it is.
+    Plain,
+    /// One block of an outline, with nothing under it. Its text goes in
+    /// without the bullet, so a copied block pastes as what it said.
+    Block(String),
+    /// Several blocks, or one with children: they become blocks.
+    Outline,
+}
+
+/// What pasting `text` into a block should do. Only text that starts with a
+/// bullet is an outline, so a sentence with a dash in it is just text.
+pub fn classify_paste(text: &str) -> PastedText {
+    let first = text.trim_start().lines().next().unwrap_or("");
+    let bulleted = first == "-" || first.starts_with("- ") || first.starts_with("-\t");
+    if !bulleted {
+        return PastedText::Plain;
+    }
+    let outline = parse_outline(text, Indent::Auto);
+    // A bulleted first line always reads as at least one block, so what isn't
+    // a lone childless one is several blocks, or one with children.
+    match outline.blocks.as_slice() {
+        [only] if only.children.is_empty() => PastedText::Block(only.text.clone()),
+        _ => PastedText::Outline,
+    }
+}
+
 /// The byte offset of `utf16` code units into `text`, if that is between
 /// characters.
 fn byte_offset(text: &str, utf16: usize) -> Option<usize> {
@@ -356,10 +386,35 @@ impl View {
     pub fn paste_blocks(&self, after: &str, text: &str) -> Result<Vec<String>> {
         self.structural();
         let anchor = self.block_id(after)?;
+        let made = self.add_outline_after(anchor, text);
+        self.edited(made)
+    }
+
+    /// Pastes `text` into the block being edited, `id`: its blocks go in after
+    /// it, as [`View::paste_blocks`] does, except that a block with no text and
+    /// no children is replaced, as it is a place to put them and not something
+    /// to leave an empty block behind. One undo step. Returns every block made.
+    pub fn paste_into_block(&self, id: &str, text: &str) -> Result<Vec<String>> {
+        self.structural();
+        let anchor = self.block_id(id)?;
+        let replaced = (|| {
+            let empty =
+                self.graph.text(anchor)?.is_empty() && self.graph.children(anchor).is_empty();
+            let made = self.add_outline_after(anchor, text)?;
+            if empty && !made.is_empty() {
+                self.graph.delete_block(anchor)?;
+            }
+            Ok(made)
+        })();
+        self.edited(replaced)
+    }
+
+    /// Adds the blocks of `text` after `anchor`, without ending the edit.
+    fn add_outline_after(&self, anchor: BlockId, text: &str) -> Result<Vec<String>> {
         let parent = self
             .graph
             .parent(anchor)
-            .ok_or_else(|| Error::NotABlock(after.to_owned()))?;
+            .ok_or_else(|| Error::NotABlock(anchor.to_string()))?;
         let at = self
             .graph
             .children(parent)
@@ -391,11 +446,11 @@ impl View {
             Ok(())
         }
         let mut made = Vec::new();
-        let added = blocks
+        blocks
             .iter()
             .enumerate()
-            .try_for_each(|(i, block)| add(&self.graph, parent, Some(at + i), block, &mut made));
-        self.edited(added.map(|()| made))
+            .try_for_each(|(i, block)| add(&self.graph, parent, Some(at + i), block, &mut made))?;
+        Ok(made)
     }
 
     /// The blocks of `ids` that aren't inside another of them, in reading

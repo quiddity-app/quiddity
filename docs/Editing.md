@@ -39,7 +39,11 @@
 	- Copy and cut put the selected blocks on the clipboard as a Markdown outline, the same as in a file: `- ` bullets, children indented with a tab. A block chosen with its parent is part of it, once. It reads as text anywhere, so it can be pasted into another app.
 	- Paste adds the blocks that the clipboard's text is an outline of, after the selection, among its last block's siblings, and selects them, so a second paste goes after the first. Text that isn't an outline is one block. A title line is left out, and properties are a block of their own. It is one undo step. A block that has the focus with nothing selected takes a paste after it too.
 	- Cut is a copy and then a delete, so undo brings the blocks back.
-	- In an editor, or any field, copy, cut and paste are the text's own: pasting copied blocks into an editor pastes the outline as text. That is not built yet.
+	- In a field, and for text selected in an editor, copy and cut are the text's own. Paste into an editor looks at what is pasted:
+		- Text that starts with a `- ` bullet is an outline. One bullet with nothing under it goes in as its text without the bullet, so a copied block pastes as what it said.
+		- Several blocks, or one with children, become blocks after the one being edited, in one undo step, and editing carries on at the end of the last. If the block being edited is empty and has no children it is replaced, since it was only a place to put them.
+		- Anything else is pasted as the text it is, including a sentence with a dash in it, or a list that doesn't start with its bullet.
+		- Code: `classify_paste` and `View::paste_into_block`.
 	- Code: `View::copy_blocks` and `paste_blocks`, which read and write the same outline as a file (`outline.rs`).
 	- Code: `lib/block-selection.ts` for the steps, and `selectionHandlers` in `components/editing.tsx` for the keys and the drag.
 - Links
