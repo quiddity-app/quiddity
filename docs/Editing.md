@@ -9,7 +9,7 @@
 	- Enter at the very start of a block with text adds an empty block before it instead, so the text, its children and the caret stay where they are.
 	- Enter in an empty block outdents it instead, unless it is already at the top level, where it splits as usual.
 	- Shift-Enter inserts a newline.
-	- Tab and Shift-Tab indent and outdent, Backspace at the start joins the block to the one before, and Cmd-Shift-Up and Cmd-Shift-Down (Alt-Shift elsewhere) move it among its siblings.
+	- Tab and Shift-Tab indent and outdent, Backspace at the start joins the block to the one before, and Cmd-Shift-Up and Cmd-Shift-Down (Alt-Shift elsewhere) move it up and down.
 	- The arrows move between blocks at the edges, and Escape leaves the editor.
 	- A key that moves the block being edited says where editing continues before it moves it, because moving makes React remount the block.
 	- A block opened by a key, Enter above all, takes focus without the browser scrolling and has CodeMirror bring the caret into view in the pane that scrolls, with room to spare. Left to itself, a new editor's focus either did not scroll at all, so the caret ran off the bottom of the pane, or scrolled by the engine's own rules.
@@ -28,7 +28,12 @@
 	- Tab and Shift-Tab indent and outdent the selected blocks, as one undo step, the same as in the editor for one block.
 		- A block chosen along with its parent isn't acted on twice: it goes with the parent.
 		- Indenting nests a run of siblings under the one before the run, so they keep their order; if nothing is before the run, none of it moves. Outdenting puts the run after its parent in the order it had.
-	- Cmd-Shift-Up and Cmd-Shift-Down (Alt-Shift-Up and Alt-Shift-Down off a Mac) move the selected blocks, with their children, among their siblings, as one undo step. With nothing selected they move the block being edited, or the one that has the focus. A run of siblings moves as a run and stops when its first block reaches the end, instead of the rest passing it. Blocks don't change parent: that is what Tab is for.
+	- Cmd-Shift-Up and Cmd-Shift-Down (Alt-Shift-Up and Alt-Shift-Down off a Mac) move the selected blocks, with their children, as one undo step. With nothing selected they move the block being edited, or the one that has the focus.
+		- A block swaps places with the sibling beyond it, which is a whole subtree if that sibling has children.
+		- At the end of its siblings it goes on into the next parent: up, the last child of the parent's previous sibling; down, the first child of the parent's next sibling. With no such sibling it steps out beside its own parent, above it going up and below it going down. A block at the top level has nowhere further to go.
+		- An entity's properties block takes no children, so a block won't move into it, and going up from the first block after it steps out above the parent instead.
+		- Up and then down doesn't always come back to where it started: a block that stepped out above its parent swaps with the parent on the way down rather than going back inside.
+		- A run of siblings moves as a run, and a run that is stuck at the top level stops whole, instead of the rest passing its first block. A block doesn't move into a parent that is chosen too.
 		- Alt-Arrow is a Mac's word movement and Ctrl-Shift-Arrow selects words elsewhere, which is why neither is the key.
 	- Backspace and Delete delete the selected blocks with their children, as one undo step. The links to what went are left in the text, and point nowhere. [[Undo]] brings them back. In an editor, and with nothing selected, they are what they were.
 	- Copy and cut put the selected blocks on the clipboard as a Markdown outline, the same as in a file: `- ` bullets, children indented with a tab. A block chosen with its parent is part of it, once. It reads as text anywhere, so it can be pasted into another app.

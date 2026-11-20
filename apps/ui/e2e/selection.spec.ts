@@ -357,3 +357,77 @@ test("paste with nothing selected or focused does nothing", async ({ page }) => 
   await paste(page, "- stray\n");
   expect(await topTexts(page)).toEqual(before);
 });
+
+/** The page's blocks as `depth:text`, in reading order, without the properties block. */
+const shape = (page: Page) =>
+  page.evaluate(() =>
+    [...document.querySelectorAll("main article > ul li")].slice(1).map((li) => {
+      let depth = 0;
+      for (let p = li.parentElement?.closest("li"); p; p = p.parentElement?.closest("li")) depth++;
+      const own = li.querySelector(
+        ":scope > div > [data-block-text], :scope > div > div .cm-content",
+      );
+      return `${depth}:${own?.textContent ?? ""}`;
+    }),
+  );
+
+const BUILT = "Built on Loro and iroh.";
+
+test("a block moves on into the neighbouring parent, and back", async ({ page }) => {
+  const before = await shape(page);
+  expect(before).toEqual([`0:${PARENT}`, `1:${BUILT}`, `1:${LEAF}`, `0:${QUESTIONS}`, `1:${EVICTION}`]);
+
+  // Open questions' only child, going up: the end of the parent before.
+  await block(page, EVICTION).click();
+  for (let i = 0; i < 2; i++) await page.keyboard.press("Control+a");
+  await page.keyboard.press("Alt+Shift+ArrowUp");
+  await expect
+    .poll(() => shape(page))
+    .toEqual([`0:${PARENT}`, `1:${BUILT}`, `1:${LEAF}`, `1:${EVICTION}`, `0:${QUESTIONS}`]);
+  expect(await selected(page)).toEqual([EVICTION]);
+
+  // And down again, into the start of the parent after, which is where it was.
+  await page.keyboard.press("Alt+Shift+ArrowDown");
+  await expect.poll(() => shape(page)).toEqual(before);
+
+  // One undo takes back the last of those.
+  await page.keyboard.press("Control+z");
+  await expect
+    .poll(() => shape(page))
+    .toEqual([`0:${PARENT}`, `1:${BUILT}`, `1:${LEAF}`, `1:${EVICTION}`, `0:${QUESTIONS}`]);
+});
+
+test("a block with no parent beyond steps out beside its own", async ({ page }) => {
+  // The last child of the last parent, going down.
+  await block(page, EVICTION).click();
+  for (let i = 0; i < 2; i++) await page.keyboard.press("Control+a");
+  await page.keyboard.press("Alt+Shift+ArrowDown");
+  await expect
+    .poll(() => shape(page))
+    .toEqual([`0:${PARENT}`, `1:${BUILT}`, `1:${LEAF}`, `0:${QUESTIONS}`, `0:${EVICTION}`]);
+  // It is still the selected block, and at the end of the page there is no further.
+  expect(await selected(page)).toEqual([EVICTION]);
+  await page.keyboard.press("Alt+Shift+ArrowDown");
+  expect(await shape(page)).toEqual([
+    `0:${PARENT}`,
+    `1:${BUILT}`,
+    `1:${LEAF}`,
+    `0:${QUESTIONS}`,
+    `0:${EVICTION}`,
+  ]);
+});
+
+test("the keys move a block being edited past its siblings too, keeping the caret", async ({
+  page,
+}) => {
+  await block(page, LEAF).click();
+  await page.keyboard.press("Home");
+  // The last child of Local-first..., down: the start of Open questions.
+  await page.keyboard.press("Alt+Shift+ArrowDown");
+  await expect
+    .poll(() => shape(page))
+    .toEqual([`0:${PARENT}`, `1:${BUILT}`, `0:${QUESTIONS}`, `1:${LEAF}`, `1:${EVICTION}`]);
+  await expect(editor(page)).toBeFocused();
+  await page.keyboard.type("!");
+  await expect(editor(page)).toHaveText(`!${LEAF}`);
+});

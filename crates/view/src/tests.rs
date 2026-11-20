@@ -649,16 +649,105 @@ mod blocks_together {
     }
 
     #[test]
-    fn moving_only_swaps_among_siblings() {
+    fn moving_stops_at_the_top_and_bottom_of_the_entity() {
+        let (v, page, ids) = undoable(&["a", "b"]);
+        assert!(!v.move_blocks(&[ids[0].clone()], -1).unwrap());
+        assert!(!v.move_blocks(&[ids[1].clone()], 1).unwrap());
+        assert_eq!(top_level(&v, &page), ["a", "b"]);
+        assert!(v.move_blocks(&["nonsense".into()], 1).is_err());
+    }
+
+    /// `a` and `b` at the top, with the given children under each.
+    fn two_parents(
+        v: &View,
+        ids: &[String],
+        under_a: &[&str],
+        under_b: &[&str],
+    ) -> (Vec<String>, Vec<String>) {
+        let kids = |parent: &String, texts: &[&str]| {
+            texts
+                .iter()
+                .map(|t| v.create_block(parent, None, t).unwrap())
+                .collect::<Vec<_>>()
+        };
+        (kids(&ids[0], under_a), kids(&ids[1], under_b))
+    }
+
+    #[test]
+    fn the_first_child_moves_up_into_the_end_of_the_parent_before() {
+        let (v, page, ids) = undoable(&["A", "B"]);
+        let (_, b) = two_parents(&v, &ids, &["a1"], &["b1", "b2"]);
+        assert!(v.move_blocks(&[b[0].clone()], -1).unwrap());
+        assert_eq!(shape(&v, &page), ["0:A", "1:a1", "1:b1", "0:B", "1:b2"]);
+        assert!(v.undo().unwrap());
+        assert_eq!(shape(&v, &page), ["0:A", "1:a1", "0:B", "1:b1", "1:b2"]);
+    }
+
+    #[test]
+    fn the_last_child_moves_down_into_the_start_of_the_parent_after() {
+        let (v, page, ids) = undoable(&["A", "B"]);
+        let (a, _) = two_parents(&v, &ids, &["a1", "a2"], &["b1"]);
+        assert!(v.move_sibling(&a[1], 1).unwrap());
+        assert_eq!(shape(&v, &page), ["0:A", "1:a1", "0:B", "1:a2", "1:b1"]);
+    }
+
+    #[test]
+    fn with_no_parent_beyond_a_child_steps_out_beside_its_own() {
+        let (v, page, ids) = undoable(&["A", "B"]);
+        let (a, _) = two_parents(&v, &ids, &["a1", "a2"], &[]);
+        // Nothing before A, so up goes out above it...
+        assert!(v.move_sibling(&a[0], -1).unwrap());
+        assert_eq!(shape(&v, &page), ["0:a1", "0:A", "1:a2", "0:B"]);
+        // ...and nothing after B, so down goes out below it.
+        let kid = v.create_block(&ids[1], None, "b1").unwrap();
+        assert!(v.move_sibling(&kid, 1).unwrap());
+        assert_eq!(shape(&v, &page), ["0:a1", "0:A", "1:a2", "0:B", "0:b1"]);
+    }
+
+    #[test]
+    fn an_entitys_properties_block_takes_no_children() {
+        let (v, page, ids) = undoable(&["type:: thing", "B"]);
+        let kid = v.create_block(&ids[1], None, "kid").unwrap();
+        assert!(v.move_sibling(&kid, -1).unwrap());
+        assert_eq!(shape(&v, &page), ["0:type:: thing", "0:kid", "0:B"]);
+    }
+
+    #[test]
+    fn a_run_leaves_its_parent_whole_and_in_order() {
+        let (v, page, ids) = undoable(&["A", "B"]);
+        let (_, b) = two_parents(&v, &ids, &["a1"], &["b1", "b2", "b3"]);
+        assert!(v.move_blocks(&[b[0].clone(), b[1].clone()], -1).unwrap());
+        assert_eq!(
+            shape(&v, &page),
+            ["0:A", "1:a1", "1:b1", "1:b2", "0:B", "1:b3"]
+        );
+        // And back down, into the start of the parent after.
+        let (v, page, ids) = undoable(&["A", "B"]);
+        let (a, _) = two_parents(&v, &ids, &["a1", "a2", "a3"], &["b1"]);
+        assert!(v.move_blocks(&[a[1].clone(), a[2].clone()], 1).unwrap());
+        assert_eq!(
+            shape(&v, &page),
+            ["0:A", "1:a1", "0:B", "1:a2", "1:a3", "1:b1"]
+        );
+    }
+
+    #[test]
+    fn a_block_wont_move_into_a_parent_that_is_chosen_and_stuck() {
+        // `b` can't move down: it is last. `kid`, the last child of `a`, would
+        // go into the next parent, which is `b`, so it stays out of it.
         let (v, page, ids) = undoable(&["a", "b"]);
         let kid = v.create_block(&ids[0], None, "kid").unwrap();
-        assert!(
-            !v.move_blocks(&[kid], -1).unwrap(),
-            "an only child has no sibling"
-        );
-        assert!(!v.move_blocks(&[ids[0].clone()], -1).unwrap());
+        assert!(!v.move_blocks(&[kid, ids[1].clone()], 1).unwrap());
         assert_eq!(shape(&v, &page), ["0:a", "1:kid", "0:b"]);
-        assert!(v.move_blocks(&["nonsense".into()], 1).is_err());
+    }
+
+    #[test]
+    fn a_blocks_children_go_with_it_across_parents() {
+        let (v, page, ids) = undoable(&["A", "B"]);
+        let (_, b) = two_parents(&v, &ids, &["a1"], &["b1"]);
+        v.create_block(&b[0], None, "deep").unwrap();
+        assert!(v.move_sibling(&b[0], -1).unwrap());
+        assert_eq!(shape(&v, &page), ["0:A", "1:a1", "1:b1", "2:deep", "0:B"]);
     }
 
     #[test]
@@ -847,10 +936,11 @@ mod blocks_together {
             prop_assert_eq!(outline(&v, &page), before);
         }
 
-        /// Moving only reorders siblings: nothing changes parent, and one undo
-        /// takes it all back.
+        /// Moving takes blocks whole, and leaves the rest as it was: the
+        /// blocks that weren't moved stay in the order they were read in,
+        /// whichever parent the others went to, and one undo takes it all back.
         #[test]
-        fn moving_blocks_only_reorders_siblings_and_undoes_whole(
+        fn moving_blocks_takes_them_whole_and_leaves_the_rest_in_order(
             parents in vec(0usize..10, 1..9),
             chosen in vec(any::<bool>(), 9),
             up in any::<bool>(),
@@ -864,19 +954,30 @@ mod blocks_together {
                 };
                 ids.push(v.create_block(&parent, None, &i.to_string()).unwrap());
             }
-            let parent_of = |v: &View| -> Vec<Option<BlockId>> {
-                ids.iter().map(|id| v.graph().parent(id.parse().unwrap())).collect()
-            };
-            let before = outline(&v, &page);
-            let parents_before = parent_of(&v);
             let picked: Vec<String> = ids
                 .iter()
                 .zip(&chosen)
                 .filter(|(_, c)| **c)
                 .map(|(id, _)| id.clone())
                 .collect();
+            let tops = v.top_blocks(&picked).unwrap();
+            let moving: std::collections::BTreeSet<BlockId> =
+                tops.iter().flat_map(|&t| subtree(&v, t)).collect();
+            let whole = |v: &View| -> Vec<Vec<BlockId>> {
+                tops.iter().map(|&t| subtree(v, t)).collect()
+            };
+            let staying = |v: &View| -> Vec<BlockId> {
+                let root: BlockId = page.parse().unwrap();
+                subtree(v, root)
+                    .into_iter()
+                    .filter(|b| *b != root && !moving.contains(b))
+                    .collect()
+            };
+            let before = outline(&v, &page);
+            let (whole_before, staying_before) = (whole(&v), staying(&v));
             let moved = v.move_blocks(&picked, if up { -1 } else { 1 }).unwrap();
-            prop_assert_eq!(parent_of(&v), parents_before);
+            prop_assert_eq!(whole(&v), whole_before, "each came with its children");
+            prop_assert_eq!(staying(&v), staying_before, "the rest kept its order");
             prop_assert_eq!(moved, before != outline(&v, &page));
             if moved {
                 prop_assert!(v.undo().unwrap());
