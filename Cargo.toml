@@ -13,7 +13,7 @@ version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
 repository = "https://github.com/quiddity-app/quiddity"
-rust-version = "1.100"
+rust-version = "1.97"
 
 [workspace.dependencies]
 quiddity-core = { path = "crates/core" }
