@@ -92,18 +92,18 @@ function outlinerKeys(
     {
       key: "Tab",
       run: (view) => {
-        const { graph, edit } = latest.current;
+        const { graph, edit, announce } = latest.current;
         edit(id, head(view));
-        graph.indent(id);
+        announce(graph.indent(id) ? "Indented" : "Can't indent");
         return true;
       },
     },
     {
       key: "Shift-Tab",
       run: (view) => {
-        const { graph, edit } = latest.current;
+        const { graph, edit, announce } = latest.current;
         edit(id, head(view));
-        graph.outdent(id);
+        announce(graph.outdent(id) ? "Outdented" : "Can't outdent");
         return true;
       },
     },
@@ -146,9 +146,10 @@ function outlinerKeys(
     ...([-1, 1] as const).map((delta) => ({
       key: moveKeyName(delta < 0 ? "ArrowUp" : "ArrowDown"),
       run: (view: EditorView) => {
-        const { graph, edit } = latest.current;
+        const { graph, edit, announce } = latest.current;
         edit(id, head(view));
-        graph.moveSibling(id, delta);
+        const way = delta < 0 ? "up" : "down";
+        announce(graph.moveSibling(id, delta) ? `Moved ${way}` : `Can't move ${way}`);
         return true;
       },
     })),
@@ -290,6 +291,7 @@ export function BlockEditor({
               const made = graph.pasteIntoBlock(id, text);
               const last = made.at(-1);
               if (last !== undefined) latest.current.edit(last, "end");
+              latest.current.announce(`${made.length} blocks pasted`);
               return true;
             },
           }),

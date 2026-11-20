@@ -246,6 +246,13 @@ never writes the `##blob` line: Rust does.
   goes after the last selected block that isn't inside another
   (`lastSelected`) or after the block with the focus, and selects what it made.
   A test plays a paste with a `ClipboardEvent` at `document.activeElement`.
+  **`EditableOutline` has a polite live region** (`role="status"`, `sr-only`, under
+  the outline) that `Editing.announce` writes to; the selection's own count is
+  said after 300 ms of no change, and not at all if an action has just
+  announced itself (`lastAction`), so a paste isn't followed by "3 blocks
+  selected". An identical message is made different by a trailing non-breaking
+  space that comes and goes, or a screen reader says it once. Tests read it as
+  `main [role=status][aria-live=polite]`.
   **An editor's own paste handler** (`block-editor.tsx`) asks
   `graph.classifyPaste` what the text is: plain text is left to CodeMirror, one
   bullet is inserted as its text, and an outline goes to
