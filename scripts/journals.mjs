@@ -115,27 +115,33 @@ export function readCommits(ref) {
     });
 }
 
+/** Whether a commit is one whose date still needs a page, and isn't a roll-up. */
+function wanted(c, after, before) {
+  if (after && c.date <= after) return false;
+  if (before && c.date >= before) return false;
+  return !c.subject.startsWith(ROLLUP_SUBJECT);
+}
+
+/** A commit's entry: its title and journal, linked to its pull request or, with none, itself. */
+function entryFor(c, repo, resolve) {
+  let { title, number } = splitSubject(c.subject);
+  if (number === null) {
+    const pull = resolve(repo, c.sha);
+    if (pull) ({ title, number } = { title: pull.title, number: pull.number });
+  }
+  const link =
+    number === null
+      ? { url: `https://github.com/${repo}/commit/${c.sha}`, label: c.sha.slice(0, 7) }
+      : { url: `https://github.com/${repo}/pull/${number}`, label: `#${number}` };
+  return { title, journal: parseJournal(c.message), ...link };
+}
+
 /** Maps each date to be written to its page's text. */
 export function rollUp({ commits, after, before, repo, resolve = lookUpPull }) {
   const days = new Map();
-  for (const c of commits) {
-    if (after && c.date <= after) continue;
-    if (before && c.date >= before) continue;
-    if (c.subject.startsWith(ROLLUP_SUBJECT)) continue;
-    let { title, number } = splitSubject(c.subject);
-    if (number === null) {
-      const pull = resolve(repo, c.sha);
-      if (pull) ({ title, number } = { title: pull.title, number: pull.number });
-    }
-    const entry = {
-      title,
-      journal: parseJournal(c.message),
-      ...(number === null
-        ? { url: `https://github.com/${repo}/commit/${c.sha}`, label: c.sha.slice(0, 7) }
-        : { url: `https://github.com/${repo}/pull/${number}`, label: `#${number}` }),
-    };
+  for (const c of commits.filter((commit) => wanted(commit, after, before))) {
     if (!days.has(c.date)) days.set(c.date, []);
-    days.get(c.date).push(entry);
+    days.get(c.date).push(entryFor(c, repo, resolve));
   }
   return new Map([...days].map(([d, es]) => [d, renderDay(es)]));
 }
