@@ -23,6 +23,21 @@ export interface LinkSpan {
 
 const qualifierStart = /[\p{L}\p{N}_[]/u;
 
+/** Where a link that opens at `from` ends, or null if it is never closed. */
+function scanLink(line: string, from: number): { to: number; nameEnd: number } | null {
+  let to = from;
+  let nameEnd = -1;
+  while (to < line.length && !(line[to] === "]" && line[to + 1] === "]")) {
+    if (line[to] === "\\") to++;
+    else if (nameEnd < 0 && line[to] === "#" && qualifierStart.test(line[to + 1] ?? "")) {
+      nameEnd = to;
+    }
+    to++;
+  }
+  if (to >= line.length) return null;
+  return { to, nameEnd: nameEnd < 0 ? to : nameEnd };
+}
+
 /** The links in one line of text, as offsets into it. A backslash escapes the
  * next character, as it does for the parser. */
 export function linksIn(line: string): LinkSpan[] {
@@ -33,21 +48,13 @@ export function linksIn(line: string): LinkSpan[] {
       i += 2;
     } else if (line[i] === "[" && line[i + 1] === "[") {
       const from = i + 2;
-      let to = from;
-      let nameEnd = -1;
-      while (to < line.length && !(line[to] === "]" && line[to + 1] === "]")) {
-        if (line[to] === "\\") to++;
-        else if (nameEnd < 0 && line[to] === "#" && qualifierStart.test(line[to + 1] ?? "")) {
-          nameEnd = to;
-        }
-        to++;
-      }
-      if (to >= line.length) {
+      const found = scanLink(line, from);
+      if (found) {
+        out.push({ from, ...found });
+        i = found.to + 2;
+      } else {
         i = from; // Never closed, so not a link; there may be one inside.
-        continue;
       }
-      out.push({ from, to, nameEnd: nameEnd < 0 ? to : nameEnd });
-      i = to + 2;
     } else {
       i++;
     }
