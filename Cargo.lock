@@ -3168,12 +3168,12 @@ dependencies = [
 
 [[package]]
 name = "jiff"
-version = "1.0.1"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed5d126d72eb017f10b302e73bdeca446bea405ee449af4d9e7866d6b082d83e"
+checksum = "c5e77cbfb9fff4798e283c2d69dff39fc2c45e7da017e5ce95b654e46ea41236"
 dependencies = [
  "jiff-core 1.0.1",
- "jiff-static 1.0.1",
+ "jiff-static 1.0.2",
  "log",
  "portable-atomic",
  "portable-atomic-util",
@@ -3212,9 +3212,9 @@ dependencies = [
 
 [[package]]
 name = "jiff-static"
-version = "1.0.1"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c0127e9bde3c6130d6169e7d8d68676e4be69c4bf7573c308b6f960a5089c428"
+checksum = "e9067a0b23e5be3147d56b2dcf652b18e6b1364caca93fb157653b6fbcab23a9"
 dependencies = [
  "jiff-core 1.0.1",
  "proc-macro2",
@@ -5085,7 +5085,7 @@ dependencies = [
 name = "quiddity-core"
 version = "0.1.0"
 dependencies = [
- "jiff 1.0.1",
+ "jiff 1.0.2",
  "loro",
  "proptest",
  "quiddity-identity",
@@ -5121,7 +5121,7 @@ dependencies = [
  "iroh",
  "iroh-blobs",
  "irpc",
- "jiff 1.0.1",
+ "jiff 1.0.2",
  "proptest",
  "quiddity-core",
  "quiddity-identity",
@@ -5139,7 +5139,7 @@ dependencies = [
 name = "quiddity-sync"
 version = "0.1.0"
 dependencies = [
- "jiff 1.0.1",
+ "jiff 1.0.2",
  "proptest",
  "quiddity-core",
  "thiserror 2.0.21",
@@ -5159,7 +5159,7 @@ dependencies = [
 name = "quiddity-view"
 version = "0.1.0"
 dependencies = [
- "jiff 1.0.1",
+ "jiff 1.0.2",
  "proptest",
  "quiddity-core",
  "serde",
@@ -5171,7 +5171,7 @@ name = "quiddity-wasm"
 version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
- "jiff 1.0.1",
+ "jiff 1.0.2",
  "quiddity-core",
  "quiddity-view",
  "serde",
