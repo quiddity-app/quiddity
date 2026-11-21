@@ -67,6 +67,52 @@ interface Drawing {
   stop(): void;
 }
 
+/** Each entity's neighbours, and (filled in as it goes) how many links each has. */
+function neighbourhood(
+  edges: Connections["edges"],
+  degree: Map<string, number>,
+): Map<string, Set<string>> {
+  const neighbours = new Map<string, Set<string>>();
+  const link = (from: string, to: string) => {
+    degree.set(from, (degree.get(from) ?? 0) + 1);
+    const set = neighbours.get(from) ?? new Set<string>();
+    set.add(to);
+    neighbours.set(from, set);
+  };
+  for (const { source, target } of edges) {
+    link(source, target);
+    link(target, source);
+  }
+  return neighbours;
+}
+
+/**
+ * Gives a place to each entity without one: beside one it links to, if that
+ * has a place, or near the middle, so it doesn't fly in from nowhere and shove
+ * the rest. Those it places are `unsettled`, free to move until the layout ends.
+ * Those `cachedPosition` already knows are left where they were.
+ */
+function placeNew(
+  nodes: Node[],
+  neighbours: Map<string, Set<string>>,
+  unsettled: Set<string>,
+  cachedPosition: (id: string) => unknown,
+) {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  for (const n of nodes) {
+    if (cachedPosition(n.id)) continue;
+    if (n.x === undefined || n.y === undefined) {
+      const friend = [...(neighbours.get(n.id) ?? [])]
+        .map((id) => byId.get(id))
+        .find((f) => f?.x !== undefined && f?.y !== undefined);
+      const angle = Math.random() * Math.PI * 2;
+      n.x = (friend?.x ?? 0) + Math.cos(angle) * 30;
+      n.y = (friend?.y ?? 0) + Math.sin(angle) * 30;
+    }
+    unsettled.add(n.id);
+  }
+}
+
 /** The nodes that pass `wanted`, as circles in one path, filled and stroked. */
 function circles(ctx: CanvasRenderingContext2D, nodes: Node[], wanted: (n: Node) => boolean) {
   ctx.beginPath();
@@ -492,13 +538,7 @@ export function draw(
     update(data) {
       const known = new Map(nodes.map((n) => [n.id, n]));
       const degree = new Map<string, number>();
-      neighbours = new Map();
-      for (const { source, target } of data.edges) {
-        degree.set(source, (degree.get(source) ?? 0) + 1);
-        degree.set(target, (degree.get(target) ?? 0) + 1);
-        (neighbours.get(source) ?? neighbours.set(source, new Set()).get(source)!).add(target);
-        (neighbours.get(target) ?? neighbours.set(target, new Set()).get(target)!).add(source);
-      }
+      neighbours = neighbourhood(data.edges, degree);
       nodes = data.nodes.map(({ id, title }) => {
         const node: Node = known.get(id) ?? { id, title, degree: 0 };
         node.title = title;
@@ -514,19 +554,7 @@ export function draw(
       });
       // A new entity starts beside one it links to, if that has a place, or
       // near the middle, so it doesn't fly in from nowhere and shove the rest.
-      const byId = new Map(nodes.map((n) => [n.id, n]));
-      for (const n of nodes) {
-        if (cachedPosition(n.id)) continue;
-        if (n.x === undefined || n.y === undefined) {
-          const friend = [...(neighbours.get(n.id) ?? [])]
-            .map((id) => byId.get(id))
-            .find((f) => f?.x !== undefined && f?.y !== undefined);
-          const angle = Math.random() * Math.PI * 2;
-          n.x = (friend?.x ?? 0) + Math.cos(angle) * 30;
-          n.y = (friend?.y ?? 0) + Math.sin(angle) * 30;
-        }
-        unsettled.add(n.id);
-      }
+      placeNew(nodes, neighbours, unsettled, cachedPosition);
       edges = data.edges;
       links = data.edges.map(({ source, target, weak }) => ({ source, target, weak }));
       // Whether or not anything moves, the simulation is told what there is:
