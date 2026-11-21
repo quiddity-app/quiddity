@@ -18,7 +18,11 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 # The first `version = ` in each file is the package's own, not a dependency's.
 set_first_version() {
   local file=$1
-  sed -i "0,/^version = \".*\"/s//version = \"$version\"/" "$file"
+  # awk and a temporary file rather than `sed -i`: the release runs on macOS
+  # too, where BSD sed has neither GNU's `0,/re/` address nor its `-i` syntax.
+  awk -v v="$version" '!done && /^version = ".*"/ { print "version = \"" v "\""; done = 1; next } { print }' \
+    "$file" > "$file.tmp"
+  mv "$file.tmp" "$file"
   grep -q "^version = \"$version\"" "$file" || { echo "no version found in $file" >&2; exit 1; }
 }
 
