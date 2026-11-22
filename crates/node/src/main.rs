@@ -296,19 +296,20 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
             }
         }
         Command::Snapshot { file } => {
-            std::fs::write(&file, store.load()?.snapshot()?)?;
+            tokio::fs::write(&file, store.load()?.snapshot()?).await?;
             println!("wrote {}", file.display());
         }
         Command::Names { file } => {
             let names = quiddity_core::page_names(&store.load()?)?;
             // Control characters are not allowed in a name, newlines included.
-            std::fs::write(
+            tokio::fs::write(
                 &file,
                 names
                     .iter()
                     .flat_map(|n| [n.as_str(), "\n"])
                     .collect::<String>(),
-            )?;
+            )
+            .await?;
             println!("wrote {} names to {}", names.len(), file.display());
         }
         Command::Gc {
