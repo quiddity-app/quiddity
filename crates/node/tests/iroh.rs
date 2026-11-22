@@ -362,7 +362,7 @@ async fn connected_pair(idle: Duration) -> (Peer, Peer, Vec<Router>, tokio::task
     let (phone_router, _) = listen(&phone).await;
     let (dialer, endpoint) = (phone.clone(), phone_router.endpoint().clone());
     let task = tokio::spawn(async move {
-        let _ = dialer.connect(&endpoint, laptop_addr, None).await;
+        drop(dialer.connect(&endpoint, laptop_addr, None).await);
     });
     converged(&[&laptop, &phone]).await;
     eventually("the devices to see each other", || {

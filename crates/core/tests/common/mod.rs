@@ -74,7 +74,7 @@ pub fn apply(graph: &Graph, op: &Op) {
         Some(p) => graph.children(p).len(),
         None => graph.roots().len(),
     };
-    let _ = match op {
+    drop(match op {
         Op::Create { parent, at, text } => {
             let parent = parent.as_ref().and_then(pick);
             let at = at.index(siblings(parent) + 1);
@@ -96,7 +96,7 @@ pub fn apply(graph: &Graph, op: &Op) {
             Some(b) => graph.set_text(b, text),
             None => return,
         },
-    };
+    });
     graph.commit();
 }
 

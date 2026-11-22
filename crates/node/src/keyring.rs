@@ -128,7 +128,7 @@ impl Keyring {
         let mut file = options.open(&staged)?;
         let written = writeln!(file, "{}", &**key.to_token()).and_then(|()| file.sync_all());
         let linked = written.and_then(|()| link(&staged, &self.path()));
-        let _ = fs::remove_file(&staged);
+        drop(fs::remove_file(&staged));
         match linked {
             Ok(()) => {
                 #[cfg(unix)]

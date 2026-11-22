@@ -1069,12 +1069,12 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dir = tmp.path().join("out");
         for existed in [false, true] {
-            let _ = fs::remove_dir_all(&dir);
+            drop(fs::remove_dir_all(&dir));
             if existed {
                 fs::create_dir(&dir).unwrap();
             }
             let n = removing_on_failure(&dir, existed, || {
-                let _ = half_write(&dir);
+                drop(half_write(&dir));
                 Ok(7)
             })
             .unwrap();
