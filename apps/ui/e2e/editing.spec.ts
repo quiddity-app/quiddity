@@ -18,6 +18,11 @@ test("clicking a block edits it, and typing changes its text", async ({ page }) 
   expect(await mainBlocks(page)).toEqual([`${DDIA} 2e`, NOTES]);
 });
 
+test("the editor leaves the platform's spell checker on", async ({ page }) => {
+  await editBlock(page, DDIA);
+  await expect(editor(page)).toHaveAttribute("spellcheck", "true");
+});
+
 test("Enter splits the block at the caret and continues in the new one", async ({ page }) => {
   await editBlock(page, DDIA);
   await page.keyboard.press("End");

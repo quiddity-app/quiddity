@@ -4,6 +4,7 @@
 	- Changes are applied last to first so earlier offsets stay valid, and concurrent edits merge as the typists meant.
 	- Changes coming back from the graph reach an open editor as the smallest edit that turns its text into the graph's, and are marked so they are not sent again.
 	- The editor reconciles against the graph's text, never against props, which can be a keystroke behind.
+- The platform's spell checker is on in an open block, so misspellings are underlined and corrected as in any text field. CodeMirror turns it off unless asked.
 - Keys
 	- Enter splits the block at the caret. The tail becomes the next sibling, or the first child if there are children.
 	- Enter at the very start of a block with text adds an empty block before it instead, so the text, its children and the caret stay where they are.

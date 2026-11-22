@@ -238,6 +238,9 @@ export function BlockEditor({
         selection: { anchor },
         extensions: [
           EditorView.lineWrapping,
+          // CodeMirror turns the platform's spell checker off by default; blocks
+          // are prose, so let it underline.
+          EditorView.contentAttributes.of({ spellcheck: "true" }),
           autoBrackets(),
           // Before the outliner's keys: in a link, arrows and Enter are the list's.
           Prec.highest(
