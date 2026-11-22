@@ -25,6 +25,16 @@ export type SyncState =
   /** Connected and up to date, and another device has a block open. */
   | "present";
 
+/** Where the phone's contacts stand: the graph's contacts, kept in the system's. */
+export interface ContactsStatus {
+  /** Whether this system has contacts to put them in: only Android does. */
+  available: boolean;
+  /** Whether the app may use them: `granted`, `denied`, or `prompt` (not asked yet). */
+  permission: string;
+  /** Whether they are on. */
+  enabled: boolean;
+}
+
 /** A device the graph records: one that holds it, or has been let in to it. */
 export interface Device {
   /** Its endpoint ID, which another device needs to let it in. */

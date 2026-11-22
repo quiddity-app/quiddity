@@ -135,6 +135,47 @@ function Add() {
   );
 }
 
+/** Turns the graph's contacts into the phone's, where the system has some. */
+function PhoneContacts() {
+  const graph = useGraph();
+  const first = use(graph.contactsStatus());
+  const [status, setStatus] = useState(first);
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+  if (!status?.available) return null;
+  return (
+    <section aria-labelledby="phone-contacts" className="mb-8">
+      <h2 id="phone-contacts" className={sectionTitle}>
+        Contacts
+      </h2>
+      <p className="mb-2">
+        Show the entities that have a phone number, an email address or another contact field in this phone’s
+        contacts, under an account called Quiddity, and take edits made there back into the graph. Which
+        properties are which fields is set by <code className="font-mono text-sm">##contact</code>. They
+        are kept in step while Quiddity is open.
+      </p>
+      <p className="mb-2 flex flex-wrap items-center gap-3">
+        <Button
+          disabled={busy}
+          onClick={() => {
+            setBusy(true);
+            setFailure(null);
+            graph
+              .setContacts(!status.enabled)
+              .then(setStatus)
+              .catch((error: Error) => setFailure(error.message))
+              .finally(() => setBusy(false));
+          }}
+        >
+          {status.enabled ? "Turn off" : "Turn on"}
+        </Button>
+        <span role="status">{status.enabled ? "On" : "Off"}</span>
+      </p>
+      {failure === null ? null : <ErrorLine>{failure}</ErrorLine>}
+    </section>
+  );
+}
+
 function Pairing() {
   const graph = useGraph();
   if (!graph.canPair()) {
@@ -159,6 +200,7 @@ export function Devices() {
         )}
       >
         <Pairing />
+        <PhoneContacts />
         <Listed />
       </Region>
     </article>

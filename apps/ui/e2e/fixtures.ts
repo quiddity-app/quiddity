@@ -41,6 +41,8 @@ declare global {
       recovered: string[];
       /** Plays the shell telling the page how this device stands. */
       setStatus(status: string): void;
+      /** What the page asked of the phone's contacts, in order. */
+      contacts: string[];
     };
   }
 }
