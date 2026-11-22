@@ -55,3 +55,20 @@ test("Enter in the middle of a long page leaves the view where it was", async ({
   await expect(editor(page)).toHaveText("");
   expect(await scrollTop(page)).toBe(before);
 });
+
+// The screen-reader-only live regions are absolutely positioned. With no
+// positioned ancestor they escape the shell's `overflow-hidden` and lengthen
+// the document, which then grows a scroll bar of its own that scrolls the whole
+// shell out of view.
+test("the window itself never scrolls, even with the live region below the fold", async ({ page }) => {
+  // Short enough that the page's live region, under its outline, is off screen.
+  await page.setViewportSize({ width: 1200, height: 200 });
+  await openEntity(page, "Reading list");
+  const extent = () =>
+    page.evaluate(() => ({
+      scroll: document.documentElement.scrollHeight,
+      client: document.documentElement.clientHeight,
+    }));
+  const { scroll, client } = await extent();
+  expect(scroll).toBe(client);
+});
