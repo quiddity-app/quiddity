@@ -1,4 +1,4 @@
-import { samePlace, type Place } from "./history";
+import { samePlace, type Place } from './history';
 
 /**
  * Where the main pane was scrolled to on each place it has shown, so that going
@@ -40,9 +40,10 @@ export class ScrollMemory {
     // Re-inserting moves it to the end, which is what the oldest-first eviction wants.
     this.tops.delete(k);
     this.tops.set(k, top);
-    if (this.tops.size > this.capacity) this.tops.delete(this.tops.keys().next().value!);
+    if (this.tops.size > this.capacity)
+      this.tops.delete(this.tops.keys().next().value!);
   }
 }
 
 // `path` never contains a newline, so the pair can't be confused with another.
-const key = (place: Place) => `${place.path}\n${place.main ?? ""}`;
+const key = (place: Place) => `${place.path}\n${place.main ?? ''}`;

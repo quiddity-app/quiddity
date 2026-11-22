@@ -1,6 +1,8 @@
-import { readFileSync } from "node:fs";
-import type { Metadata } from "next";
-import { EntityPage } from "@/components/entity-page";
+import { readFileSync } from 'node:fs';
+
+import type { Metadata } from 'next';
+
+import { EntityPage } from '@/components/entity-page';
 
 // A published site's pages by name: `/page/<name>/`, which, unlike
 // `/entity/?id=`, a rebuild leaves where it was. The names are known at build
@@ -15,8 +17,8 @@ import { EntityPage } from "@/components/entity-page";
 export const dynamicParams = false;
 
 export function generateStaticParams(): { name: string }[] {
-  return readFileSync(process.env.QUIDDITY_STATIC_NAMES ?? "", "utf8")
-    .split("\n")
+  return readFileSync(process.env.QUIDDITY_STATIC_NAMES ?? '', 'utf8')
+    .split('\n')
     .filter(Boolean)
     .map((name) => ({ name }));
 }

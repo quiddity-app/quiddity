@@ -1,11 +1,12 @@
-"use client";
+'use client';
 
-import type { Entity, EntityId, InverseNode } from "@/lib/model";
-import { useRead } from "@/lib/use-graph";
-import { EntityLink } from "./entity-link";
-import { Value } from "./property-chip";
-import { linkClass, sectionHeading } from "./ui";
+import { EntityLink } from './entity-link';
+import { Value } from './property-chip';
+import { linkClass, sectionHeading } from './ui';
 
+import type { Entity, EntityId, InverseNode } from '@/lib/model';
+
+import { useRead } from '@/lib/use-graph';
 
 /** What doesn't fit a schema and has no chip of its own to show on. */
 export function EntityFlags({ id }: Readonly<{ id: EntityId }>) {
@@ -35,9 +36,11 @@ function InheritedValues({ entity }: Readonly<{ entity: Entity }>) {
             <span className="text-ink-muted">
               {item.value === null ? `#${item.key}` : item.key}
             </span>
-            {item.value !== null && <Value value={item.value} links={entity.links} />}
+            {item.value !== null && (
+              <Value value={item.value} links={entity.links} />
+            )}
             <span className="text-ink-muted">
-              from{" "}
+              from{' '}
               <EntityLink id={item.from.id} className={linkClass}>
                 {item.from.title}
               </EntityLink>
@@ -54,7 +57,7 @@ function InheritedValues({ entity }: Readonly<{ entity: Entity }>) {
  * title sits at its level's indent whether or not it can be expanded; the
  * browser's own marker would take room only on the rows that have one.
  */
-const markerColumn = "inline-block w-4 shrink-0";
+const markerColumn = 'inline-block w-4 shrink-0';
 
 function Tree({ nodes }: Readonly<{ nodes: InverseNode[] }>) {
   return (
@@ -63,7 +66,7 @@ function Tree({ nodes }: Readonly<{ nodes: InverseNode[] }>) {
         const title = (
           <EntityLink
             id={node.entity.id}
-            className={`${linkClass}${node.direct ? "" : " italic"}`}
+            className={`${linkClass}${node.direct ? '' : ' italic'}`}
           >
             {node.entity.title}
           </EntityLink>

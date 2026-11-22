@@ -1,12 +1,14 @@
-"use client";
+'use client';
 
-import type { EntityId } from "@/lib/model";
-import { useRead } from "@/lib/use-graph";
-import { Region, Skeleton } from "./boundary";
-import { EntityLink } from "./entity-link";
-import { Outline } from "./entity-view";
-import { useView } from "./use-view";
-import { linkClass, pageTitle } from "./ui";
+import { Region, Skeleton } from './boundary';
+import { EntityLink } from './entity-link';
+import { Outline } from './entity-view';
+import { useView } from './use-view';
+import { linkClass, pageTitle } from './ui';
+
+import type { EntityId } from '@/lib/model';
+
+import { useRead } from '@/lib/use-graph';
 
 /** One entity the link might mean: its title, and its properties block, which is what tells it apart. */
 function Candidate({ id }: Readonly<{ id: EntityId }>) {
@@ -48,7 +50,9 @@ function Matches({ link }: Readonly<{ link: string }>) {
 export function Disambiguation() {
   const { link } = useView();
   if (!link) {
-    return <p className="mx-auto max-w-measure-text px-6 py-8">No link chosen.</p>;
+    return (
+      <p className="mx-auto max-w-measure-text px-6 py-8">No link chosen.</p>
+    );
   }
   return (
     <div className="mx-auto max-w-measure-text px-6 py-8">
@@ -56,7 +60,8 @@ export function Disambiguation() {
         Which <span className="font-mono">[[{link}]]</span>?
       </h1>
       <p className="mb-4 text-ink-secondary">
-        Several entities match this link. Choose one, or add a qualifier to the link to say which.
+        Several entities match this link. Choose one, or add a qualifier to the
+        link to say which.
       </p>
       <Region
         key={link}

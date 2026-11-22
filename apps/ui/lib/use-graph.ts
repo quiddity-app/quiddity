@@ -1,7 +1,8 @@
-"use client";
+'use client';
 
-import { use, useDeferredValue, useMemo, useSyncExternalStore } from "react";
-import { bootGraph, type Graph } from "./graph";
+import { use, useDeferredValue, useMemo, useSyncExternalStore } from 'react';
+
+import { bootGraph, type Graph } from './graph';
 
 /** The graph; suspends until it has loaded. */
 export function useGraph(): Graph {
@@ -29,9 +30,16 @@ export function useRead<T>(read: (graph: Graph) => T): T {
  * `read` is made again when `deps` change as well as when the graph does, as
  * for `useMemo`: list whatever it uses that isn't the graph.
  */
-export function useDeferredRead<T>(read: (graph: Graph) => T, deps: readonly unknown[]): T {
+export function useDeferredRead<T>(
+  read: (graph: Graph) => T,
+  deps: readonly unknown[],
+): T {
   const graph = useGraph();
-  const revision = useSyncExternalStore(graph.subscribe, graph.getRevision, graph.getRevision);
+  const revision = useSyncExternalStore(
+    graph.subscribe,
+    graph.getRevision,
+    graph.getRevision,
+  );
   const deferred = useDeferredValue(revision);
   // `read` is the caller's, and made afresh each render: `deps` stand for it.
   // eslint-disable-next-line react-hooks/exhaustive-deps

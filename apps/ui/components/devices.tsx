@@ -1,11 +1,16 @@
-"use client";
+'use client';
 
-import { use, useState } from "react";
-import { useGraph, useRead } from "@/lib/use-graph";
-import { Region, Skeleton } from "./boundary";
-import { Button, ErrorLine, Input, pageTitle, sectionTitle } from "./ui";
+import { use, useState } from 'react';
 
-const when = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
+import { Region, Skeleton } from './boundary';
+import { Button, ErrorLine, Input, pageTitle, sectionTitle } from './ui';
+
+import { useGraph, useRead } from '@/lib/use-graph';
+
+const when = new Intl.DateTimeFormat(undefined, {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+});
 
 /** An ID, drawn to be read and copied: long, and no use cut short. */
 function Id({ id }: Readonly<{ id: string }>) {
@@ -22,8 +27,8 @@ function ThisDevice() {
         This device
       </h2>
       <p className="mb-2">
-        Another device needs this ID to let this one in. Add the other device’s ID below too, so each lets the
-        other in.
+        Another device needs this ID to let this one in. Add the other device’s
+        ID below too, so each lets the other in.
       </p>
       <p className="mb-2 flex flex-wrap items-center gap-3">
         <Id id={id} />
@@ -35,7 +40,7 @@ function ThisDevice() {
               .catch(() => setCopied(false));
           }}
         >
-          {copied ? "Copied" : "Copy"}
+          {copied ? 'Copied' : 'Copy'}
         </Button>
       </p>
     </section>
@@ -52,17 +57,26 @@ function Listed() {
         Devices in this graph
       </h2>
       {devices.length === 0 ? (
-        <p>None yet. A device is listed once it has saved the graph, or been let in.</p>
+        <p>
+          None yet. A device is listed once it has saved the graph, or been let
+          in.
+        </p>
       ) : (
         <ul className="space-y-2">
           {devices.map((device) => {
             const date = new Date(device.seen);
             return (
-              <li key={device.id} className="flex flex-wrap items-baseline gap-x-3">
+              <li
+                key={device.id}
+                className="flex flex-wrap items-baseline gap-x-3"
+              >
                 <Id id={device.id} />
-                {device.id === mine ? <span className="font-medium">this device</span> : null}
+                {device.id === mine ? (
+                  <span className="font-medium">this device</span>
+                ) : null}
                 <span className="text-ink-muted">
-                  last saved <time dateTime={date.toISOString()}>{when.format(date)}</time>
+                  last saved{' '}
+                  <time dateTime={date.toISOString()}>{when.format(date)}</time>
                 </span>
               </li>
             );
@@ -73,11 +87,12 @@ function Listed() {
   );
 }
 
-type Outcome = { kind: "added"; id: string } | { kind: "failed"; message: string } | null;
+type Outcome =
+  { kind: 'added'; id: string } | { kind: 'failed'; message: string } | null;
 
 function Add() {
   const graph = useGraph();
-  const [id, setId] = useState("");
+  const [id, setId] = useState('');
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<Outcome>(null);
   return (
@@ -86,23 +101,25 @@ function Add() {
         Add a device
       </h2>
       <p className="mb-2">
-        On the other device, open this page and copy its ID. Paste it here. Then do the same there with this
-        device’s ID.
+        On the other device, open this page and copy its ID. Paste it here. Then
+        do the same there with this device’s ID.
       </p>
       <form
         className="flex flex-wrap items-center gap-3"
         onSubmit={(event) => {
           event.preventDefault();
           const device = id.trim();
-          if (device === "") return;
+          if (device === '') return;
           setBusy(true);
           graph
             .allowDevice(device)
             .then(() => {
-              setOutcome({ kind: "added", id: device });
-              setId("");
+              setOutcome({ kind: 'added', id: device });
+              setId('');
             })
-            .catch((error: Error) => setOutcome({ kind: "failed", message: error.message }))
+            .catch((error: Error) =>
+              setOutcome({ kind: 'failed', message: error.message }),
+            )
             .finally(() => setBusy(false));
         }}
       >
@@ -117,17 +134,18 @@ function Add() {
             className="min-w-64 flex-1 font-mono text-sm"
           />
         </label>
-        <Button type="submit" disabled={busy || id.trim() === ""}>
+        <Button type="submit" disabled={busy || id.trim() === ''}>
           Add device
         </Button>
       </form>
       <div aria-live="polite" className="mt-2">
-        {outcome?.kind === "added" ? (
+        {outcome?.kind === 'added' ? (
           <p role="status">
-            Added. It will connect when both devices are online and have each other’s ID.
+            Added. It will connect when both devices are online and have each
+            other’s ID.
           </p>
         ) : null}
-        {outcome?.kind === "failed" ? (
+        {outcome?.kind === 'failed' ? (
           <ErrorLine>{outcome.message}</ErrorLine>
         ) : null}
       </div>
@@ -138,7 +156,11 @@ function Add() {
 function Pairing() {
   const graph = useGraph();
   if (!graph.canPair()) {
-    return <p className="mb-8">Sharing this graph with other devices is only available in the app.</p>;
+    return (
+      <p className="mb-8">
+        Sharing this graph with other devices is only available in the app.
+      </p>
+    );
   }
   return (
     <>
@@ -154,9 +176,7 @@ export function Devices() {
       <h1 className={pageTitle}>Devices</h1>
       <Region
         pending={<Skeleton className="h-4 w-1/2" />}
-        failed={(error) => (
-          <ErrorLine>{error.message}</ErrorLine>
-        )}
+        failed={(error) => <ErrorLine>{error.message}</ErrorLine>}
       >
         <Pairing />
         <Listed />

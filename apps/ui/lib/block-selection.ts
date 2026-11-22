@@ -51,7 +51,8 @@ export function expandSelection(
   }
   return (
     steps.find(
-      (step) => step.size > selected.size && [...selected].every((id) => step.has(id)),
+      (step) =>
+        step.size > selected.size && [...selected].every((id) => step.has(id)),
     ) ?? null
   );
 }
@@ -60,7 +61,11 @@ export function expandSelection(
  * The blocks from `from` to `to` in reading order, whichever is first. A block
  * that has gone, in an undo or from another device, leaves nothing selected.
  */
-export function selectRange(order: string[], from: string, to: string): Set<string> {
+export function selectRange(
+  order: string[],
+  from: string,
+  to: string,
+): Set<string> {
   const a = order.indexOf(from);
   const b = order.indexOf(to);
   if (a < 0 || b < 0) return new Set();
@@ -72,7 +77,10 @@ export function selectRange(order: string[], from: string, to: string): Set<stri
  * selected one: what a paste goes after, since a selected block's children are
  * part of it and a paste among them would be in the middle of the selection.
  */
-export function lastSelected(blocks: Node[], selected: ReadonlySet<string>): string | null {
+export function lastSelected(
+  blocks: Node[],
+  selected: ReadonlySet<string>,
+): string | null {
   let found: string | null = null;
   const walk = (nodes: Node[]) => {
     for (const node of nodes) {

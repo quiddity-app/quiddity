@@ -1,6 +1,7 @@
-import { Suspense, type ReactNode } from "react";
-import { Skeleton } from "./boundary";
-import { ClientOnly } from "./client-only";
+import { Suspense, type ReactNode } from 'react';
+
+import { Skeleton } from './boundary';
+import { ClientOnly } from './client-only';
 
 /**
  * A page that needs the graph, which only exists in the browser, and so isn't

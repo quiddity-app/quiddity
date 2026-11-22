@@ -1,7 +1,8 @@
-import init, { Replica, mergeVersions } from "./wasm/quiddity_wasm";
-import { debounce } from "./debounce";
-import type { Problem, Recovery } from "./recovery";
-import { share } from "./share";
+import init, { Replica, mergeVersions } from './wasm/quiddity_wasm';
+import { debounce } from './debounce';
+import { share } from './share';
+
+import type { Problem, Recovery } from './recovery';
 import type {
   BlockHit,
   Check,
@@ -21,7 +22,7 @@ import type {
   Stats,
   Summary,
   TitleHit,
-} from "./model";
+} from './model';
 
 /** Where the graph lives: the Tauri shell, or memory for plain-browser dev. */
 export interface Backend {
@@ -77,7 +78,7 @@ const sameBytes = (a: Uint8Array, b: Uint8Array) =>
 /** Today's date as `YYYY-MM-DD`, where the user is. */
 export function today(): string {
   const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
+  const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
@@ -103,12 +104,20 @@ export class Graph {
   /** The block being edited, as other devices are told. */
   private focused: string | undefined;
   /** What the shell was last told, to say nothing twice. */
-  private reported = "";
+  private reported = '';
   private pushing: Promise<void> = Promise.resolve();
-  private readonly pushSoon = debounce(() => void this.flush(), PUSH_MS, PUSH_MAX_MS);
+  private readonly pushSoon = debounce(
+    () => void this.flush(),
+    PUSH_MS,
+    PUSH_MAX_MS,
+  );
   private retryTimer: ReturnType<typeof setTimeout> | undefined;
   /** Typing views haven't been told of yet. */
-  private readonly typingNotice = debounce(() => this.notify(), NOTIFY_MS, NOTIFY_MAX_MS);
+  private readonly typingNotice = debounce(
+    () => this.notify(),
+    NOTIFY_MS,
+    NOTIFY_MAX_MS,
+  );
   private typingTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(
@@ -148,32 +157,40 @@ export class Graph {
   }
 
   private read<T>(key: string, read: () => unknown): T {
-    if (!this.cache.has(key)) this.cache.set(key, share(this.previous.get(key), read()));
+    if (!this.cache.has(key))
+      this.cache.set(key, share(this.previous.get(key), read()));
     return this.cache.get(key) as T;
   }
 
-  entity = (id: EntityId) => this.read<Entity>(`e:${id}`, () => this.replica.entity(id));
-  entities = () => this.read<EntityRef[]>("entities", () => this.replica.entities());
-  summaries = () => this.read<Summary[]>("summaries", () => this.replica.summaries());
-  stats = () => this.read<Stats>("stats", () => this.replica.stats());
+  entity = (id: EntityId) =>
+    this.read<Entity>(`e:${id}`, () => this.replica.entity(id));
+  entities = () =>
+    this.read<EntityRef[]>('entities', () => this.replica.entities());
+  summaries = () =>
+    this.read<Summary[]>('summaries', () => this.replica.summaries());
+  stats = () => this.read<Stats>('stats', () => this.replica.stats());
   /** Reads the whole graph again, so it is asked for only when wanted. */
-  check = () => this.read<Check>("check", () => this.replica.check());
+  check = () => this.read<Check>('check', () => this.replica.check());
   connections = () =>
-    this.read<Connections>("connections", () => this.replica.connections());
-  favourites = () => this.read<EntityRef[]>("favourites", () => this.replica.favourites());
-  start = () => this.read<Start>("start", () => this.replica.start());
+    this.read<Connections>('connections', () => this.replica.connections());
+  favourites = () =>
+    this.read<EntityRef[]>('favourites', () => this.replica.favourites());
+  start = () => this.read<Start>('start', () => this.replica.start());
   journals = () =>
-    this.read<EntityRef[]>("journals", () => this.replica.journals(today()));
+    this.read<EntityRef[]>('journals', () => this.replica.journals(today()));
   references = (id: EntityId) =>
     this.read<Reference[]>(`r:${id}`, () => this.replica.references(id));
   /** The entities a link matches, for choosing between them when it is
    * ambiguous. `key` is as for `followLink`. */
   linkMatches = (key: string) =>
     this.read<EntityId[]>(`m:${key}`, () => this.replica.linkMatches(key));
-  uses = (id: EntityId) => this.read<Use[]>(`use:${id}`, () => this.replica.uses(id));
+  uses = (id: EntityId) =>
+    this.read<Use[]>(`use:${id}`, () => this.replica.uses(id));
 
   unlinkedReferences = (id: EntityId) =>
-    this.read<Reference[]>(`u:${id}`, () => this.replica.unlinkedReferences(id));
+    this.read<Reference[]>(`u:${id}`, () =>
+      this.replica.unlinkedReferences(id),
+    );
 
   /** Entities whose titles match `query`, best first. Not kept: a query is
    * rarely asked twice, and the answer needn't be stable between edits. */
@@ -212,10 +229,12 @@ export class Graph {
   }
 
   /** The devices the graph records, most recently seen first. */
-  devices = () => this.read<Device[]>("devices", () => this.replica.devices());
+  devices = () => this.read<Device[]>('devices', () => this.replica.devices());
 
   /** Whether this build is a device others can reach, and so can pair. */
-  canPair = () => this.backend.deviceId !== undefined && this.backend.allowDevice !== undefined;
+  canPair = () =>
+    this.backend.deviceId !== undefined &&
+    this.backend.allowDevice !== undefined;
 
   private id: Promise<string> | undefined;
 
@@ -233,7 +252,8 @@ export class Graph {
 
   /** Whether this build keeps files: the app does. The published site and the
    * made-up graph outside the app have nowhere to put the bytes. */
-  canKeepFiles = () => this.backend.putBlob !== undefined && this.backend.getBlob !== undefined;
+  canKeepFiles = () =>
+    this.backend.putBlob !== undefined && this.backend.getBlob !== undefined;
 
   /** Adds a file to a page: the shell keeps its bytes, and the page gets a
    * block at its end that is the file, as one edit. Returns the block. It
@@ -242,13 +262,21 @@ export class Graph {
   async addFile(page: EntityId, file: File): Promise<string> {
     let hash: string;
     try {
-      hash = await this.backend.putBlob!(new Uint8Array(await file.arrayBuffer()));
+      hash = await this.backend.putBlob!(
+        new Uint8Array(await file.arrayBuffer()),
+      );
     } catch (error) {
       throw new Error(error instanceof Error ? error.message : String(error));
     }
-    const mime = file.type || "application/octet-stream";
+    const mime = file.type || 'application/octet-stream';
     return this.edited(
-      this.replica.attachBlob(page, hash, mime, BigInt(file.size), file.name || undefined),
+      this.replica.attachBlob(
+        page,
+        hash,
+        mime,
+        BigInt(file.size),
+        file.name || undefined,
+      ),
     );
   }
 
@@ -365,7 +393,9 @@ export class Graph {
     // shell, which would otherwise not hold back the typing that came before.
     const version = this.replica.version();
     const made = this.replica.commitBlock(id, before);
-    return sameBytes(version, this.replica.version()) ? made : this.edited(made);
+    return sameBytes(version, this.replica.version())
+      ? made
+      : this.edited(made);
   }
 
   /** Splits a block at `at`; returns the new block. */
@@ -433,7 +463,9 @@ export class Graph {
   }
 
   mergeIntoPrevious(id: string): Merged | undefined {
-    return this.edited(this.replica.mergeIntoPrevious(id) as Merged | undefined);
+    return this.edited(
+      this.replica.mergeIntoPrevious(id) as Merged | undefined,
+    );
   }
 
   ensureToday(): EntityRef {
@@ -493,7 +525,7 @@ export class Graph {
     try {
       await this.flush();
       const blocks = this.focused === undefined ? [] : [this.focused];
-      const key = blocks.join(",");
+      const key = blocks.join(',');
       if (key === this.reported) return;
       this.reported = key;
       await this.backend.focus?.(blocks);
@@ -507,12 +539,12 @@ let booted: Promise<Graph> | undefined;
 
 /** Where the graph lives: the app's shell, a published build, or memory. */
 export async function chooseBackend(): Promise<Backend> {
-  const inTauri = "__TAURI_INTERNALS__" in window;
+  const inTauri = '__TAURI_INTERNALS__' in window;
   if (process.env.NEXT_PUBLIC_QUIDDITY_STATIC_GRAPH) {
-    return (await import("./backend-static")).staticBackend;
+    return (await import('./backend-static')).staticBackend;
   }
-  if (inTauri) return (await import("./backend-tauri")).tauriBackend;
-  return (await import("./backend-memory")).memoryBackend;
+  if (inTauri) return (await import('./backend-tauri')).tauriBackend;
+  return (await import('./backend-memory')).memoryBackend;
 }
 
 /**
@@ -521,9 +553,12 @@ export async function chooseBackend(): Promise<Backend> {
  * today's page isn't made, so the pages are the published graph and no more.
  */
 async function bootForExport(): Promise<Graph> {
-  const { wasmBytes, snapshotBytes } = await import("./prerender");
+  const { wasmBytes, snapshotBytes } = await import('./prerender');
   await init({ module_or_path: wasmBytes() });
-  return new Graph(new Replica(snapshotBytes()), { load: async () => snapshotBytes(), push: async () => {} });
+  return new Graph(new Replica(snapshotBytes()), {
+    load: async () => snapshotBytes(),
+    push: async () => {},
+  });
 }
 
 /**
@@ -532,9 +567,13 @@ async function bootForExport(): Promise<Graph> {
  * loaded outside a browser, to render the pages it can on the server.
  */
 export function bootGraph(): Promise<Graph> {
-  if (typeof window === "undefined") {
+  if (typeof window === 'undefined') {
     if (!process.env.NEXT_PUBLIC_QUIDDITY_STATIC_GRAPH) {
-      return Promise.reject(new Error("The graph only exists in the browser, or in a published build."));
+      return Promise.reject(
+        new Error(
+          'The graph only exists in the browser, or in a published build.',
+        ),
+      );
     }
     booted ??= bootForExport();
     return booted;
@@ -546,14 +585,21 @@ export function bootGraph(): Promise<Graph> {
     // Before today's page is made, so nothing that arrives is missed.
     backend
       .subscribe?.((updates) => graph.receive(updates))
-      .catch((error) => console.error("Couldn't listen for other devices", error));
+      .catch((error) =>
+        console.error("Couldn't listen for other devices", error),
+      );
     backend
       .subscribeStatus?.((status) => graph.setStatus(status))
-      .catch((error) => console.error("Couldn't listen for the sync status", error));
+      .catch((error) =>
+        console.error("Couldn't listen for the sync status", error),
+      );
     graph.begin();
     const save = () => void graph.flush();
-    window.addEventListener("pagehide", save);
-    document.addEventListener("visibilitychange", () => document.hidden && save());
+    window.addEventListener('pagehide', save);
+    document.addEventListener(
+      'visibilitychange',
+      () => document.hidden && save(),
+    );
     return graph;
   })();
   return booted;

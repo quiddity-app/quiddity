@@ -1,13 +1,23 @@
-"use client";
+'use client';
 
-import { type ReactNode, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import type { Summary } from "@/lib/model";
-import { useGraph, useRead } from "@/lib/use-graph";
-import { Region, Skeleton } from "./boundary";
-import { EntityLink } from "./entity-link";
-import { Button, ErrorLine, Input, linkClass, pageTitle } from "./ui";
+import {
+  type ReactNode,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
-type Column = "title" | "tags" | "words" | "incoming" | "created" | "modified";
+import { Region, Skeleton } from './boundary';
+import { EntityLink } from './entity-link';
+import { Button, ErrorLine, Input, linkClass, pageTitle } from './ui';
+
+import type { Summary } from '@/lib/model';
+
+import { useGraph, useRead } from '@/lib/use-graph';
+
+type Column = 'title' | 'tags' | 'words' | 'incoming' | 'created' | 'modified';
 
 /** Rows drawn at first, and added each time the end of them is reached. A
  * large graph has thousands, and drawing them all makes every sort and every
@@ -15,15 +25,18 @@ type Column = "title" | "tags" | "words" | "incoming" | "created" | "modified";
 const ROWS = 200;
 
 const columns: { key: Column; label: string; numeric: boolean }[] = [
-  { key: "title", label: "Title", numeric: false },
-  { key: "tags", label: "Tags", numeric: false },
-  { key: "words", label: "Words", numeric: true },
-  { key: "incoming", label: "Incoming links", numeric: true },
-  { key: "created", label: "Created", numeric: false },
-  { key: "modified", label: "Last modified", numeric: false },
+  { key: 'title', label: 'Title', numeric: false },
+  { key: 'tags', label: 'Tags', numeric: false },
+  { key: 'words', label: 'Words', numeric: true },
+  { key: 'incoming', label: 'Incoming links', numeric: true },
+  { key: 'created', label: 'Created', numeric: false },
+  { key: 'modified', label: 'Last modified', numeric: false },
 ];
 
-const when = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
+const when = new Intl.DateTimeFormat(undefined, {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+});
 
 function When({ seconds }: Readonly<{ seconds: number | null }>) {
   if (seconds === null) return null;
@@ -31,16 +44,19 @@ function When({ seconds }: Readonly<{ seconds: number | null }>) {
   return <time dateTime={date.toISOString()}>{when.format(date)}</time>;
 }
 
-const collator = new Intl.Collator(undefined, { sensitivity: "base", numeric: true });
+const collator = new Intl.Collator(undefined, {
+  sensitivity: 'base',
+  numeric: true,
+});
 
 function compare(column: Column, a: Summary, b: Summary): number {
   switch (column) {
-    case "title":
+    case 'title':
       return collator.compare(a.title, b.title);
-    case "tags":
-      return collator.compare(a.tags.join(" "), b.tags.join(" "));
-    case "created":
-    case "modified":
+    case 'tags':
+      return collator.compare(a.tags.join(' '), b.tags.join(' '));
+    case 'created':
+    case 'modified':
       return (a[column] ?? 0) - (b[column] ?? 0);
     default:
       return a[column] - b[column];
@@ -49,9 +65,12 @@ function compare(column: Column, a: Summary, b: Summary): number {
 
 /** Whether a row has nothing to sort by in this column, so goes last. */
 const unknown = (column: Column, row: Summary) =>
-  (column === "created" || column === "modified") && row[column] === null;
+  (column === 'created' || column === 'modified') && row[column] === null;
 
-function List({ filter, journals }: Readonly<{ filter: string; journals: boolean }>) {
+function List({
+  filter,
+  journals,
+}: Readonly<{ filter: string; journals: boolean }>) {
   const everything = useRead((g) => g.summaries());
   // What is typed in the box goes in at once; the table catches up when React
   // has drawn that, and skips a stretch of typing it was too slow for.
@@ -59,18 +78,22 @@ function List({ filter, journals }: Readonly<{ filter: string; journals: boolean
   // Selection only counts what is shown, so nothing is deleted out of sight.
   const rows = useMemo(
     () =>
-      everything.filter((r) => (journals || !r.journal) && r.title.toLowerCase().includes(needle)),
+      everything.filter(
+        (r) =>
+          (journals || !r.journal) && r.title.toLowerCase().includes(needle),
+      ),
     [everything, journals, needle],
   );
   // Rows arrive by title, and the sort is stable, so ties stay in that order.
   const [sort, setSort] = useState<{ column: Column; descending: boolean }>({
-    column: "title",
+    column: 'title',
     descending: false,
   });
   const sorted = useMemo(
     () =>
       rows.toSorted((a, b) => {
-        const gap = Number(unknown(sort.column, a)) - Number(unknown(sort.column, b));
+        const gap =
+          Number(unknown(sort.column, a)) - Number(unknown(sort.column, b));
         if (gap !== 0) return gap;
         const order = compare(sort.column, a, b);
         return sort.descending ? -order : order;
@@ -92,11 +115,16 @@ function List({ filter, journals }: Readonly<{ filter: string; journals: boolean
     setConfirming(false);
   };
   const toggle = (id: string) =>
-    choose(chosen.has(id) ? selected.filter((r) => r.id !== id).map((r) => r.id) : [...selected.map((r) => r.id), id]);
+    choose(
+      chosen.has(id)
+        ? selected.filter((r) => r.id !== id).map((r) => r.id)
+        : [...selected.map((r) => r.id), id],
+    );
   const all = selected.length === rows.length;
-  const them = selected.length === 1 ? "it" : "them";
+  const them = selected.length === 1 ? 'it' : 'them';
   useEffect(() => {
-    if (everyone.current) everyone.current.indeterminate = selected.length > 0 && !all;
+    if (everyone.current)
+      everyone.current.indeterminate = selected.length > 0 && !all;
   });
   const hasMore = shown < rows.length;
   useEffect(() => {
@@ -104,12 +132,17 @@ function List({ filter, journals }: Readonly<{ filter: string; journals: boolean
     if (!el) return;
     const watcher = new IntersectionObserver(
       ([entry]) => entry?.isIntersecting && setShown((n) => n + ROWS),
-      { rootMargin: "400px" },
+      { rootMargin: '400px' },
     );
     watcher.observe(el);
     return () => watcher.disconnect();
   }, [shown, hasMore]);
-  if (rows.length === 0) return <p>{everything.length === 0 ? "Nothing here yet." : "Nothing matches."}</p>;
+  if (rows.length === 0)
+    return (
+      <p>
+        {everything.length === 0 ? 'Nothing here yet.' : 'Nothing matches.'}
+      </p>
+    );
   const sortBy = (column: Column) => {
     setShown(ROWS);
     setSort((s) => ({
@@ -117,14 +150,22 @@ function List({ filter, journals }: Readonly<{ filter: string; journals: boolean
       descending: s.column === column && !s.descending,
     }));
   };
-  const numeric = "px-3 py-1 coarse:py-3 text-right tabular-nums";
+  const numeric = 'px-3 py-1 coarse:py-3 text-right tabular-nums';
   let toolbar: ReactNode = null;
   if (selected.length > 0 && confirming) {
     toolbar = (
-      <div role="alertdialog" aria-label="Confirm deletion" className="flex flex-wrap items-center gap-3">
+      <div
+        role="alertdialog"
+        aria-label="Confirm deletion"
+        className="flex flex-wrap items-center gap-3"
+      >
         <p>
-          Delete {selected.length === 1 ? `“${selected[0]?.title}”` : `${selected.length} entities`} and
-          everything in {them}? Links to {them} will point nowhere. Undo brings {them} back.
+          Delete{' '}
+          {selected.length === 1
+            ? `“${selected[0]?.title}”`
+            : `${selected.length} entities`}{' '}
+          and everything in {them}? Links to {them} will point nowhere. Undo
+          brings {them} back.
         </p>
         <Button
           variant="danger"
@@ -150,7 +191,11 @@ function List({ filter, journals }: Readonly<{ filter: string; journals: boolean
   }
   return (
     <>
-      <div className="mb-3 flex min-h-8 items-center gap-3" role="toolbar" aria-label="Selected entities">
+      <div
+        className="mb-3 flex min-h-8 items-center gap-3"
+        role="toolbar"
+        aria-label="Selected entities"
+      >
         {toolbar}
       </div>
       <table className="w-full border-collapse text-left">
@@ -167,18 +212,18 @@ function List({ filter, journals }: Readonly<{ filter: string; journals: boolean
             </th>
             {columns.map((c) => {
               const active = sort.column === c.key;
-              let ariaSort: "ascending" | "descending" | undefined;
-              let arrow = "";
+              let ariaSort: 'ascending' | 'descending' | undefined;
+              let arrow = '';
               if (active) {
-                ariaSort = sort.descending ? "descending" : "ascending";
-                arrow = sort.descending ? " ↓" : " ↑";
+                ariaSort = sort.descending ? 'descending' : 'ascending';
+                arrow = sort.descending ? ' ↓' : ' ↑';
               }
               return (
                 <th
                   key={c.key}
                   scope="col"
                   aria-sort={ariaSort}
-                  className={`px-3 py-1 coarse:py-3 font-medium ${c.numeric ? "text-right" : ""}`}
+                  className={`px-3 py-1 coarse:py-3 font-medium ${c.numeric ? 'text-right' : ''}`}
                 >
                   <button
                     type="button"
@@ -205,15 +250,12 @@ function List({ filter, journals }: Readonly<{ filter: string; journals: boolean
                 />
               </td>
               <th scope="row" className="px-3 py-1 coarse:py-3 font-normal">
-                <EntityLink
-                  id={e.id}
-                  className={linkClass}
-                >
+                <EntityLink id={e.id} className={linkClass}>
                   {e.title}
                 </EntityLink>
               </th>
               <td className="px-3 py-1 coarse:py-3 text-ink-secondary">
-                {e.tags.map((t) => `#${t}`).join(" ")}
+                {e.tags.map((t) => `#${t}`).join(' ')}
               </td>
               <td className={numeric}>{e.words}</td>
               <td className={numeric}>{e.incoming}</td>
@@ -233,7 +275,7 @@ function List({ filter, journals }: Readonly<{ filter: string; journals: boolean
 }
 
 export function AllEntities() {
-  const [filter, setFilter] = useState("");
+  const [filter, setFilter] = useState('');
   // Journals are a day each, so they swamp the list unless asked for.
   const [journals, setJournals] = useState(false);
   return (
@@ -241,11 +283,12 @@ export function AllEntities() {
       <h1 className={pageTitle}>All entities</h1>
       <Region
         pending={<Skeleton className="h-4 w-1/2" />}
-        failed={(error) => (
-          <ErrorLine>{error.message}</ErrorLine>
-        )}
+        failed={(error) => <ErrorLine>{error.message}</ErrorLine>}
       >
-        <form className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2" onSubmit={(e) => e.preventDefault()}>
+        <form
+          className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2"
+          onSubmit={(e) => e.preventDefault()}
+        >
           <Input
             type="search"
             value={filter}
@@ -255,7 +298,11 @@ export function AllEntities() {
             className="min-w-0 flex-1"
           />
           <label className="flex items-center gap-2">
-            <input type="checkbox" checked={!journals} onChange={(e) => setJournals(!e.target.checked)} />
+            <input
+              type="checkbox"
+              checked={!journals}
+              onChange={(e) => setJournals(!e.target.checked)}
+            />
             Hide journals
           </label>
         </form>

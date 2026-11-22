@@ -14,7 +14,11 @@ export interface Debounced {
   cancel(): void;
 }
 
-export function debounce(run: () => void, wait: number, max: number): Debounced {
+export function debounce(
+  run: () => void,
+  wait: number,
+  max: number,
+): Debounced {
   let timer: ReturnType<typeof setTimeout> | undefined;
   // When the first unanswered call was made.
   let first = 0;

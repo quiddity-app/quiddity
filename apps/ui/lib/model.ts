@@ -2,10 +2,10 @@ export type EntityId = string;
 
 /** Where the app opens: the graph's `home` setting, with its entity found. */
 export type Start =
-  | { kind: "journals" }
-  | { kind: "all" }
-  | { kind: "graph" }
-  | { kind: "entity"; id: EntityId };
+  | { kind: 'journals' }
+  | { kind: 'all' }
+  | { kind: 'graph' }
+  | { kind: 'entity'; id: EntityId };
 
 export interface EntityRef {
   id: EntityId;
@@ -15,15 +15,15 @@ export interface EntityRef {
 /** How this device stands with the others. */
 export type SyncState =
   /** No other device is listed, and none is connected. */
-  | "alone"
+  | 'alone'
   /** Others are listed and none is connected. */
-  | "offline"
+  | 'offline'
   /** Connected, but something is missing on one side, or typing is held back. */
-  | "behind"
+  | 'behind'
   /** Connected and up to date. */
-  | "synced"
+  | 'synced'
   /** Connected and up to date, and another device has a block open. */
-  | "present";
+  | 'present';
 
 /** A device the graph records: one that holds it, or has been let in to it. */
 export interface Device {
@@ -49,13 +49,13 @@ export interface Block {
 
 /** A property's value, as written. */
 export type PropertyValue =
-  | { kind: "text"; text: string }
+  | { kind: 'text'; text: string }
   /** `key` is how the link is written between its brackets: a key of `links`. */
-  | { kind: "link"; name: string; key: string }
-  | { kind: "ref"; id: string }
-  | { kind: "list"; items: PropertyValue[] }
+  | { kind: 'link'; name: string; key: string }
+  | { kind: 'ref'; id: string }
+  | { kind: 'list'; items: PropertyValue[] }
   /** Text with links or block references in it: shown as it is, with no separators. */
-  | { kind: "parts"; items: PropertyValue[] };
+  | { kind: 'parts'; items: PropertyValue[] };
 
 /** One property written in a block's text. */
 export interface Property {
@@ -104,9 +104,9 @@ export interface Inverse {
 
 /** Where a `[[link]]` goes. */
 export type LinkTarget =
-  | { kind: "entity"; id: EntityId }
-  | { kind: "ambiguous"; ids: EntityId[] }
-  | { kind: "missing" };
+  | { kind: 'entity'; id: EntityId }
+  | { kind: 'ambiguous'; ids: EntityId[] }
+  | { kind: 'missing' };
 
 /** A link in a block: what is shown of it, and where it goes. */
 export type ResolvedLink = LinkTarget & {
@@ -193,7 +193,9 @@ export interface Problem {
 
 /** Every entity, and which link to which: one edge per pair, however many links. */
 export interface Connections {
-  nodes: (EntityRef & { /** Whether it is a journal page. */ journal: boolean })[];
+  nodes: (EntityRef & {
+    /** Whether it is a journal page. */ journal: boolean;
+  })[];
   /** `weak` ones are made by a property, between each end of it and the
    * entity that defines it, and are drawn lighter. */
   edges: { source: EntityId; target: EntityId; weak: boolean }[];
@@ -232,11 +234,11 @@ export interface BlobInfo {
 /** What pasting text into a block being edited should do. */
 export type PastedText =
   /** Not an outline: it goes in as text. */
-  | { kind: "plain" }
+  | { kind: 'plain' }
   /** One block of an outline: its text goes in, without the bullet. */
-  | { kind: "block"; text: string }
+  | { kind: 'block'; text: string }
   /** Several blocks, or one with children: they become blocks. */
-  | { kind: "outline" };
+  | { kind: 'outline' };
 
 /** What typing Backspace at the start of a block did: joined it to another. */
 export interface Merged {

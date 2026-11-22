@@ -1,5 +1,6 @@
-import type { Page } from "@playwright/test";
-import { expect, test, editor, openEntity } from "./fixtures";
+import { expect, test, editor, openEntity } from './fixtures';
+
+import type { Page } from '@playwright/test';
 
 // The Quiddity page, which has the nesting:
 //   properties
@@ -8,86 +9,92 @@ import { expect, test, editor, openEntity } from "./fixtures";
 //     Shift-click a link to open it at the side.
 //   Open questions
 //     Eviction of unsynced edits.
-const PARENT = "Local-first, multiplayer second brain.";
-const LEAF = "Shift-click a link to open it at the side.";
-const QUESTIONS = "Open questions";
-const EVICTION = "Eviction of unsynced edits.";
+const PARENT = 'Local-first, multiplayer second brain.';
+const LEAF = 'Shift-click a link to open it at the side.';
+const QUESTIONS = 'Open questions';
+const EVICTION = 'Eviction of unsynced edits.';
 
 test.beforeEach(async ({ page }) => {
-  await openEntity(page, "Quiddity");
+  await openEntity(page, 'Quiddity');
 });
 
 const block = (page: Page, text: string) =>
-  page.locator("main article > ul").getByText(text, { exact: true });
+  page.locator('main article > ul').getByText(text, { exact: true });
 
 /** The text of each block selected as a block, in reading order. */
 const selected = (page: Page) =>
-  page.locator("main article [data-selected]").evaluateAll((els) => els.map((e) => e.textContent));
+  page
+    .locator('main article [data-selected]')
+    .evaluateAll((els) => els.map((e) => e.textContent));
 
-test("Select All grows from the block through its family to the whole entity", async ({ page }) => {
+test('Select All grows from the block through its family to the whole entity', async ({
+  page,
+}) => {
   await block(page, LEAF).click();
   await expect(editor(page)).toBeFocused();
 
   // The first press is the editor's own: the block's text.
-  await page.keyboard.press("Control+a");
+  await page.keyboard.press('Control+a');
   await expect(editor(page)).toBeFocused();
   expect(await selected(page)).toEqual([]);
 
   // Then the block, as a block: it stops being edited.
-  await page.keyboard.press("Control+a");
+  await page.keyboard.press('Control+a');
   await expect(editor(page)).toHaveCount(0);
   expect(await selected(page)).toEqual([LEAF]);
 
   // It has no children, so next is it and its siblings.
-  await page.keyboard.press("Control+a");
+  await page.keyboard.press('Control+a');
   expect(await selected(page)).toHaveLength(2);
 
   // Then the parent, which brings its children.
-  await page.keyboard.press("Control+a");
+  await page.keyboard.press('Control+a');
   expect(await selected(page)).toHaveLength(3);
   expect(await selected(page)).toContain(PARENT);
 
   // Then the parent's siblings and what is under them: everything.
-  await page.keyboard.press("Control+a");
+  await page.keyboard.press('Control+a');
   expect(await selected(page)).toHaveLength(6);
   expect(await selected(page)).toContain(EVICTION);
 
   // There is nothing more.
-  await page.keyboard.press("Control+a");
+  await page.keyboard.press('Control+a');
   expect(await selected(page)).toHaveLength(6);
 });
 
-test("a block with children selects them next", async ({ page }) => {
+test('a block with children selects them next', async ({ page }) => {
   await block(page, PARENT).click();
-  await page.keyboard.press("Control+a");
-  await page.keyboard.press("Control+a");
+  await page.keyboard.press('Control+a');
+  await page.keyboard.press('Control+a');
   expect(await selected(page)).toEqual([PARENT]);
-  await page.keyboard.press("Control+a");
+  await page.keyboard.press('Control+a');
   expect(await selected(page)).toHaveLength(3);
 });
 
-test("Escape, or a press elsewhere, lets go", async ({ page }) => {
+test('Escape, or a press elsewhere, lets go', async ({ page }) => {
   await block(page, LEAF).click();
-  await page.keyboard.press("Control+a");
-  await page.keyboard.press("Control+a");
+  await page.keyboard.press('Control+a');
+  await page.keyboard.press('Control+a');
   expect(await selected(page)).toHaveLength(1);
-  await page.keyboard.press("Escape");
+  await page.keyboard.press('Escape');
   expect(await selected(page)).toEqual([]);
 
   await block(page, LEAF).click();
-  await page.keyboard.press("Control+a");
-  await page.keyboard.press("Control+a");
-  await page.locator("body").click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press('Control+a');
+  await page.keyboard.press('Control+a');
+  await page.locator('body').click({ position: { x: 5, y: 5 } });
   expect(await selected(page)).toEqual([]);
 });
 
-test("Select All in the title is left to the title", async ({ page }) => {
-  await page.getByRole("heading", { name: "Quiddity", level: 1 }).click();
-  await page.keyboard.press("Control+a");
+test('Select All in the title is left to the title', async ({ page }) => {
+  await page.getByRole('heading', { name: 'Quiddity', level: 1 }).click();
+  await page.keyboard.press('Control+a');
   expect(await selected(page)).toEqual([]);
 });
 
-test("dragging from one block to another selects the blocks between", async ({ page }) => {
+test('dragging from one block to another selects the blocks between', async ({
+  page,
+}) => {
   const from = (await block(page, PARENT).boundingBox())!;
   const to = (await block(page, EVICTION).boundingBox())!;
   await page.mouse.move(from.x + 10, from.y + from.height / 2);
@@ -97,7 +104,7 @@ test("dragging from one block to another selects the blocks between", async ({ p
 
   expect(await selected(page)).toEqual([
     PARENT,
-    "Built on Loro and iroh.",
+    'Built on Loro and iroh.',
     LEAF,
     QUESTIONS,
     EVICTION,
@@ -106,11 +113,11 @@ test("dragging from one block to another selects the blocks between", async ({ p
   await expect(editor(page)).toHaveCount(0);
 
   // Select All carries on from there: here, that is everything.
-  await page.keyboard.press("Control+a");
+  await page.keyboard.press('Control+a');
   expect(await selected(page)).toHaveLength(6);
 });
 
-test("a drag that starts in the block being edited leaves it for a block selection", async ({
+test('a drag that starts in the block being edited leaves it for a block selection', async ({
   page,
 }) => {
   await block(page, PARENT).click();
@@ -127,7 +134,7 @@ test("a drag that starts in the block being edited leaves it for a block selecti
   expect((await selected(page)).at(-1)).toBe(QUESTIONS);
 });
 
-test("dragging within one block selects text, not blocks, and a click still edits", async ({
+test('dragging within one block selects text, not blocks, and a click still edits', async ({
   page,
 }) => {
   const box = (await block(page, LEAF).boundingBox())!;
@@ -137,47 +144,49 @@ test("dragging within one block selects text, not blocks, and a click still edit
   await page.mouse.up();
   expect(await selected(page)).toEqual([]);
 
-  await page.locator("body").click({ position: { x: 5, y: 5 } });
+  await page.locator('body').click({ position: { x: 5, y: 5 } });
   await block(page, LEAF).click();
   await expect(editor(page)).toBeFocused();
 });
 
 /** How many blocks are at the top level of the main pane. */
-const topLevel = (page: Page) => page.locator("main article > ul > li").count();
+const topLevel = (page: Page) => page.locator('main article > ul > li').count();
 
-test("Tab and Shift-Tab indent and outdent what is selected, in one undo step", async ({ page }) => {
+test('Tab and Shift-Tab indent and outdent what is selected, in one undo step', async ({
+  page,
+}) => {
   expect(await topLevel(page)).toBe(3);
   // Open questions, with what is under it.
   await block(page, QUESTIONS).click();
-  for (let i = 0; i < 3; i++) await page.keyboard.press("Control+a");
+  for (let i = 0; i < 3; i++) await page.keyboard.press('Control+a');
   expect(await selected(page)).toEqual([QUESTIONS, EVICTION]);
 
   // It nests under the block before it, and what was under it goes along.
-  await page.keyboard.press("Tab");
+  await page.keyboard.press('Tab');
   await expect.poll(() => topLevel(page)).toBe(2);
   expect(await selected(page)).toEqual([QUESTIONS, EVICTION]);
 
-  await page.keyboard.press("Shift+Tab");
+  await page.keyboard.press('Shift+Tab');
   await expect.poll(() => topLevel(page)).toBe(3);
 
-  await page.keyboard.press("Tab");
+  await page.keyboard.press('Tab');
   await expect.poll(() => topLevel(page)).toBe(2);
-  await page.keyboard.press("Control+z");
+  await page.keyboard.press('Control+z');
   await expect.poll(() => topLevel(page)).toBe(3);
 });
 
 test("a run with nothing before it can't be indented", async ({ page }) => {
   // The parent's two children: the first has no sibling to nest under.
   await block(page, LEAF).click();
-  for (let i = 0; i < 3; i++) await page.keyboard.press("Control+a");
+  for (let i = 0; i < 3; i++) await page.keyboard.press('Control+a');
   expect(await selected(page)).toHaveLength(2);
-  await page.keyboard.press("Tab");
+  await page.keyboard.press('Tab');
   expect(await topLevel(page)).toBe(3);
   expect(await selected(page)).toHaveLength(2);
 });
 
-test("Tab with nothing selected is left to the browser", async ({ page }) => {
-  await page.keyboard.press("Tab");
+test('Tab with nothing selected is left to the browser', async ({ page }) => {
+  await page.keyboard.press('Tab');
   expect(await selected(page)).toEqual([]);
   expect(await topLevel(page)).toBe(3);
 });
@@ -185,66 +194,76 @@ test("Tab with nothing selected is left to the browser", async ({ page }) => {
 /** The text of each top-level block of the main pane. */
 const topTexts = (page: Page) =>
   page
-    .locator("main article > ul > li > div > [data-block-text]")
+    .locator('main article > ul > li > div > [data-block-text]')
     .evaluateAll((els) => els.map((e) => e.textContent));
 
 // Alt-Shift is how a block is moved except on a Mac, which the tests aren't on.
-test("Alt-Shift-arrows move the selected blocks, with their children, in one undo step", async ({
+test('Alt-Shift-arrows move the selected blocks, with their children, in one undo step', async ({
   page,
 }) => {
   const before = await topTexts(page);
   expect(before.at(-1)).toBe(QUESTIONS);
   await block(page, QUESTIONS).click();
-  for (let i = 0; i < 3; i++) await page.keyboard.press("Control+a");
+  for (let i = 0; i < 3; i++) await page.keyboard.press('Control+a');
 
-  await page.keyboard.press("Alt+Shift+ArrowUp");
-  await expect.poll(() => topTexts(page)).toEqual([before[0], QUESTIONS, PARENT]);
+  await page.keyboard.press('Alt+Shift+ArrowUp');
+  await expect
+    .poll(() => topTexts(page))
+    .toEqual([before[0], QUESTIONS, PARENT]);
   expect(await selected(page)).toEqual([QUESTIONS, EVICTION]);
 
-  await page.keyboard.press("Alt+Shift+ArrowDown");
+  await page.keyboard.press('Alt+Shift+ArrowDown');
   await expect.poll(() => topTexts(page)).toEqual(before);
 
-  await page.keyboard.press("Alt+Shift+ArrowUp");
+  await page.keyboard.press('Alt+Shift+ArrowUp');
   await expect.poll(() => topTexts(page)).not.toEqual(before);
-  await page.keyboard.press("Control+z");
+  await page.keyboard.press('Control+z');
   await expect.poll(() => topTexts(page)).toEqual(before);
 });
 
-test("the move keys move the focused block, though nothing is selected", async ({ page }) => {
+test('the move keys move the focused block, though nothing is selected', async ({
+  page,
+}) => {
   const before = await topTexts(page);
   // The block's own element, which is what a Tab to it focuses.
   const questions = page
-    .locator("main article > ul > li > div > [data-block-text]")
+    .locator('main article > ul > li > div > [data-block-text]')
     .filter({ hasText: QUESTIONS });
   await questions.focus();
-  await page.keyboard.press("Alt+Shift+ArrowUp");
-  await expect.poll(() => topTexts(page)).toEqual([before[0], QUESTIONS, PARENT]);
+  await page.keyboard.press('Alt+Shift+ArrowUp');
+  await expect
+    .poll(() => topTexts(page))
+    .toEqual([before[0], QUESTIONS, PARENT]);
   expect(await selected(page)).toEqual([]);
   // It keeps the focus, so it can go on.
   await expect(questions).toBeFocused();
-  await page.keyboard.press("Alt+Shift+ArrowUp");
-  await expect.poll(() => topTexts(page)).toEqual([QUESTIONS, before[0], PARENT]);
+  await page.keyboard.press('Alt+Shift+ArrowUp');
+  await expect
+    .poll(() => topTexts(page))
+    .toEqual([QUESTIONS, before[0], PARENT]);
 });
 
-test("a selection that includes the first block can't move up", async ({ page }) => {
+test("a selection that includes the first block can't move up", async ({
+  page,
+}) => {
   const before = await topTexts(page);
   await block(page, PARENT).click();
   // Everything, which has the first block in it.
-  for (let i = 0; i < 6; i++) await page.keyboard.press("Control+a");
+  for (let i = 0; i < 6; i++) await page.keyboard.press('Control+a');
   expect(await selected(page)).toHaveLength(6);
-  await page.keyboard.press("Alt+Shift+ArrowUp");
+  await page.keyboard.press('Alt+Shift+ArrowUp');
   expect(await topTexts(page)).toEqual(before);
-  await page.keyboard.press("Alt+Shift+ArrowDown");
+  await page.keyboard.press('Alt+Shift+ArrowDown');
   expect(await topTexts(page)).toEqual(before);
 });
 
-for (const key of ["Backspace", "Delete"]) {
+for (const key of ['Backspace', 'Delete']) {
   test(`${key} deletes the selected blocks with their children, and undo brings them back`, async ({
     page,
   }) => {
     const before = await topTexts(page);
     await block(page, QUESTIONS).click();
-    for (let i = 0; i < 3; i++) await page.keyboard.press("Control+a");
+    for (let i = 0; i < 3; i++) await page.keyboard.press('Control+a');
     expect(await selected(page)).toEqual([QUESTIONS, EVICTION]);
 
     await page.keyboard.press(key);
@@ -252,21 +271,21 @@ for (const key of ["Backspace", "Delete"]) {
     await expect(page.getByText(EVICTION)).toHaveCount(0);
     expect(await selected(page)).toEqual([]);
 
-    await page.keyboard.press("Control+z");
+    await page.keyboard.press('Control+z');
     await expect.poll(() => topTexts(page)).toEqual(before);
     await expect(page.getByText(EVICTION)).toBeVisible();
   });
 }
 
-test("Backspace with nothing selected deletes nothing", async ({ page }) => {
+test('Backspace with nothing selected deletes nothing', async ({ page }) => {
   const before = await topTexts(page);
-  await page.keyboard.press("Backspace");
+  await page.keyboard.press('Backspace');
   expect(await topTexts(page)).toEqual(before);
 });
 
 test("Backspace in an editor is still the editor's", async ({ page }) => {
   await block(page, EVICTION).click();
-  await page.keyboard.press("Backspace");
+  await page.keyboard.press('Backspace');
   await expect(editor(page)).toHaveText(EVICTION.slice(0, -1));
 });
 
@@ -274,140 +293,187 @@ test("Backspace in an editor is still the editor's", async ({ page }) => {
 const paste = (page: Page, text: string) =>
   page.evaluate((text) => {
     const data = new DataTransfer();
-    data.setData("text/plain", text);
+    data.setData('text/plain', text);
     (document.activeElement ?? document.body).dispatchEvent(
-      new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }),
+      new ClipboardEvent('paste', {
+        clipboardData: data,
+        bubbles: true,
+        cancelable: true,
+      }),
     );
   }, text);
 
-test("copy and paste duplicate the selected blocks after them, and select the copy", async ({
+test('copy and paste duplicate the selected blocks after them, and select the copy', async ({
   page,
 }) => {
   const before = await topTexts(page);
   await block(page, QUESTIONS).click();
-  for (let i = 0; i < 3; i++) await page.keyboard.press("Control+a");
+  for (let i = 0; i < 3; i++) await page.keyboard.press('Control+a');
 
-  await page.keyboard.press("Control+c");
-  await page.keyboard.press("Control+v");
+  await page.keyboard.press('Control+c');
+  await page.keyboard.press('Control+v');
   await expect.poll(() => topTexts(page)).toEqual([...before, QUESTIONS]);
   // What is selected now is the copy, with its child.
   expect(await selected(page)).toEqual([QUESTIONS, EVICTION]);
   await expect(page.getByText(EVICTION)).toHaveCount(2);
 
-  await page.keyboard.press("Control+z");
+  await page.keyboard.press('Control+z');
   await expect.poll(() => topTexts(page)).toEqual(before);
 });
 
-test("cut takes the blocks away, and paste puts them back where they are pasted", async ({
+test('cut takes the blocks away, and paste puts them back where they are pasted', async ({
   page,
 }) => {
   const before = await topTexts(page);
   await block(page, QUESTIONS).click();
-  for (let i = 0; i < 3; i++) await page.keyboard.press("Control+a");
-  await page.keyboard.press("Control+x");
+  for (let i = 0; i < 3; i++) await page.keyboard.press('Control+a');
+  await page.keyboard.press('Control+x');
   await expect.poll(() => topTexts(page)).toEqual(before.slice(0, -1));
 
   // After the parent, which is above where they were.
   await block(page, PARENT).click();
-  for (let i = 0; i < 2; i++) await page.keyboard.press("Control+a");
-  await page.keyboard.press("Control+v");
-  await expect.poll(() => topTexts(page)).toEqual([before[0], PARENT, QUESTIONS]);
+  for (let i = 0; i < 2; i++) await page.keyboard.press('Control+a');
+  await page.keyboard.press('Control+v');
+  await expect
+    .poll(() => topTexts(page))
+    .toEqual([before[0], PARENT, QUESTIONS]);
   // What was pasted is selected, with its child.
   expect(await selected(page)).toEqual([QUESTIONS, EVICTION]);
 });
 
-test("pasting text that is an outline adds its blocks, nested as written", async ({ page }) => {
+test('pasting text that is an outline adds its blocks, nested as written', async ({
+  page,
+}) => {
   await block(page, PARENT).click();
-  for (let i = 0; i < 2; i++) await page.keyboard.press("Control+a");
-  await paste(page, "- first\n\t- under it\n- second\n");
-  await expect.poll(() => topTexts(page)).toContain("second");
+  for (let i = 0; i < 2; i++) await page.keyboard.press('Control+a');
+  await paste(page, '- first\n\t- under it\n- second\n');
+  await expect.poll(() => topTexts(page)).toContain('second');
   expect(await topTexts(page)).toEqual([
-    expect.stringContaining("favourite"),
+    expect.stringContaining('favourite'),
     PARENT,
-    "first",
-    "second",
+    'first',
+    'second',
     QUESTIONS,
   ]);
   // The copy is selected, children and all.
-  expect(await selected(page)).toEqual(["first", "under it", "second"]);
+  expect(await selected(page)).toEqual(['first', 'under it', 'second']);
 });
 
-test("a block with the focus, with nothing selected, takes a paste after it", async ({ page }) => {
+test('a block with the focus, with nothing selected, takes a paste after it', async ({
+  page,
+}) => {
   const questions = page
-    .locator("main article > ul > li > div > [data-block-text]")
+    .locator('main article > ul > li > div > [data-block-text]')
     .filter({ hasText: QUESTIONS });
   await questions.focus();
-  await paste(page, "plain words");
-  await expect.poll(() => topTexts(page)).toContain("plain words");
-  expect(await selected(page)).toEqual(["plain words"]);
+  await paste(page, 'plain words');
+  await expect.poll(() => topTexts(page)).toContain('plain words');
+  expect(await selected(page)).toEqual(['plain words']);
 });
 
 test("copy and paste in an editor are still the text's", async ({ page }) => {
   await block(page, EVICTION).click();
-  await page.keyboard.press("Control+a");
-  await page.keyboard.press("Control+c");
-  await page.keyboard.press("End");
-  await page.keyboard.press("Control+v");
+  await page.keyboard.press('Control+a');
+  await page.keyboard.press('Control+c');
+  await page.keyboard.press('End');
+  await page.keyboard.press('Control+v');
   await expect(editor(page)).toHaveText(EVICTION + EVICTION);
   expect(await selected(page)).toEqual([]);
 });
 
-test("paste with nothing selected or focused does nothing", async ({ page }) => {
+test('paste with nothing selected or focused does nothing', async ({
+  page,
+}) => {
   const before = await topTexts(page);
-  await paste(page, "- stray\n");
+  await paste(page, '- stray\n');
   expect(await topTexts(page)).toEqual(before);
 });
 
 /** The page's blocks as `depth:text`, in reading order, without the properties block. */
 const shape = (page: Page) =>
   page.evaluate(() =>
-    [...document.querySelectorAll("main article > ul li")].slice(1).map((li) => {
-      let depth = 0;
-      for (let p = li.parentElement?.closest("li"); p; p = p.parentElement?.closest("li")) depth++;
-      const own = li.querySelector(
-        ":scope > div > [data-block-text], :scope > div > div .cm-content",
-      );
-      return `${depth}:${own?.textContent ?? ""}`;
-    }),
+    [...document.querySelectorAll('main article > ul li')]
+      .slice(1)
+      .map((li) => {
+        let depth = 0;
+        for (
+          let p = li.parentElement?.closest('li');
+          p;
+          p = p.parentElement?.closest('li')
+        )
+          depth++;
+        const own = li.querySelector(
+          ':scope > div > [data-block-text], :scope > div > div .cm-content',
+        );
+        return `${depth}:${own?.textContent ?? ''}`;
+      }),
   );
 
-const BUILT = "Built on Loro and iroh.";
+const BUILT = 'Built on Loro and iroh.';
 
-test("a block moves on into the neighbouring parent, and back", async ({ page }) => {
+test('a block moves on into the neighbouring parent, and back', async ({
+  page,
+}) => {
   const before = await shape(page);
-  expect(before).toEqual([`0:${PARENT}`, `1:${BUILT}`, `1:${LEAF}`, `0:${QUESTIONS}`, `1:${EVICTION}`]);
+  expect(before).toEqual([
+    `0:${PARENT}`,
+    `1:${BUILT}`,
+    `1:${LEAF}`,
+    `0:${QUESTIONS}`,
+    `1:${EVICTION}`,
+  ]);
 
   // Open questions' only child, going up: the end of the parent before.
   await block(page, EVICTION).click();
-  for (let i = 0; i < 2; i++) await page.keyboard.press("Control+a");
-  await page.keyboard.press("Alt+Shift+ArrowUp");
+  for (let i = 0; i < 2; i++) await page.keyboard.press('Control+a');
+  await page.keyboard.press('Alt+Shift+ArrowUp');
   await expect
     .poll(() => shape(page))
-    .toEqual([`0:${PARENT}`, `1:${BUILT}`, `1:${LEAF}`, `1:${EVICTION}`, `0:${QUESTIONS}`]);
+    .toEqual([
+      `0:${PARENT}`,
+      `1:${BUILT}`,
+      `1:${LEAF}`,
+      `1:${EVICTION}`,
+      `0:${QUESTIONS}`,
+    ]);
   expect(await selected(page)).toEqual([EVICTION]);
 
   // And down again, into the start of the parent after, which is where it was.
-  await page.keyboard.press("Alt+Shift+ArrowDown");
+  await page.keyboard.press('Alt+Shift+ArrowDown');
   await expect.poll(() => shape(page)).toEqual(before);
 
   // One undo takes back the last of those.
-  await page.keyboard.press("Control+z");
+  await page.keyboard.press('Control+z');
   await expect
     .poll(() => shape(page))
-    .toEqual([`0:${PARENT}`, `1:${BUILT}`, `1:${LEAF}`, `1:${EVICTION}`, `0:${QUESTIONS}`]);
+    .toEqual([
+      `0:${PARENT}`,
+      `1:${BUILT}`,
+      `1:${LEAF}`,
+      `1:${EVICTION}`,
+      `0:${QUESTIONS}`,
+    ]);
 });
 
-test("a block with no parent beyond steps out beside its own", async ({ page }) => {
+test('a block with no parent beyond steps out beside its own', async ({
+  page,
+}) => {
   // The last child of the last parent, going down.
   await block(page, EVICTION).click();
-  for (let i = 0; i < 2; i++) await page.keyboard.press("Control+a");
-  await page.keyboard.press("Alt+Shift+ArrowDown");
+  for (let i = 0; i < 2; i++) await page.keyboard.press('Control+a');
+  await page.keyboard.press('Alt+Shift+ArrowDown');
   await expect
     .poll(() => shape(page))
-    .toEqual([`0:${PARENT}`, `1:${BUILT}`, `1:${LEAF}`, `0:${QUESTIONS}`, `0:${EVICTION}`]);
+    .toEqual([
+      `0:${PARENT}`,
+      `1:${BUILT}`,
+      `1:${LEAF}`,
+      `0:${QUESTIONS}`,
+      `0:${EVICTION}`,
+    ]);
   // It is still the selected block, and at the end of the page there is no further.
   expect(await selected(page)).toEqual([EVICTION]);
-  await page.keyboard.press("Alt+Shift+ArrowDown");
+  await page.keyboard.press('Alt+Shift+ArrowDown');
   expect(await shape(page)).toEqual([
     `0:${PARENT}`,
     `1:${BUILT}`,
@@ -417,91 +483,108 @@ test("a block with no parent beyond steps out beside its own", async ({ page }) 
   ]);
 });
 
-test("the keys move a block being edited past its siblings too, keeping the caret", async ({
+test('the keys move a block being edited past its siblings too, keeping the caret', async ({
   page,
 }) => {
   await block(page, LEAF).click();
-  await page.keyboard.press("Home");
+  await page.keyboard.press('Home');
   // The last child of Local-first..., down: the start of Open questions.
-  await page.keyboard.press("Alt+Shift+ArrowDown");
+  await page.keyboard.press('Alt+Shift+ArrowDown');
   await expect
     .poll(() => shape(page))
-    .toEqual([`0:${PARENT}`, `1:${BUILT}`, `0:${QUESTIONS}`, `1:${LEAF}`, `1:${EVICTION}`]);
+    .toEqual([
+      `0:${PARENT}`,
+      `1:${BUILT}`,
+      `0:${QUESTIONS}`,
+      `1:${LEAF}`,
+      `1:${EVICTION}`,
+    ]);
   await expect(editor(page)).toBeFocused();
-  await page.keyboard.type("!");
+  await page.keyboard.type('!');
   await expect(editor(page)).toHaveText(`!${LEAF}`);
 });
 
-test("an outline pasted into an editor becomes blocks after it, and editing carries on", async ({
+test('an outline pasted into an editor becomes blocks after it, and editing carries on', async ({
   page,
 }) => {
   await block(page, LEAF).click();
-  await paste(page, "- first\n\t- under it\n- second\n");
+  await paste(page, '- first\n\t- under it\n- second\n');
   await expect
     .poll(() => shape(page))
     .toEqual([
       `0:${PARENT}`,
       `1:${BUILT}`,
       `1:${LEAF}`,
-      "1:first",
-      "2:under it",
-      "1:second",
+      '1:first',
+      '2:under it',
+      '1:second',
       `0:${QUESTIONS}`,
       `1:${EVICTION}`,
     ]);
   // The caret is at the end of the last block, which is being edited.
-  await expect(editor(page)).toHaveText("second");
-  await page.keyboard.type("!");
-  await expect(editor(page)).toHaveText("second!");
+  await expect(editor(page)).toHaveText('second');
+  await page.keyboard.type('!');
+  await expect(editor(page)).toHaveText('second!');
 
   // One step to undo the lot.
-  await page.keyboard.press("Control+z");
-  await page.keyboard.press("Control+z");
+  await page.keyboard.press('Control+z');
+  await page.keyboard.press('Control+z');
   await expect.poll(() => shape(page)).toContain(`1:${LEAF}`);
-  expect(await shape(page)).not.toContain("1:first");
+  expect(await shape(page)).not.toContain('1:first');
 });
 
-test("an outline pasted into an empty block takes its place", async ({ page }) => {
-  await page.locator("main").getByRole("button", { name: "+ Add a block" }).click();
+test('an outline pasted into an empty block takes its place', async ({
+  page,
+}) => {
+  await page
+    .locator('main')
+    .getByRole('button', { name: '+ Add a block' })
+    .click();
   await expect(editor(page)).toBeFocused();
-  await paste(page, "- x\n- y\n");
-  await expect.poll(() => shape(page)).toEqual([
-    `0:${PARENT}`,
-    `1:${BUILT}`,
-    `1:${LEAF}`,
-    `0:${QUESTIONS}`,
-    `1:${EVICTION}`,
-    "0:x",
-    "0:y",
-  ]);
+  await paste(page, '- x\n- y\n');
+  await expect
+    .poll(() => shape(page))
+    .toEqual([
+      `0:${PARENT}`,
+      `1:${BUILT}`,
+      `1:${LEAF}`,
+      `0:${QUESTIONS}`,
+      `1:${EVICTION}`,
+      '0:x',
+      '0:y',
+    ]);
   // No empty block is left behind: the paste went into it.
-  expect(await shape(page)).not.toContain("0:");
+  expect(await shape(page)).not.toContain('0:');
 });
 
-test("one pasted bullet goes in as its text, without the bullet", async ({ page }) => {
+test('one pasted bullet goes in as its text, without the bullet', async ({
+  page,
+}) => {
   await block(page, EVICTION).click();
-  await paste(page, "- more\n");
+  await paste(page, '- more\n');
   await expect(editor(page)).toHaveText(`${EVICTION}more`);
   // Nothing became a block.
   expect(await shape(page)).toHaveLength(5);
 });
 
-test("text that isn't an outline is pasted as text, as the editor does", async ({ page }) => {
+test("text that isn't an outline is pasted as text, as the editor does", async ({
+  page,
+}) => {
   await block(page, EVICTION).click();
-  await page.keyboard.press("Control+a");
-  await page.keyboard.press("Control+c");
-  await page.keyboard.press("End");
-  await page.keyboard.press("Control+v");
+  await page.keyboard.press('Control+a');
+  await page.keyboard.press('Control+c');
+  await page.keyboard.press('End');
+  await page.keyboard.press('Control+v');
   await expect(editor(page)).toHaveText(EVICTION + EVICTION);
   expect(await shape(page)).toHaveLength(5);
 });
 
-test("copied blocks paste into an editor as blocks", async ({ page }) => {
+test('copied blocks paste into an editor as blocks', async ({ page }) => {
   await block(page, QUESTIONS).click();
-  for (let i = 0; i < 3; i++) await page.keyboard.press("Control+a");
-  await page.keyboard.press("Control+c");
+  for (let i = 0; i < 3; i++) await page.keyboard.press('Control+a');
+  await page.keyboard.press('Control+c');
   await block(page, PARENT).click();
-  await page.keyboard.press("Control+v");
+  await page.keyboard.press('Control+v');
   await expect
     .poll(() => shape(page))
     .toEqual([

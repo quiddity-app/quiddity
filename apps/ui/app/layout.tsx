@@ -1,25 +1,27 @@
-import type { Metadata, Viewport } from "next";
-import { Suspense } from "react";
-import "@fontsource/ibm-plex-sans/latin-400.css";
-import "@fontsource/ibm-plex-sans/latin-400-italic.css";
-import "@fontsource/ibm-plex-sans/latin-500.css";
-import "@fontsource/ibm-plex-sans/latin-600.css";
-import "./globals.css";
-import { Skeleton } from "@/components/boundary";
-import { ClientOnly } from "@/components/client-only";
-import { HistoryKeys } from "@/components/history-keys";
-import { Recovery } from "@/components/recovery";
-import { LeftSidebar } from "@/components/left-sidebar";
-import { MoreMenu } from "@/components/more-menu";
-import { RightPane } from "@/components/right-pane";
-import { ScrollRestore } from "@/components/scroll-restore";
-import { Search } from "@/components/search";
-import { SyncIndicator } from "@/components/sync-indicator";
-import { Shell } from "@/components/shell";
-import { UndoKeys } from "@/components/undo-keys";
-import { UpdateNotice } from "@/components/update-notice";
+import { Suspense } from 'react';
 
-export const metadata: Metadata = { title: "Quiddity" };
+import type { Metadata, Viewport } from 'next';
+
+import '@fontsource/ibm-plex-sans/latin-400.css';
+import '@fontsource/ibm-plex-sans/latin-400-italic.css';
+import '@fontsource/ibm-plex-sans/latin-500.css';
+import '@fontsource/ibm-plex-sans/latin-600.css';
+import './globals.css';
+import { Skeleton } from '@/components/boundary';
+import { ClientOnly } from '@/components/client-only';
+import { HistoryKeys } from '@/components/history-keys';
+import { Recovery } from '@/components/recovery';
+import { LeftSidebar } from '@/components/left-sidebar';
+import { MoreMenu } from '@/components/more-menu';
+import { RightPane } from '@/components/right-pane';
+import { ScrollRestore } from '@/components/scroll-restore';
+import { Search } from '@/components/search';
+import { SyncIndicator } from '@/components/sync-indicator';
+import { Shell } from '@/components/shell';
+import { UndoKeys } from '@/components/undo-keys';
+import { UpdateNotice } from '@/components/update-notice';
+
+export const metadata: Metadata = { title: 'Quiddity' };
 
 /**
  * What the browser, or the system around a webview, paints outside the page (a
@@ -27,10 +29,10 @@ export const metadata: Metadata = { title: "Quiddity" };
  * an edge. These are `--surface` in globals.css, and a test holds them to it.
  */
 export const viewport: Viewport = {
-  colorScheme: "light dark",
+  colorScheme: 'light dark',
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f8fafc" },
-    { media: "(prefers-color-scheme: dark)", color: "#0f172a" },
+    { media: '(prefers-color-scheme: light)', color: '#f8fafc' },
+    { media: '(prefers-color-scheme: dark)', color: '#0f172a' },
   ],
 };
 
@@ -43,7 +45,9 @@ export const viewport: Viewport = {
  * only there (`ClientOnly`). A static export never renders them on a server
  * anyway, but `next dev` does, on every request.
  */
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en-GB">
       <body>

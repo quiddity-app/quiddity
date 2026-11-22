@@ -1,37 +1,69 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import type { Check, Outcome, Stats } from "@/lib/model";
-import { useGraph, useRead } from "@/lib/use-graph";
-import { Region, Skeleton } from "./boundary";
-import { EntityLink } from "./entity-link";
-import { Button, ErrorLine, linkClass, pageTitle, sectionTitle, subsectionTitle } from "./ui";
+import { useState } from 'react';
+
+import { Region, Skeleton } from './boundary';
+import { EntityLink } from './entity-link';
+import {
+  Button,
+  ErrorLine,
+  linkClass,
+  pageTitle,
+  sectionTitle,
+  subsectionTitle,
+} from './ui';
+
+import type { Check, Outcome, Stats } from '@/lib/model';
+
+import { useGraph, useRead } from '@/lib/use-graph';
 
 /** Virtual entities drawn at first, and added by "Show more". A graph can link to thousands of names. */
 const ROWS = 100;
 
 /** Each number, in the order shown, with what it counts. */
 const counts: { key: keyof Stats; label: string; about: string }[] = [
-  { key: "blocks", label: "Blocks", about: "Every block, the root of each entity included." },
-  { key: "entities", label: "Entities", about: "Those that have been written, merged duplicates not counted." },
-  { key: "journals", label: "Journal pages", about: "How many of the entities are a day's journal." },
   {
-    key: "mergedDuplicates",
-    label: "Merged duplicates",
-    about: "Entities made twice, such as a journal on two devices, then merged. Kept, and hidden.",
+    key: 'blocks',
+    label: 'Blocks',
+    about: 'Every block, the root of each entity included.',
   },
-  { key: "blobs", label: "Files", about: "Blocks that hold a file." },
-  { key: "links", label: "Links to entities", about: "From any block, once for each link." },
   {
-    key: "linksToNowhere",
-    label: "Links to nowhere",
-    about: "To a name nobody has made: the links to virtual entities.",
+    key: 'entities',
+    label: 'Entities',
+    about: 'Those that have been written, merged duplicates not counted.',
   },
-  { key: "ambiguous", label: "Ambiguous blocks", about: "Blocks with a link that matches more than one entity." },
   {
-    key: "orphans",
-    label: "Orphans",
-    about: "Entities nothing links to and that link to nothing, journal pages apart.",
+    key: 'journals',
+    label: 'Journal pages',
+    about: "How many of the entities are a day's journal.",
+  },
+  {
+    key: 'mergedDuplicates',
+    label: 'Merged duplicates',
+    about:
+      'Entities made twice, such as a journal on two devices, then merged. Kept, and hidden.',
+  },
+  { key: 'blobs', label: 'Files', about: 'Blocks that hold a file.' },
+  {
+    key: 'links',
+    label: 'Links to entities',
+    about: 'From any block, once for each link.',
+  },
+  {
+    key: 'linksToNowhere',
+    label: 'Links to nowhere',
+    about: 'To a name nobody has made: the links to virtual entities.',
+  },
+  {
+    key: 'ambiguous',
+    label: 'Ambiguous blocks',
+    about: 'Blocks with a link that matches more than one entity.',
+  },
+  {
+    key: 'orphans',
+    label: 'Orphans',
+    about:
+      'Entities nothing links to and that link to nothing, journal pages apart.',
   },
 ];
 
@@ -61,16 +93,17 @@ function Numbers({ stats }: Readonly<{ stats: Stats }>) {
 
 function Virtuals({ stats }: Readonly<{ stats: Stats }>) {
   const [shown, setShown] = useState(ROWS);
-  const th = "px-3 py-1 coarse:py-3 font-medium";
-  const numeric = "px-3 py-1 coarse:py-3 text-right tabular-nums";
+  const th = 'px-3 py-1 coarse:py-3 font-medium';
+  const numeric = 'px-3 py-1 coarse:py-3 text-right tabular-nums';
   return (
     <section aria-labelledby="virtuals" className="mb-8">
       <h2 id="virtuals" className={sectionTitle}>
         Virtual entities
       </h2>
       <p className="mb-2 text-ink-secondary">
-        Names that are linked to, or used as a property’s key, and that no entity has. Nothing is stored for
-        them: each exists while something refers to it.
+        Names that are linked to, or used as a property’s key, and that no
+        entity has. Nothing is stored for them: each exists while something
+        refers to it.
       </p>
       {stats.virtuals.length === 0 ? (
         <p>None.</p>
@@ -119,7 +152,9 @@ function Virtuals({ stats }: Readonly<{ stats: Stats }>) {
               <span className="text-ink-secondary">
                 {shown} of {stats.virtuals.length}
               </span>
-              <Button onClick={() => setShown((n) => n + ROWS)}>Show more</Button>
+              <Button onClick={() => setShown((n) => n + ROWS)}>
+                Show more
+              </Button>
             </p>
           ) : null}
         </>
@@ -128,7 +163,10 @@ function Virtuals({ stats }: Readonly<{ stats: Stats }>) {
   );
 }
 
-function Outcomes({ title, outcomes }: Readonly<{ title: string; outcomes: Outcome[] }>) {
+function Outcomes({
+  title,
+  outcomes,
+}: Readonly<{ title: string; outcomes: Outcome[] }>) {
   return (
     <section className="mb-4">
       <h3 className={subsectionTitle}>{title}</h3>
@@ -138,10 +176,16 @@ function Outcomes({ title, outcomes }: Readonly<{ title: string; outcomes: Outco
           return (
             <li key={outcome.name}>
               <p>
-                <span className={n === 0 ? "text-ink-secondary" : "font-medium text-danger"}>
-                  {n === 0 ? "Passed" : `${n === 1 ? "1 problem" : `${n} problems`}`}
+                <span
+                  className={
+                    n === 0 ? 'text-ink-secondary' : 'font-medium text-danger'
+                  }
+                >
+                  {n === 0
+                    ? 'Passed'
+                    : `${n === 1 ? '1 problem' : `${n} problems`}`}
                 </span>
-                {": "}
+                {': '}
                 {outcome.name}
               </p>
               {n > 0 ? (
@@ -174,18 +218,22 @@ function Outcomes({ title, outcomes }: Readonly<{ title: string; outcomes: Outco
 function Consistency() {
   const graph = useGraph();
   const revision = useRead((g) => g.getRevision());
-  const [ran, setRan] = useState<{ check: Check; revision: number } | null>(null);
+  const [ran, setRan] = useState<{ check: Check; revision: number } | null>(
+    null,
+  );
   const [failure, setFailure] = useState<string | null>(null);
-  const faults = ran?.check.integrity.reduce((n, o) => n + o.problems.length, 0) ?? 0;
+  const faults =
+    ran?.check.integrity.reduce((n, o) => n + o.problems.length, 0) ?? 0;
   return (
     <section aria-labelledby="consistency" className="mb-8">
       <h2 id="consistency" className={sectionTitle}>
         Consistency check
       </h2>
       <p className="mb-2 text-ink-secondary">
-        Compares what Quiddity keeps in step with the graph (its list of blocks, its index of names and links)
-        against a fresh reading of it, and looks for what the text says that doesn’t add up. It reads the whole
-        graph, so it runs when asked.
+        Compares what Quiddity keeps in step with the graph (its list of blocks,
+        its index of names and links) against a fresh reading of it, and looks
+        for what the text says that doesn’t add up. It reads the whole graph, so
+        it runs when asked.
       </p>
       <p className="mb-3 flex flex-wrap items-center gap-3">
         <Button
@@ -194,21 +242,27 @@ function Consistency() {
               setRan({ check: graph.check(), revision: graph.getRevision() });
               setFailure(null);
             } catch (error) {
-              setFailure(error instanceof Error ? error.message : String(error));
+              setFailure(
+                error instanceof Error ? error.message : String(error),
+              );
             }
           }}
         >
-          {ran ? "Run again" : "Run check"}
+          {ran ? 'Run again' : 'Run check'}
         </Button>
         {ran && ran.revision !== revision ? (
-          <span className="text-ink-secondary">The graph has changed since this ran.</span>
+          <span className="text-ink-secondary">
+            The graph has changed since this ran.
+          </span>
         ) : null}
       </p>
       {failure ? <ErrorLine>{failure}</ErrorLine> : null}
       {ran ? (
         <div aria-live="polite">
           <p role="status" className="mb-3 font-medium">
-            {faults === 0 ? "The graph agrees with itself." : `${faults} ${faults === 1 ? "fault" : "faults"} found.`}
+            {faults === 0
+              ? 'The graph agrees with itself.'
+              : `${faults} ${faults === 1 ? 'fault' : 'faults'} found.`}
           </p>
           <Outcomes title="Integrity" outcomes={ran.check.integrity} />
           <Outcomes title="Content" outcomes={ran.check.content} />
@@ -232,7 +286,10 @@ export function StatsAndDebug() {
   return (
     <article className="mx-auto max-w-measure-table px-6 py-8">
       <h1 className={pageTitle}>Stats and debug</h1>
-      <Region pending={<Skeleton className="h-4 w-1/2" />} failed={(error) => <ErrorLine>{error.message}</ErrorLine>}>
+      <Region
+        pending={<Skeleton className="h-4 w-1/2" />}
+        failed={(error) => <ErrorLine>{error.message}</ErrorLine>}
+      >
         <Counted />
         <Consistency />
       </Region>

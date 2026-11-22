@@ -1,9 +1,12 @@
-"use client";
+'use client';
 
-import { useEffect, useRef, useState } from "react";
-import { chooseBackend, type Backend } from "@/lib/graph";
-import type { Problem, Recovery as How } from "@/lib/recovery";
-import { Button, ErrorLine, pageTitle, sectionTitle } from "./ui";
+import { useEffect, useRef, useState } from 'react';
+
+import { Button, ErrorLine, pageTitle, sectionTitle } from './ui';
+
+import type { Problem, Recovery as How } from '@/lib/recovery';
+
+import { chooseBackend, type Backend } from '@/lib/graph';
 
 /**
  * Stands in for the graph when the app couldn't open the one on this device,
@@ -42,7 +45,8 @@ export function Recovery() {
 
   useEffect(() => {
     // The safest choice is first, so it is the one a stray Enter takes.
-    if (problem) dialog.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    if (problem)
+      dialog.current?.querySelector<HTMLButtonElement>('button')?.focus();
   }, [problem]);
 
   if (!problem || !backend) return null;
@@ -73,7 +77,9 @@ export function Recovery() {
         </h1>
         <div id="recovery-what" className="mb-6 space-y-2">
           <p>
-            The graph in <code className="break-all font-mono text-sm">{problem.dir}</code> couldn’t be read:
+            The graph in{' '}
+            <code className="break-all font-mono text-sm">{problem.dir}</code>{' '}
+            couldn’t be read:
           </p>
           <p className="font-mono text-sm break-words">{problem.message}</p>
           <p>Nothing has been deleted, and nothing below deletes it.</p>
@@ -83,9 +89,12 @@ export function Recovery() {
           <h2 id="recovery-retry" className={sectionTitle}>
             Look again
           </h2>
-          <p className="mb-2">If you have put the file right yourself, or moved a backup into place.</p>
-          <Button onClick={() => go("retry")} disabled={working !== null}>
-            {working === "retry" ? "Looking…" : "Try again"}
+          <p className="mb-2">
+            If you have put the file right yourself, or moved a backup into
+            place.
+          </p>
+          <Button onClick={() => go('retry')} disabled={working !== null}>
+            {working === 'retry' ? 'Looking…' : 'Try again'}
           </Button>
         </section>
         <section aria-labelledby="recovery-blank" className="mb-6">
@@ -93,11 +102,12 @@ export function Recovery() {
             Get the graph back from another device
           </h2>
           <p className="mb-2">
-            Sets the damaged files aside and starts empty. Let this device in from another one that has the
-            graph (the Devices page shows this device’s ID), and the graph syncs back.
+            Sets the damaged files aside and starts empty. Let this device in
+            from another one that has the graph (the Devices page shows this
+            device’s ID), and the graph syncs back.
           </p>
-          <Button onClick={() => go("blank")} disabled={working !== null}>
-            {working === "blank" ? "Starting…" : "Start empty and sync"}
+          <Button onClick={() => go('blank')} disabled={working !== null}>
+            {working === 'blank' ? 'Starting…' : 'Start empty and sync'}
           </Button>
         </section>
         <section aria-labelledby="recovery-fresh" className="mb-6">
@@ -105,11 +115,16 @@ export function Recovery() {
             Start a new graph
           </h2>
           <p className="mb-2">
-            Sets the damaged files aside and starts a graph of its own. It is not the same graph as your other
-            devices’, and won’t merge with theirs.
+            Sets the damaged files aside and starts a graph of its own. It is
+            not the same graph as your other devices’, and won’t merge with
+            theirs.
           </p>
-          <Button variant="danger" onClick={() => go("fresh")} disabled={working !== null}>
-            {working === "fresh" ? "Starting…" : "Start a new graph"}
+          <Button
+            variant="danger"
+            onClick={() => go('fresh')}
+            disabled={working !== null}
+          >
+            {working === 'fresh' ? 'Starting…' : 'Start a new graph'}
           </Button>
         </section>
       </div>

@@ -7,11 +7,11 @@
  * would otherwise try to put `node:fs` in the browser's bundle, and refuses.
  */
 function read(file: string): Buffer {
-  const fs = process.getBuiltinModule("node:fs");
-  const path = process.getBuiltinModule("node:path");
+  const fs = process.getBuiltinModule('node:fs');
+  const path = process.getBuiltinModule('node:path');
   return fs.readFileSync(path.join(process.cwd(), file));
 }
 
-export const wasmBytes = () => read("lib/wasm/quiddity_wasm_bg.wasm");
+export const wasmBytes = () => read('lib/wasm/quiddity_wasm_bg.wasm');
 
-export const snapshotBytes = () => new Uint8Array(read("public/graph.loro"));
+export const snapshotBytes = () => new Uint8Array(read('public/graph.loro'));

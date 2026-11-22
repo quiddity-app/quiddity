@@ -1,20 +1,24 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useId, useRef, useState } from "react";
-import type { EntityId } from "@/lib/model";
-import { listenToMenu, setEntityOpen } from "@/lib/menu";
-import { entrypoints } from "@/lib/nav";
-import { useGraph, useRead } from "@/lib/use-graph";
-import { noteFollowed } from "./home";
-import { useView } from "./use-view";
-import { Button, iconButtonClass } from "./ui";
+import { useEffect, useId, useRef, useState } from 'react';
 
-const menuEntrypoints = entrypoints.filter((e) => e.in === "menu");
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+
+import { noteFollowed } from './home';
+import { useView } from './use-view';
+import { Button, iconButtonClass } from './ui';
+
+import type { EntityId } from '@/lib/model';
+
+import { listenToMenu, setEntityOpen } from '@/lib/menu';
+import { entrypoints } from '@/lib/nav';
+import { useGraph, useRead } from '@/lib/use-graph';
+
+const menuEntrypoints = entrypoints.filter((e) => e.in === 'menu');
 
 const itemClass =
-  "block w-full truncate rounded px-3 py-1.5 text-left text-sm hover:bg-surface-hover focus:bg-surface-hover disabled:text-ink-muted disabled:hover:bg-transparent coarse:py-3";
+  'block w-full truncate rounded px-3 py-1.5 text-left text-sm hover:bg-surface-hover focus:bg-surface-hover disabled:text-ink-muted disabled:hover:bg-transparent coarse:py-3';
 
 /**
  * The three-dot menu to the right of search: the entrypoints that aren't in
@@ -43,7 +47,7 @@ export function MoreMenu() {
   useEffect(
     () =>
       listenToMenu((command) => {
-        if (command.kind === "go") {
+        if (command.kind === 'go') {
           noteFollowed();
           router.push(command.path);
         } else if (latest.current.main) {
@@ -65,34 +69,42 @@ export function MoreMenu() {
   useEffect(() => {
     if (!open) return;
     const items = () =>
-      Array.from(menu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not(:disabled)') ?? []);
+      Array.from(
+        menu.current?.querySelectorAll<HTMLElement>(
+          '[role="menuitem"]:not(:disabled)',
+        ) ?? [],
+      );
     items()[0]?.focus();
     const onPointerDown = (e: PointerEvent) => {
       if (!(e.target instanceof Node)) return;
-      if (!menu.current?.contains(e.target) && !button.current?.contains(e.target)) setOpen(false);
+      if (
+        !menu.current?.contains(e.target) &&
+        !button.current?.contains(e.target)
+      )
+        setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.key === 'Escape') {
         e.preventDefault();
         setOpen(false);
         button.current?.focus();
-      } else if (e.key === "Tab") {
+      } else if (e.key === 'Tab') {
         setOpen(false);
-      } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
         const all = items();
         if (all.length === 0) return;
         const at = all.indexOf(document.activeElement as HTMLElement);
-        const step = e.key === "ArrowDown" ? 1 : -1;
+        const step = e.key === 'ArrowDown' ? 1 : -1;
         all[(at + step + all.length) % all.length]?.focus();
       }
     };
-    document.addEventListener("pointerdown", onPointerDown);
-    menu.current?.addEventListener("keydown", onKey);
+    document.addEventListener('pointerdown', onPointerDown);
+    menu.current?.addEventListener('keydown', onKey);
     const current = menu.current;
     return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      current?.removeEventListener("keydown", onKey);
+      document.removeEventListener('pointerdown', onPointerDown);
+      current?.removeEventListener('keydown', onKey);
     };
   }, [open]);
 
@@ -101,7 +113,11 @@ export function MoreMenu() {
     setLeaving(entity);
     // Back would land on an entity that has gone, so this replaces the step.
     router.replace(
-      view.href({ path: "/", main: null, open: view.open.filter((o) => o !== entity) }),
+      view.href({
+        path: '/',
+        main: null,
+        open: view.open.filter((o) => o !== entity),
+      }),
     );
   };
 
@@ -117,7 +133,12 @@ export function MoreMenu() {
         className={iconButtonClass}
         onClick={() => setOpen((o) => !o)}
       >
-        <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          className="h-5 w-5"
+          fill="currentColor"
+        >
           <circle cx="12" cy="5" r="1.8" />
           <circle cx="12" cy="12" r="1.8" />
           <circle cx="12" cy="19" r="1.8" />
@@ -152,7 +173,7 @@ export function MoreMenu() {
               router.push(view.togglePageGraph());
             }}
           >
-            {view.pageGraph ? "Hide Page Graph" : "Show Page Graph"}
+            {view.pageGraph ? 'Hide Page Graph' : 'Show Page Graph'}
           </button>
           <button
             type="button"
@@ -169,7 +190,11 @@ export function MoreMenu() {
         </div>
       )}
       {asking !== null && (
-        <ConfirmDelete entity={asking} onConfirm={() => confirm(asking)} onCancel={() => setAsking(null)} />
+        <ConfirmDelete
+          entity={asking}
+          onConfirm={() => confirm(asking)}
+          onCancel={() => setAsking(null)}
+        />
       )}
     </div>
   );
@@ -195,7 +220,7 @@ function ConfirmDelete({
     <div
       className="fixed inset-0 z-(--z-overlay) flex items-start justify-center p-4 pt-[12vh]"
       onKeyDown={(e) => {
-        if (e.key === "Escape") {
+        if (e.key === 'Escape') {
           e.preventDefault();
           onCancel();
         }
@@ -215,7 +240,8 @@ function ConfirmDelete({
         className="relative w-full max-w-md rounded-lg border border-border bg-surface p-4 shadow-overlay"
       >
         <p id={heading} className="mb-4">
-          Delete “{title}” and everything in it? Links to it will point nowhere. Undo brings it back.
+          Delete “{title}” and everything in it? Links to it will point nowhere.
+          Undo brings it back.
         </p>
         <div className="flex justify-end gap-2">
           <Button autoFocus onClick={onCancel}>

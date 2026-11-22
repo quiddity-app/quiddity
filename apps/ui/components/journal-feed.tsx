@@ -1,12 +1,15 @@
-"use client";
+'use client';
 
-import { useEffect, useRef, useState } from "react";
-import type { EntityRef } from "@/lib/model";
-import { useRead } from "@/lib/use-graph";
-import { Region, Skeleton } from "./boundary";
-import { EntityLink } from "./entity-link";
-import { EntityBody } from "./entity-view";
-import { ErrorLine, pageTitle, sectionTitle } from "./ui";
+import { useEffect, useRef, useState } from 'react';
+
+import { Region, Skeleton } from './boundary';
+import { EntityLink } from './entity-link';
+import { EntityBody } from './entity-view';
+import { ErrorLine, pageTitle, sectionTitle } from './ui';
+
+import type { EntityRef } from '@/lib/model';
+
+import { useRead } from '@/lib/use-graph';
 
 const PAGE = 5;
 
@@ -22,9 +25,7 @@ function Day({ day }: Readonly<{ day: EntityRef }>) {
           neither the days around it nor the top of the feed. */}
       <Region
         pending={<Skeleton className="h-4 w-1/2" />}
-        failed={(error) => (
-          <ErrorLine>{error.message}</ErrorLine>
-        )}
+        failed={(error) => <ErrorLine>{error.message}</ErrorLine>}
       >
         <EntityBody id={day.id} />
       </Region>
@@ -44,7 +45,7 @@ function Days() {
     if (!el) return;
     const watcher = new IntersectionObserver(
       ([entry]) => entry?.isIntersecting && setShown((n) => n + PAGE),
-      { rootMargin: "400px" },
+      { rootMargin: '400px' },
     );
     watcher.observe(el);
     return () => watcher.disconnect();
@@ -73,9 +74,7 @@ export function JournalFeed() {
       <h1 className={pageTitle}>Journals</h1>
       <Region
         pending={<Skeleton className="h-8 w-1/3" />}
-        failed={(error) => (
-          <ErrorLine>{error.message}</ErrorLine>
-        )}
+        failed={(error) => <ErrorLine>{error.message}</ErrorLine>}
       >
         <Days />
       </Region>

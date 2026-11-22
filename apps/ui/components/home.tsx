@@ -1,16 +1,20 @@
-"use client";
+'use client';
 
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
-import type { Start } from "@/lib/model";
-import { useRead } from "@/lib/use-graph";
-import { Skeleton } from "./boundary";
-import { useView } from "./use-view";
+import { useEffect } from 'react';
 
-const paths: Record<Exclude<Start["kind"], "entity">, string> = {
-  journals: "/journals/",
-  all: "/all/",
-  graph: "/graph/",
+import { useRouter } from 'next/navigation';
+
+import { Skeleton } from './boundary';
+import { useView } from './use-view';
+
+import type { Start } from '@/lib/model';
+
+import { useRead } from '@/lib/use-graph';
+
+const paths: Record<Exclude<Start['kind'], 'entity'>, string> = {
+  journals: '/journals/',
+  all: '/all/',
+  graph: '/graph/',
 };
 
 // The graph loads before `/` can redirect, and the sidebar's links work from
@@ -31,11 +35,12 @@ export function noteFollowed() {
   followed = true;
 }
 
-if (typeof document !== "undefined") {
+if (typeof document !== 'undefined') {
   document.addEventListener(
-    "click",
+    'click',
     (event) => {
-      if (event.target instanceof Element && event.target.closest("a[href]")) followed = true;
+      if (event.target instanceof Element && event.target.closest('a[href]'))
+        followed = true;
     },
     true,
   );
@@ -53,8 +58,8 @@ export function Home() {
   // same way as anywhere else.
   const { open, href: toHref } = useView();
   const href =
-    start.kind === "entity"
-      ? toHref({ path: "/", main: start.id, open })
+    start.kind === 'entity'
+      ? toHref({ path: '/', main: start.id, open })
       : toHref({ path: paths[start.kind], main: null, open });
 
   useEffect(() => {

@@ -1,10 +1,13 @@
-"use client";
+'use client';
 
-import { usePathname, useSearchParams } from "next/navigation";
-import { useMemo, useSyncExternalStore } from "react";
-import type { EntityId } from "@/lib/model";
-import { parseView, viewHref, type Names, type View } from "@/lib/nav";
-import { useRead } from "@/lib/use-graph";
+import { useMemo, useSyncExternalStore } from 'react';
+
+import { usePathname, useSearchParams } from 'next/navigation';
+
+import type { EntityId } from '@/lib/model';
+
+import { parseView, viewHref, type Names, type View } from '@/lib/nav';
+import { useRead } from '@/lib/use-graph';
 
 /**
  * A published site's names, as written by `quiddity-node names`. Empty in the
@@ -28,7 +31,7 @@ function usePublishedNames(): Names {
     // A virtual entity (`~name`) has a title but no page, and one made since
     // the build has a page only once the site is built again.
     for (const { id, title } of entities) {
-      if (PAGES.has(title) && !id.startsWith("~") && !byName.has(title)) {
+      if (PAGES.has(title) && !id.startsWith('~') && !byName.has(title)) {
         byId.set(id, title);
         byName.set(title, id);
       }
@@ -51,7 +54,7 @@ const subscribe = () => () => {};
  * the export drew, with no side pane open.
  */
 const useQuery: () => URLSearchParams =
-  typeof window === "undefined"
+  typeof window === 'undefined'
     ? () => NO_PARAMS
     : () => {
         const params = useSearchParams();
@@ -68,7 +71,10 @@ export function useView() {
   const pathname = usePathname();
   const params = useQuery();
   const names = useNames();
-  const view = useMemo(() => parseView(pathname, params, names), [pathname, params, names]);
+  const view = useMemo(
+    () => parseView(pathname, params, names),
+    [pathname, params, names],
+  );
   const href = (v: View) => viewHref(v, names);
   return {
     ...view,
@@ -80,7 +86,8 @@ export function useView() {
         ...view,
         open: view.open.includes(id) ? view.open : [...view.open, id],
       }),
-    toClosed: (id: EntityId) => href({ ...view, open: view.open.filter((o) => o !== id) }),
+    toClosed: (id: EntityId) =>
+      href({ ...view, open: view.open.filter((o) => o !== id) }),
     toAllClosed: () => href({ ...view, open: [] }),
     togglePageGraph: () => href({ ...view, pageGraph: !view.pageGraph }),
     toMainFromSide: (id: EntityId) =>

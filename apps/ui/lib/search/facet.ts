@@ -1,13 +1,13 @@
-import type { Graph } from "../graph";
-import type { EntityId } from "../model";
+import type { Graph } from '../graph';
+import type { EntityId } from '../model';
 
 /** What choosing a hit does. Data rather than a callback where it can be, so
  * a hit can be kept, ranked and logged. */
 export type Target =
   /** Open the entity: in the main pane, or at the side. */
-  | { kind: "entity"; id: EntityId }
+  | { kind: 'entity'; id: EntityId }
   /** Anything else, such as an action. */
-  | { kind: "run"; run: () => void };
+  | { kind: 'run'; run: () => void };
 
 export interface Hit {
   /** Unique within its facet. */
@@ -42,12 +42,18 @@ export interface Facet {
 
 /** At most `n` hits. */
 export function limited(n: number, facet: Facet): Facet {
-  return { ...facet, search: async (q, g) => (await facet.search(q, g)).slice(0, n) };
+  return {
+    ...facet,
+    search: async (q, g) => (await facet.search(q, g)).slice(0, n),
+  };
 }
 
 /** Searches only for queries that pass `applies`, which may also rewrite them
  * (to drop a prefix that selects the facet, say); others find nothing. */
-export function when(applies: (query: string) => string | null, facet: Facet): Facet {
+export function when(
+  applies: (query: string) => string | null,
+  facet: Facet,
+): Facet {
   return {
     ...facet,
     search: (q, g) => {

@@ -121,11 +121,15 @@ mod tests {
         let nav =
             std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../ui/lib/nav.ts"))
                 .expect("the UI's navigation is beside the app");
+        // A path is the string after `href: `, in whichever quotes the formatter
+        // leaves it: what follows `href: ` in a type is not a string.
         let paths: Vec<&str> = nav
-            .match_indices("href: \"")
-            .map(|(at, key)| {
+            .match_indices("href: ")
+            .filter_map(|(at, key)| {
                 let rest = &nav[at + key.len()..];
-                &rest[..rest.find('"').expect("a closing quote")]
+                let quote = rest.chars().next().filter(|c| matches!(c, '\'' | '"'))?;
+                let rest = &rest[1..];
+                Some(&rest[..rest.find(quote).expect("a closing quote")])
             })
             .collect();
         let ours: Vec<&str> = GO.iter().map(|(_, path)| *path).collect();

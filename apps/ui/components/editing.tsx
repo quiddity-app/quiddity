@@ -1,14 +1,29 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { expandSelection, lastSelected, selectRange } from "@/lib/block-selection";
-import { moveDirection } from "@/lib/move-keys";
-import { EditorView } from "@codemirror/view";
-import { useGraph } from "@/lib/use-graph";
-import type { Block, EntityId, ResolvedLink } from "@/lib/model";
-import { EditingContext, useEditing, type Editing } from "./editing-context";
-import { Outline } from "./entity-view";
-import { AddRow } from "./ui";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+
+import { EditorView } from '@codemirror/view';
+
+import { EditingContext, useEditing, type Editing } from './editing-context';
+import { Outline } from './entity-view';
+import { AddRow } from './ui';
+
+import type { Block, EntityId, ResolvedLink } from '@/lib/model';
+
+import { useGraph } from '@/lib/use-graph';
+import { moveDirection } from '@/lib/move-keys';
+import {
+  expandSelection,
+  lastSelected,
+  selectRange,
+} from '@/lib/block-selection';
 
 function flatten(blocks: Block[], out: string[] = []): string[] {
   for (const block of blocks) {
@@ -26,8 +41,8 @@ function AddBlock({ empty }: Readonly<{ empty: boolean }>) {
       emptyLabel="Empty. Click to add a block."
       label="+ Add a block"
       onAdd={() => {
-        const id = editing.graph.createBlock(editing.entityId, undefined, "");
-        editing.edit(id, "start");
+        const id = editing.graph.createBlock(editing.entityId, undefined, '');
+        editing.edit(id, 'start');
       }}
     />
   );
@@ -48,7 +63,7 @@ function AddProperties() {
 }
 
 /** "1 block" or "3 blocks". */
-const plural = (n: number) => `${n} ${n === 1 ? "block" : "blocks"}`;
+const plural = (n: number) => `${n} ${n === 1 ? 'block' : 'blocks'}`;
 
 /** An entity's blocks, which can be edited in place. */
 export function EditableOutline({
@@ -61,7 +76,7 @@ export function EditableOutline({
   links: Record<string, ResolvedLink>;
 }>) {
   const graph = useGraph();
-  const [current, setCurrent] = useState<Editing["current"]>(null);
+  const [current, setCurrent] = useState<Editing['current']>(null);
   const order = useMemo(() => flatten(blocks), [blocks]);
   const scope = useId();
   // Blocks selected as blocks, and the one the selection grows from.
@@ -77,7 +92,7 @@ export function EditableOutline({
   }, [selection, order]);
   // What a screen reader is told. The same words said twice have to differ to
   // be said again, so a count goes with them.
-  const [announcement, setAnnouncement] = useState({ text: "", count: 0 });
+  const [announcement, setAnnouncement] = useState({ text: '', count: 0 });
   // When something was last said about an action, so the selection it leaves
   // behind isn't announced over the top of it.
   const lastAction = useRef(0);
@@ -88,17 +103,17 @@ export function EditableOutline({
   // How many blocks are selected, once it settles: a drag changes it with every
   // step, which would be said every time. One block is read out, since it is
   // the one being worked on.
-  const selectedKey = [...selected].join(",");
+  const selectedKey = [...selected].join(',');
   useEffect(() => {
-    if (selectedKey === "") return;
+    if (selectedKey === '') return;
     const timer = setTimeout(() => {
       if (Date.now() - lastAction.current < 1000) return;
-      const ids = selectedKey.split(",");
+      const ids = selectedKey.split(',');
       let text = `${plural(ids.length)} selected`;
       if (ids.length === 1) {
         try {
-          const first = graph.blockText(ids[0]!).split("\n")[0]!.slice(0, 80);
-          if (first !== "") text += `: ${first}`;
+          const first = graph.blockText(ids[0]!).split('\n')[0]!.slice(0, 80);
+          if (first !== '') text += `: ${first}`;
         } catch {
           // The block has gone; the count will do.
         }
@@ -150,8 +165,11 @@ export function EditableOutline({
       announce,
       edit: (id, caret) => {
         graph.settle();
-        [...opened.current.keys()].filter((other) => other !== id).forEach((key) => save(key));
-        if (!opened.current.has(id)) opened.current.set(id, graph.blockText(id));
+        [...opened.current.keys()]
+          .filter((other) => other !== id)
+          .forEach((key) => save(key));
+        if (!opened.current.has(id))
+          opened.current.set(id, graph.blockText(id));
         setSelection(null);
         setCurrent({ id, caret });
       },
@@ -162,31 +180,46 @@ export function EditableOutline({
       },
       isOffered: (id) => offered.current.has(id),
       addProperties: () => {
-        const id = graph.createBlock(entityId, 0, "");
+        const id = graph.createBlock(entityId, 0, '');
         offered.current.add(id);
         graph.settle();
         [...opened.current.keys()].forEach((key) => save(key));
         opened.current.set(id, graph.blockText(id));
         setSelection(null);
-        setCurrent({ id, caret: "start" });
+        setCurrent({ id, caret: 'start' });
       },
     }),
     [graph, entityId, current, order, selected, scope, announce, save],
   );
   // The handlers outlive a render, so they read the latest state from here.
-  const live = useRef({ blocks, order, editing, selection: selected.size > 0 ? selection : null });
-  live.current = { blocks, order, editing, selection: selected.size > 0 ? selection : null };
+  const live = useRef({
+    blocks,
+    order,
+    editing,
+    selection: selected.size > 0 ? selection : null,
+  });
+  live.current = {
+    blocks,
+    order,
+    editing,
+    selection: selected.size > 0 ? selection : null,
+  };
   useEffect(() => selectionHandlers(scope, live, setSelection), [scope]);
   return (
     <EditingContext.Provider value={editing}>
       <Outline blocks={blocks} links={links} />
       <AddBlock empty={blocks.length === 0} />
-      {!blocks.some((b) => b.propertiesBlock) && blocks[0]?.text !== "" && (
+      {!blocks.some((b) => b.propertiesBlock) && blocks[0]?.text !== '' && (
         <AddProperties />
       )}
-      <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+      >
         {announcement.text}
-        {announcement.count % 2 === 0 ? "" : "\u00a0"}
+        {announcement.count % 2 === 0 ? '' : '\u00a0'}
       </div>
     </EditingContext.Provider>
   );
@@ -194,7 +227,10 @@ export function EditableOutline({
 
 /** The id of the block whose own row `target` is in, if it is one of `scope`'s. */
 function blockOf(target: EventTarget | null, scope: string): string | null {
-  const row = target instanceof Element ? target.closest<HTMLElement>("[data-block-id]") : null;
+  const row =
+    target instanceof Element
+      ? target.closest<HTMLElement>('[data-block-id]')
+      : null;
   return row?.dataset.outline === scope ? (row.dataset.blockId ?? null) : null;
 }
 
@@ -204,7 +240,9 @@ function blockOf(target: EventTarget | null, scope: string): string | null {
  * the first or last block, and a gap between rows belongs to the one above.
  */
 function blockAtHeight(scope: string, y: number): string | null {
-  const rows = document.querySelectorAll<HTMLElement>(`[data-block-id][data-outline="${scope}"]`);
+  const rows = document.querySelectorAll<HTMLElement>(
+    `[data-block-id][data-outline="${scope}"]`,
+  );
   let found: HTMLElement | undefined = rows[0];
   for (const row of rows) {
     if (row.getBoundingClientRect().top > y) break;
@@ -237,14 +275,23 @@ function isForBlocks(e: Event, scope: string): boolean {
  * the block that has the focus. An editor has the same keys itself, which keep
  * its caret, so it is left to.
  */
-function moveBlocks(e: KeyboardEvent, direction: -1 | 1, live: Live, scope: string) {
+function moveBlocks(
+  e: KeyboardEvent,
+  direction: -1 | 1,
+  live: Live,
+  scope: string,
+) {
   const { editing, selection } = live.current;
-  if (e.target instanceof Element && e.target.closest(".cm-editor")) return;
+  if (e.target instanceof Element && e.target.closest('.cm-editor')) return;
   const own = blockOf(e.target, scope);
-  if (selection ? e.target !== document.body && own === null : own === null) return;
+  if (selection ? e.target !== document.body && own === null : own === null)
+    return;
   e.preventDefault();
-  const moved = editing.graph.moveBlocks(selection ? [...editing.selected] : [own!], direction);
-  const way = direction < 0 ? "up" : "down";
+  const moved = editing.graph.moveBlocks(
+    selection ? [...editing.selected] : [own!],
+    direction,
+  );
+  const way = direction < 0 ? 'up' : 'down';
   editing.announce(moved ? `Moved ${way}` : `Can't move ${way}`);
   // Moving can remount the row, which drops the focus.
   if (!selection) {
@@ -259,7 +306,12 @@ function moveBlocks(e: KeyboardEvent, direction: -1 | 1, live: Live, scope: stri
 }
 
 /** Backspace and Delete delete what is selected, which undo brings back. */
-function deleteSelected(e: KeyboardEvent, live: Live, scope: string, setSelection: SetSelection) {
+function deleteSelected(
+  e: KeyboardEvent,
+  live: Live,
+  scope: string,
+  setSelection: SetSelection,
+) {
   if (!isForBlocks(e, scope)) return;
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   e.preventDefault();
@@ -277,7 +329,9 @@ function indentSelected(e: KeyboardEvent, live: Live, scope: string) {
   const { graph, selected, announce } = live.current.editing;
   const ids = [...selected];
   const moved = e.shiftKey ? graph.outdentBlocks(ids) : graph.indentBlocks(ids);
-  const [did, cant] = e.shiftKey ? ["Outdented", "Can't outdent"] : ["Indented", "Can't indent"];
+  const [did, cant] = e.shiftKey
+    ? ['Outdented', "Can't outdent"]
+    : ['Indented', "Can't indent"];
   announce(moved ? did : cant);
 }
 
@@ -287,15 +341,29 @@ function indentSelected(e: KeyboardEvent, live: Live, scope: string) {
  * with the text all selected (or none to select), that goes on.
  */
 function editorHasNoTextLeft(target: EventTarget | null): boolean {
-  const host = target instanceof Element ? target.closest<HTMLElement>(".cm-editor") : null;
+  const host =
+    target instanceof Element
+      ? target.closest<HTMLElement>('.cm-editor')
+      : null;
   const view = host ? EditorView.findFromDOM(host) : null;
   if (!view) return true;
   const { from, to } = view.state.selection.main;
   return from === 0 && to === view.state.doc.length;
 }
 
-function selectAll(e: KeyboardEvent, live: Live, scope: string, setSelection: SetSelection) {
-  if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey || e.key.toLowerCase() !== "a") return;
+function selectAll(
+  e: KeyboardEvent,
+  live: Live,
+  scope: string,
+  setSelection: SetSelection,
+) {
+  if (
+    !(e.metaKey || e.ctrlKey) ||
+    e.altKey ||
+    e.shiftKey ||
+    e.key.toLowerCase() !== 'a'
+  )
+    return;
   const { blocks, editing, selection } = live.current;
   // With blocks selected nothing has the focus; the body is where keys land.
   const anchor =
@@ -313,19 +381,30 @@ function selectAll(e: KeyboardEvent, live: Live, scope: string, setSelection: Se
   setSelection({ anchor: from, ids: next });
 }
 
-function handleKey(e: KeyboardEvent, live: Live, scope: string, setSelection: SetSelection) {
+function handleKey(
+  e: KeyboardEvent,
+  live: Live,
+  scope: string,
+  setSelection: SetSelection,
+) {
   const { editing, selection } = live.current;
-  if (e.key === "Escape" && selection && !editing.current) {
+  if (e.key === 'Escape' && selection && !editing.current) {
     setSelection(null);
-    editing.announce("Selection cleared");
+    editing.announce('Selection cleared');
     return;
   }
   const direction = moveDirection(e);
   if (direction !== null) {
     moveBlocks(e, direction, live, scope);
-  } else if ((e.key === "Backspace" || e.key === "Delete") && selection) {
+  } else if ((e.key === 'Backspace' || e.key === 'Delete') && selection) {
     deleteSelected(e, live, scope, setSelection);
-  } else if (e.key === "Tab" && selection && !e.metaKey && !e.ctrlKey && !e.altKey) {
+  } else if (
+    e.key === 'Tab' &&
+    selection &&
+    !e.metaKey &&
+    !e.ctrlKey &&
+    !e.altKey
+  ) {
     indentSelected(e, live, scope);
   } else {
     selectAll(e, live, scope, setSelection);
@@ -335,15 +414,15 @@ function handleKey(e: KeyboardEvent, live: Live, scope: string, setSelection: Se
 /** A drag from one block to another, which selects the blocks between them. */
 function dragSelection(scope: string, live: Live, setSelection: SetSelection) {
   let drag: { anchor: string; crossed: boolean } | null = null;
-  let userSelect = "";
+  let userSelect = '';
   const end = () => {
     if (!drag) return;
     if (drag.crossed) {
       document.body.style.userSelect = userSelect;
       // The release would otherwise click the block it was over, and edit it.
       const swallow = (e: Event) => e.stopPropagation();
-      window.addEventListener("click", swallow, { capture: true, once: true });
-      setTimeout(() => window.removeEventListener("click", swallow, true));
+      window.addEventListener('click', swallow, { capture: true, once: true });
+      setTimeout(() => window.removeEventListener('click', swallow, true));
     }
     drag = null;
   };
@@ -352,9 +431,10 @@ function dragSelection(scope: string, live: Live, setSelection: SetSelection) {
     if (e.button !== 0) return;
     if (live.current.selection) setSelection(null);
     // A finger drags to scroll.
-    if (e.pointerType === "touch") return;
+    if (e.pointerType === 'touch') return;
     const anchor = blockOf(e.target, scope);
-    if (anchor === null || (e.target as Element).closest("a, button, input")) return;
+    if (anchor === null || (e.target as Element).closest('a, button, input'))
+      return;
     drag = { anchor, crossed: false };
   };
   const move = (e: PointerEvent) => {
@@ -365,12 +445,15 @@ function dragSelection(scope: string, live: Live, setSelection: SetSelection) {
     if (!drag.crossed) {
       drag.crossed = true;
       userSelect = document.body.style.userSelect;
-      document.body.style.userSelect = "none";
+      document.body.style.userSelect = 'none';
       const { editing } = live.current;
       if (editing.current) editing.stop(editing.current.id);
     }
     window.getSelection()?.removeAllRanges();
-    setSelection({ anchor: drag.anchor, ids: selectRange(live.current.order, drag.anchor, over) });
+    setSelection({
+      anchor: drag.anchor,
+      ids: selectRange(live.current.order, drag.anchor, over),
+    });
   };
   return { down, move, end };
 }
@@ -385,40 +468,50 @@ function pasteBlocks(
   const { blocks, editing, selection } = live.current;
   const after = selection ? lastSelected(blocks, editing.selected) : own;
   if (after === null) return;
-  const text = e.clipboardData?.getData("text/plain") ?? "";
+  const text = e.clipboardData?.getData('text/plain') ?? '';
   e.preventDefault();
   const made = editing.graph.pasteBlocks(after, text);
   const [first] = made;
   if (first !== undefined) setSelection({ anchor: first, ids: new Set(made) });
-  editing.announce(made.length > 0 ? `${plural(made.length)} pasted` : "Nothing to paste");
+  editing.announce(
+    made.length > 0 ? `${plural(made.length)} pasted` : 'Nothing to paste',
+  );
 }
 
 /**
  * Copy, cut and paste are the browser's events, not keys, so the menu's work
  * too and the clipboard is written in the user's own gesture.
  */
-function handleClipboard(e: ClipboardEvent, live: Live, scope: string, setSelection: SetSelection) {
+function handleClipboard(
+  e: ClipboardEvent,
+  live: Live,
+  scope: string,
+  setSelection: SetSelection,
+) {
   const { editing, selection } = live.current;
   // Text being edited, or in a field, keeps its own.
-  if (e.target instanceof Element && e.target.closest("input, textarea, [contenteditable]")) {
+  if (
+    e.target instanceof Element &&
+    e.target.closest('input, textarea, [contenteditable]')
+  ) {
     return;
   }
   const own = blockOf(e.target, scope);
   if (e.target !== document.body && own === null) return;
-  if (e.type === "paste") {
+  if (e.type === 'paste') {
     pasteBlocks(e, own, live, setSelection);
     return;
   }
   if (!selection) return;
   e.preventDefault();
   const ids = [...editing.selected];
-  e.clipboardData?.setData("text/plain", editing.graph.copyBlocks(ids));
-  const cut = e.type === "cut";
+  e.clipboardData?.setData('text/plain', editing.graph.copyBlocks(ids));
+  const cut = e.type === 'cut';
   if (cut) {
     editing.graph.deleteBlocks(ids);
     setSelection(null);
   }
-  editing.announce(`${plural(ids.length)} ${cut ? "cut" : "copied"}`);
+  editing.announce(`${plural(ids.length)} ${cut ? 'cut' : 'copied'}`);
 }
 
 /**
@@ -437,27 +530,32 @@ function handleClipboard(e: ClipboardEvent, live: Live, scope: string, setSelect
  * - A drag from one block to another selects the blocks between them.
  * - Escape, or pressing anywhere, lets go.
  */
-function selectionHandlers(scope: string, live: Live, setSelection: SetSelection): () => void {
+function selectionHandlers(
+  scope: string,
+  live: Live,
+  setSelection: SetSelection,
+): () => void {
   const onKey = (e: KeyboardEvent) => handleKey(e, live, scope, setSelection);
-  const onClipboard = (e: ClipboardEvent) => handleClipboard(e, live, scope, setSelection);
+  const onClipboard = (e: ClipboardEvent) =>
+    handleClipboard(e, live, scope, setSelection);
   const drag = dragSelection(scope, live, setSelection);
-  document.addEventListener("copy", onClipboard);
-  document.addEventListener("cut", onClipboard);
-  document.addEventListener("paste", onClipboard);
-  document.addEventListener("keydown", onKey, true);
-  document.addEventListener("pointerdown", drag.down, true);
-  document.addEventListener("pointermove", drag.move);
-  document.addEventListener("pointerup", drag.end);
-  document.addEventListener("pointercancel", drag.end);
+  document.addEventListener('copy', onClipboard);
+  document.addEventListener('cut', onClipboard);
+  document.addEventListener('paste', onClipboard);
+  document.addEventListener('keydown', onKey, true);
+  document.addEventListener('pointerdown', drag.down, true);
+  document.addEventListener('pointermove', drag.move);
+  document.addEventListener('pointerup', drag.end);
+  document.addEventListener('pointercancel', drag.end);
   return () => {
     drag.end();
-    document.removeEventListener("copy", onClipboard);
-    document.removeEventListener("cut", onClipboard);
-    document.removeEventListener("paste", onClipboard);
-    document.removeEventListener("keydown", onKey, true);
-    document.removeEventListener("pointerdown", drag.down, true);
-    document.removeEventListener("pointermove", drag.move);
-    document.removeEventListener("pointerup", drag.end);
-    document.removeEventListener("pointercancel", drag.end);
+    document.removeEventListener('copy', onClipboard);
+    document.removeEventListener('cut', onClipboard);
+    document.removeEventListener('paste', onClipboard);
+    document.removeEventListener('keydown', onKey, true);
+    document.removeEventListener('pointerdown', drag.down, true);
+    document.removeEventListener('pointermove', drag.move);
+    document.removeEventListener('pointerup', drag.end);
+    document.removeEventListener('pointercancel', drag.end);
   };
 }

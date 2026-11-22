@@ -1,4 +1,4 @@
-import { defineConfig, devices } from "@playwright/test";
+import { defineConfig, devices } from '@playwright/test';
 
 /**
  * Browser tests. The main set (`e2e`) runs against the static export (`pnpm ui
@@ -10,30 +10,30 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  reporter: process.env.CI ? [["list"], ["github"]] : "list",
-  use: { trace: "retain-on-failure" },
+  reporter: process.env.CI ? [['list'], ['github']] : 'list',
+  use: { trace: 'retain-on-failure' },
   webServer: [
     {
-      command: "pnpm exec serve out --listen 4173 --no-clipboard",
-      url: "http://localhost:4173",
+      command: 'pnpm exec serve out --listen 4173 --no-clipboard',
+      url: 'http://localhost:4173',
       reuseExistingServer: !process.env.CI,
     },
     {
-      command: "pnpm exec next dev --port 4174",
-      url: "http://localhost:4174",
+      command: 'pnpm exec next dev --port 4174',
+      url: 'http://localhost:4174',
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     },
   ],
   projects: [
     {
-      name: "chromium",
-          use: { ...devices["Desktop Chrome"], baseURL: "http://localhost:4173" },
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'], baseURL: 'http://localhost:4173' },
     },
     {
-      name: "dev",
-      testDir: "e2e-dev",
-      use: { ...devices["Desktop Chrome"], baseURL: "http://localhost:4174" },
+      name: 'dev',
+      testDir: 'e2e-dev',
+      use: { ...devices['Desktop Chrome'], baseURL: 'http://localhost:4174' },
     },
   ],
 });

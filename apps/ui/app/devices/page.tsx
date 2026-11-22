@@ -1,5 +1,5 @@
-import { ClientPage } from "@/components/client-page";
-import { Devices } from "@/components/devices";
+import { ClientPage } from '@/components/client-page';
+import { Devices } from '@/components/devices';
 
 export default function DevicesPage() {
   return (

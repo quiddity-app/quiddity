@@ -1,8 +1,15 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { canUpdate, checkForUpdate, installUpdate, type Update } from "@/lib/updates";
-import { Button } from "./ui";
+import { useEffect, useState } from 'react';
+
+import { Button } from './ui';
+
+import {
+  canUpdate,
+  checkForUpdate,
+  installUpdate,
+  type Update,
+} from '@/lib/updates';
 
 /**
  * Offers the update the app has found, once, when it opens. Nothing is
@@ -11,7 +18,7 @@ import { Button } from "./ui";
  */
 export function UpdateNotice() {
   const [update, setUpdate] = useState<Update | null>(null);
-  const [state, setState] = useState<"idle" | "installing" | "failed">("idle");
+  const [state, setState] = useState<'idle' | 'installing' | 'failed'>('idle');
 
   useEffect(() => {
     if (!canUpdate()) return;
@@ -24,23 +31,23 @@ export function UpdateNotice() {
 
   if (update === null) return null;
   const install = () => {
-    setState("installing");
+    setState('installing');
     installUpdate().catch((error) => {
       console.error("Couldn't install the update", error);
-      setState("failed");
+      setState('failed');
     });
   };
   let label = `Update to ${update.version}`;
-  if (state === "installing") label = "Updating…";
-  else if (state === "failed") label = "Update failed: retry";
+  if (state === 'installing') label = 'Updating…';
+  else if (state === 'failed') label = 'Update failed: retry';
   return (
     <Button
       compact
       onClick={install}
-      disabled={state === "installing"}
+      disabled={state === 'installing'}
       title={update.notes ?? undefined}
       aria-label={
-        state === "failed"
+        state === 'failed'
           ? `Updating to ${update.version} failed. Try again`
           : `Update to ${update.version} and restart`
       }

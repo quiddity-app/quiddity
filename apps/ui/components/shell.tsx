@@ -1,7 +1,8 @@
-"use client";
+'use client';
 
-import { useState, type ReactNode } from "react";
-import { iconButtonClass } from "./ui";
+import { useState, type ReactNode } from 'react';
+
+import { iconButtonClass } from './ui';
 
 /**
  * Three panes, with an action strip above the main one. The shell itself knows nothing about the URL, so it can render
@@ -25,12 +26,12 @@ export function Shell({
   children: ReactNode;
 }>) {
   const [drawer, setDrawer] = useState(false);
-  const pane = "bg-surface-pane";
+  const pane = 'bg-surface-pane';
   return (
     <div className="relative flex h-dvh overflow-hidden">
       <aside
         className={`${pane} fixed inset-y-0 left-0 z-(--z-drawer) flex w-64 shrink-0 flex-col border-r border-border motion-safe:transition-transform md:static md:translate-x-0 ${
-          drawer ? "translate-x-0" : "-translate-x-full"
+          drawer ? 'translate-x-0' : '-translate-x-full'
         }`}
         onClick={() => setDrawer(false)}
       >
@@ -56,7 +57,11 @@ export function Shell({
             ☰
           </button>
           <span className="font-semibold md:hidden">Quiddity</span>
-          <div role="toolbar" aria-label="Actions" className="ml-auto flex items-center gap-2">
+          <div
+            role="toolbar"
+            aria-label="Actions"
+            className="ml-auto flex items-center gap-2"
+          >
             {actions}
           </div>
         </div>

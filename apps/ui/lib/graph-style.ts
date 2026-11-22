@@ -8,7 +8,8 @@
 /** The radius of a node, in graph space: a floor so a leaf can be seen and
  * grabbed, then logarithmic so a hub stands out without swamping its
  * neighbours. */
-export const radius = (degree: number): number => Math.max(3, Math.log(degree + 1) * 3);
+export const radius = (degree: number): number =>
+  Math.max(3, Math.log(degree + 1) * 3);
 
 /** The height of a label, in CSS pixels on screen. */
 export const LABEL_PX = 10;
@@ -20,7 +21,8 @@ export const LABEL_PX = 10;
 export const LABEL_DIAMETER = 10;
 
 /** Whether a node of this radius has room for its name at this zoom. */
-export const labelFits = (r: number, k: number): boolean => 2 * r * k >= LABEL_DIAMETER;
+export const labelFits = (r: number, k: number): boolean =>
+  2 * r * k >= LABEL_DIAMETER;
 
 /** How hard a link pulls, before its ends' degrees are taken into account:
  * a link a property makes to the entity defining it is a little looser than

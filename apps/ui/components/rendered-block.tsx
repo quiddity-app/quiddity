@@ -1,23 +1,32 @@
-"use client";
+'use client';
 
-import { createElement, memo, useMemo, type ReactNode } from "react";
-import ReactMarkdown, { type Components } from "react-markdown";
-import remarkGfm from "remark-gfm";
-import type { Block, Property, ResolvedLink } from "@/lib/model";
-import Link from "next/link";
-import { appPage } from "@/lib/nav";
-import { isExternal, openExternal } from "@/lib/open-external";
-import { PROP_CLOSE, PROP_OPEN, remarkQuiddity } from "@/lib/remark-quiddity";
-import { BlobFile } from "./blob-file";
-import { BlockRefLink, LinkOrNot, PropertyChip, PropertyLine } from "./property-chip";
-import { linkClass } from "./ui";
+import { createElement, memo, useMemo, type ReactNode } from 'react';
+
+import ReactMarkdown, { type Components } from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import Link from 'next/link';
+
+import { BlobFile } from './blob-file';
+import {
+  BlockRefLink,
+  LinkOrNot,
+  PropertyChip,
+  PropertyLine,
+} from './property-chip';
+import { linkClass } from './ui';
+
+import type { Block, Property, ResolvedLink } from '@/lib/model';
+
+import { appPage } from '@/lib/nav';
+import { isExternal, openExternal } from '@/lib/open-external';
+import { PROP_CLOSE, PROP_OPEN, remarkQuiddity } from '@/lib/remark-quiddity';
 
 /**
  * A block's text split for display: line properties come out, to be drawn as
  * chips; inline ones are swapped for placeholders the Markdown renderer hands
  * back as elements; the rest is Markdown.
  */
-export function splitBlock(block: Pick<Block, "text" | "properties">) {
+export function splitBlock(block: Pick<Block, 'text' | 'properties'>) {
   const inlineProps = block.properties.filter((p) => p.inline);
   const lineProps = block.properties.filter((p) => !p.inline);
   let prose = block.text;
@@ -27,15 +36,15 @@ export function splitBlock(block: Pick<Block, "text" | "properties">) {
       const placeholder = `${PROP_OPEN}${inlineProps.indexOf(p)}${PROP_CLOSE}`;
       prose = prose.slice(0, p.start) + placeholder + prose.slice(p.end);
     } else {
-      const eol = prose[p.end] === "\n" ? 1 : 0;
+      const eol = prose[p.end] === '\n' ? 1 : 0;
       prose = prose.slice(0, p.start) + prose.slice(p.end + eol);
     }
   }
   return { prose, lineProps, inlineProps };
 }
 
-const code = "rounded bg-surface-hover px-1 py-0.5 font-mono text-[0.9em]";
-const muted = "text-ink-muted";
+const code = 'rounded bg-surface-hover px-1 py-0.5 font-mono text-[0.9em]';
+const muted = 'text-ink-muted';
 
 /** An element of this tag with these classes, for the renderer to use. */
 const styled = (tag: string, className: string) =>
@@ -43,37 +52,57 @@ const styled = (tag: string, className: string) =>
     return createElement(tag, { className }, children);
   };
 
-function components(links: Record<string, ResolvedLink>, inline: Property[]): Components {
+function components(
+  links: Record<string, ResolvedLink>,
+  inline: Property[],
+): Components {
   const map = {
-    p: styled("p", "whitespace-pre-line break-words"),
-    h1: styled("h1", "text-[1.25em] font-semibold"),
-    h2: styled("h2", "text-[1.125em] font-semibold"),
-    h3: styled("h3", "text-[1em] font-semibold"),
-    h4: styled("h4", "font-semibold"),
-    h5: styled("h5", "font-semibold"),
-    h6: styled("h6", "font-semibold"),
-    ul: styled("ul", "list-disc pl-5"),
-    ol: styled("ol", "list-decimal pl-5"),
+    p: styled('p', 'whitespace-pre-line break-words'),
+    h1: styled('h1', 'text-[1.25em] font-semibold'),
+    h2: styled('h2', 'text-[1.125em] font-semibold'),
+    h3: styled('h3', 'text-[1em] font-semibold'),
+    h4: styled('h4', 'font-semibold'),
+    h5: styled('h5', 'font-semibold'),
+    h6: styled('h6', 'font-semibold'),
+    ul: styled('ul', 'list-disc pl-5'),
+    ol: styled('ol', 'list-decimal pl-5'),
     // A task's checkbox is its marker.
-    li: ({ className, children }: Readonly<{ className?: string; children?: ReactNode }>) => (
-      <li className={className?.includes("task-list-item") ? "list-none" : undefined}>{children}</li>
+    li: ({
+      className,
+      children,
+    }: Readonly<{ className?: string; children?: ReactNode }>) => (
+      <li
+        className={
+          className?.includes('task-list-item') ? 'list-none' : undefined
+        }
+      >
+        {children}
+      </li>
     ),
     blockquote: styled(
-      "blockquote",
-      "border-l-2 border-control pl-3 text-ink-secondary",
+      'blockquote',
+      'border-l-2 border-control pl-3 text-ink-secondary',
     ),
-    hr: styled("hr", "my-2 border-control"),
-    pre: styled("pre", `overflow-x-auto ${code} p-2`),
-    table: styled("table", "border-collapse text-sm"),
-    th: styled("th", "border border-control px-2 py-1"),
-    td: styled("td", "border border-control px-2 py-1"),
+    hr: styled('hr', 'my-2 border-control'),
+    pre: styled('pre', `overflow-x-auto ${code} p-2`),
+    table: styled('table', 'border-collapse text-sm'),
+    th: styled('th', 'border border-control px-2 py-1'),
+    td: styled('td', 'border border-control px-2 py-1'),
     // Inline code only: inside a `pre` the block's own background is enough.
-    code: ({ className, children }: Readonly<{ className?: string; children?: ReactNode }>) => (
+    code: ({
+      className,
+      children,
+    }: Readonly<{ className?: string; children?: ReactNode }>) => (
       <code className={className ?? code}>{children}</code>
     ),
     // A remote image would be a request to whoever wrote it.
-    img: ({ alt }: Readonly<{ alt?: string }>) => <span className={muted}>[{alt || "image"}]</span>,
-    a: ({ href, children }: Readonly<{ href?: string; children?: ReactNode }>) => {
+    img: ({ alt }: Readonly<{ alt?: string }>) => (
+      <span className={muted}>[{alt || 'image'}]</span>
+    ),
+    a: ({
+      href,
+      children,
+    }: Readonly<{ href?: string; children?: ReactNode }>) => {
       if (isExternal(href)) {
         return (
           <a
@@ -100,19 +129,27 @@ function components(links: Record<string, ResolvedLink>, inline: Property[]): Co
       return <span className={muted}>{children}</span>;
     },
     // Elements of our own, made by remarkQuiddity.
-    "quiddity-link": ({ name }: Readonly<{ name?: string }>) => (
-      <LinkOrNot linkKey={name ?? ""} links={links} />
+    'quiddity-link': ({ name }: Readonly<{ name?: string }>) => (
+      <LinkOrNot linkKey={name ?? ''} links={links} />
     ),
-    "quiddity-to": ({ kind, to, children }: Readonly<{ kind?: string; to?: string; children?: ReactNode }>) =>
-      kind === "block" ? (
-        <BlockRefLink id={to ?? ""}>{children}</BlockRefLink>
+    'quiddity-to': ({
+      kind,
+      to,
+      children,
+    }: Readonly<{ kind?: string; to?: string; children?: ReactNode }>) =>
+      kind === 'block' ? (
+        <BlockRefLink id={to ?? ''}>{children}</BlockRefLink>
       ) : (
-        <LinkOrNot linkKey={to ?? ""} links={links} label={children} />
+        <LinkOrNot linkKey={to ?? ''} links={links} label={children} />
       ),
-    "quiddity-ref": ({ id }: Readonly<{ id?: string }>) => <span className={muted}>(({id}))</span>,
-    "quiddity-prop": ({ index }: Readonly<{ index?: string }>) => {
+    'quiddity-ref': ({ id }: Readonly<{ id?: string }>) => (
+      <span className={muted}>(({id}))</span>
+    ),
+    'quiddity-prop': ({ index }: Readonly<{ index?: string }>) => {
       const property = inline[Number(index)];
-      return property ? <PropertyChip property={property} links={links} /> : null;
+      return property ? (
+        <PropertyChip property={property} links={links} />
+      ) : null;
     },
   };
   return map as Components;
@@ -123,7 +160,7 @@ export const RenderedBlock = memo(function RenderedBlock({
   block,
   links,
 }: Readonly<{
-  block: Pick<Block, "text" | "properties" | "blob">;
+  block: Pick<Block, 'text' | 'properties' | 'blob'>;
   links: Record<string, ResolvedLink>;
 }>): ReactNode {
   const { prose, lineProps, inlineProps } = useMemo(() => {
@@ -131,21 +168,29 @@ export const RenderedBlock = memo(function RenderedBlock({
     // A blob's own line is the file, drawn above: not a chip as well. What
     // follows it is the caption.
     if (block.blob) {
-      split.lineProps = split.lineProps.filter((p) => !(p.meta && p.key === "blob"));
+      split.lineProps = split.lineProps.filter(
+        (p) => !(p.meta && p.key === 'blob'),
+      );
     }
     return split;
   }, [block]);
-  const map = useMemo(() => components(links, inlineProps), [links, inlineProps]);
+  const map = useMemo(
+    () => components(links, inlineProps),
+    [links, inlineProps],
+  );
   return (
     <>
       {block.blob && <BlobFile blob={block.blob} />}
-      {prose.trim() !== "" && (
-        <ReactMarkdown remarkPlugins={[remarkGfm, remarkQuiddity]} components={map}>
+      {prose.trim() !== '' && (
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm, remarkQuiddity]}
+          components={map}
+        >
           {prose}
         </ReactMarkdown>
       )}
       {lineProps.length > 0 && (
-        <div className={prose.trim() !== "" ? "mt-1" : ""}>
+        <div className={prose.trim() !== '' ? 'mt-1' : ''}>
           {lineProps.map((p) => (
             <PropertyLine key={p.start} property={p} links={links} />
           ))}

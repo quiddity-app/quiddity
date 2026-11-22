@@ -6,4 +6,4 @@
 export type Problem = { dir: string; message: string };
 
 /** How to go on: look again, start empty to sync from another device, or start a graph of its own. */
-export type Recovery = "retry" | "blank" | "fresh";
+export type Recovery = 'retry' | 'blank' | 'fresh';

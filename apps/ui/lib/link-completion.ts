@@ -5,7 +5,7 @@ import {
   StateField,
   type EditorState,
   type Extension,
-} from "@codemirror/state";
+} from '@codemirror/state';
 import {
   EditorView,
   ViewPlugin,
@@ -14,9 +14,11 @@ import {
   type KeyBinding,
   type Tooltip,
   type ViewUpdate,
-} from "@codemirror/view";
-import { fromGraph } from "./cm-annotations";
-import type { TitleHit } from "./model";
+} from '@codemirror/view';
+
+import { fromGraph } from './cm-annotations';
+
+import type { TitleHit } from './model';
 
 /** How many pages the list offers. */
 const MAX_HITS = 8;
@@ -32,12 +34,19 @@ export interface LinkSpan {
 const qualifierStart = /[\p{L}\p{N}_[]/u;
 
 /** Where a link that opens at `from` ends, or null if it is never closed. */
-function scanLink(line: string, from: number): { to: number; nameEnd: number } | null {
+function scanLink(
+  line: string,
+  from: number,
+): { to: number; nameEnd: number } | null {
   let to = from;
   let nameEnd = -1;
-  while (to < line.length && !(line[to] === "]" && line[to + 1] === "]")) {
-    if (line[to] === "\\") to++;
-    else if (nameEnd < 0 && line[to] === "#" && qualifierStart.test(line[to + 1] ?? "")) {
+  while (to < line.length && !(line[to] === ']' && line[to + 1] === ']')) {
+    if (line[to] === '\\') to++;
+    else if (
+      nameEnd < 0 &&
+      line[to] === '#' &&
+      qualifierStart.test(line[to + 1] ?? '')
+    ) {
       nameEnd = to;
     }
     to++;
@@ -52,9 +61,9 @@ export function linksIn(line: string): LinkSpan[] {
   const out: LinkSpan[] = [];
   let i = 0;
   while (i < line.length - 1) {
-    if (line[i] === "\\") {
+    if (line[i] === '\\') {
       i += 2;
-    } else if (line[i] === "[" && line[i + 1] === "[") {
+    } else if (line[i] === '[' && line[i + 1] === '[') {
       const from = i + 2;
       const found = scanLink(line, from);
       if (found) {
@@ -146,9 +155,17 @@ export function linkCompletion(options: LinkCompletion): Extension {
 
       if (tr.annotation(previewing)) {
         const picked = tr.effects.find((e) => e.is(choose));
-        return open && { ...open, from: span.from, to: span.to, selected: picked?.value ?? null };
+        return (
+          open && {
+            ...open,
+            from: span.from,
+            to: span.to,
+            selected: picked?.value ?? null,
+          }
+        );
       }
-      if (!tr.docChanged) return open && { ...open, from: span.from, to: span.to };
+      if (!tr.docChanged)
+        return open && { ...open, from: span.from, to: span.to };
 
       // Typed in the link, or the link is new: the brackets are part of what
       // changed. Changes from elsewhere don't open a list.
@@ -186,7 +203,10 @@ export function linkCompletion(options: LinkCompletion): Extension {
     // the half-written link would offer itself.
     const hits = options
       .search(query, MAX_HITS)
-      .filter((hit) => !(hit.entity.id.startsWith("~") && hit.entity.title.trim() === query));
+      .filter(
+        (hit) =>
+          !(hit.entity.id.startsWith('~') && hit.entity.title.trim() === query),
+      );
     view.dispatch({ effects: found.of({ typed: open.typed, hits }) });
   }
 
@@ -199,7 +219,8 @@ export function linkCompletion(options: LinkCompletion): Extension {
       constructor(private readonly view: EditorView) {}
       update(update: ViewUpdate) {
         const open = update.state.field(field);
-        if (!open || open.fresh || this.frame !== 0 || this.timer !== undefined) return;
+        if (!open || open.fresh || this.frame !== 0 || this.timer !== undefined)
+          return;
         this.frame = requestAnimationFrame(() => {
           this.frame = 0;
           this.timer = setTimeout(() => {
@@ -233,12 +254,14 @@ export function linkCompletion(options: LinkCompletion): Extension {
       pos: open.from,
       above: false,
       create(view) {
-        const dom = document.createElement("div");
-        dom.className = "cm-link-completions";
-        dom.setAttribute("role", "listbox");
-        dom.setAttribute("aria-label", "Pages");
+        const dom = document.createElement('div');
+        dom.className = 'cm-link-completions';
+        dom.setAttribute('role', 'listbox');
+        dom.setAttribute('aria-label', 'Pages');
         open.hits.forEach((hit, index) => {
-          dom.append(row(hit, index === open.selected, () => pick(view, open, index)));
+          dom.append(
+            row(hit, index === open.selected, () => pick(view, open, index)),
+          );
         });
         return { dom };
       },
@@ -261,10 +284,10 @@ export function linkCompletion(options: LinkCompletion): Extension {
   };
 
   const keys: KeyBinding[] = [
-    { key: "ArrowDown", run: move(1) },
-    { key: "ArrowUp", run: move(-1) },
+    { key: 'ArrowDown', run: move(1) },
+    { key: 'ArrowUp', run: move(-1) },
     {
-      key: "Enter",
+      key: 'Enter',
       run: (view) => {
         const { main } = view.state.selection;
         if (!main.empty) return false;
@@ -285,7 +308,7 @@ export function linkCompletion(options: LinkCompletion): Extension {
     {
       // Puts back what was typed if an entry was chosen. Otherwise it is
       // the outliner's: leaving the block leaves the list.
-      key: "Escape",
+      key: 'Escape',
       run: (view) => {
         const open = current(view);
         if (!open || open.selected === null) return false;
@@ -301,17 +324,17 @@ export function linkCompletion(options: LinkCompletion): Extension {
     searcher,
     keymap.of(keys),
     EditorView.theme({
-      ".cm-tooltip.cm-link-completions": {
+      '.cm-tooltip.cm-link-completions': {
         // The same layer as the search panel (docs/Design language.md).
-        backgroundColor: "var(--surface)",
-        color: "var(--ink)",
-        border: "1px solid var(--border)",
-        borderRadius: "0.5rem",
-        boxShadow: "var(--shadow-overlay)",
-        fontSize: "0.875rem",
-        maxWidth: "min(32rem, 90vw)",
-        padding: "0.25rem",
-        overflow: "hidden",
+        backgroundColor: 'var(--surface)',
+        color: 'var(--ink)',
+        border: '1px solid var(--border)',
+        borderRadius: '0.5rem',
+        boxShadow: 'var(--shadow-overlay)',
+        fontSize: '0.875rem',
+        maxWidth: 'min(32rem, 90vw)',
+        padding: '0.25rem',
+        overflow: 'hidden',
       },
     }),
   ];
@@ -320,57 +343,63 @@ export function linkCompletion(options: LinkCompletion): Extension {
 /** One entry: the title with what was matched marked, the qualifiers that
  * will be written, and the page's properties. Page text is untrusted, so it
  * only ever goes in as text. */
-function row(hit: TitleHit, selected: boolean, onChoose: () => void): HTMLElement {
-  const el = document.createElement("div");
-  el.setAttribute("role", "option");
-  el.setAttribute("aria-selected", String(selected));
-  el.className = "cm-link-completion";
+function row(
+  hit: TitleHit,
+  selected: boolean,
+  onChoose: () => void,
+): HTMLElement {
+  const el = document.createElement('div');
+  el.setAttribute('role', 'option');
+  el.setAttribute('aria-selected', String(selected));
+  el.className = 'cm-link-completion';
   el.style.cssText = `padding:0.125rem 0.5rem;border-radius:0.25rem;cursor:pointer;${
-    selected ? "background:var(--surface-hover);" : ""
+    selected ? 'background:var(--surface-hover);' : ''
   }`;
   // Keeps the focus in the editor.
-  el.addEventListener("mousedown", (e) => e.preventDefault());
-  el.addEventListener("click", onChoose);
+  el.addEventListener('mousedown', (e) => e.preventDefault());
+  el.addEventListener('click', onChoose);
 
-  const title = document.createElement("div");
-  title.style.cssText = "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
+  const title = document.createElement('div');
+  title.style.cssText =
+    'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
   let at = 0;
   // The ranges are in the alias when that is what matched.
   const label = hit.alias ?? hit.entity.title;
   for (const [start, end] of hit.ranges) {
     if (start > at) title.append(label.slice(at, start));
-    const mark = document.createElement("mark");
+    const mark = document.createElement('mark');
     mark.textContent = label.slice(start, end);
-    mark.style.cssText = "background:transparent;color:inherit;font-weight:600;text-decoration:underline;";
+    mark.style.cssText =
+      'background:transparent;color:inherit;font-weight:600;text-decoration:underline;';
     title.append(mark);
     at = end;
   }
   title.append(label.slice(at));
   if (hit.alias !== null) {
     // What it will be written as, when that isn't what was matched.
-    const target = document.createElement("span");
+    const target = document.createElement('span');
     target.textContent = `→ ${hit.entity.title}`;
-    target.className = "cm-link-completion-alias";
-    target.style.cssText = "opacity:0.7;margin-left:0.25rem;";
+    target.className = 'cm-link-completion-alias';
+    target.style.cssText = 'opacity:0.7;margin-left:0.25rem;';
     title.append(target);
   }
   if (hit.qualifiers) {
-    const qualifiers = document.createElement("span");
+    const qualifiers = document.createElement('span');
     qualifiers.textContent = hit.qualifiers;
-    qualifiers.className = "cm-link-completion-qualifiers";
-    qualifiers.style.cssText = "opacity:0.7;margin-left:0.25rem;";
+    qualifiers.className = 'cm-link-completion-qualifiers';
+    qualifiers.style.cssText = 'opacity:0.7;margin-left:0.25rem;';
     title.append(qualifiers);
   }
   el.append(title);
 
   if (hit.properties.length) {
-    const props = document.createElement("div");
-    props.className = "cm-link-completion-properties";
+    const props = document.createElement('div');
+    props.className = 'cm-link-completion-properties';
     props.style.cssText =
-      "opacity:0.6;font-size:0.75rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
+      'opacity:0.6;font-size:0.75rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
     props.textContent = hit.properties
       .map((p) => (p.value === null ? `#${p.key}` : `${p.key}: ${p.value}`))
-      .join(" · ");
+      .join(' · ');
     el.append(props);
   }
   return el;

@@ -1,10 +1,13 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import type { ReactNode } from "react";
-import type { EntityId } from "@/lib/model";
-import { useView } from "./use-view";
+import type { ReactNode } from 'react';
+
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+
+import { useView } from './use-view';
+
+import type { EntityId } from '@/lib/model';
 
 /** Click opens in the main pane; shift-click opens at the side. */
 export function EntityLink({
