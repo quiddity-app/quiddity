@@ -177,8 +177,8 @@ impl Blobs {
                 continue;
             }
             let bytes = self.get(hash).await?;
-            std::fs::create_dir_all(&assets)?;
-            std::fs::write(assets.join(asset.file_name()), bytes)?;
+            tokio::fs::create_dir_all(&assets).await?;
+            tokio::fs::write(assets.join(asset.file_name()), bytes).await?;
             done.written += 1;
         }
         Ok(done)
@@ -191,14 +191,14 @@ impl Blobs {
     /// not ours. There being no `assets/` is not an error.
     pub async fn import_assets(&self, dir: &Path) -> Result<Imported, BlobError> {
         let mut done = Imported::default();
-        let entries = match std::fs::read_dir(dir.join("assets")) {
+        let entries = match tokio::fs::read_dir(dir.join("assets")).await {
             Ok(entries) => entries,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(done),
             Err(e) => return Err(e.into()),
         };
-        for entry in entries {
-            let entry = entry?;
-            if !entry.file_type()?.is_file() {
+        let mut entries = entries;
+        while let Some(entry) = entries.next_entry().await? {
+            if !entry.file_type().await?.is_file() {
                 continue;
             }
             let path = entry.path();
@@ -213,7 +213,7 @@ impl Blobs {
                 done.skipped += 1;
                 continue;
             };
-            let bytes = std::fs::read(&path)?;
+            let bytes = tokio::fs::read(&path).await?;
             if Hash::new(&bytes) != named {
                 done.skipped += 1;
                 continue;

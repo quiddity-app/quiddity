@@ -48,7 +48,7 @@ pub async fn adopt(graph_dir: &Path, into: &SqliteBlobs) -> Result<usize, BlobEr
             aside.display()
         )));
     }
-    std::fs::rename(&old, &aside)?;
+    tokio::fs::rename(&old, &aside).await?;
     info!(moved, "blobs moved into the graph's file");
     Ok(moved)
 }
