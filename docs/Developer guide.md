@@ -4,7 +4,7 @@ favourite:: true
 - Start here
 	- [[Design]]: the goals, the decisions and the open questions.
 	- [[Architecture]]: the app, the headless node and the crates.
-	- [[Running the app]], [[Testing]], [[Releases]] and [[Updates]].
+	- [[Running the app]], [[Testing]], [[Linting and formatting]], [[Releases]] and [[Updates]].
 	- [[Performance]]: what costs time in a large graph, and what is still to do.
 	- [[Stats and debug]]: numbers about a graph, and a check that what is derived from it agrees with it.
 - The parts

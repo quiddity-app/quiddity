@@ -28,3 +28,8 @@ jobs:
         tools: rust
         mbx: "false"
     - uses: andrewaylett/pre-commit-action@ee547ed4dd5ac65c593a6e7dfc329206518ceb52 # v4.7.0-14
+      env:
+        # The UI's lint needs pnpm, the dependencies and the generated WASM
+        # types, which this job doesn't set up. The `typecheck` job in ci.yml
+        # runs it, where it has them.
+        SKIP: eslint

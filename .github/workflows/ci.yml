@@ -71,7 +71,8 @@ jobs:
 
   typecheck:
     # Apart from `ui` so that it overlaps with the browser tests. It builds the
-    # WASM itself, which tsc needs for the types, and mbx caches that.
+    # WASM itself, which tsc needs for the types, and mbx caches that. ESLint's
+    # type-aware rules need those types too, so it is checked here as well.
     runs-on: ubuntu-latest
     timeout-minutes: 4
     steps:
@@ -84,6 +85,7 @@ jobs:
         node: true
     - run: pnpm install --frozen-lockfile
     - run: pnpm ui typecheck
+    - run: pnpm ui lint
 
   ui:
     runs-on: ubuntu-latest
