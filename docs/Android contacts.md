@@ -2,7 +2,7 @@ alias:: Android contact provider
 
 - Android has one contacts provider, and the system owns it, so an app can't be a contacts provider. What it can be is an account: an app that has contacts of its own makes an account and keeps its contacts in the system's under that account. Every contacts app then shows them, with the account named, and edits them like any other. This is how [[Contacts]] reach a phone. [[Tauri]]
 - What the user sees
-	- Contacts are turned on in the app, which asks for the permission to use them and makes an account called Quiddity. Its contacts are the graph's: an entity with a value for a property that `##contact` maps. [[Contacts]]
+	- Contacts are turned on in the app, with the switch in the Contacts section of the Devices page, which only an Android build shows. [[Add a device]] It asks for the permission to use them and makes an account called Quiddity. Its contacts are the graph's: an entity with a value for a property that `##contact` maps. [[Contacts]]
 	- Edit one in any contacts app and the graph changes to match, a moment later, if Quiddity is running. Make one in the Quiddity account and an entity is made. Delete one and its contact values go, and the page stays.
 	- Removing the account in the system's settings turns contacts off, and the contacts go with it. The graph is untouched.
 	- **Only while Quiddity runs.** The graph is in the app's own process, and nothing else can read it, so a change made in the contacts app waits until the app is next open. The system's own sync, which would wake the app, is wired up and does nothing.
@@ -18,5 +18,4 @@ alias:: Android contact provider
 - Not built
 	- Photos, groups and the rest of a contact's fields. A contact's structured name (given and family) is read as the name it makes.
 	- A sync that runs when the app doesn't.
-	- A switch in the app's UI: the shell has the commands (`contacts_status`, `contacts_enable` and `contacts_disable`), and nothing calls them yet.
 	- **The Android library has never been compiled or run.** There is no CI for Android: it was written against Tauri's own Kotlin sources and the Android reference, in a sandbox with no Android SDK. Expect to fix it on first build (`mise run android`).

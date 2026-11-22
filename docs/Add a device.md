@@ -20,3 +20,4 @@
 	- Typing is held back from other devices until you move on from the block, unless one of them has the same block open. [[Publish gate]]
 	- The app starts the connection when it opens. Setting `QUIDDITY_NO_SYNC` before starting it keeps it off.
 - How it works is under [[Device list]] and [[App sync]].
+- On Android the page has a Contacts section too, which turns on showing the graph's [[Contacts]] in the phone's. [[Android contacts]]

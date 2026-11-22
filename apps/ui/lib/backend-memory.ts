@@ -1,6 +1,6 @@
 import { Replica } from "./wasm/quiddity_wasm";
 import type { Backend } from "./graph";
-import type { SyncState } from "./model";
+import type { ContactsStatus, SyncState } from "./model";
 import type { Recovery } from "./recovery";
 
 interface Seed {
@@ -108,6 +108,8 @@ interface Remote {
   recovered: Recovery[];
   /** Plays the shell telling the page how this device stands. */
   setStatus(status: SyncState): void;
+  /** What the page asked of the phone's contacts, in order. */
+  contacts: string[];
 }
 
 /** Files kept for the life of the page, by hash. The hash is SHA-256, not the
@@ -118,6 +120,20 @@ const files = new Map<string, Uint8Array>();
 async function hashOf(bytes: Uint8Array): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", bytes as BufferSource);
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+const contactsQuery = () => new URLSearchParams(window.location.search).get("contacts");
+
+/** Whether the page turned the made-up phone's contacts on. */
+let contactsOn = false;
+
+function contactsNow(): ContactsStatus {
+  const query = contactsQuery();
+  return {
+    available: query !== null,
+    permission: query === "denied" ? "denied" : contactsOn ? "granted" : "prompt",
+    enabled: contactsOn,
+  };
 }
 
 /** What `?damaged` said, once the page has been asked. */
@@ -167,6 +183,22 @@ export const memoryBackend: Backend = {
       throw new Error(`${JSON.stringify(device)} is not a device ID`);
     }
     remote().allowed.push(device);
+  },
+  // `?contacts` is a phone that has contacts to put the graph's in, and
+  // `?contacts=denied` one whose user won't allow it.
+  async contactsStatus() {
+    return contactsNow();
+  },
+  async contactsEnable() {
+    remote().contacts.push("enable");
+    if (contactsQuery() === "denied") throw new Error("Quiddity wasn't allowed to use contacts");
+    contactsOn = true;
+    return contactsNow();
+  },
+  async contactsDisable() {
+    remote().contacts.push("disable");
+    contactsOn = false;
+    return contactsNow();
   },
   // Nothing is shared outside the app: this device is alone, until a test
   // says otherwise.
@@ -218,6 +250,7 @@ function remote(): Remote {
     allowed: [],
     recovered: [],
     setStatus() {},
+    contacts: [],
   };
   return w.__quiddityRemote;
 }

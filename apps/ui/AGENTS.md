@@ -80,6 +80,15 @@ what it was asked to allow in `window.__quiddityRemote.allowed`, for
 `e2e/devices.spec.ts`. The populated list has no browser test: the made-up
 graph records no devices.
 
+**A backend may have `contactsStatus`, `contactsEnable` and `contactsDisable`**
+(the phone's contacts, `docs/Android contacts.md`). The Devices page has a
+Contacts section only when the status says `available`, which the shell says
+only on Android, so no other build shows it. `Graph.contactsStatus()` is asked
+once, as `deviceId` is, and `setContacts` replaces it with the answer. The
+memory backend plays a phone with `?contacts`, and one whose user refuses with
+`?contacts=denied`, and records what was asked in
+`window.__quiddityRemote.contacts`, for `e2e/contacts.spec.ts`.
+
 ## Sync indicator
 
 A cloud with a coloured dot, left of the search button

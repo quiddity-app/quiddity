@@ -1,6 +1,6 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import type { Backend } from "./graph";
-import type { SyncState } from "./model";
+import type { ContactsStatus, SyncState } from "./model";
 import type { Problem } from "./recovery";
 
 /** The shell holds the graph on disk; bytes cross as raw IPC bodies. */
@@ -28,6 +28,15 @@ export const tauriBackend: Backend = {
   },
   async allowDevice(device) {
     await invoke("allow_device", { device });
+  },
+  async contactsStatus() {
+    return await invoke<ContactsStatus>("contacts_status");
+  },
+  async contactsEnable() {
+    return await invoke<ContactsStatus>("contacts_enable");
+  },
+  async contactsDisable() {
+    return await invoke<ContactsStatus>("contacts_disable");
   },
   /** How this device stands with the others arrives as words. */
   async subscribeStatus(onStatus) {

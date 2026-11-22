@@ -1,6 +1,6 @@
 alias:: contact, ##contact
 
-- An entity that has a value for a property mapped to a contact field is a contact, and is meant to appear in the phone's own contacts. A person, a company and a plumber all qualify. **Not shown anywhere yet**: the graph can say which entities are contacts and take an edit to one back, and there is an Android library to put them in the phone's, and the shell keeps them in step, but nothing in the UI turns it on yet. These pages say what is built and what is planned. [[Android contacts]]
+- An entity that has a value for a property mapped to a contact field is a contact, and is meant to appear in the phone's own contacts. A person, a company and a plumber all qualify. **Built, but never run on a phone**: the graph can say which entities are contacts and take an edit to one back, and there is an Android library to put them in the phone's, the shell keeps them in step, and the Devices page turns it on. These pages say what is built and what is planned. [[Android contacts]]
 - Mapping properties to fields
 	- A property entity's `##contact(field)` line says which field of a contact its values fill. `##contact(field:label)` adds a label, which says what kind of one it is. [[Built-in properties]]
 		- ```

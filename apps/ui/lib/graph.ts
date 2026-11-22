@@ -3,6 +3,7 @@ import type { Problem, Recovery } from "./recovery";
 import type {
   BlockHit,
   Connections,
+  ContactsStatus,
   Device,
   SyncState,
   Entity,
@@ -40,6 +41,14 @@ export interface Backend {
   /** Lets another device in, given the ID it shows. Rejects with the reason
    * if the ID is not one. */
   allowDevice?(device: string): Promise<void>;
+  /** Where the phone's contacts stand. Only the app has them to ask about,
+   * and says `available: false` where the system has none. */
+  contactsStatus?(): Promise<ContactsStatus>;
+  /** Turns the phone's contacts on, asking for the permission if it hasn't been
+   * given. Rejects with the reason if it couldn't be. */
+  contactsEnable?(): Promise<ContactsStatus>;
+  /** Turns them off: the graph is untouched. */
+  contactsDisable?(): Promise<ContactsStatus>;
   /** Keeps a file's bytes and returns their hash, in hex, which is what the
    * graph then refers to them by. Only the app keeps files. */
   putBlob?(bytes: Uint8Array): Promise<string>;
@@ -196,6 +205,25 @@ export class Graph {
 
   /** This device's ID. Asked for once: a promise to `use`. */
   deviceId = () => (this.id ??= this.backend.deviceId!());
+
+  private contacts: Promise<ContactsStatus | null> | undefined;
+
+  /** Where the phone's contacts stand, or null if this build has none to ask
+   * about. Asked for once: a promise to `use`. */
+  contactsStatus = () =>
+    (this.contacts ??= this.backend.contactsStatus?.() ?? Promise.resolve(null));
+
+  /** Turns the phone's contacts on or off. Rejects with a message the user can read. */
+  async setContacts(on: boolean): Promise<ContactsStatus> {
+    try {
+      const change = on ? this.backend.contactsEnable : this.backend.contactsDisable;
+      const status = await change!.call(this.backend);
+      this.contacts = Promise.resolve(status);
+      return status;
+    } catch (error) {
+      throw new Error(error instanceof Error ? error.message : String(error));
+    }
+  }
 
   /** Lets another device in. Rejects with a message the user can read. */
   async allowDevice(device: string) {
