@@ -1,0 +1,4 @@
+# Tauri's own API, copied here by the plugin's build script.
+.tauri
+build
+.gradle

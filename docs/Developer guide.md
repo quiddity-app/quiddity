@@ -10,6 +10,8 @@ favourite:: true
 	- Crates: [[quiddity-syntax]], [[quiddity-identity]], [[quiddity-core]], [[quiddity-sync]], [[quiddity-node]], [[quiddity-view]], [[quiddity-contacts]] and [[quiddity-wasm]].
 	- Apps: [[The UI]] and [[The shell]]. How they look: the [[Design language]].
 	- What they are built on is listed under [[Library]], and what they are built with under [[Tool]].
+- Other systems
+	- [[Contacts]]: entities as contacts, and [[Android contacts]], the phone's side.
 - Between devices
 	- [[Sync]]: the protocol, over [[iroh]].
 	- [[Device list]]: who may connect.

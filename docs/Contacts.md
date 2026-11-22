@@ -1,6 +1,6 @@
 alias:: contact, ##contact
 
-- An entity that has a value for a property mapped to a contact field is a contact, and is meant to appear in the phone's own contacts. A person, a company and a plumber all qualify. **Not shown anywhere yet**: the graph can say which entities are contacts and take an edit to one back, but nothing connects that to a phone, and these pages say what is built and what is planned.
+- An entity that has a value for a property mapped to a contact field is a contact, and is meant to appear in the phone's own contacts. A person, a company and a plumber all qualify. **Not shown anywhere yet**: the graph can say which entities are contacts and take an edit to one back, and there is an Android library to put them in the phone's, but the app doesn't use it yet. These pages say what is built and what is planned. [[Android contacts]]
 - Mapping properties to fields
 	- A property entity's `##contact(field)` line says which field of a contact its values fill. `##contact(field:label)` adds a label, which says what kind of one it is. [[Built-in properties]]
 		- ```
@@ -10,7 +10,7 @@ alias:: contact, ##contact
 		  └─ ##contact(email:work)
 		  ```
 	- The fields are `phone`, `email`, `address`, `organisation`, `job-title`, `nickname`, `website`, `birthday` and `note`. A field is not case-sensitive, and `organization` is accepted. The entity's name is the contact's name, so there is no field for it.
-	- A label is anything: `home`, `work`, `mobile` and `other` are what phones offer, and any other is shown as written. Labels are compared as names are, ignoring case and spacing.
+	- A label is anything: `home`, `work` and `mobile` are what phones offer, and any other is shown as written. Labels are compared as names are, ignoring case and spacing. `other` is no label, because it is what a phone calls a number with none: `##contact(phone:other)` is `##contact(phone)`.
 	- Several properties may fill one field, and one property fills one field. Each value of a property is one entry, whether written on lines of its own or as a list. [[Properties]]
 	- A `##contact` that can't be read is flagged where it is written, like any meta-property, and nothing is mapped. [[Built-in properties]]
 - Which entities are contacts

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/*", "apps/app/src-tauri"]
+members = ["crates/*", "apps/app/src-tauri", "apps/app/plugins/contacts"]
 # Plain `cargo` from the root leaves the shell out, so the core's CI doesn't
 # need Tauri's system libraries. `--workspace`, or running from `src-tauri`,
 # includes it.

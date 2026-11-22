@@ -10,12 +10,13 @@
 use std::collections::HashMap;
 
 use quiddity_core::{BlockId, Graph, Index};
+use serde::{Deserialize, Serialize};
 
 use crate::model::{Contact, Entry, contact_of, contacts};
 use crate::write::{apply, forget};
 
 /// A row of the store, which was edited, made or deleted since it was last put.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Edited {
     /// The store's own name for the row.
     pub row: String,
@@ -31,7 +32,7 @@ pub struct Edited {
 }
 
 /// A row of the store, as it was handed over.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Held {
     pub row: String,
     pub contact: Contact,
