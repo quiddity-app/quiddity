@@ -38,7 +38,7 @@ jobs:
       with:
         tools: cargo-binstall rust
     - run: cargo fmt --all --check
-    - run: cargo clippy --all-targets --locked
+    - run: cargo clippy --all-targets --locked -- -D warnings
     - run: cargo doc --no-deps --locked
       env:
         RUSTDOCFLAGS: -D warnings
@@ -198,7 +198,7 @@ jobs:
         MBX_BUILD_SCRIPT_EXECUTION: 0
       run: |
         cargo fmt --check
-        cargo clippy --all-targets --locked
+        cargo clippy --all-targets --locked -- -D warnings
         cargo test --locked
 
   changes:

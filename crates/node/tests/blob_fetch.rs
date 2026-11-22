@@ -1,5 +1,6 @@
-//! Blobs sent between SQLite blob stores, against iroh-blobs' own `MemStore`
+//! Blobs sent between `SQLite` blob stores, against iroh-blobs' own `MemStore`
 //! as the oracle.
+#![expect(clippy::unwrap_used, reason = "a test failing to set up should panic")]
 
 mod support;
 

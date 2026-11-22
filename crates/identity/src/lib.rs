@@ -12,7 +12,7 @@
 //! The text forms have the shape of GitHub's own tokens: a prefix, the
 //! payload in base 62 and a checksum. See `docs/Identity.md`.
 
-use std::fmt;
+use std::fmt::{self, Write as _};
 use std::str::FromStr;
 
 use zeroize::{Zeroize, Zeroizing};
@@ -152,7 +152,12 @@ impl DeviceId {
     /// The bare form devices have always been listed under in a graph:
     /// 64 lower-case hexadecimal digits.
     pub fn to_bare(self) -> String {
-        self.0.iter().map(|b| format!("{b:02x}")).collect()
+        self.0
+            .iter()
+            .fold(String::with_capacity(64), |mut text, b| {
+                write!(text, "{b:02x}").expect("formatting into a String failed");
+                text
+            })
     }
 
     /// Reads the bare form, or the written form.
@@ -267,7 +272,7 @@ impl fmt::Debug for NodeMask {
     }
 }
 
-/// A [`NodeId`] as it is kept: 12 bytes, the ID XORed with a [`NodeMask`] and
+/// A [`NodeId`] as it is kept: 12 bytes, the ID `XORed` with a [`NodeMask`] and
 /// then a check of the ID. Opened with another device's mask, the check
 /// fails, which is how a graph copied from another device is known.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -1,4 +1,5 @@
 //! What the tests of `quiddity-node` share.
+#![allow(clippy::unwrap_used, reason = "a test failing to set up should panic")]
 
 use std::path::{Path, PathBuf};
 

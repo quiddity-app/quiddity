@@ -1,9 +1,10 @@
+#![expect(clippy::unwrap_used, reason = "a test failing to set up should panic")]
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
 use proptest::prelude::*;
-use quiddity_core::files::{decode_page_names, export_dir, import_dir};
+use quiddity_core::files::{DecodedNames, decode_page_names, export_dir, import_dir};
 use quiddity_core::syntax::{Link, Value};
 use quiddity_core::{Graph, Index, Resolution, Result, ensure_journal};
 
@@ -422,7 +423,7 @@ fn decoded_names_get_the_namespaces_they_now_have() -> Result<()> {
     assert_eq!(keys, ["type", "parent"]);
 
     let again = decode_page_names(&graph, false)?;
-    assert_eq!(again, Default::default());
+    assert_eq!(again, DecodedNames::default());
     Ok(())
 }
 

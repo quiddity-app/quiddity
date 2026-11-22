@@ -4,6 +4,7 @@
 //! devices it can reach, and where they are looking.
 //!
 //! A crashed device says nothing: only the devices beside it notice.
+#![expect(clippy::unwrap_used, reason = "a test failing to set up should panic")]
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -149,8 +150,8 @@ impl Network {
             for _ in 0..=self.pending.len() / 2 {
                 self.shuffle = self
                     .shuffle
-                    .wrapping_mul(6364136223846793005)
-                    .wrapping_add(1442695040888963407);
+                    .wrapping_mul(6_364_136_223_846_793_005)
+                    .wrapping_add(1_442_695_040_888_963_407);
                 let at = (self.shuffle >> 33) as usize % self.pending.len();
                 let (to, from, record) = self.pending.swap_remove(at);
                 self.node(to).receive(&name(from), record);

@@ -138,7 +138,7 @@ impl View {
 
         let total = candidates.len() as f64;
         let average = candidates.iter().map(|c| c.tokens.len()).sum::<usize>() as f64 / total;
-        let found_in = |position: usize, c: &Candidate| {
+        let found_in = |position: usize, c: &Candidate<'_>| {
             let (term, last) = &terms[position];
             c.tokens.iter().filter(|t| matches(term, *last, t)).count()
         };

@@ -376,7 +376,7 @@ mod tests {
     async fn typing_is_held_back_until_it_is_seen_or_over() {
         let dir = tempfile::tempdir().unwrap();
         let session = open(dir.path()).unwrap();
-        session.peer().set_edit_idle(Duration::from_secs(60));
+        session.peer().set_edit_idle(Duration::from_mins(1));
         let (server, guest, connection) = joined(&session).await;
         let ui = Graph::from_snapshot(&session.snapshot().unwrap()).unwrap();
 

@@ -5,7 +5,7 @@
 //! sends the shell the updates those edits make. This wraps
 //! [`quiddity_view::View`] for JavaScript: queries return plain objects, ids
 //! are strings and offsets are UTF-16 code units, which is what JavaScript and
-//! CodeMirror count in.
+//! `CodeMirror` count in.
 
 use quiddity_core::{Graph, Version};
 use quiddity_view::{Error, View};

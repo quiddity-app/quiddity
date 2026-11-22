@@ -1,4 +1,5 @@
 //! Blobs in an export: written to `assets/`, and read back.
+#![expect(clippy::unwrap_used, reason = "a test failing to set up should panic")]
 
 mod common;
 

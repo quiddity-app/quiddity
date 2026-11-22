@@ -205,6 +205,8 @@ impl Session {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use super::*;
 
     // Convergence over a network, compacted peers included, is
@@ -447,8 +449,8 @@ mod tests {
             device: "peer".into(),
             epoch: 1,
             seq: 1,
-            peers: Default::default(),
-            focus: Default::default(),
+            peers: BTreeSet::default(),
+            focus: BTreeSet::default(),
         });
         // Not an error before the hello, and no reply either way.
         assert!(session.receive(&graph, record.clone(), now())?.is_empty());

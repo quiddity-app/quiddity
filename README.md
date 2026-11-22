@@ -119,7 +119,7 @@ pnpm ui test:e2e
 
 ```sh
 cargo fmt --all --check
-cargo clippy --all-targets
+cargo clippy --all-targets -- -D warnings
 cargo nextest run                          # or cargo test
 PROPTEST_CASES=5000 cargo nextest run --release   # deeper
 cargo +nightly fuzz run block              # or outline, peer

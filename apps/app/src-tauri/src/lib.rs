@@ -11,6 +11,7 @@ mod menu;
 mod session;
 mod updates;
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
@@ -228,9 +229,9 @@ fn start_network(session: &Session) {
     let known = match std::env::var("QUIDDITY_PEERS") {
         Ok(text) => quiddity_node::known_addresses(&text).unwrap_or_else(|e| {
             warn!(error = %e, "ignoring QUIDDITY_PEERS");
-            Default::default()
+            HashMap::default()
         }),
-        Err(_) => Default::default(),
+        Err(_) => HashMap::default(),
     };
     let (peer, store) = (session.peer().clone(), session.store().clone());
     tauri::async_runtime::spawn(async move {
@@ -284,6 +285,10 @@ fn graph_dir(app: &tauri::App) -> Result<PathBuf, Box<dyn std::error::Error>> {
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+#[allow(
+    clippy::exit,
+    reason = "`tauri::generate_context!` expands to an `exit` on some toolchains"
+)]
 pub fn run() {
     // `QUIDDITY_LOG` is a level (`debug`, say); the default is warnings.
     let level = std::env::var("QUIDDITY_LOG")

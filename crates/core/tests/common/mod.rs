@@ -1,5 +1,5 @@
 //! Shared strategies and helpers for the core property tests.
-#![allow(dead_code)]
+#![allow(dead_code, reason = "each test binary uses a different part")]
 
 use proptest::prelude::*;
 use proptest::sample::Index;

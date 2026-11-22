@@ -48,7 +48,7 @@ pub const ALPN: &[u8] = b"quiddity/sync/3";
 /// How long to wait before dialling a listed device again, at first and at
 /// most (it doubles in between, so a device that is off isn't pestered).
 const REDIAL_MIN: Duration = Duration::from_secs(1);
-const REDIAL_MAX: Duration = Duration::from_secs(60);
+const REDIAL_MAX: Duration = Duration::from_mins(1);
 
 /// How long to wait for a connection to be made, before giving up and, for a
 /// dialler, trying again. Waiting out a dead address takes much longer.
@@ -149,10 +149,10 @@ pub enum AllowError {
 /// Until the device has synced and recorded what it has stored, no device
 /// compacts past what it might lack.
 pub fn allow_device(graph: &Graph, device: &str, now: Timestamp) -> Result<(), AllowError> {
-    if graph.version() == quiddity_core::Version::default() {
+    if graph.version() == Version::default() {
         return Err(AllowError::NotJoined);
     }
-    graph.vouch_for(device, &quiddity_core::Version::default(), now)?;
+    graph.vouch_for(device, &Version::default(), now)?;
     Ok(())
 }
 
@@ -341,7 +341,8 @@ impl Peer {
                 if device == self.inner.device || !dialling.insert(device.clone()) {
                     continue;
                 }
-                let (peer, endpoint, address) = (self.clone(), endpoint.clone(), address.clone());
+                let (peer, endpoint, address) =
+                    (self.clone(), endpoint.clone(), Arc::clone(&address));
                 tasks.spawn(async move {
                     peer.keep_connected(&endpoint, &device, id, &*address).await;
                 });
@@ -505,7 +506,7 @@ impl Peer {
         let id: EndpointId = device
             .parse()
             .map_err(|_| AllowError::NotADevice(device.to_owned()))?;
-        if self.graph().version() == quiddity_core::Version::default() {
+        if self.graph().version() == Version::default() {
             self.trust(id);
             Ok(())
         } else {
@@ -1008,6 +1009,10 @@ pub async fn serve(
 /// listed devices are dialled even then; the rest, if there is a lookup,
 /// are found from their IDs as usual. Blobs are fetched from them the same
 /// way.
+#[expect(
+    clippy::implicit_hasher,
+    reason = "callers build the map with the default hasher"
+)]
 pub async fn serve_at(
     peer: &Peer,
     key: SecretKey,
@@ -1023,14 +1028,14 @@ pub async fn serve_at(
     let router = router.spawn();
     let known = Arc::new(known);
     let dialler = (local.is_none() || !known.is_empty()).then(|| {
-        let (peer, endpoint, known) = (peer.clone(), router.endpoint().clone(), known.clone());
+        let (peer, endpoint, known) = (peer.clone(), router.endpoint().clone(), Arc::clone(&known));
         tokio::spawn(async move {
             peer.dial_listed(&endpoint, move |id| address_in(&known, id))
                 .await;
         })
     });
     let fetcher = blobs.map(|blobs| {
-        let (peer, endpoint, known) = (peer.clone(), router.endpoint().clone(), known.clone());
+        let (peer, endpoint, known) = (peer.clone(), router.endpoint().clone(), Arc::clone(&known));
         tokio::spawn(async move {
             peer.fetch_blobs(&endpoint, &blobs, move |id| address_in(&known, id))
                 .await;
@@ -1237,7 +1242,7 @@ mod tests {
         let local = Some(SocketAddr::from(([127, 0, 0, 1], 0)));
         let router = Router::builder(bind(SecretKey::generate(), local).await.unwrap()).spawn();
         let stopped = Arc::new(AtomicBool::new(false));
-        let flag = Flag(stopped.clone());
+        let flag = Flag(Arc::clone(&stopped));
         let dialler = tokio::spawn(async move {
             let _flag = flag;
             std::future::pending::<()>().await;

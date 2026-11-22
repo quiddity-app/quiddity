@@ -1,6 +1,6 @@
 //! Bringing a graph's blobs from where they used to be kept into its file.
 //!
-//! Before blobs were kept in the graph's SQLite file they were in `blobs/`
+//! Before blobs were kept in the graph's `SQLite` file they were in `blobs/`
 //! beside it, in an iroh-blobs filesystem store. [`adopt`] reads that store,
 //! keeps every blob it holds in the file, and sets the directory aside as
 //! `blobs.migrated/` rather than deleting it, as converting the graph's own

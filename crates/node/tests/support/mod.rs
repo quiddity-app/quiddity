@@ -1,5 +1,6 @@
 //! What the blob store's tests share.
-#![allow(dead_code)]
+#![allow(dead_code, reason = "each test binary uses a different part")]
+#![allow(clippy::unwrap_used, reason = "a test failing to set up should panic")]
 
 use quiddity_node::keyring::Keyring;
 use quiddity_node::store::Store;

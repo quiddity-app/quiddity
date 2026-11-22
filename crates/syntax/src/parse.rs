@@ -469,7 +469,7 @@ fn fence_marker(line: &str) -> Option<(char, usize, bool)> {
     (n >= 3).then(|| (c, n, t[n..].trim().is_empty()))
 }
 
-fn skip_code_span(sc: &mut Scanner) {
+fn skip_code_span(sc: &mut Scanner<'_>) {
     let rest = sc.rest();
     let run = rest.len() - rest.trim_start_matches('`').len();
     let (fence, after) = rest.split_at(run);
@@ -501,7 +501,7 @@ pub(crate) fn is_escapable(c: char) -> bool {
 /// Parses a property key after `#`: either bare (`status`, `due-date`,
 /// `area/work`) or bracketed (`[[due date]]`). Trailing full stops belong to
 /// the sentence, not the key, and all-digit keys (`#123`) aren't keys.
-pub(crate) fn parse_key(sc: &mut Scanner) -> Option<String> {
+pub(crate) fn parse_key(sc: &mut Scanner<'_>) -> Option<String> {
     let start = sc.pos;
     if let Some(inner) = sc.rest().strip_prefix("[[") {
         let end = inner.find("]]")?;
@@ -529,7 +529,7 @@ pub(crate) fn parse_key(sc: &mut Scanner) -> Option<String> {
 
 /// Parses `(value)`. The outer `None` means it wasn't well-formed (and the
 /// scanner hasn't moved); the inner `None` means `()`.
-fn parse_paren_value(sc: &mut Scanner, refs: &mut Refs) -> Option<Option<Value>> {
+fn parse_paren_value(sc: &mut Scanner<'_>, refs: &mut Refs) -> Option<Option<Value>> {
     let start = sc.pos;
     let result = parse_paren_value_inner(sc, refs);
     if result.is_none() {
@@ -538,7 +538,7 @@ fn parse_paren_value(sc: &mut Scanner, refs: &mut Refs) -> Option<Option<Value>>
     result
 }
 
-fn parse_paren_value_inner(sc: &mut Scanner, refs: &mut Refs) -> Option<Option<Value>> {
+fn parse_paren_value_inner(sc: &mut Scanner<'_>, refs: &mut Refs) -> Option<Option<Value>> {
     if !sc.eat("(") {
         return None;
     }
@@ -552,7 +552,7 @@ fn parse_paren_value_inner(sc: &mut Scanner, refs: &mut Refs) -> Option<Option<V
     sc.eat(")").then_some(value)
 }
 
-fn parse_list(sc: &mut Scanner, refs: &mut Refs) -> Option<Option<Value>> {
+fn parse_list(sc: &mut Scanner<'_>, refs: &mut Refs) -> Option<Option<Value>> {
     sc.eat("[");
     let mut items = Vec::new();
     sc.skip_ws();
@@ -574,7 +574,7 @@ fn parse_list(sc: &mut Scanner, refs: &mut Refs) -> Option<Option<Value>> {
 
 /// Parses a single value up to one of `terms` (or the end, if `terms` is
 /// empty). Brackets and parentheses inside it must balance.
-fn parse_scalar(sc: &mut Scanner, terms: &[char], refs: &mut Refs) -> Option<Option<Value>> {
+fn parse_scalar(sc: &mut Scanner<'_>, terms: &[char], refs: &mut Refs) -> Option<Option<Value>> {
     sc.skip_ws();
     if sc.peek() == Some('"') {
         return parse_quoted(sc).map(|s| Some(Value::Text(s)));
@@ -636,7 +636,7 @@ fn parse_scalar(sc: &mut Scanner, terms: &[char], refs: &mut Refs) -> Option<Opt
     Some(Some(Value::Text(text.trim().to_owned())))
 }
 
-pub(crate) fn parse_quoted(sc: &mut Scanner) -> Option<String> {
+pub(crate) fn parse_quoted(sc: &mut Scanner<'_>) -> Option<String> {
     let start = sc.pos;
     sc.bump();
     let mut s = String::new();
@@ -741,7 +741,7 @@ fn push_text(parts: &mut Vec<Value>, piece: &str, whole: bool) {
     parts.push(Value::Text(piece.to_owned()));
 }
 
-fn parse_block_ref(sc: &mut Scanner) -> Option<String> {
+fn parse_block_ref(sc: &mut Scanner<'_>) -> Option<String> {
     let inner = sc.rest().strip_prefix("((")?;
     let end = inner.find("))")?;
     let id = inner[..end].trim();
@@ -754,7 +754,7 @@ fn parse_block_ref(sc: &mut Scanner) -> Option<String> {
 
 /// Parses `[[…]]`. If the qualifiers aren't well-formed, everything up to the
 /// first `]]` is taken as the name.
-pub(crate) fn parse_link(sc: &mut Scanner) -> Option<Link> {
+pub(crate) fn parse_link(sc: &mut Scanner<'_>) -> Option<Link> {
     let start = sc.pos;
     if let Some(link) = parse_structured_link(sc) {
         return Some(link);
@@ -773,7 +773,7 @@ pub(crate) fn parse_link(sc: &mut Scanner) -> Option<Link> {
     })
 }
 
-fn parse_structured_link(sc: &mut Scanner) -> Option<Link> {
+fn parse_structured_link(sc: &mut Scanner<'_>) -> Option<Link> {
     if !sc.eat("[[") {
         return None;
     }

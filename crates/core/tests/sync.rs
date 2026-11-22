@@ -1,4 +1,5 @@
 //! Replicas editing concurrently and syncing in arbitrary orders.
+#![expect(clippy::unwrap_used, reason = "a test failing to set up should panic")]
 
 mod common;
 

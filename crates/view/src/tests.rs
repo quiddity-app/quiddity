@@ -138,7 +138,7 @@ mod queries {
     #[test]
     fn journals_run_newest_first_from_today() {
         let v = view_with(|g| {
-            let index = quiddity_core::Index::build(g).unwrap();
+            let index = Index::build(g).unwrap();
             for date in [
                 today().checked_sub(5.days()).unwrap(),
                 today().checked_sub(1.day()).unwrap(),
@@ -212,7 +212,7 @@ mod queries {
     #[test]
     fn references_list_journals_first_and_newest_first() {
         let v = view_with(|g| {
-            let index = quiddity_core::Index::build(g).unwrap();
+            let index = Index::build(g).unwrap();
             g.create_entity("Alpha", &[]).unwrap();
             let zed = g.create_entity("Zed", &[]).unwrap();
             note(g, zed, "[[Alpha]]");
@@ -1276,12 +1276,7 @@ mod properties {
         let links = entity
             .links
             .iter()
-            .map(|(k, l)| {
-                (
-                    k.clone(),
-                    matches!(l.target, crate::LinkTarget::Entity { .. }),
-                )
-            })
+            .map(|(k, l)| (k.clone(), matches!(l.target, LinkTarget::Entity { .. })))
             .collect();
         (value, links)
     }
@@ -2183,7 +2178,7 @@ mod connections {
     #[test]
     fn a_node_says_whether_it_is_a_journal() {
         let v = view_with(|g| {
-            let index = quiddity_core::Index::build(g).unwrap();
+            let index = Index::build(g).unwrap();
             let day = quiddity_core::ensure_journal(g, &index, today()).unwrap();
             note(g, day, "see [[Not a journal]] and [[Nowhere]]");
             g.create_entity("Not a journal", &[]).unwrap();
@@ -2436,7 +2431,7 @@ mod summaries {
     #[test]
     fn only_journal_pages_are_journals() {
         let v = view_with(|g| {
-            let index = quiddity_core::Index::build(g).unwrap();
+            let index = Index::build(g).unwrap();
             quiddity_core::ensure_journal(g, &index, today()).unwrap();
             g.create_entity("Not a journal", &[]).unwrap();
         });
@@ -3202,7 +3197,7 @@ fn devices_are_listed_most_recently_seen_first() {
     graph
         .vouch_for(
             "also-old",
-            &Default::default(),
+            &Version::default(),
             "2026-10-01T00:00:00Z".parse().unwrap(),
         )
         .unwrap();
@@ -3771,7 +3766,7 @@ mod stats {
         assert_eq!(cut.problems[LISTED - 1].message, (LISTED - 1).to_string());
     }
 
-    fn blocks_of(v: &View) -> Vec<quiddity_core::Scanned> {
+    fn blocks_of(v: &View) -> Vec<Scanned> {
         v.corpus().unwrap().to_vec()
     }
 

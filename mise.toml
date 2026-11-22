@@ -96,7 +96,7 @@ run = "cargo fmt --all --check"
 
 [tasks.lint]
 description = "Run clippy over the workspace and the shell"
-run = "cargo clippy --workspace --all-targets --locked"
+run = "cargo clippy --workspace --all-targets --locked -- -D warnings"
 
 [tasks.typecheck]
 description = "Typecheck the UI"

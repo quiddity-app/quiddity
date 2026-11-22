@@ -658,7 +658,9 @@ impl View {
                 created: self.graph.created_at(*id).map(Timestamp::as_second),
                 modified: modified.get(id).copied().map(Timestamp::as_second),
                 journal: matches!(
-                    index.entity(*id).and_then(|e| e.identity()),
+                    index
+                        .entity(*id)
+                        .and_then(quiddity_core::EntityInfo::identity),
                     Some(Identity::Journal(_))
                 ),
             });
@@ -923,14 +925,13 @@ impl View {
     /// The journal page for `today`, created if there isn't one.
     pub fn ensure_journal(&self, today: Date) -> Result<EntityRef> {
         let existing = self.index()?.journal(today);
-        let id = match existing {
-            Some(id) => id,
-            None => {
-                let id = ensure_journal(&self.graph, &*self.index()?, today)?;
-                self.graph.commit();
-                self.changed();
-                id
-            }
+        let id = if let Some(id) = existing {
+            id
+        } else {
+            let id = ensure_journal(&self.graph, &*self.index()?, today)?;
+            self.graph.commit();
+            self.changed();
+            id
         };
         let id = self.index()?.canonical(id);
         self.entity_ref(id)
@@ -1186,7 +1187,11 @@ impl View {
                 .into_iter()
                 .map(|b| self.block(b, &mut links))
                 .collect::<Result<_>>()?;
-            let date = match self.index()?.entity(entity).and_then(|e| e.identity()) {
+            let date = match self
+                .index()?
+                .entity(entity)
+                .and_then(quiddity_core::EntityInfo::identity)
+            {
                 Some(Identity::Journal(date)) => Some(date),
                 _ => None,
             };
@@ -1224,16 +1229,13 @@ pub(crate) fn without_links(text: &str) -> String {
             let inner = rest.strip_prefix(open)?;
             inner.find(close).map(|end| &inner[end + 2..])
         });
-        match skipped {
-            Some(after) => {
-                out.push(' ');
-                rest = after;
-            }
-            None => {
-                let c = rest.chars().next().expect("rest is not empty");
-                out.push(c);
-                rest = &rest[c.len_utf8()..];
-            }
+        if let Some(after) = skipped {
+            out.push(' ');
+            rest = after;
+        } else {
+            let c = rest.chars().next().expect("rest is not empty");
+            out.push(c);
+            rest = &rest[c.len_utf8()..];
         }
     }
     out

@@ -2,6 +2,7 @@
 //! Logseq import, so a change that makes them worse shows. Run it with
 //! `cargo run --release -p quiddity-view --example scale [pages] [blocks per page] [save snapshot to]`.
 //! The defaults (3,150 pages of 11 blocks each) make a 3.7 MB snapshot.
+#![expect(clippy::unwrap_used, reason = "a test failing to set up should panic")]
 
 use std::time::Instant;
 
