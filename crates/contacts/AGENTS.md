@@ -23,3 +23,11 @@ out, with no platform in it.
 - Property tests need the characters the syntax treats specially (quotes,
   brackets, colons, commas, newlines), or `format_property_line`'s quoting goes
   unexercised.
+- **`reconcile` takes edits first, then makes the store match the graph.**
+  Don't swap them: the store would be overwritten with the graph's contacts
+  before its edits were read. A row that was edited is always put again, even
+  if the edit changed nothing, because putting it is what clears it.
+- **Test it against a store that behaves as a phone does** (`tests/reconcile.rs`):
+  it remembers what it was handed, so an edit can be told from what was there.
+  The convergence property (a second reconcile does nothing, whatever happened
+  on either side) is the check that matters; keep new operations in it.

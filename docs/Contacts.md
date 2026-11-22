@@ -27,6 +27,11 @@ alias:: contact, ##contact
 	- A removed value comes out of the line it is on, and a list that loses some of its items keeps the rest. A line left with nothing goes.
 	- A contact with no entity, or whose entity has gone but was edited, makes one: named as it is (or for its first value, if it has no name) with its entries in the properties that fill them. A contact with nothing to put in a property makes nothing.
 	- A contact deleted elsewhere removes its values and not the entity, so that deleting a contact never deletes a page. It is then no contact.
+- Keeping a copy in step
+	- A phone's contacts are somebody else's copy of these, and are kept as the graph's by reconciling, which is what runs when either side changes. The copy is a `Store`: it has a row for each contact, says which rows were edited, made or deleted since they were last put, and remembers each as it was handed over.
+	- First the edits go into the graph, each as above, from the copy as it was handed over. Then the copy is made to have exactly the graph's contacts: a contact it lacks is put, one it has differently is replaced, and one the graph no longer has is removed. A row that was edited is always put again, as the graph now has it, so that the phone shows what the graph made of the edit.
+	- A row made on the phone makes an entity, and from then on is that entity's. If there is nothing to make an entity of, because no property fills what was entered, the row is removed and what was lost is reported.
+	- It converges: whatever was done on either side, a second reconcile finds nothing to do. That is the property the tests check, with edits and deletions on both sides in any order.
 - How it works
 	- [[quiddity-contacts]] reads contacts from the index and applies an edit, as plain data that serialises.
 	- [[quiddity-core]] reads the line into the property's schema (`PropertySchema::contact`), and `Index::contact_keys` lists the properties that have one, by the name their entity has.
