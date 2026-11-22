@@ -1,5 +1,6 @@
-//! The SQLite blob store against iroh-blobs' own `MemStore`, which is the
+//! The `SQLite` blob store against iroh-blobs' own `MemStore`, which is the
 //! oracle: whatever one says about a blob, the other must too.
+#![expect(clippy::unwrap_used, reason = "a test failing to set up should panic")]
 
 mod support;
 

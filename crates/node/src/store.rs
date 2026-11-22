@@ -1,4 +1,4 @@
-//! A graph on disk: one SQLite file holding the graph's snapshot and the
+//! A graph on disk: one `SQLite` file holding the graph's snapshot and the
 //! device's endpoint key.
 //!
 //! The device's own key is not in it (see [`Keyring`]), so copying the file
@@ -6,7 +6,7 @@
 //! key and a random salt kept in the file. A graph made before then holds its
 //! endpoint key itself, which is kept so that its device ID is the same.
 //!
-//! SQLite is the file format because it is one file that other tools can
+//! `SQLite` is the file format because it is one file that other tools can
 //! open, it commits atomically, and more of what a device keeps (the bytes
 //! of binaries, the update log) can join it as tables. See
 //! <https://sqlite.org/appfileformat.html>.
@@ -63,14 +63,14 @@ fn sync_dir(dir: &Path) -> io::Result<()> {
     Ok(())
 }
 
-/// SQLite's `application_id`, "QDDY": says what the file is for, so that
+/// `SQLite`'s `application_id`, "QDDY": says what the file is for, so that
 /// `file(1)` can tell and another application's database is refused.
 /// The rows of the `snapshot` table.
 const CURRENT: i64 = 1;
 const PREVIOUS: i64 = 2;
 
 const APPLICATION_ID: i32 = 0x5144_4459;
-/// SQLite's `user_version`: the layout of the tables below.
+/// `SQLite`'s `user_version`: the layout of the tables below.
 ///
 /// 1: the snapshot, and the device's endpoint key. 2: and the blobs. 3: and the
 /// salt that a new graph's endpoint key is derived with. 4: and this replica's
@@ -79,7 +79,7 @@ const LAYOUT: i32 = 5;
 /// The first layout that has the `node` table.
 const NODE_SINCE: i32 = 4;
 
-/// Exactly the schema, as SQLite stores it (its `sql` column is the statement
+/// Exactly the schema, as `SQLite` stores it (its `sql` column is the statement
 /// as written), so that a file with anything else in it is refused. One row
 /// each, enforced by the key, so there is no question which is current.
 /// The snapshot has two: row 1 is the current one, and row 2 the one before
@@ -705,8 +705,8 @@ impl Store {
     }
 
     /// Makes a file with the schema, under a name of its own. It is made
-    /// before SQLite sees it so that it is never readable by anyone else:
-    /// SQLite creates its journal with the file's own mode.
+    /// before `SQLite` sees it so that it is never readable by anyone else:
+    /// `SQLite` creates its journal with the file's own mode.
     fn build(&self) -> Result<PathBuf, StoreError> {
         let n = STAGING.fetch_add(1, Ordering::Relaxed);
         let staged = with_suffix(&self.file(), &format!(".{}.{n}.new", std::process::id()));
@@ -788,7 +788,7 @@ impl Store {
 
     /// Whether the file's schema is exactly `tables`. Each statement is stored
     /// as written, and names its own kind and name, so the statements alone
-    /// say whether this is exactly our schema. Those SQLite makes itself, for
+    /// say whether this is exactly our schema. Those `SQLite` makes itself, for
     /// a `UNIQUE`, have none and are left out.
     fn check_schema(&self, db: &Connection, tables: &[(&str, &str)]) -> Result<(), StoreError> {
         let found: Vec<String> = db
@@ -1260,7 +1260,7 @@ mod tests {
     fn loading_where_there_is_no_graph_names_the_directory() {
         let tmp = tempfile::tempdir().unwrap();
         let err = store_at(tmp.path()).load().unwrap_err();
-        assert!(matches!(err, crate::StoreError::Missing(_)), "{err:?}");
+        assert!(matches!(err, StoreError::Missing(_)), "{err:?}");
         let message = err.to_string();
         assert!(message.contains(&tmp.path().display().to_string()));
         assert!(message.contains("init"));
@@ -1279,7 +1279,7 @@ mod tests {
     }
 
     /// The file holds the secret key, so nobody else may read it, nor the
-    /// journal SQLite keeps beside it while saving.
+    /// journal `SQLite` keeps beside it while saving.
     #[cfg(unix)]
     #[test]
     fn the_file_is_private_to_its_owner() {
@@ -1342,7 +1342,7 @@ mod tests {
         }
     }
 
-    /// A file that is not SQLite at all says so too.
+    /// A file that is not `SQLite` at all says so too.
     #[test]
     fn a_file_that_is_not_sqlite_is_refused() {
         let tmp = tempfile::tempdir().unwrap();
@@ -1411,10 +1411,7 @@ mod tests {
 
         assert_eq!(moved.len(), 1);
         assert_eq!(fs::read(&moved[0]).unwrap(), before);
-        assert!(matches!(
-            store.load().unwrap_err(),
-            crate::StoreError::Missing(_)
-        ));
+        assert!(matches!(store.load().unwrap_err(), StoreError::Missing(_)));
         // The device's identity isn't part of the graph that was set aside.
         assert_eq!(store.key().unwrap().public(), key.public());
 
@@ -1465,10 +1462,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let store = store_at(tmp.path());
         let key = store.key().unwrap();
-        assert!(matches!(
-            store.load().unwrap_err(),
-            crate::StoreError::Missing(_)
-        ));
+        assert!(matches!(store.load().unwrap_err(), StoreError::Missing(_)));
         store.init(false).unwrap();
         assert_eq!(store.key().unwrap().public(), key.public());
     }
@@ -1497,10 +1491,7 @@ mod tests {
         fs::write(tmp.path().join(LEGACY_KEY), key.to_bytes()).unwrap();
         let store = store_at(tmp.path());
         assert_eq!(store.key().unwrap().public(), key.public());
-        assert!(matches!(
-            store.load().unwrap_err(),
-            crate::StoreError::Missing(_)
-        ));
+        assert!(matches!(store.load().unwrap_err(), StoreError::Missing(_)));
     }
 
     /// A file of an earlier layout, which lacked the tables added since, is
@@ -2163,6 +2154,7 @@ mod tests {
             copy
         }
 
+        #[expect(clippy::unused_self, reason = "reads as the device's view of a store")]
         fn canonical(&self, store: &Store) -> PathBuf {
             fs::canonicalize(store.dir()).unwrap()
         }

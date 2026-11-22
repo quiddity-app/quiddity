@@ -2,7 +2,7 @@
 //!
 //! The graph names a binary by hash and describes it in text; the bytes live
 //! here, in the graph's own file, in iroh-blobs' storage protocol served from
-//! SQLite ([`crate::blob_store`]), so that devices can exchange them on
+//! `SQLite` ([`crate::blob_store`]), so that devices can exchange them on
 //! iroh-blobs' own protocol. Every device keeps every blob for now. A graph
 //! from before the file held them has its `blobs/` directory moved in when the
 //! store is first opened ([`crate::legacy_blobs`]).

@@ -8,7 +8,7 @@ use std::path::Path;
 /// `AlreadyExists` if there is. A hard link does it atomically, so a file is
 /// never seen half written and the first of two racing processes wins.
 ///
-/// Android's SELinux policy refuses `link` to apps, even inside their own data
+/// Android's `SELinux` policy refuses `link` to apps, even inside their own data
 /// directory, so a refusal falls back to checking and then renaming. That
 /// leaves a window in which two processes could both pass the check, which an
 /// app alone in its data directory doesn't have.

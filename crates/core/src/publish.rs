@@ -68,7 +68,9 @@ pub fn page_names(graph: &Graph) -> Result<Vec<String>, PublishError> {
         .cloned()
         .collect();
     if !clashes.is_empty() {
-        clashes.iter_mut().for_each(|g| g.sort());
+        for g in &mut clashes {
+            g.sort();
+        }
         return Err(PublishError::Clashes(clashes));
     }
     let mut names: Vec<String> = by_key.into_values().flatten().collect();

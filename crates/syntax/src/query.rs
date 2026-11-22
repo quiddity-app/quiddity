@@ -286,6 +286,10 @@ mod tests {
         }
     }
 
+    #[expect(
+        clippy::unnecessary_box_returns,
+        reason = "reads better than `Box::new` at every call"
+    )]
     fn b(q: Query) -> Box<Query> {
         Box::new(q)
     }

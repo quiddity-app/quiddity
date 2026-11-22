@@ -14,6 +14,8 @@
 //! properties. Bullets are indented with tabs, and continuation lines with
 //! the bullet's tabs plus two spaces.
 
+use std::fmt::Write as _;
+
 use quiddity_syntax::{
     Value, format_property_line, is_properties_block, normalise_name, parse_property_line,
 };
@@ -135,11 +137,11 @@ pub fn format_outline(outline: &Outline) -> String {
         let tabs = "\t".repeat(depth);
         let mut lines = block.text.split('\n');
         match lines.next().unwrap_or("") {
-            "" => out.push_str(&format!("{tabs}-\n")),
-            first => out.push_str(&format!("{tabs}- {first}\n")),
+            "" => writeln!(out, "{tabs}-").expect("formatting into a String failed"),
+            first => writeln!(out, "{tabs}- {first}").expect("formatting into a String failed"),
         }
         for line in lines {
-            out.push_str(&format!("{tabs}  {line}\n"));
+            writeln!(out, "{tabs}  {line}").expect("formatting into a String failed");
         }
         for child in &block.children {
             write(out, child, depth + 1);
@@ -379,7 +381,7 @@ fn strip_columns(line: &str, cols: usize) -> &str {
         if seen >= cols || !matches!(c, ' ' | '\t') {
             return &line[i..];
         }
-        seen += columns(&line[i..i + 1]);
+        seen += columns(&line[i..=i]);
     }
     ""
 }

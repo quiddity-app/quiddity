@@ -3,6 +3,7 @@
 //! Transitive closure and inverses are checked against reachability worked
 //! out directly, queries against an evaluator over the written text, and
 //! the rest by example.
+#![expect(clippy::unwrap_used, reason = "a test failing to set up should panic")]
 
 use std::collections::BTreeSet;
 
@@ -249,7 +250,7 @@ fn oracle(entity: &Written, query: &Query) -> bool {
         Query::Has {
             key,
             value: Some(v),
-        } => values(key).iter().any(|item| item_oracle(item, v)),
+        } => values(key).iter().any(|item| item_oracle(item.as_ref(), v)),
         Query::Not(a) => !oracle(entity, a),
         Query::And(a, b) => oracle(entity, a) && oracle(entity, b),
         Query::Diff(a, b) => oracle(entity, a) && !oracle(entity, b),
@@ -258,9 +259,9 @@ fn oracle(entity: &Written, query: &Query) -> bool {
     }
 }
 
-fn item_oracle(item: &Option<String>, query: &Query) -> bool {
+fn item_oracle(item: Option<&String>, query: &Query) -> bool {
     match query {
-        Query::Name(n) => item.as_deref() == Some(normalise_name(n).as_str()),
+        Query::Name(n) => item.map(String::as_str) == Some(normalise_name(n).as_str()),
         Query::Has { .. } => false,
         Query::Not(a) => !item_oracle(item, a),
         Query::And(a, b) => item_oracle(item, a) && item_oracle(item, b),

@@ -2,6 +2,8 @@
 
 mod common;
 
+use std::fmt::Write as _;
+
 use proptest::collection::vec;
 use proptest::option;
 use proptest::prelude::*;
@@ -42,7 +44,7 @@ fn with_spaces(outline: &Outline, per_level: usize) -> String {
         let indent = " ".repeat(depth * per_level);
         for (i, line) in block.text.split('\n').enumerate() {
             let marker = if i == 0 { "- " } else { "  " };
-            out.push_str(&format!("{indent}{marker}{line}\n"));
+            writeln!(out, "{indent}{marker}{line}").expect("formatting into a String failed");
         }
         for child in &block.children {
             write(out, child, depth + 1, per_level);
@@ -50,10 +52,10 @@ fn with_spaces(outline: &Outline, per_level: usize) -> String {
     }
     let mut out = String::new();
     if let Some(title) = &outline.title {
-        out.push_str(&format!("title:: {title}\n"));
+        writeln!(out, "title:: {title}").expect("formatting into a String failed");
     }
     if let Some(props) = &outline.properties {
-        out.push_str(&format!("{props}\n"));
+        writeln!(out, "{props}").expect("formatting into a String failed");
     }
     out.push('\n');
     for block in &outline.blocks {

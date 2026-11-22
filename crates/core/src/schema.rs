@@ -220,7 +220,10 @@ impl PropertySchema {
 }
 
 const BUILTIN: &[(&str, PropertySchema)] = {
-    use {Cardinality as C, ValueType::*};
+    use {
+        Cardinality as C,
+        ValueType::{Boolean, Ref, Text},
+    };
     &[
         ("type", PropertySchema::of(Ref, C::ANY)),
         ("alias", PropertySchema::of(Text, C::ANY)),

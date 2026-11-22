@@ -1,4 +1,5 @@
 //! Blobs travelling between peers over real iroh connections on localhost.
+#![expect(clippy::unwrap_used, reason = "a test failing to set up should panic")]
 
 use std::collections::HashSet;
 use std::net::{Ipv4Addr, SocketAddr};
@@ -64,7 +65,7 @@ async fn has_eventually(blobs: &Blobs, hash: Hash) -> bool {
         .is_ok()
 }
 
-async fn join(guest: &Peer, guest_server: &Server, home: &Peer, home_server: &Server) {
+fn join(guest: &Peer, guest_server: &Server, home: &Peer, home_server: &Server) {
     // Each device has to add the other, as when pairing.
     home.allow(&guest_server.endpoint().id().to_string())
         .unwrap();
@@ -92,7 +93,7 @@ async fn a_blob_follows_the_graph_that_names_it() {
 
     let (guest, guest_server, guest_blobs) = device(Graph::blank(), guest_dir.path()).await;
     assert!(!guest_blobs.has(stored).await.unwrap());
-    join(&guest, &guest_server, &home, &home_server).await;
+    join(&guest, &guest_server, &home, &home_server);
 
     assert!(
         has_eventually(&guest_blobs, stored).await,
@@ -114,7 +115,7 @@ async fn a_blob_named_later_comes_from_whichever_device_has_it() {
     describe(&home, "first", b"first");
     home_blobs.put(&b"first"[..]).await.unwrap();
     let (guest, guest_server, guest_blobs) = device(Graph::blank(), guest_dir.path()).await;
-    join(&guest, &guest_server, &home, &home_server).await;
+    join(&guest, &guest_server, &home, &home_server);
     assert!(has_eventually(&guest_blobs, Hash::new(b"first")).await);
 
     // The guest dialled; now it is the guest that has the bytes.

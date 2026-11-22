@@ -107,13 +107,12 @@ impl View {
             let index = self.index()?;
             index.property_entity(key).map(|id| index.canonical(id))
         };
-        let id = match found {
-            Some(id) => id,
-            None => {
-                self.structural();
-                let made = self.make_property_entity(key);
-                self.edited(made)?
-            }
+        let id = if let Some(id) = found {
+            id
+        } else {
+            self.structural();
+            let made = self.make_property_entity(key);
+            self.edited(made)?
         };
         Ok(id.to_string())
     }

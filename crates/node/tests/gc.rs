@@ -1,9 +1,11 @@
 //! Deciding which files may go: the ledger, the rule, and the collector over
 //! real stores.
+#![expect(clippy::unwrap_used, reason = "a test failing to set up should panic")]
 
 mod common;
 
 use std::collections::BTreeSet;
+use std::fmt::Write as _;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
@@ -40,7 +42,10 @@ fn version_after(n: usize) -> Version {
 }
 
 fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
+    bytes.iter().fold(String::new(), |mut text, b| {
+        write!(text, "{b:02x}").expect("formatting into a String failed");
+        text
+    })
 }
 
 fn hashes(seeds: &[u8]) -> BTreeSet<Hash> {
@@ -358,7 +363,7 @@ async fn a_damaged_blob_line_still_protects_its_file() {
         )
         .unwrap();
     w.graph.commit();
-    assert!(Index::build(&w.graph).unwrap().assets().count() == 1);
+    assert_eq!(Index::build(&w.graph).unwrap().assets().count(), 1);
     w.collect(t0(), DAY, false).await;
     w.everyone_stores(t0() + DAY * 2);
     let report = w.collect(t0() + DAY * 2, DAY, false).await;

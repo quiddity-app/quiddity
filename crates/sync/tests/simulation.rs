@@ -12,6 +12,7 @@
 //!
 //! The run ends with the devices connected only in a chain, so that
 //! everything has to be relayed through the middle ones.
+#![expect(clippy::unwrap_used, reason = "a test failing to set up should panic")]
 
 use std::collections::VecDeque;
 

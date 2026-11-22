@@ -1,5 +1,5 @@
 //! A blob store for iroh-blobs that keeps complete blobs in the graph's
-//! SQLite file.
+//! `SQLite` file.
 //!
 //! iroh-blobs' `Store` is a client of a command channel, and its own stores
 //! (`FsStore`, `MemStore`) are actors serving that channel. This is a third,
@@ -15,7 +15,7 @@
 //!   can't make a device reserve memory by claiming a size.
 //! - **Reads are incremental.** The outboard (the hashes that let a part of a
 //!   blob be proved) is read whole, being small, and the data is read as far
-//!   as is asked for, through SQLite's incremental blob I/O.
+//!   as is asked for, through `SQLite`'s incremental blob I/O.
 //! - **No tags are kept, and temp tags protect nothing.** Nothing here is
 //!   deleted because it is untagged: the graph says what is wanted, and what
 //!   isn't is deleted by name ([`SqliteBlobs::delete`]). Asking for a tag
@@ -23,7 +23,7 @@
 //! - **Only bytes are imported.** Importing from a stream or a path, and
 //!   exporting to a path, are refused: the node reads and writes files itself.
 //! - **A blob over the limit is refused**, [`MAX_BLOB`] unless the store is
-//!   opened with another, which is SQLite's limit on one value, so that no
+//!   opened with another, which is `SQLite`'s limit on one value, so that no
 //!   import fails halfway through writing.
 
 use std::collections::HashMap;
@@ -58,7 +58,7 @@ use tokio::task::JoinSet;
 use tracing::{debug, error, trace};
 
 /// The largest blob kept, unless the store is opened with another limit:
-/// SQLite's limit on the length of one value, a billion bytes by default,
+/// `SQLite`'s limit on the length of one value, a billion bytes by default,
 /// less 1,024 for the row around it.
 pub const MAX_BLOB: u64 = 999_998_976;
 
@@ -115,7 +115,7 @@ pub fn spawn(connection: Connection, max_blob: u64) -> SqliteBlobs {
     tokio::spawn(
         Actor {
             commands,
-            shared: shared.clone(),
+            shared: Arc::clone(&shared),
             tasks: JoinSet::new(),
             idle: Vec::new(),
         }
@@ -139,7 +139,7 @@ impl Db {
         &self,
         f: impl FnOnce(&mut Connection) -> rusqlite::Result<T> + Send + 'static,
     ) -> io::Result<T> {
-        let db = self.0.clone();
+        let db = Arc::clone(&self.0);
         tokio::task::spawn_blocking(move || {
             let mut connection = db.lock().unwrap_or_else(PoisonError::into_inner);
             f(&mut connection)
@@ -194,10 +194,11 @@ impl Shared {
 
     fn partial_or_new(&self, hash: Hash) -> PartialHandle {
         let mut partials = self.partials.lock().unwrap_or_else(PoisonError::into_inner);
-        partials
-            .entry(hash)
-            .or_insert_with(|| Arc::new(watch::channel(Partial::default()).0))
-            .clone()
+        Arc::clone(
+            partials
+                .entry(hash)
+                .or_insert_with(|| Arc::new(watch::channel(Partial::default()).0)),
+        )
     }
 
     async fn delete(&self, hashes: Vec<Hash>) -> io::Result<()> {
@@ -423,7 +424,7 @@ impl Actor {
     }
 
     async fn handle(&mut self, command: Command) -> Option<ShutdownMsg> {
-        let shared = self.shared.clone();
+        let shared = Arc::clone(&self.shared);
         match command {
             Command::ImportBytes(ImportBytesMsg {
                 inner: ImportBytesRequest { data, format, .. },
@@ -884,7 +885,7 @@ async fn observe(shared: &Shared, hash: Hash, tx: mpsc::Sender<Bitfield>) {
                     return;
                 }
                 tokio::select! {
-                    _ = tx.closed() => return,
+                    () = tx.closed() => return,
                     changed = changes.changed() => if changed.is_err() { return },
                 }
             }

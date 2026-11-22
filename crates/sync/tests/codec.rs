@@ -1,5 +1,8 @@
 //! Messages and frames survive encoding, and frames survive arriving in
 //! arbitrary pieces. Decoding arbitrary bytes is fuzzed in `fuzz/`.
+#![expect(clippy::unwrap_used, reason = "a test failing to set up should panic")]
+
+use std::collections::BTreeSet;
 
 use proptest::collection::{btree_set, vec};
 use proptest::prelude::*;
@@ -85,7 +88,7 @@ proptest! {
         let mut cuts: Vec<usize> = cuts.iter().map(|c| c.index(stream.len() + 1)).collect();
         cuts.push(0);
         cuts.push(stream.len());
-        cuts.sort();
+        cuts.sort_unstable();
 
         let mut reader = FrameReader::new();
         let mut got = Vec::new();
@@ -129,7 +132,7 @@ fn presence_is_read_exactly() {
         epoch: 1,
         seq: 2,
         peers: ["p".to_owned()].into(),
-        focus: Default::default(),
+        focus: BTreeSet::default(),
     };
     let good = Message::Presence(record).encode();
     assert!(Message::decode(&good).is_ok());

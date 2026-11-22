@@ -1,4 +1,5 @@
 //! Peers syncing over real iroh connections on localhost.
+#![expect(clippy::unwrap_used, reason = "a test failing to set up should panic")]
 
 use std::collections::{HashMap, HashSet};
 use std::net::{Ipv4Addr, SocketAddr};
@@ -403,7 +404,7 @@ async fn edits_nobody_is_watching_wait_until_the_edit_is_over() {
     // last: the first deadline (1.5 s) passes with the edit still held.
     tokio::time::sleep(Duration::from_millis(500)).await;
     type_into(&phone, "blk", "more");
-    tokio::time::sleep(Duration::from_millis(1000)).await;
+    tokio::time::sleep(Duration::from_secs(1)).await;
     assert!(
         laptop.graph().roots().is_empty(),
         "1 s since the latest typing, and 1.5 s to wait"
@@ -416,7 +417,7 @@ async fn edits_nobody_is_watching_wait_until_the_edit_is_over() {
 
 #[tokio::test]
 async fn edits_in_a_block_someone_has_open_are_sent_at_once() {
-    let (laptop, phone, routers, task) = connected_pair(Duration::from_secs(60)).await;
+    let (laptop, phone, routers, task) = connected_pair(Duration::from_mins(1)).await;
     laptop.set_focus(["blk"]);
     eventually("the phone to see it", || phone.watched("blk")).await;
 
@@ -433,7 +434,7 @@ async fn edits_in_a_block_someone_has_open_are_sent_at_once() {
 
 #[tokio::test]
 async fn held_edits_are_sent_when_someone_opens_the_block() {
-    let (laptop, phone, routers, task) = connected_pair(Duration::from_secs(60)).await;
+    let (laptop, phone, routers, task) = connected_pair(Duration::from_mins(1)).await;
     type_into(&phone, "blk", "typed");
     tokio::time::sleep(SETTLE).await;
     assert!(laptop.graph().roots().is_empty());
@@ -446,7 +447,7 @@ async fn held_edits_are_sent_when_someone_opens_the_block() {
 
 #[tokio::test]
 async fn moving_to_another_block_ends_the_edit() {
-    let (laptop, phone, routers, task) = connected_pair(Duration::from_secs(60)).await;
+    let (laptop, phone, routers, task) = connected_pair(Duration::from_mins(1)).await;
     phone.set_focus(["blk"]);
     type_into(&phone, "blk", "typed");
     phone.set_focus(["blk", "other"]);
@@ -461,7 +462,7 @@ async fn moving_to_another_block_ends_the_edit() {
 
 #[tokio::test]
 async fn other_changes_and_ending_the_edit_send_what_is_held() {
-    let (laptop, phone, routers, task) = connected_pair(Duration::from_secs(60)).await;
+    let (laptop, phone, routers, task) = connected_pair(Duration::from_mins(1)).await;
     type_into(&phone, "blk", "typed");
     phone.end_edit();
     converged(&[&laptop, &phone]).await;
@@ -638,7 +639,7 @@ async fn listed_devices_are_dialled_and_dialled_again() {
     home.allow(&b_id.to_string()).unwrap();
 
     let addresses = Arc::new(Mutex::new(vec![b_addr]));
-    let dialler = dial_listed(&home, &home_router, addresses.clone());
+    let dialler = dial_listed(&home, &home_router, Arc::clone(&addresses));
     converged(&[&home, &b]).await;
 
     // B goes away; the home device edits meanwhile; B comes back elsewhere.
@@ -691,10 +692,14 @@ async fn devices_listed_later_are_dialled_and_odd_names_are_not() {
 struct Counter(Arc<AtomicUsize>);
 
 impl ProtocolHandler for Counter {
-    async fn accept(&self, connection: Connection) -> Result<(), AcceptError> {
+    // Not an `async fn`, because there is nothing to await.
+    fn accept(
+        &self,
+        connection: Connection,
+    ) -> impl Future<Output = Result<(), AcceptError>> + Send {
         self.0.fetch_add(1, Ordering::SeqCst);
         connection.close(1u32.into(), b"counted");
-        Ok(())
+        std::future::ready(Ok(()))
     }
 }
 
@@ -707,7 +712,7 @@ async fn a_listed_device_that_refuses_is_retried_with_backoff() {
     let (endpoint, addr) = bind(&key).await;
     let attempts = Arc::new(AtomicUsize::new(0));
     let router = Router::builder(endpoint)
-        .accept(ALPN, Counter(attempts.clone()))
+        .accept(ALPN, Counter(Arc::clone(&attempts)))
         .spawn();
     home.allow(&key.public().to_string()).unwrap();
 
@@ -755,7 +760,11 @@ async fn the_dialler_does_not_dial_itself() {
     home.allow(&other.to_string()).unwrap();
 
     let asked = Arc::new(Mutex::new(Vec::new()));
-    let (peer, endpoint, log) = (home.clone(), home_router.endpoint().clone(), asked.clone());
+    let (peer, endpoint, log) = (
+        home.clone(),
+        home_router.endpoint().clone(),
+        Arc::clone(&asked),
+    );
     let dialler = tokio::spawn(async move {
         peer.dial_listed(&endpoint, move |id| {
             log.lock().unwrap().push(id);
@@ -900,7 +909,7 @@ async fn the_sync_state_follows_connections_typing_and_presence() {
     alone.allow("someone").unwrap();
     assert_eq!(alone.sync_state(), SyncState::Offline);
 
-    let (laptop, phone, routers, task) = connected_pair(Duration::from_secs(60)).await;
+    let (laptop, phone, routers, task) = connected_pair(Duration::from_mins(1)).await;
     let mut changes = phone.subscribe_status();
     laptop.allow("somebody").unwrap();
     eventually("the list to arrive", || phone.graph().devices().len() == 1).await;

@@ -66,6 +66,7 @@ impl Version {
     }
 
     /// What both versions include.
+    #[must_use]
     pub fn meet(&self, other: &Version) -> Version {
         Version(self.0.intersection(&other.0))
     }
@@ -572,7 +573,7 @@ impl Graph {
     }
 
     /// Replaces `len` UTF-16 code units of a block's text, starting at `pos`,
-    /// with `insert`: the unit CodeMirror and JavaScript strings count in, so
+    /// with `insert`: the unit `CodeMirror` and JavaScript strings count in, so
     /// an editor's changes apply as they were made rather than as a diff.
     pub fn splice_text(&self, id: BlockId, pos: usize, len: usize, insert: &str) -> Result<()> {
         let text = self.text_container(id)?;

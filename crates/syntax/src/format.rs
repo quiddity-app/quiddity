@@ -244,7 +244,7 @@ mod tests {
         for (value, after) in [("a [[b] c]", "x]]"), ("a ((b) c)", "x))")] {
             for v in [text(value), Value::List(vec![text(value)])] {
                 let src = format!("[[x{}]] {after}", format_qualifier("p", Some(&v)));
-                let block = crate::parse_block(&src);
+                let block = parse_block(&src);
                 assert_eq!(block.links.len(), 1, "{src}");
                 assert_eq!(block.links[0].qualifiers[0].value, Some(v), "{src}");
             }

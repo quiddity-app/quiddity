@@ -1,5 +1,6 @@
 //! Blobs kept the way they used to be, in `blobs/` beside the graph, are
 //! moved into the graph's file.
+#![expect(clippy::unwrap_used, reason = "a test failing to set up should panic")]
 
 mod support;
 

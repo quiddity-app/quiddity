@@ -32,7 +32,7 @@ fn line_key() -> impl Strategy<Value = String> {
 /// A link name, weighted towards the characters that need escaping. Names
 /// are single lines: they're titles, written with whitespace collapsed.
 fn link_name() -> impl Strategy<Value = String> {
-    prop_oneof![r#"[a-z_#\[\]\\ ]{1,8}"#, r"[^\n\r]{1,12}"]
+    prop_oneof![r"[a-z_#\[\]\\ ]{1,8}", r"[^\n\r]{1,12}"]
         .prop_filter("trimmed", |n| !n.is_empty() && n.trim() == n)
 }
 
@@ -311,7 +311,7 @@ proptest! {
     /// Prose first means it isn't a properties block at all.
     #[test]
     fn prose_first_is_not_a_properties_block(prose in r"[a-z]{1,5} [a-z]{1,5}", rest in "[a-z\n ]{0,12}") {
-        let text = format!("{}\n{}", prose, rest);
+        let text = format!("{prose}\n{rest}");
         prop_assert!(parse_properties_block(&text).is_none(), "{}", text);
     }
 }

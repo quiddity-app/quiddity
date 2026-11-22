@@ -201,13 +201,10 @@ async fn wait_for_stop(peer: &Peer, export: Option<&Path>) -> anyhow::Result<()>
     loop {
         tokio::select! {
             result = tokio::signal::ctrl_c() => return Ok(result?),
-            _ = usr1.recv() => match export {
-                Some(dir) => match export_replacing(peer, dir) {
-                    Ok(written) => println!("exported {written} entities to {}", dir.display()),
-                    Err(e) => error!(error = %e, "export failed"),
-                },
-                None => warn!("SIGUSR1 ignored: serve was not given --export"),
-            },
+            _ = usr1.recv() => if let Some(dir) = export { match export_replacing(peer, dir) {
+                Ok(written) => println!("exported {written} entities to {}", dir.display()),
+                Err(e) => error!(error = %e, "export failed"),
+            } } else { warn!("SIGUSR1 ignored: serve was not given --export") },
         }
     }
 }
@@ -307,7 +304,10 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
             // Control characters are not allowed in a name, newlines included.
             std::fs::write(
                 &file,
-                names.iter().map(|n| format!("{n}\n")).collect::<String>(),
+                names
+                    .iter()
+                    .flat_map(|n| [n.as_str(), "\n"])
+                    .collect::<String>(),
             )?;
             println!("wrote {} names to {}", names.len(), file.display());
         }
@@ -341,13 +341,12 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
         Command::Id => println!("{}", store.key()?.public()),
         Command::Identify => {
             let graph = store.load()?;
-            let id = match graph.graph_id() {
-                Some(id) => id,
-                None => {
-                    let id = graph.assign_graph_id()?;
-                    store.save(&graph)?;
-                    id
-                }
+            let id = if let Some(id) = graph.graph_id() {
+                id
+            } else {
+                let id = graph.assign_graph_id()?;
+                store.save(&graph)?;
+                id
             };
             println!("{id}");
         }
@@ -383,7 +382,7 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
                 Allowed::Only(allow.into_iter().collect::<HashSet<_>>())
             };
             let peer = Peer::new(store.load()?, allowed, store.key()?.public().to_string());
-            peer.set_blobs(quiddity_node::blobs::Blobs::open(store.dir()).await?);
+            peer.set_blobs(Blobs::open(store.dir()).await?);
             let server = self::net(quiddity_node::serve(&peer, store.key()?, net.local).await)?;
             let endpoint = server.endpoint();
             match net.local {

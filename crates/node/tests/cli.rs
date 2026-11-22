@@ -1,4 +1,5 @@
 //! The `quiddity-node` binary end to end: import, serve, sync, export.
+#![expect(clippy::unwrap_used, reason = "a test failing to set up should panic")]
 
 mod common;
 

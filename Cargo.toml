@@ -35,9 +35,58 @@ unicode-normalization = "0.1"
 toml = { version = "1", default-features = false, features = ["std", "serde", "parse", "display"] }
 uuid = { version = "1", features = ["v4", "v7"] }
 
+# Lints are `warn` here so that editing isn't blocked by an unused variable;
+# `mise run lint` and CI pass `-D warnings`, which makes every one an error.
 [workspace.lints.rust]
 unsafe_code = "forbid"
 missing_debug_implementations = "warn"
+unused_qualifications = "warn"
+unused_lifetimes = "warn"
+unused_import_braces = "warn"
+unit_bindings = "warn"
+trivial_numeric_casts = "warn"
+single_use_lifetimes = "warn"
+redundant_lifetimes = "warn"
+explicit_outlives_requirements = "warn"
+non_ascii_idents = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+# Docs for internal crates say what a thing is for; they don't need a
+# `# Errors` or `# Panics` section on every function, or `#[must_use]` on
+# every getter.
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+must_use_candidate = "allow"
+# Pedantic lints that don't earn their keep here. The hashing, offset and
+# scoring code casts between integer widths and to floats on purpose, and a
+# lint on every cast hides the ones that matter; the rest are judgement calls
+# the code reads better without.
+cast_possible_truncation = "allow"
+cast_possible_wrap = "allow"
+cast_precision_loss = "allow"
+cast_sign_loss = "allow"
+too_many_lines = "allow"
+assert_is_empty = "allow"      # `assert!(x.is_empty())` reads better than comparing with `[]`
+needless_pass_by_value = "allow" # wasm-bindgen and `map_err` callbacks take values
+option_option = "allow"        # absent, empty and present are three states
+unnecessary_wraps = "allow"    # signatures are fixed by traits and callers
+items_after_statements = "allow"
+similar_names = "allow"
+# Restriction lints worth having, picked one by one.
+dbg_macro = "warn"
+todo = "warn"
+unimplemented = "warn"
+unwrap_used = "warn"
+allow_attributes_without_reason = "warn"
+clone_on_ref_ptr = "warn"
+str_to_string = "warn"
+mem_forget = "warn"
+exit = "warn"
+if_then_some_else_none = "warn"
+rest_pat_in_fully_bound_structs = "warn"
+unnecessary_self_imports = "warn"
+verbose_file_reads = "warn"
+empty_drop = "warn"

@@ -78,7 +78,11 @@ impl Presence {
 
     /// Sets the blocks this device has open.
     pub fn set_focus(&mut self, focus: BTreeSet<String>) {
-        self.update(|r| std::mem::replace(&mut r.focus, focus.clone()) != focus);
+        self.update(|r| {
+            let changed = r.focus != focus;
+            r.focus = focus;
+            changed
+        });
     }
 
     /// A connection to `peer` is up. It knows nothing yet, so everything

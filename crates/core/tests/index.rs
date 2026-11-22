@@ -1,5 +1,6 @@
 //! Link resolution and backlinks against a brute-force oracle that reads the
 //! graph directly.
+#![expect(clippy::unwrap_used, reason = "a test failing to set up should panic")]
 
 mod common;
 
