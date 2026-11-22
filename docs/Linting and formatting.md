@@ -1,15 +1,20 @@
 - How the UI's TypeScript is kept tidy. The Rust has `cargo fmt` and clippy; this is the same for `apps/ui`. [[The UI]]
-	- `mise run lint:ui` runs it, and `pnpm ui lint` is what that runs. `pnpm ui lint --fix` mends what ESLint can.
+	- `mise run lint:ui` checks it and `mise run fmt:ui` fixes what it can. `pnpm ui lint` and `pnpm ui format` are what they run.
 - One tool: [[ESLint]]
-	- [[Prettier]] runs inside it, so a formatting difference is a lint finding and `--fix` mends it. There is no separate formatter to keep in step.
+	- [[Prettier]] runs inside it, so a formatting difference is a lint error and `--fix` mends it. There is no separate formatter to keep in step.
 	- The rules are `eslint-config-andrewaylett`, the same set as aylett.co.uk: `typescript-eslint` with type information, `unicorn`, `import`, `react` and its hooks, and the Next.js plugin. `apps/ui/eslint.config.mjs` adds Quiddity's own choices.
 	- Prettier's settings are in `apps/ui/.prettierrc`: semicolons, single quotes and trailing commas everywhere.
 - Where it runs
 	- CI: the `typecheck` job runs it after `tsc`, because the type-aware rules need the types of the generated `lib/wasm`.
-	- pre-commit: a hook runs `pnpm ui lint` when a UI file changes. The pre-commit job in CI skips it, since the `typecheck` job has what it needs.
+	- pre-commit: a hook runs `pnpm ui format` when a UI file changes.
 	- `mise run check` includes it.
-- What is enforced
-	- **Formatting and imports are errors**: [[Prettier]]'s, the order of imports and where they come from, and `import { type X }` rather than a separate `import type`. They are the `enforced` set in `eslint.config.mjs`, and `pnpm ui lint --fix` mends them.
-	- **Everything else is still a warning.** The UI wasn't written to the rest, so the config turns each of their errors into a warning (`downgrade`) and the lint passes. A rule is added to `enforced` once the code is fixed, and the helper goes when none are left.
+- Rules that are off, and why
+	- Each has its reason beside it in `eslint.config.mjs`. They are deliberate, not oversights: a rule is turned off when the code does it on purpose.
+	- `react-hooks/refs` and `set-state-in-effect`: handlers read the latest state from a ref written during render, because they outlive a render.
+	- `no-non-null-assertion`: `noUncheckedIndexedAccess` is on, so `!` is how a lookup that must succeed is written.
+	- `require-await`, `no-empty-function` and `no-unnecessary-condition`: backends share one interface, and some have nothing to do or nothing to await.
+	- `unicorn/prefer-global-this`: the page's own globals are declared on `Window`.
+	- The Playwright specs also allow untyped values from `evaluate`.
 - Not built
-	- Only `apps/ui` is covered. `scripts/*.mjs` is not yet linted.
+	- Only `apps/ui` is covered. `scripts/*.mjs` and the Playwright config are not yet linted with type information, and nothing lints the Tauri shell's JavaScript, since it has none.
+	- Some of the rules turned off above could come back one at a time, with the code they flag fixed.

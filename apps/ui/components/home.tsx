@@ -39,8 +39,9 @@ if (typeof document !== 'undefined') {
   document.addEventListener(
     'click',
     (event) => {
-      if (event.target instanceof Element && event.target.closest('a[href]'))
+      if (event.target instanceof Element && event.target.closest('a[href]')) {
         followed = true;
+      }
     },
     true,
   );
@@ -65,7 +66,9 @@ export function Home() {
   useEffect(() => {
     const raced = first && followed;
     first = false;
-    if (!raced) router.replace(href);
+    if (!raced) {
+      router.replace(href);
+    }
   }, [router, href]);
   return <Skeleton className="m-8 h-8 w-1/3" />;
 }

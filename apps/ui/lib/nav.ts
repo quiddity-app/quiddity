@@ -50,14 +50,16 @@ export function parseView(
     ? decode(pathname.slice('/page/'.length).split('/')[0] ?? '')
     : null;
   let main: string | null = null;
-  if (pathname.startsWith('/entity')) main = params.get('id');
-  else if (mainName !== null) main = names?.id(mainName) ?? null;
+  if (pathname.startsWith('/entity')) {
+    main = params.get('id');
+  } else if (mainName !== null) {
+    main = names?.id(mainName) ?? null;
+  }
   // Names are written as they are, so unlike IDs they can't be split on a comma.
-  const open = [
-    ...params
-      .getAll('open')
-      .flatMap((value) => (names ? [value] : value.split(','))),
-  ]
+  const open = params
+    .getAll('open')
+    .flatMap((value) => (names ? [value] : value.split(',')))
+
     .filter(Boolean)
     .map((value) => (names ? (names.id(value) ?? value) : value));
   const path =
@@ -79,17 +81,27 @@ export function viewHref(
   names?: Names | null,
 ): string {
   const params = new URLSearchParams();
-  if (main && pageGraph) params.set('pagegraph', '1');
-  if (!main && path === '/disambiguate/' && link) params.set('link', link);
+  if (main && pageGraph) {
+    params.set('pagegraph', '1');
+  }
+  if (!main && path === '/disambiguate/' && link) {
+    params.set('link', link);
+  }
   const mainName = main && names?.name(main);
-  if (main && !mainName) params.set('id', main);
+  if (main && !mainName) {
+    params.set('id', main);
+  }
   if (names) {
-    for (const id of open) params.append('open', names.name(id) ?? id);
-  } else if (open.length) {
+    for (const id of open) {
+      params.append('open', names.name(id) ?? id);
+    }
+  } else if (open.length > 0) {
     params.set('open', open.join(','));
   }
-  const query = params.size ? `?${params}` : '';
-  if (mainName) return `/page/${encodeURIComponent(mainName)}/${query}`;
+  const query = params.size > 0 ? `?${params}` : '';
+  if (mainName) {
+    return `/page/${encodeURIComponent(mainName)}/${query}`;
+  }
   return `${main ? '/entity/' : path}${query}`;
 }
 

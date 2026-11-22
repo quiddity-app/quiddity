@@ -42,13 +42,17 @@ function Days() {
   // Reaching the end of what is shown adds the next few days.
   useEffect(() => {
     const el = more.current;
-    if (!el) return;
+    if (!el) {
+      return;
+    }
     const watcher = new IntersectionObserver(
       ([entry]) => entry?.isIntersecting && setShown((n) => n + PAGE),
       { rootMargin: '400px' },
     );
     watcher.observe(el);
-    return () => watcher.disconnect();
+    return () => {
+      watcher.disconnect();
+    };
   }, [shown, hasMore]);
 
   return (

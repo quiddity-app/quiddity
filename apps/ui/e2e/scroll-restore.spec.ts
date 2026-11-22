@@ -21,7 +21,11 @@ const settle = (page: Page) =>
   page.evaluate(
     () =>
       new Promise<void>((done) =>
-        requestAnimationFrame(() => requestAnimationFrame(() => done())),
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            done();
+          }),
+        ),
       ),
   );
 
@@ -33,7 +37,7 @@ const settle = (page: Page) =>
 const back = (page: Page) =>
   expect(async () => {
     await page.keyboard.press('Alt+ArrowLeft');
-    await expect(page).toHaveURL(/\/all\/?$/, { timeout: 1_000 });
+    await expect(page).toHaveURL(/\/all\/?$/, { timeout: 1000 });
   }).toPass({ timeout: 15_000 });
 
 /** Opens All entities in a pane too short to hold it, scrolled down a little, and follows a link in view. */
@@ -97,9 +101,9 @@ test('scrolling again after coming back is remembered, not undone', async ({
   await expect.poll(() => scrollTop(page)).toBe(0);
   // A different place from the one left before, so it is plainly a new visit.
   // Clicked from the page: Playwright would scroll the link into view first.
-  await page.evaluate(() =>
-    document.querySelectorAll<HTMLAnchorElement>('main a')[1]!.click(),
-  );
+  await page.evaluate(() => {
+    document.querySelectorAll<HTMLAnchorElement>('main a')[1]!.click();
+  });
   await drawn(page);
   await back(page);
   await page.waitForTimeout(1200);

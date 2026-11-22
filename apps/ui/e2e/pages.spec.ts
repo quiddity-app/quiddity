@@ -51,7 +51,9 @@ test('the journals feed starts at today, adds days as you scroll, and ends', asy
   await expect(days).toHaveCount(5);
   const main = page.locator('main');
   await expect(async () => {
-    await main.evaluate((m) => m.scrollTo(0, m.scrollHeight));
+    await main.evaluate((m) => {
+      m.scrollTo(0, m.scrollHeight);
+    });
     await expect(page.getByText("That's the lot.")).toBeVisible({
       timeout: 250,
     });

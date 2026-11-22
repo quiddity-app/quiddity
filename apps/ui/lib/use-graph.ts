@@ -42,6 +42,6 @@ export function useDeferredRead<T>(
   );
   const deferred = useDeferredValue(revision);
   // `read` is the caller's, and made afresh each render: `deps` stand for it.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/use-memo
   return useMemo(() => read(graph), [graph, deferred, ...deps]);
 }

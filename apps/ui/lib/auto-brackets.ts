@@ -8,9 +8,13 @@ const closable = /^(\s|[\])}]|$)/;
 const open = (line: string, at: number) => {
   let depth = 0;
   for (let i = 0; i < at; i++) {
-    if (line[i] === '\\') i++;
-    else if (line[i] === '[') depth++;
-    else if (line[i] === ']' && depth > 0) depth--;
+    if (line[i] === '\\') {
+      i++;
+    } else if (line[i] === '[') {
+      depth++;
+    } else if (line[i] === ']' && depth > 0) {
+      depth--;
+    }
   }
   return depth;
 };
@@ -23,7 +27,9 @@ const open = (line: string, at: number) => {
 export function autoBrackets(): Extension {
   return [
     EditorView.inputHandler.of((view, from, to, text) => {
-      if (view.composing) return false;
+      if (view.composing) {
+        return false;
+      }
       const doc = view.state.doc;
       if (text === '[') {
         if (from !== to) {
@@ -37,7 +43,9 @@ export function autoBrackets(): Extension {
           });
           return true;
         }
-        if (!closable.test(doc.sliceString(from, from + 1))) return false;
+        if (!closable.test(doc.sliceString(from, from + 1))) {
+          return false;
+        }
         view.dispatch({
           changes: { from, insert: '[]' },
           selection: EditorSelection.cursor(from + 1),
@@ -63,12 +71,16 @@ export function autoBrackets(): Extension {
         key: 'Backspace',
         run: (view) => {
           const { main } = view.state.selection;
-          if (!main.empty) return false;
+          if (!main.empty) {
+            return false;
+          }
           const around = view.state.doc.sliceString(
             main.head - 1,
             main.head + 1,
           );
-          if (around !== '[]') return false;
+          if (around !== '[]') {
+            return false;
+          }
           view.dispatch({
             changes: { from: main.head - 1, to: main.head + 1 },
             userEvent: 'delete.backward',

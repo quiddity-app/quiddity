@@ -33,7 +33,9 @@ export function Shell({
         className={`${pane} fixed inset-y-0 left-0 z-(--z-drawer) flex w-64 shrink-0 flex-col border-r border-border motion-safe:transition-transform md:static md:translate-x-0 ${
           drawer ? 'translate-x-0' : '-translate-x-full'
         }`}
-        onClick={() => setDrawer(false)}
+        onClick={() => {
+          setDrawer(false);
+        }}
       >
         <div className="px-4 py-3 text-lg font-semibold">Quiddity</div>
         {left}
@@ -43,7 +45,9 @@ export function Shell({
           type="button"
           aria-label="Close navigation"
           className="fixed inset-0 z-(--z-scrim) bg-scrim md:hidden"
-          onClick={() => setDrawer(false)}
+          onClick={() => {
+            setDrawer(false);
+          }}
         />
       )}
       <div className="flex min-w-0 flex-1 flex-col">
@@ -52,7 +56,9 @@ export function Shell({
             type="button"
             aria-label="Open navigation"
             className={`${iconButtonClass} md:hidden`}
-            onClick={() => setDrawer(true)}
+            onClick={() => {
+              setDrawer(true);
+            }}
           >
             ☰
           </button>

@@ -50,7 +50,7 @@ repos:
     types: [rust]
   - id: eslint
     name: eslint
-    entry: pnpm ui lint
+    entry: pnpm ui format
     language: system
     files: ^apps/ui/.*\.(m?[jt]sx?)$
     pass_filenames: false

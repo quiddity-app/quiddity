@@ -11,7 +11,9 @@ import { useRead } from '@/lib/use-graph';
 /** What doesn't fit a schema and has no chip of its own to show on. */
 export function EntityFlags({ id }: Readonly<{ id: EntityId }>) {
   const { flags } = useRead((g) => g.entity(id));
-  if (flags.length === 0) return null;
+  if (flags.length === 0) {
+    return null;
+  }
   return (
     <ul aria-label="Flags" className="mb-4 space-y-1 text-sm text-flag-text">
       {flags.map((flag, i) => (
@@ -23,7 +25,9 @@ export function EntityFlags({ id }: Readonly<{ id: EntityId }>) {
 
 /** Values the entity has from others, each saying where it is written. */
 function InheritedValues({ entity }: Readonly<{ entity: Entity }>) {
-  if (entity.inherited.length === 0) return null;
+  if (entity.inherited.length === 0) {
+    return null;
+  }
   return (
     <section aria-label="Inherited" className="mt-6">
       <h2 className={`${sectionHeading} mb-2`}>Inherited</h2>

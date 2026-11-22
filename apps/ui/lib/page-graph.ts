@@ -14,7 +14,9 @@ import type { Connections, EntityId } from './model';
 export function pageGraph(all: Connections, current: EntityId): Connections {
   const nodes = all.nodes.filter((n) => n.id === current || !n.journal);
   const known = new Set(nodes.map((n) => n.id));
-  if (!known.has(current)) return { nodes: [], edges: [] };
+  if (!known.has(current)) {
+    return { nodes: [], edges: [] };
+  }
 
   const edges = all.edges.filter(
     (e) =>
@@ -38,15 +40,23 @@ export function pageGraph(all: Connections, current: EntityId): Connections {
   const second = new Set<EntityId>();
   for (const n of first) {
     for (const m of adjacent.get(n) ?? []) {
-      if (m !== current && !first.has(m)) second.add(m);
+      if (m !== current && !first.has(m)) {
+        second.add(m);
+      }
     }
   }
 
   const kept = new Set<EntityId>([current, ...first]);
   for (const m of second) {
     let ties = 0;
-    for (const x of adjacent.get(m) ?? []) if (first.has(x)) ties++;
-    if (ties >= 2) kept.add(m);
+    for (const x of adjacent.get(m) ?? []) {
+      if (first.has(x)) {
+        ties++;
+      }
+    }
+    if (ties >= 2) {
+      kept.add(m);
+    }
   }
 
   return {

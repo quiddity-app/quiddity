@@ -58,8 +58,12 @@ function BlockRow({
             onClick={(e) => {
               // Links and chips do their own thing, and so does selecting text.
               const target = e.target as HTMLElement;
-              if (!editing || target.closest('a, button, input')) return;
-              if (window.getSelection()?.toString()) return;
+              if (!editing || target.closest('a, button, input')) {
+                return;
+              }
+              if (window.getSelection()?.toString()) {
+                return;
+              }
               editing.edit(block.id, 'end');
             }}
             onKeyDown={(e) => {

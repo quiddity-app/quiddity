@@ -26,14 +26,17 @@ export function largestGroup(
   const parent = new Map(ids.map((id) => [id, id]));
   const find = (id: string): string => {
     const up = parent.get(id) ?? id;
-    if (up === id) return id;
+    if (up === id) {
+      return id;
+    }
     const root = find(up);
     parent.set(id, root);
     return root;
   };
   for (const { source, target } of edges) {
-    if (parent.has(source) && parent.has(target))
+    if (parent.has(source) && parent.has(target)) {
       parent.set(find(source), find(target));
+    }
   }
   const groups = new Map<string, string[]>();
   for (const id of ids) {
@@ -41,8 +44,11 @@ export function largestGroup(
     (groups.get(root) ?? groups.set(root, []).get(root)!).push(id);
   }
   let best: string[] = [];
-  for (const group of groups.values())
-    if (group.length > best.length) best = group;
+  for (const group of groups.values()) {
+    if (group.length > best.length) {
+      best = group;
+    }
+  }
   return new Set(best.length <= 1 ? ids : best);
 }
 
@@ -61,7 +67,9 @@ export function fitTransform(
     maxScale,
   }: { pad: number; minScale: number; maxScale: number },
 ): Fit | null {
-  if (discs.length === 0 || width <= 0 || height <= 0) return null;
+  if (discs.length === 0 || width <= 0 || height <= 0) {
+    return null;
+  }
   let minX = Infinity;
   let maxX = -Infinity;
   let minY = Infinity;

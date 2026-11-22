@@ -56,47 +56,69 @@ export function MoreMenu() {
       }),
     [router],
   );
-  useEffect(() => setEntityOpen(main !== null), [main]);
+  useEffect(() => {
+    setEntityOpen(main !== null);
+  }, [main]);
 
   // The entity is deleted only after the page has moved off it: until then
   // the main pane would try to draw an entity that is gone.
   useEffect(() => {
-    if (leaving === null || main === leaving) return;
+    if (leaving === null || main === leaving) {
+      return;
+    }
     graph.deleteEntities([leaving]);
     setLeaving(null);
   }, [graph, leaving, main]);
 
   useEffect(() => {
-    if (!open) return;
-    const items = () =>
-      Array.from(
-        menu.current?.querySelectorAll<HTMLElement>(
-          '[role="menuitem"]:not(:disabled)',
-        ) ?? [],
-      );
+    if (!open) {
+      return;
+    }
+    const items = () => [
+      ...(menu.current?.querySelectorAll<HTMLElement>(
+        '[role="menuitem"]:not(:disabled)',
+      ) ?? []),
+    ];
     items()[0]?.focus();
     const onPointerDown = (e: PointerEvent) => {
-      if (!(e.target instanceof Node)) return;
+      if (!(e.target instanceof Node)) {
+        return;
+      }
       if (
         !menu.current?.contains(e.target) &&
         !button.current?.contains(e.target)
-      )
+      ) {
         setOpen(false);
+      }
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        setOpen(false);
-        button.current?.focus();
-      } else if (e.key === 'Tab') {
-        setOpen(false);
-      } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        e.preventDefault();
-        const all = items();
-        if (all.length === 0) return;
-        const at = all.indexOf(document.activeElement as HTMLElement);
-        const step = e.key === 'ArrowDown' ? 1 : -1;
-        all[(at + step + all.length) % all.length]?.focus();
+      switch (e.key) {
+        case 'Escape': {
+          e.preventDefault();
+          setOpen(false);
+          button.current?.focus();
+
+          break;
+        }
+        case 'Tab': {
+          setOpen(false);
+
+          break;
+        }
+        case 'ArrowDown':
+        case 'ArrowUp': {
+          e.preventDefault();
+          const all = items();
+          if (all.length === 0) {
+            return;
+          }
+          const at = all.indexOf(document.activeElement as HTMLElement);
+          const step = e.key === 'ArrowDown' ? 1 : -1;
+          all[(at + step + all.length) % all.length]?.focus();
+
+          break;
+        }
+        // No default
       }
     };
     document.addEventListener('pointerdown', onPointerDown);
@@ -131,7 +153,9 @@ export function MoreMenu() {
         aria-expanded={open}
         aria-controls={open ? `${id}-menu` : undefined}
         className={iconButtonClass}
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => {
+          setOpen((o) => !o);
+        }}
       >
         <svg
           aria-hidden="true"
@@ -158,7 +182,9 @@ export function MoreMenu() {
               href={href}
               role="menuitem"
               className={itemClass}
-              onClick={() => setOpen(false)}
+              onClick={() => {
+                setOpen(false);
+              }}
             >
               {title}
             </Link>
@@ -182,7 +208,9 @@ export function MoreMenu() {
             className={`${itemClass} text-danger`}
             onClick={() => {
               setOpen(false);
-              if (main) setAsking(main);
+              if (main) {
+                setAsking(main);
+              }
             }}
           >
             Delete Entity
@@ -192,8 +220,12 @@ export function MoreMenu() {
       {asking !== null && (
         <ConfirmDelete
           entity={asking}
-          onConfirm={() => confirm(asking)}
-          onCancel={() => setAsking(null)}
+          onConfirm={() => {
+            confirm(asking);
+          }}
+          onCancel={() => {
+            setAsking(null);
+          }}
         />
       )}
     </div>

@@ -17,7 +17,9 @@ import { recordVisit } from '@/lib/recents';
 
 function Visit({ id }: Readonly<{ id: EntityId }>) {
   const { id: canonical, title } = useRead((g) => g.entity(id));
-  useEffect(() => recordVisit({ id: canonical, title }), [canonical, title]);
+  useEffect(() => {
+    recordVisit({ id: canonical, title });
+  }, [canonical, title]);
   return null;
 }
 

@@ -93,8 +93,9 @@ test("in an editor the keys stay with the editor and don't leave the page", asyn
       'keydown',
       (e) => {
         // A chord also sends a keydown for its modifier.
-        if (!['Alt', 'Control', 'Meta', 'Shift'].includes(e.key))
+        if (!['Alt', 'Control', 'Meta', 'Shift'].includes(e.key)) {
           w.taken.push(e.defaultPrevented);
+        }
       },
       true,
     );

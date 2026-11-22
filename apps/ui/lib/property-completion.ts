@@ -11,8 +11,8 @@ import {
 } from '@codemirror/autocomplete';
 import { keymap } from '@codemirror/view';
 
-import type { Extension } from '@codemirror/state';
 import type { KeyHit, ValueHit } from './model';
+import type { Extension } from '@codemirror/state';
 
 /** How many entries the list offers. */
 const MAX_HITS = 8;
@@ -64,7 +64,9 @@ export function propertyCompletion(source: PropertySource): Extension {
 }
 
 function useCount(uses: number): string {
-  if (uses === 0) return 'defined';
+  if (uses === 0) {
+    return 'defined';
+  }
   return `${uses} ${uses === 1 ? 'use' : 'uses'}`;
 }
 
@@ -86,7 +88,9 @@ function complete(
   context: CompletionContext,
   source: PropertySource,
 ): CompletionResult | null {
-  if (!source.active()) return null;
+  if (!source.active()) {
+    return null;
+  }
   const line = context.state.doc.lineAt(context.pos);
   const before = line.text.slice(0, context.pos - line.from);
 
@@ -100,7 +104,9 @@ function complete(
       string,
     ];
     const hits = source.values(key.trim(), typed, MAX_HITS);
-    if (hits.length === 0) return null;
+    if (hits.length === 0) {
+      return null;
+    }
     return {
       from: line.from + lead.length + key.length + 2 + gap.length,
       options: hits.map((hit): Completion => ({
@@ -112,11 +118,17 @@ function complete(
   }
 
   const start = startOfKey.exec(before);
-  if (!start) return null;
+  if (!start) {
+    return null;
+  }
   const [, lead, typed] = start as unknown as [string, string, string];
-  if (typed.trim() === '' && !context.explicit) return null;
+  if (typed.trim() === '' && !context.explicit) {
+    return null;
+  }
   const hits = source.keys(typed, MAX_HITS);
-  if (hits.length === 0) return null;
+  if (hits.length === 0) {
+    return null;
+  }
   return {
     from: line.from + lead.length,
     options: hits.map((hit): Completion => ({

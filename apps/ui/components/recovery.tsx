@@ -45,18 +45,23 @@ export function Recovery() {
 
   useEffect(() => {
     // The safest choice is first, so it is the one a stray Enter takes.
-    if (problem)
+    if (problem) {
       dialog.current?.querySelector<HTMLButtonElement>('button')?.focus();
+    }
   }, [problem]);
 
-  if (!problem || !backend) return null;
+  if (!problem || !backend) {
+    return null;
+  }
   const go = (how: How) => {
     setWorking(how);
     setFailure(null);
     // What the page already tried to load is gone with it: start the page over.
     backend
       .recover?.(how)
-      .then(() => window.location.reload())
+      .then(() => {
+        window.location.reload();
+      })
       .catch((error) => {
         setFailure(String(error instanceof Error ? error.message : error));
         setWorking(null);
@@ -93,7 +98,12 @@ export function Recovery() {
             If you have put the file right yourself, or moved a backup into
             place.
           </p>
-          <Button onClick={() => go('retry')} disabled={working !== null}>
+          <Button
+            onClick={() => {
+              go('retry');
+            }}
+            disabled={working !== null}
+          >
             {working === 'retry' ? 'Looking…' : 'Try again'}
           </Button>
         </section>
@@ -106,7 +116,12 @@ export function Recovery() {
             from another one that has the graph (the Devices page shows this
             device’s ID), and the graph syncs back.
           </p>
-          <Button onClick={() => go('blank')} disabled={working !== null}>
+          <Button
+            onClick={() => {
+              go('blank');
+            }}
+            disabled={working !== null}
+          >
             {working === 'blank' ? 'Starting…' : 'Start empty and sync'}
           </Button>
         </section>
@@ -121,7 +136,9 @@ export function Recovery() {
           </p>
           <Button
             variant="danger"
-            onClick={() => go('fresh')}
+            onClick={() => {
+              go('fresh');
+            }}
             disabled={working !== null}
           >
             {working === 'fresh' ? 'Starting…' : 'Start a new graph'}

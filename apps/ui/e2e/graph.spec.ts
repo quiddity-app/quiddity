@@ -49,7 +49,7 @@ async function steady(page: Page) {
 }
 
 const view = async (page: Page) => {
-  const [x = NaN, y = NaN, k = NaN] = (
+  const [x = Number.NaN, y = Number.NaN, k = Number.NaN] = (
     (await canvas(page).getAttribute('data-view')) ?? ''
   )
     .split(',')
@@ -68,8 +68,8 @@ const placements = (
         nodes.map((n) => [
           n.getAttribute('aria-label') ?? '',
           {
-            x: Number(n.getAttribute('data-x')),
-            y: Number(n.getAttribute('data-y')),
+            x: Number(n.dataset.x),
+            y: Number(n.dataset.y),
           },
         ]),
       ),
@@ -79,8 +79,8 @@ const placements = (
 async function onScreen(page: Page, name: string) {
   const { x, y, k } = await view(page);
   const at = await node(page, name).evaluate((n) => ({
-    x: Number(n.getAttribute('data-x')),
-    y: Number(n.getAttribute('data-y')),
+    x: Number(n.dataset.x),
+    y: Number(n.dataset.y),
   }));
   return { x: x + at.x * k, y: y + at.y * k };
 }
@@ -235,7 +235,7 @@ test("dragging a node moves it, and doesn't open it", async ({ page }) => {
   await page.mouse.move(box.x + was.x + 80, box.y + was.y + 60, { steps: 8 });
   // The node stays where it was grabbed, relative to the pointer: it doesn't
   // jump on the first move. (`data-grabbed` is where the drag has it.)
-  const [gx = NaN, gy = NaN] = (
+  const [gx = Number.NaN, gy = Number.NaN] = (
     (await canvas(page).getAttribute('data-grabbed')) ?? ''
   )
     .split(',')
@@ -304,15 +304,21 @@ test('labels are dropped as the graph is zoomed out, and come back when it is zo
 
   // Framed, the whole graph is smaller than life and nothing is yet big enough
   // to name, so zoom in until some labels show before testing that they go.
-  for (let i = 0; i < 40; i++) await page.mouse.wheel(0, -400);
+  for (let i = 0; i < 40; i++) {
+    await page.mouse.wheel(0, -400);
+  }
   await expect.poll(labels).toBeGreaterThan(0);
   const zoomedIn = await labels();
 
-  for (let i = 0; i < 60; i++) await page.mouse.wheel(0, 400);
+  for (let i = 0; i < 60; i++) {
+    await page.mouse.wheel(0, 400);
+  }
   await expect.poll(labels).toBeLessThan(zoomedIn);
   const zoomedOut = await labels();
 
-  for (let i = 0; i < 60; i++) await page.mouse.wheel(0, -400);
+  for (let i = 0; i < 60; i++) {
+    await page.mouse.wheel(0, -400);
+  }
   await expect.poll(labels).toBeGreaterThan(zoomedOut);
 });
 

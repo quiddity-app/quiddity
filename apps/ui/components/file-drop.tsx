@@ -48,17 +48,23 @@ export function useFileDrop(id: EntityId) {
   const handlers = {
     onDragOver(e: DragEvent) {
       // Without this the browser would open the file in place of the page.
-      if (hasFiles(e.dataTransfer)) e.preventDefault();
+      if (hasFiles(e.dataTransfer)) {
+        e.preventDefault();
+      }
     },
     onDropCapture(e: DragEvent) {
-      if (!hasFiles(e.dataTransfer)) return;
+      if (!hasFiles(e.dataTransfer)) {
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
       void add([...e.dataTransfer.files]);
     },
     onPasteCapture(e: ClipboardEvent) {
       const files = [...e.clipboardData.files];
-      if (files.length === 0) return;
+      if (files.length === 0) {
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
       void add(files);

@@ -15,8 +15,14 @@ export function moveDirection(e: KeyboardEvent): -1 | 1 | null {
   const modifiers = isMac()
     ? e.metaKey && !e.altKey && !e.ctrlKey
     : e.altKey && !e.metaKey && !e.ctrlKey;
-  if (!modifiers || !e.shiftKey) return null;
-  if (e.key === 'ArrowUp') return -1;
-  if (e.key === 'ArrowDown') return 1;
+  if (!modifiers || !e.shiftKey) {
+    return null;
+  }
+  if (e.key === 'ArrowUp') {
+    return -1;
+  }
+  if (e.key === 'ArrowDown') {
+    return 1;
+  }
   return null;
 }

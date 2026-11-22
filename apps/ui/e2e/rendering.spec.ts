@@ -10,7 +10,9 @@ async function write(page: Page, markdown: string) {
   // Enter would split the block, so lines are joined with Shift-Enter.
   const lines = markdown.split('\n');
   for (const [i, line] of lines.entries()) {
-    if (i > 0) await page.keyboard.press('Shift+Enter');
+    if (i > 0) {
+      await page.keyboard.press('Shift+Enter');
+    }
     await page.keyboard.type(line);
   }
   await page.keyboard.press('Escape');

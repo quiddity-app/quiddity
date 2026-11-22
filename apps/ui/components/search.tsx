@@ -35,7 +35,9 @@ export function Search() {
     };
     // Captured, so an editor that is focused can't take the key first.
     window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
+    return () => {
+      window.removeEventListener('keydown', onKey, true);
+    };
   }, []);
   return (
     <>
@@ -43,12 +45,20 @@ export function Search() {
         compact
         aria-haspopup="dialog"
         className="flex items-center gap-2 text-ink-secondary"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setOpen(true);
+        }}
       >
         Search
         <Kbd>{isMac() ? '⌘K' : 'Ctrl K'}</Kbd>
       </Button>
-      {open && <Panel onClose={() => setOpen(false)} />}
+      {open && (
+        <Panel
+          onClose={() => {
+            setOpen(false);
+          }}
+        />
+      )}
     </>
   );
 }
@@ -58,7 +68,9 @@ function Highlighted({ hit }: Readonly<{ hit: Hit }>) {
   const parts: ReactNode[] = [];
   let at = 0;
   for (const [start, end] of hit.ranges ?? []) {
-    if (start > at) parts.push(hit.label.slice(at, start));
+    if (start > at) {
+      parts.push(hit.label.slice(at, start));
+    }
     parts.push(
       <mark key={start} className="bg-transparent font-semibold text-link">
         {hit.label.slice(start, end)}
@@ -90,14 +102,17 @@ function Panel({ onClose }: Readonly<{ onClose: () => void }>) {
     const before = document.activeElement;
     input.current?.focus();
     return () => {
-      if (before instanceof HTMLElement) before.focus();
+      if (before instanceof HTMLElement) {
+        before.focus();
+      }
     };
   }, []);
 
   const choose = (hit: Hit, side: boolean) => {
     onClose();
-    if (hit.target.kind === 'run') hit.target.run();
-    else {
+    if (hit.target.kind === 'run') {
+      hit.target.run();
+    } else {
       // Not a link, so `Home` wouldn't know it was chosen before its redirect.
       noteFollowed();
       router.push(
@@ -113,10 +128,11 @@ function Panel({ onClose }: Readonly<{ onClose: () => void }>) {
     } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
       const n = flat.length;
-      if (n)
+      if (n) {
         setActive(
           (Math.max(current, 0) + (e.key === 'ArrowDown' ? 1 : n - 1)) % n,
         );
+      }
     } else if (e.key === 'Enter' && flat[current]) {
       e.preventDefault();
       choose(flat[current].hit, e.shiftKey);
@@ -187,11 +203,15 @@ function Panel({ onClose }: Readonly<{ onClose: () => void }>) {
                       role="option"
                       aria-selected={selected}
                       // Keeps the focus in the field.
-                      onMouseDown={(e) => e.preventDefault()}
-                      onMouseMove={() =>
-                        setActive(flat.findIndex((f) => f.hit === hit))
-                      }
-                      onClick={(e) => choose(hit, e.shiftKey)}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                      }}
+                      onMouseMove={() => {
+                        setActive(flat.findIndex((f) => f.hit === hit));
+                      }}
+                      onClick={(e) => {
+                        choose(hit, e.shiftKey);
+                      }}
                       className={`cursor-pointer truncate rounded px-2 py-1 text-sm coarse:py-3 ${
                         selected ? 'bg-surface-hover' : ''
                       }`}

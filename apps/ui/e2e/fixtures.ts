@@ -18,10 +18,13 @@ export const test = base.extend<{ page: Page; allowedErrors: RegExp[] }>({
   page: async ({ page, allowedErrors }, use) => {
     const errors: string[] = [];
     const record = (text: string) => {
-      if (!allowedErrors.some((allowed) => allowed.test(text)))
+      if (!allowedErrors.some((allowed) => allowed.test(text))) {
         errors.push(text);
+      }
     };
-    page.on('pageerror', (e) => record(String(e)));
+    page.on('pageerror', (e) => {
+      record(String(e));
+    });
     page.on('console', (m) => m.type() === 'error' && record(m.text()));
     await use(page);
     expect(errors, 'errors logged by the page').toEqual([]);
@@ -66,12 +69,12 @@ declare global {
 export async function openSearch(page: Page): Promise<void> {
   const panel = page.getByRole('dialog', { name: 'Search' });
   await expect(async () => {
-    if (!(await panel.isVisible())) await page.keyboard.press('Control+k');
-    await expect(panel).toBeVisible({ timeout: 1_000 });
+    if (!(await panel.isVisible())) {
+      await page.keyboard.press('Control+k');
+    }
+    await expect(panel).toBeVisible({ timeout: 1000 });
   }).toPass({ timeout: 15_000 });
 }
-
-export { expect };
 
 /** The text of every block of the entity in the main pane, in reading order. */
 export function mainBlocks(page: Page): Promise<string[]> {
@@ -118,3 +121,5 @@ export function editBlock(page: Page, text: string) {
 export async function clickAway(page: Page) {
   await page.locator('body').click({ position: { x: 5, y: 5 } });
 }
+
+export { expect } from '@playwright/test';

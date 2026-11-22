@@ -37,7 +37,7 @@ function Canvas({ id }: { id: EntityId }) {
         router.push(aside ? view.toSide(to) : view.toMain(to));
       },
       (to) =>
-        process.env.NEXT_PUBLIC_QUIDDITY_BASE_PATH +
+        (process.env.NEXT_PUBLIC_QUIDDITY_BASE_PATH ?? '') +
         latest.current.view.toMain(to),
       // This is a part of the graph, so it keeps to itself: the whole graph's
       // positions are not its own, and its are not the whole graph's.

@@ -1,8 +1,8 @@
 import { Replica } from './wasm/quiddity_wasm';
 
-import type { Backend } from './graph';
 import type { SyncState } from './model';
 import type { Recovery } from './recovery';
+import type { Backend } from './graph';
 
 interface Seed {
   text: string;
@@ -82,7 +82,8 @@ function fill(replica: Replica, parent: string, seeds: Seed[]) {
 /** A new entity starts with an empty block, which the first seed takes over. */
 function entity(replica: Replica, name: string, [first, ...rest]: Seed[]) {
   const id = replica.createEntity(name);
-  const empty = replica.entity(id).blocks[0].id;
+  const { blocks } = replica.entity(id) as { blocks: { id: string }[] };
+  const empty = blocks[0]!.id;
   replica.spliceText(empty, 0, 0, first?.text ?? '');
   fill(replica, empty, first?.children ?? []);
   fill(replica, id, rest);
@@ -91,8 +92,9 @@ function entity(replica: Replica, name: string, [first, ...rest]: Seed[]) {
 /** A made-up graph, for working on the UI in a plain browser. */
 function seeded(): Replica {
   const replica = Replica.empty();
-  for (const [name, blocks] of [...pages, ...days(30)])
+  for (const [name, blocks] of [...pages, ...days(30)]) {
     entity(replica, name, blocks);
+  }
   return replica;
 }
 
@@ -164,7 +166,9 @@ export const memoryBackend: Backend = {
   },
   async recover(how) {
     remote().recovered.push(how);
-    if (damaged === 'stubborn') throw new Error('permission denied');
+    if (damaged === 'stubborn') {
+      throw new Error('permission denied');
+    }
     // What reloading would otherwise find again.
     const url = new URL(window.location.href);
     url.searchParams.delete('damaged');
@@ -203,7 +207,9 @@ export const memoryBackend: Backend = {
   },
   async getBlob(hash) {
     const bytes = files.get(hash);
-    if (!bytes) throw new Error(`no file with hash ${hash} on this device yet`);
+    if (!bytes) {
+      throw new Error(`no file with hash ${hash} on this device yet`);
+    }
     return bytes;
   },
   async subscribe(onUpdates) {

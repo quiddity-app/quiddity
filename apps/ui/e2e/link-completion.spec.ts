@@ -105,8 +105,9 @@ test("Enter in a link that wasn't being completed follows it", async ({
     .click({ position: { x: 5, y: 5 } });
   await page.keyboard.press('Home');
   // Into "Lo|ro": the caret has arrived in the link, nothing was typed.
-  for (let i = 0; i < 'Built on [[Lo'.length; i++)
+  for (const _ of 'Built on [[Lo') {
     await page.keyboard.press('ArrowRight');
+  }
   await expect(page.getByRole('option')).toHaveCount(0);
   await page.keyboard.press('Enter');
   await expect(

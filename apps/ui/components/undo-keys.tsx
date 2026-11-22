@@ -14,20 +14,30 @@ export function UndoKeys() {
   const graph = useGraph();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) {
+        return;
+      }
       if (
         (e.target as HTMLElement).closest('input, textarea, [contenteditable]')
-      )
+      ) {
         return;
+      }
       const key = e.key.toLowerCase();
       const redo = (key === 'z' && e.shiftKey) || key === 'y';
-      if (key !== 'z' && key !== 'y') return;
+      if (key !== 'z' && key !== 'y') {
+        return;
+      }
       e.preventDefault();
-      if (redo) graph.redo();
-      else graph.undo();
+      if (redo) {
+        graph.redo();
+      } else {
+        graph.undo();
+      }
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+    };
   }, [graph]);
   return null;
 }

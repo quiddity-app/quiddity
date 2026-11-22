@@ -5,7 +5,7 @@ import { expect, test, editor, openEntity, openSearch } from './fixtures';
 
 /** A shadow's visible layers: Tailwind adds empty ones for its ring and inset shadows. */
 const visible = (shadow: string) =>
-  shadow.replace(/rgba\(0, 0, 0, 0\) 0px 0px 0px 0px(, )?/g, '');
+  shadow.replaceAll(/rgba\(0, 0, 0, 0\) 0px 0px 0px 0px(, )?/g, '');
 
 /** What makes a floating layer look like one. */
 const styleOf = (el: Element) => {
@@ -64,12 +64,12 @@ test("the graph is painted in the theme's colour for a node", async ({
   await page.waitForTimeout(400);
 
   // The theme says nodes are red, and the page is told the scheme changed.
-  await page.evaluate(() =>
+  await page.evaluate(() => {
     document.documentElement.style.setProperty(
       '--graph-node',
       'rgb(255, 0, 0)',
-    ),
-  );
+    );
+  });
   await page.emulateMedia({ colorScheme: 'dark' });
 
   // The view, the node and the pixels are read together, and again on every
@@ -90,13 +90,13 @@ test("the graph is painted in the theme's colour for a node", async ({
         const node = [...group.querySelectorAll('a')].find(
           (a) => a.getAttribute('aria-label') === 'Loro',
         )!;
-        const [x = 0, y = 0, k = 1] = (canvas.getAttribute('data-view') ?? '')
+        const [x = 0, y = 0, k = 1] = (canvas.dataset.view ?? '')
           .split(',')
           .map(Number);
         const ratio = canvas.width / canvas.clientWidth;
         const at = {
-          x: x + Number(node.getAttribute('data-x')) * k,
-          y: y + Number(node.getAttribute('data-y')) * k,
+          x: x + Number(node.dataset.x) * k,
+          y: y + Number(node.dataset.y) * k,
         };
         const window = canvas
           .getContext('2d')!
@@ -106,9 +106,11 @@ test("the graph is painted in the theme's colour for a node", async ({
             3,
             3,
           ).data;
-        const pixels = Array.from({ length: 9 }, (_, i) => [
-          ...window.slice(i * 4, i * 4 + 4),
-        ]);
+        const pixels = Array.from({ length: 9 }, (_, i) =>
+          // A plain array: a typed array is never `toEqual` to one.
+          // eslint-disable-next-line unicorn/no-useless-spread
+          [...window.slice(i * 4, i * 4 + 4)],
+        );
         return (
           pixels.find(
             ([r, g, b, a]) => r === 255 && g === 0 && b === 0 && a === 255,
@@ -121,7 +123,9 @@ test("the graph is painted in the theme's colour for a node", async ({
 
 /** "#f8fafc" as the browser writes a colour: "rgb(248, 250, 252)". */
 const rgb = (hex: string) => {
-  const [r, g, b] = [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
+  const [r, g, b] = [1, 3, 5].map((at) =>
+    Number.parseInt(hex.slice(at, at + 2), 16),
+  );
   return `rgb(${r}, ${g}, ${b})`;
 };
 

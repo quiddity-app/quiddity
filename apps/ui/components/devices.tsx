@@ -36,8 +36,12 @@ function ThisDevice() {
           onClick={() => {
             void navigator.clipboard
               .writeText(id)
-              .then(() => setCopied(true))
-              .catch(() => setCopied(false));
+              .then(() => {
+                setCopied(true);
+              })
+              .catch(() => {
+                setCopied(false);
+              });
           }}
         >
           {copied ? 'Copied' : 'Copy'}
@@ -109,7 +113,9 @@ function Add() {
         onSubmit={(event) => {
           event.preventDefault();
           const device = id.trim();
-          if (device === '') return;
+          if (device === '') {
+            return;
+          }
           setBusy(true);
           graph
             .allowDevice(device)
@@ -117,10 +123,12 @@ function Add() {
               setOutcome({ kind: 'added', id: device });
               setId('');
             })
-            .catch((error: Error) =>
-              setOutcome({ kind: 'failed', message: error.message }),
-            )
-            .finally(() => setBusy(false));
+            .catch((error: Error) => {
+              setOutcome({ kind: 'failed', message: error.message });
+            })
+            .finally(() => {
+              setBusy(false);
+            });
         }}
       >
         <label className="flex flex-1 flex-wrap items-center gap-3">
@@ -128,7 +136,9 @@ function Add() {
           <Input
             type="text"
             value={id}
-            onChange={(event) => setId(event.target.value)}
+            onChange={(event) => {
+              setId(event.target.value);
+            }}
             spellCheck={false}
             autoComplete="off"
             className="min-w-64 flex-1 font-mono text-sm"
