@@ -40,7 +40,7 @@ pub struct Held {
 
 /// Somebody's copy of the contacts.
 pub trait Store {
-    type Error: std::error::Error;
+    type Error: std::error::Error + 'static;
 
     /// The rows that were edited, made or deleted since they were last put.
     fn edited(&mut self) -> Result<Vec<Edited>, Self::Error>;

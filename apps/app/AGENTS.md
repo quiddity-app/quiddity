@@ -12,7 +12,7 @@ holds its own replica and answers its own queries (see `apps/ui` and
   resolves against the lowest `rust-version` in the workspace, which is why
   there is one, in the root `Cargo.toml`, and the app and `quiddity-node`
   inherit it.
-- **Twelve commands.** `load_graph` returns a snapshot and `push_updates`
+- **Fifteen commands.** `load_graph` returns a snapshot and `push_updates`
   takes Loro updates as the request body, imports them, saves and sends them
   to other devices, both as raw bytes rather than JSON arrays. Updates that
   arrive out of order are held by Loro until their causes do.
@@ -25,10 +25,21 @@ holds its own replica and answers its own queries (see `apps/ui` and
   `subscribe_updates` is below. `device_id` and `allow_device` are for letting
   another device in (see `docs/App sync.md`); the Devices page calls them.
   `set_entity_open` says whether the UI has an entity open, for the macOS
-  menu (below). `put_blob` takes a file as the request body and returns its hash, and
+  menu (below). `contacts_status`, `contacts_enable` and `contacts_disable` are
+  for the phone's contacts (below). `put_blob` takes a file as the request body and returns its hash, and
   `get_blob` returns the bytes for a hash: the shell only keeps bytes, and the
   UI says in the graph what a file is, with a block that starts with a `##blob`
   line, as an ordinary edit pushed with `push_updates`.
+- **On Android the graph's contacts are kept in the phone's** (`contacts.rs`,
+  and `plugins/contacts` for the phone's side). `run` is a loop that reconciles
+  (`quiddity_contacts::reconcile`) when the graph changes (after a quiet
+  moment), when contacts are turned on, and on a poll that only looks for an
+  edit; `step` is one go. The graph is in this process alone, so none of it runs
+  while the app doesn't. `Session::reconcile_contacts` saves and announces what
+  reconciling changed, even when the phone failed part-way, since an edit
+  already made to the graph is in it. It is all tested natively against a fake
+  phone; only the glue in `lib.rs` (`start_contacts`) is Android-only, and
+  type-checks on desktop with its `cfg` lifted.
 - **A graph that won't open doesn't stop the app.** `setup` records the
   problem in `Startup` (always managed) and manages no `Session`; the UI asks
   `startup_problem` first and shows the recovery screen instead of calling

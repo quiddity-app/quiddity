@@ -7,6 +7,7 @@
 //! the one on the network.
 
 mod appearance;
+mod contacts;
 mod menu;
 mod session;
 mod updates;
@@ -20,9 +21,15 @@ use serde::Serialize;
 use session::{Error, Recovery, Session};
 use tauri::ipc::{Channel, InvokeBody, InvokeResponseBody, Request, Response};
 use tauri::{Manager, State};
+use tauri_plugin_quiddity_contacts::{ContactsExt, Status};
 use tracing::{error, warn};
 
 type Shared<'a> = State<'a, Mutex<Session>>;
+
+/// Wakes the loop that keeps the phone's contacts in step, which the page
+/// does by turning them on.
+#[derive(Default)]
+struct ContactsWake(std::sync::Arc<tokio::sync::Notify>);
 
 /// Why the graph couldn't be opened, and where it is, while it can't be: the
 /// UI shows this instead of the graph, and offers a way on (`recover`).
@@ -63,7 +70,7 @@ async fn recover(
     };
     match Session::recover(&dir, keys, how) {
         Ok(session) => {
-            let session = begin(session).await;
+            let session = begin(&app, session).await;
             app.manage(Mutex::new(session));
             *startup.0.lock().expect("startup lock poisoned") = None;
             Ok(())
@@ -211,6 +218,48 @@ async fn get_blob(state: Shared<'_>, hash: String) -> Result<Response, Error> {
     Ok(Response::new(session.blob(&hash).await?))
 }
 
+/// Where contacts stand: whether this system has any, whether the app may
+/// use them and whether they are on.
+#[tauri::command]
+async fn contacts_status(app: tauri::AppHandle) -> Result<Status, Error> {
+    contacts_call(app, |c| c.status()).await
+}
+
+/// Turns contacts on: asks for the permission, if it hasn't been given, makes
+/// the account the contacts are kept under, and sets them being put there.
+#[tauri::command]
+async fn contacts_enable(
+    app: tauri::AppHandle,
+    wake: State<'_, ContactsWake>,
+) -> Result<Status, Error> {
+    let status = contacts_call(app, |c| c.enable()).await?;
+    wake.0.notify_one();
+    Ok(status)
+}
+
+/// Turns contacts off, which removes the account and its contacts from the
+/// phone. The graph is untouched.
+#[tauri::command]
+async fn contacts_disable(app: tauri::AppHandle) -> Result<Status, Error> {
+    contacts_call(app, |c| c.disable()).await
+}
+
+/// Calls the phone's contacts off the async threads: the answer can wait on
+/// the user.
+async fn contacts_call(
+    app: tauri::AppHandle,
+    call: impl FnOnce(
+        &tauri_plugin_quiddity_contacts::Contacts<tauri::Wry>,
+    ) -> Result<Status, tauri_plugin_quiddity_contacts::Error>
+    + Send
+    + 'static,
+) -> Result<Status, Error> {
+    tauri::async_runtime::spawn_blocking(move || call(app.contacts()))
+        .await
+        .map_err(|e| Error::Contacts(e.to_string()))?
+        .map_err(|e| Error::Contacts(e.to_string()))
+}
+
 /// Puts the session on the network, and keeps it saved as other devices
 /// change it. `QUIDDITY_NO_SYNC` leaves it off, and `QUIDDITY_LOCAL` (an
 /// address) keeps it to that address, with no relays or lookup: for trying
@@ -252,14 +301,42 @@ fn start_network(session: &Session) {
     });
 }
 
+/// Keeps the phone's contacts in step with the graph, as long as the app runs.
+/// Android only: there are no such contacts elsewhere.
+#[cfg(target_os = "android")]
+fn start_contacts(app: &tauri::AppHandle, session: &Session) {
+    let wake = app.state::<ContactsWake>().0.clone();
+    let (app, shared) = (app.clone(), session.clone());
+    tauri::async_runtime::spawn(contacts::run(
+        session.clone(),
+        wake,
+        contacts::POLL,
+        contacts::QUIET,
+        move |full| {
+            let contacts = app.contacts();
+            let enabled = contacts.status().is_ok_and(|status| status.enabled);
+            contacts::step(
+                &shared,
+                &mut tauri_plugin_quiddity_contacts::Phone(contacts),
+                enabled,
+                full,
+            )
+        },
+    ));
+}
+
+#[cfg(not(target_os = "android"))]
+fn start_contacts(_: &tauri::AppHandle, _: &Session) {}
+
 /// Gets an opened graph going: keeps its binaries, then puts it on the network.
-async fn begin(session: Session) -> Session {
+async fn begin(app: &tauri::AppHandle, session: Session) -> Session {
     // Before the network, which gives and fetches what this keeps. A
     // store that won't open leaves the app without binaries, no more.
     if let Err(e) = session.keep_blobs().await {
         warn!(error = %e, "not keeping binaries");
     }
     start_network(&session);
+    start_contacts(app, &session);
     session
 }
 
@@ -296,7 +373,9 @@ pub fn run() {
         .init();
     let builder = tauri::Builder::default()
         // Opens links from the text of a block in the system's browser.
-        .plugin(tauri_plugin_opener::init());
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_quiddity_contacts::init())
+        .manage(ContactsWake::default());
     // Updates replace the running binary, which a phone doesn't allow.
     #[cfg(desktop)]
     let builder = builder
@@ -313,7 +392,10 @@ pub fn run() {
             // window to do it in: exiting here would leave nothing on screen.
             let problem = match Session::open(&dir, keys) {
                 Ok(session) => {
-                    app.manage(Mutex::new(tauri::async_runtime::block_on(begin(session))));
+                    app.manage(Mutex::new(tauri::async_runtime::block_on(begin(
+                        app.handle(),
+                        session,
+                    ))));
                     None
                 }
                 Err(e) => {
@@ -345,6 +427,9 @@ pub fn run() {
             put_blob,
             get_blob,
             set_entity_open,
+            contacts_status,
+            contacts_enable,
+            contacts_disable,
             updates::check_for_update,
             updates::install_update
         ])
