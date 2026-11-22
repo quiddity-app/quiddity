@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<account-authenticator xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accountType="uk.co.aylett.quiddity.contacts"
+    android:icon="@android:drawable/sym_contact_card"
+    android:smallIcon="@android:drawable/sym_contact_card"
+    android:label="@string/quiddity_contacts_account" />

@@ -75,8 +75,9 @@ impl fmt::Display for ContactField {
 
 /// The field a property fills, and the label its values carry: `phone:mobile`
 /// is a phone number labelled mobile. A label is any text, and phones and
-/// the like have the usual few (`home`, `work`, `mobile`, `other`) while
-/// anything else is shown as written.
+/// the like have the usual few (`home`, `work`, `mobile`) while anything else
+/// is shown as written. `other` is no label: it is what a phone calls a number
+/// that has none, so the two can't be told apart and aren't.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ContactMapping {
     pub field: ContactField,
@@ -86,7 +87,7 @@ pub struct ContactMapping {
 
 impl ContactMapping {
     /// Reads `phone`, `email:work` or `address: home`. A field with no
-    /// label, or an empty one, has none.
+    /// label, an empty one or `other` has none.
     pub fn parse(s: &str) -> Option<Self> {
         let (field, label) = match s.split_once(':') {
             Some((field, label)) => (field, Some(label.trim())),
@@ -94,7 +95,9 @@ impl ContactMapping {
         };
         Some(Self {
             field: ContactField::parse(field)?,
-            label: label.filter(|l| !l.is_empty()).map(str::to_owned),
+            label: label
+                .filter(|l| !l.is_empty() && !l.eq_ignore_ascii_case("other"))
+                .map(str::to_owned),
         })
     }
 
@@ -146,6 +149,11 @@ mod tests {
             m(ContactField::Phone, Some("a:b")),
             "a label is everything after the first colon"
         );
+        assert_eq!(
+            ContactMapping::parse("phone:Other"),
+            m(ContactField::Phone, None),
+            "other is no label"
+        );
         assert_eq!(ContactMapping::parse("fax"), None);
         assert_eq!(ContactMapping::parse(""), None);
         assert_eq!(ContactMapping::parse(":work"), None);
@@ -164,7 +172,7 @@ mod tests {
         #[test]
         fn mappings_round_trip(
             field in proptest::sample::select(ContactField::ALL.to_vec()),
-            label in proptest::option::of("[a-z][a-z :]{0,8}[a-z]"),
+            label in proptest::option::of("[a-z][a-z :]{0,8}[a-z]".prop_filter("not other", |l| !l.eq_ignore_ascii_case("other"))),
         ) {
             let mapping = ContactMapping { field, label };
             prop_assert_eq!(ContactMapping::parse(&mapping.to_string()), Some(mapping));

@@ -1,0 +1,24 @@
+[package]
+name = "tauri-plugin-quiddity-contacts"
+description = "Quiddity's entities in Android's contacts: the phone's side of quiddity-contacts"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = false
+# Tells the app's build where the Android library is.
+links = "tauri-plugin-quiddity-contacts"
+
+[build-dependencies]
+tauri-plugin = { version = "2", features = ["build"] }
+
+[dependencies]
+quiddity-contacts = { path = "../../../../crates/contacts" }
+serde.workspace = true
+serde_json = "1"
+tauri = { version = "2", default-features = false }
+thiserror.workspace = true
+
+[lints]
+workspace = true

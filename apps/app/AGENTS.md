@@ -97,6 +97,9 @@ holds its own replica and answers its own queries (see `apps/ui` and
   shadow) and not from the plain master. `scripts/icons.sh` replaces the one
   Tauri made from the master with it, so don't copy the `.icns` from a bare
   `tauri icon` run.
+- **`plugins/contacts` is the phone's contacts** (a Tauri plugin with an Android
+  library: see its `AGENTS.md`). It is a workspace member like the app, and is
+  all `Unavailable` off Android.
 - **Don't run `cargo generate-lockfile`** here: it re-resolves everything.
   Let cargo add only what a new dependency needs.
 

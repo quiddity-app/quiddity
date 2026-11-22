@@ -1,0 +1,21 @@
+alias:: Android contact provider
+
+- Android has one contacts provider, and the system owns it, so an app can't be a contacts provider. What it can be is an account: an app that has contacts of its own makes an account and keeps its contacts in the system's under that account. Every contacts app then shows them, with the account named, and edits them like any other. This is how [[Contacts]] reach a phone. [[Tauri]]
+- What the user sees
+	- Contacts are turned on in the app, which asks for the permission to use them and makes an account called Quiddity. Its contacts are the graph's: an entity with a value for a property that `##contact` maps. [[Contacts]]
+	- Edit one in any contacts app and the graph changes to match, a moment later, if Quiddity is running. Make one in the Quiddity account and an entity is made. Delete one and its contact values go, and the page stays.
+	- Removing the account in the system's settings turns contacts off, and the contacts go with it. The graph is untouched.
+	- **Only while Quiddity runs.** The graph is in the app's own process, and nothing else can read it, so a change made in the contacts app waits until the app is next open. The system's own sync, which would wake the app, is wired up and does nothing.
+- How it works
+	- A tauri plugin (`apps/app/plugins/contacts`, `tauri-plugin-quiddity-contacts`) has a Rust side, which is the `Store` that [[quiddity-contacts]] keeps in step, and an Android library, which does the work in the system's contacts. [[Tauri]]
+	- A contact is a *raw contact* of the Quiddity account. Its source ID is the entity's ID, and `SYNC1` holds the contact as it was last handed over, as JSON. That is what turns a phone's edit into a three-way merge: the contacts app only says what the contact is now. [[Contacts]]
+	- A raw contact the user edited, made or deleted is *dirty*, which the system sets. The library lists them, and puts a contact back by replacing its rows of the kinds Quiddity has (name, phone, email, address, organisation, nickname, website, note and birthday) and clearing the flag. Other data on the contact, a photo say, is left alone.
+	- Everything is written as a sync adapter, which is how the system is told it wasn't the user: it isn't marked dirty, and a delete really deletes.
+	- An account type needs an authenticator and a sync adapter to be listed by the contacts app and have its contacts editable. Both are declared and neither does anything, which is why the library's manifest has them.
+	- Labels are text in the graph and kinds on the phone: `home`, `work` and `mobile` are kinds, `other` is no label, and any other is the phone's custom label. A label has to come back as it went, or the graph would see the phone as having edited it.
+	- A company and a job title are one row on the phone. The nth company is paired with the nth job title.
+- Not built
+	- Photos, groups and the rest of a contact's fields. A contact's structured name (given and family) is read as the name it makes.
+	- A sync that runs when the app doesn't.
+	- A switch in the app's UI.
+	- **The Android library has never been compiled or run.** There is no CI for Android: it was written against Tauri's own Kotlin sources and the Android reference, in a sandbox with no Android SDK. Expect to fix it on first build (`mise run android`).
