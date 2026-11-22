@@ -120,6 +120,11 @@ sends a mutant into a loop, check for the fast failure first.
   flag it to the user: the environment has moved on, so the MSRV can be raised
   to match it. Don't fetch the pinned toolchain unasked.
 
+- The UI's TypeScript is linted and formatted by ESLint, with Prettier running
+  inside it: `mise run lint:ui` checks and `mise run fmt:ui` fixes. It needs the
+  generated `lib/wasm` for its type-aware rules. Prefer fixing what it flags to
+  switching a rule off, and give any rule you do switch off a reason in
+  `apps/ui/eslint.config.mjs`. See [apps/ui](apps/ui/AGENTS.md).
 - The UI embeds the core compiled to WASM, so it needs the
   `wasm32-unknown-unknown` target and a `wasm-bindgen` CLI of exactly the
   version `crates/wasm` pins (`mise install` gets both). Browser tests need

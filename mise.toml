@@ -103,6 +103,11 @@ description = "Typecheck the UI"
 depends = ["setup", "doctor"]
 run = "pnpm ui typecheck"
 
+[tasks."lint:ui"]
+description = "Lint the UI's TypeScript (ESLint runs Prettier too, so it checks the formatting)"
+depends = ["setup", "doctor"]
+run = "pnpm ui lint"
+
 [tasks.test]
 description = "Run the Rust tests (the workspace, shell included)"
 run = ["cargo nextest run --workspace --exclude quiddity-app --locked", "cargo test -p quiddity-app --locked"]
@@ -122,4 +127,4 @@ run = "node --test scripts/*.test.mjs"
 
 [tasks.check]
 description = "Everything CI checks, apart from fuzzing and mutation testing"
-depends = ["fmt:check", "lint", "test", "test:scripts", "typecheck", "e2e"]
+depends = ["fmt:check", "lint", "lint:ui", "test", "test:scripts", "typecheck", "e2e"]

@@ -1,0 +1,13 @@
+- How the UI's TypeScript is kept tidy. The Rust has `cargo fmt` and clippy; this is the same for `apps/ui`. [[The UI]]
+	- `mise run lint:ui` runs it, and `pnpm ui lint` is what that runs. `pnpm ui lint --fix` mends what ESLint can.
+- One tool: [[ESLint]]
+	- [[Prettier]] runs inside it, so a formatting difference is a lint finding and `--fix` mends it. There is no separate formatter to keep in step.
+	- The rules are `eslint-config-andrewaylett`, the same set as aylett.co.uk: `typescript-eslint` with type information, `unicorn`, `import`, `react` and its hooks, and the Next.js plugin. `apps/ui/eslint.config.mjs` adds Quiddity's own choices.
+	- Prettier's settings are in `apps/ui/.prettierrc`: semicolons, single quotes and trailing commas everywhere.
+- Where it runs
+	- CI: the `typecheck` job runs it after `tsc`, because the type-aware rules need the types of the generated `lib/wasm`.
+	- pre-commit: a hook runs `pnpm ui lint` when a UI file changes. The pre-commit job in CI skips it, since the `typecheck` job has what it needs.
+	- `mise run check` includes it.
+- Not built
+	- **Every rule is a warning for now.** The UI wasn't written to them, so the config turns each error into a warning (`downgrade` in `eslint.config.mjs`) and the lint passes. Rules become errors as the code is brought into line, a group at a time, and the helper goes when none are left.
+	- Only `apps/ui` is covered. `scripts/*.mjs` is not yet linted.
