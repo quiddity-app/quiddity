@@ -17,6 +17,7 @@ use quiddity_identity::DeviceKey;
 use tracing::{info, warn};
 
 use crate::StoreError;
+use crate::link_new::link_new;
 
 const FILE: &str = "device.key";
 
@@ -88,7 +89,7 @@ impl Keyring {
     /// its owner as its only reader from the start, and linked into place, so
     /// that it is never seen half written and the first to link wins.
     fn create(&self) -> Result<(), StoreError> {
-        self.create_linking(|staged, key| fs::hard_link(staged, key))
+        self.create_linking(link_new)
     }
 
     /// [`Keyring::create`], with the step that puts the file in place given, so

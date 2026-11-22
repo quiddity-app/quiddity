@@ -35,6 +35,7 @@ use tracing::{debug, info, instrument, warn};
 
 use crate::StoreError;
 use crate::keyring::Keyring;
+use crate::link_new::link_new;
 use crate::places::{Claim, Places};
 use quiddity_core::NodeId;
 use quiddity_identity::{Salt, SealedNodeId};
@@ -740,7 +741,7 @@ impl Store {
 
     /// Puts a built file in the graph's place, unless one is there already.
     fn link(&self, staged: &Path) -> Result<(), StoreError> {
-        let linked = fs::hard_link(staged, self.file());
+        let linked = link_new(staged, &self.file());
         let _ = fs::remove_file(staged);
         match linked {
             Ok(()) => Ok(sync_dir(&self.folder())?),
