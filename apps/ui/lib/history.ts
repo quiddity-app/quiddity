@@ -1,4 +1,4 @@
-import type { View } from "./nav";
+import { parseView, type View } from "./nav";
 
 /**
  * Where the main pane is: its page, and the entity if it shows one. The side
@@ -6,6 +6,32 @@ import type { View } from "./nav";
  * secondaries is never a step in the history.
  */
 export type Place = Pick<View, "path" | "main">;
+
+/**
+ * The place an address is, as far as can be told without the graph, or
+ * `undefined` where that isn't a place yet: `/` and an entity page with no
+ * entity only redirect, and a published page's name needs the graph to become
+ * an entity. What `PlaceHistory.observe` is later given for it must be equal,
+ * or the first place would be seen twice.
+ */
+export function placeAt(pathname: string, search: string): Place | undefined {
+  if (pathname.startsWith("/page/")) return undefined;
+  const { path, main } = parseView(pathname, new URLSearchParams(search));
+  return path === "/" && !main ? undefined : { path, main };
+}
+
+/**
+ * The place the page was opened at, in the browser. Things that remember places
+ * mount only once the URL can be read, which can be after a link has been
+ * followed, so each starts from here rather than from the first place it sees.
+ */
+export function placeOpened(): Place | undefined {
+  if (typeof window === "undefined") return undefined;
+  const base = process.env.NEXT_PUBLIC_QUIDDITY_BASE_PATH ?? "";
+  const { pathname, search } = window.location;
+  const inApp = base && pathname.startsWith(base) ? pathname.slice(base.length) || "/" : pathname;
+  return placeAt(inApp, search);
+}
 
 export const samePlace = (a: Place, b: Place) => a.path === b.path && a.main === b.main;
 

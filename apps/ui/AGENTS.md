@@ -188,6 +188,16 @@ never writes the `##blob` line: Rust does.
   `scrollTop` is undone. **A test must also not let Playwright scroll a link into
   view to click it**, or it moves the pane after its position was read: click
   from the page (`el.click()`), and give the scroll event two frames to be heard.
+- **What remembers places (`HistoryKeys`, `ScrollRestore`) starts at module
+  load, not at mount.** Both sit in a `Suspense` that waits for the URL, so they
+  can mount after a link has been followed; a history or scroll memory begun
+  then never saw the place left, and Alt-Left did nothing. Each keeps its state
+  at module level, is seeded with where the page was opened (`placeOpened`), and
+  `ScrollRestore` hears the pane's scrolling from the first (a capture listener
+  on `document`, since `scroll` doesn't bubble). Anything new that remembers
+  places must do the same. A test of a race like this passes alone and fails
+  about one run in ten under CPU load: use `--repeat-each` with busy loops
+  running.
 - Reading the URL suspends, so each pane, and each secondary within the right
   pane, has its own `Suspense` and error boundary (`Region`): a slow or broken
   one holds up nothing else. A card's header sits outside its content's
