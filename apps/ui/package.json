@@ -52,9 +52,9 @@
     "@types/node": "22.20.5",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
-    "@typescript-eslint/eslint-plugin": "8.72.1",
-    "@typescript-eslint/parser": "8.72.1",
-    "@typescript-eslint/utils": "8.72.1",
+    "@typescript-eslint/eslint-plugin": "8.73.0",
+    "@typescript-eslint/parser": "8.73.0",
+    "@typescript-eslint/utils": "8.73.0",
     "eslint": "9.39.5",
     "eslint-config-andrewaylett": "7.0.0",
     "eslint-config-prettier": "10.1.8",
@@ -71,6 +71,6 @@
     "serve": "14.2.8",
     "tailwindcss": "4.3.5",
     "typescript": "5.9.3",
-    "typescript-eslint": "8.72.1"
+    "typescript-eslint": "8.73.0"
   }
 }
