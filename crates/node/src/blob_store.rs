@@ -249,12 +249,16 @@ impl Shared {
                 .optional()
             })
             .await?;
-        Ok(found.map(|(id, size, outboard)| Source::Complete {
-            db: self.db.clone(),
-            id,
-            size: size as u64,
-            outboard: outboard.into(),
-        }))
+        found
+            .map(|(id, size, outboard)| {
+                Ok(Source::Complete {
+                    db: self.db.clone(),
+                    id,
+                    size: u64::try_from(size).map_err(io::Error::other)?,
+                    outboard: outboard.into(),
+                })
+            })
+            .transpose()
     }
 }
 
@@ -305,13 +309,14 @@ impl ReadBytesAt for DataReader {
                 db, id, size: len, ..
             } => {
                 // Never more than is there; asking past the end finds nothing.
-                let want = (*len).saturating_sub(offset).min(size as u64) as usize;
+                let want = usize::try_from((*len).saturating_sub(offset))
+                    .map_or(size, |left| left.min(size));
                 let mut buf = vec![0u8; want];
                 let connection = db.lock();
                 let blob = connection
                     .blob_open("main", "blob", "data", *id, true)
                     .map_err(io::Error::other)?;
-                blob.read_at_exact(&mut buf, offset as usize)
+                blob.read_at_exact(&mut buf, usize::try_from(offset).map_err(io::Error::other)?)
                     .map_err(io::Error::other)?;
                 Ok(buf.into())
             }
@@ -622,7 +627,7 @@ fn persist(
         "INSERT OR IGNORE INTO blob (hash, size, outboard, data) VALUES (?1, ?2, ?3, ?4)",
         params![
             hash.as_bytes().as_slice(),
-            data.len() as i64,
+            i64::try_from(data.len()).expect("a length fits in an i64"),
             outboard,
             data
         ],
@@ -684,7 +689,12 @@ fn write_at(into: &mut Vec<u8>, offset: u64, bytes: &[u8], max_blob: u64) -> io:
         .ok_or_else(|| {
             io::Error::new(io::ErrorKind::InvalidInput, "the file is too large to keep")
         })?;
-    let (start, end) = (offset as usize, end as usize);
+    let (Ok(start), Ok(end)) = (usize::try_from(offset), usize::try_from(end)) else {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "the file is too large to keep",
+        ));
+    };
     // Grown to reach the end, never shrunk: what is held beyond stays.
     into.resize(end.max(into.len()), 0);
     into[start..end].copy_from_slice(bytes);
@@ -853,7 +863,10 @@ async fn export_ranges(
         // than to say where each piece is.
         for offset in (range.start..range.end).step_by(1024) {
             let end = (offset + 1024).min(range.end);
-            let bytes = data.read_bytes_at(offset, (end - offset) as usize)?;
+            let bytes = data.read_bytes_at(
+                offset,
+                usize::try_from(end - offset).expect("a piece is a kilobyte at most"),
+            )?;
             tx.send(
                 Leaf {
                     offset,

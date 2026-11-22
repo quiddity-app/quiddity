@@ -21,6 +21,12 @@ const B: f64 = 0.75;
 const PHRASE: f64 = 1.5;
 
 /// How rare a word is: `total` blocks, `df` of which have it.
+/// A count as a float, for scoring. Counts above `u32::MAX` are the same to a
+/// score, so they saturate rather than lose their low bits.
+fn as_f64(count: usize) -> f64 {
+    f64::from(u32::try_from(count).unwrap_or(u32::MAX))
+}
+
 fn idf(total: f64, df: f64) -> f64 {
     (1.0 + (total - df + 0.5) / (df + 0.5)).ln()
 }
@@ -136,15 +142,15 @@ impl View {
             });
         }
 
-        let total = candidates.len() as f64;
-        let average = candidates.iter().map(|c| c.tokens.len()).sum::<usize>() as f64 / total;
+        let total = as_f64(candidates.len());
+        let average = as_f64(candidates.iter().map(|c| c.tokens.len()).sum::<usize>()) / total;
         let found_in = |position: usize, c: &Candidate<'_>| {
             let (term, last) = &terms[position];
             c.tokens.iter().filter(|t| matches(term, *last, t)).count()
         };
         let idf: Vec<f64> = (0..terms.len())
             .map(|p| {
-                let df = candidates.iter().filter(|c| found_in(p, c) > 0).count() as f64;
+                let df = as_f64(candidates.iter().filter(|c| found_in(p, c) > 0).count());
                 idf(total, df)
             })
             .collect();
@@ -155,11 +161,11 @@ impl View {
             if counts.contains(&0) {
                 continue;
             }
-            let length = c.tokens.len() as f64 / average;
+            let length = as_f64(c.tokens.len()) / average;
             let mut score: f64 = counts
                 .iter()
                 .zip(&idf)
-                .map(|(&tf, &idf)| term_score(idf, tf as f64, length))
+                .map(|(&tf, &idf)| term_score(idf, as_f64(tf), length))
                 .sum();
             let together = c.tokens.windows(terms.len()).any(|w| {
                 w.iter()

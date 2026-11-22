@@ -208,11 +208,12 @@ impl Graph {
             let mut counter = from.0.get(&peer).copied().unwrap_or(0);
             // A peer's changes end where its history does, which stops this.
             while let Some(change) = self.doc.get_change(ID::new(peer, counter)) {
-                let until = change.id.counter + change.len as i32;
+                let until = change.id.counter
+                    + i32::try_from(change.len).expect("Loro counts operations in an i32");
                 if let Some(at) = self.recorded(ID::new(peer, counter)) {
                     let containers = self.doc.get_changed_containers_in(
                         ID::new(peer, counter),
-                        (until - counter) as usize,
+                        usize::try_from(until - counter).expect("a change is not empty"),
                     );
                     edits.extend(
                         containers
@@ -953,6 +954,38 @@ mod tests {
                 assert!(everything.iter().any(|(e, _)| *e == block));
             }
             assert_eq!(graph.text_edits_since(&graph.version())?, []);
+            Ok(())
+        }
+
+        #[test]
+        fn text_edits_since_names_each_edit_once_when_a_peer_has_several_changes() -> Result<()> {
+            // Loro joins a peer's consecutive edits into one change, and starts
+            // another only when what it depends on changes: an import does.
+            let graph = Graph::new();
+            let page = graph.create_block(None, None, "Page")?;
+            let a = graph.create_block(Some(page), None, "a")?;
+            let b = graph.create_block(Some(page), None, "b")?;
+            graph.commit();
+            let seen = graph.version();
+            let other = Graph::from_snapshot(&graph.snapshot()?)?;
+
+            graph.splice_text(a, 1, 0, "!")?;
+            graph.commit();
+            let before = other.version();
+            other.splice_text(page, 0, 0, "?")?;
+            other.commit();
+            graph.import(&other.updates_since(&before)?)?;
+            graph.splice_text(b, 1, 0, "!")?;
+            graph.commit();
+
+            // Each block once, though the walk starts part-way through the
+            // history and a later change follows the first it reads.
+            let edits = graph.text_edits_since(&seen)?;
+            for block in [page, a, b] {
+                let named = edits.iter().filter(|(e, _)| *e == block).count();
+                assert_eq!(named, 1, "{block:?} in {edits:?}");
+            }
+            assert_eq!(edits.len(), 3, "{edits:?}");
             Ok(())
         }
     }

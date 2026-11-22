@@ -76,11 +76,11 @@ proptest! {
     fn a_file_is_due_only_with_the_grace_and_the_version(
         seen in 0usize..4,
         stored in 0usize..4,
-        waited in 0i64..6,
+        waited in 0i32..6,
     ) {
         let mut ledger = Ledger::default();
         ledger.observe(&hashes(&[1]), t0(), &version_after(seen));
-        let due = ledger.due(t0() + DAY * waited as i32, DAY * 3, &version_after(stored));
+        let due = ledger.due(t0() + DAY * waited, DAY * 3, &version_after(stored));
         let expected = waited >= 3 && stored >= seen;
         prop_assert_eq!(!due.is_empty(), expected);
     }

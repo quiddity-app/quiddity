@@ -263,7 +263,7 @@ pub fn fuzzy_match(query: &str, name: &str) -> Option<Match> {
     }
     Some(Match {
         // Shorter names beat longer ones that match the same way.
-        score: score - chars.len() as i32,
+        score: score.saturating_sub(i32::try_from(chars.len()).unwrap_or(i32::MAX)),
         ranges: utf16_runs(&at.iter().map(|&u| spans[units[u].src]).collect::<Vec<_>>()),
     })
 }

@@ -59,14 +59,8 @@ pedantic = { level = "warn", priority = -1 }
 # `# Errors` or `# Panics` section on every function.
 missing_errors_doc = "allow"
 missing_panics_doc = "allow"
-# Pedantic lints that don't earn their keep here. The hashing, offset and
-# scoring code casts between integer widths and to floats on purpose, and a
-# lint on every cast hides the ones that matter; the rest are judgement calls
-# the code reads better without.
-cast_possible_truncation = "allow"
-cast_possible_wrap = "allow"
-cast_precision_loss = "allow"
-cast_sign_loss = "allow"
+# Pedantic lints that don't earn their keep here: judgement calls the code
+# reads better without.
 too_many_lines = "allow"
 assert_is_empty = "allow"      # `assert!(x.is_empty())` reads better than comparing with `[]`
 needless_pass_by_value = "allow" # wasm-bindgen and `map_err` callbacks take values

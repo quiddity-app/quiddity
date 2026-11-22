@@ -205,11 +205,11 @@ fn a_score_is_the_idf_and_term_score_of_the_corpus() {
     let v = page_with(&["x y".into(), "z".into()]);
     let blocks = v.graph().blocks().len() - v.graph().roots().len();
     let words = 3.0;
-    let average = words / blocks as f64;
+    let average = words / as_f64(blocks);
     let hit = &v.search_text("x", 10).unwrap()[0];
     close(
         hit.score,
-        term_score(idf(blocks as f64, 1.0), 1.0, 2.0 / average),
+        term_score(idf(as_f64(blocks), 1.0), 1.0, 2.0 / average),
     );
     // Together and in order is worth more, for a phrase: the same words, in
     // the same number, and only the order differs.

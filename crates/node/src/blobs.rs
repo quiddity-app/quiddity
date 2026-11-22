@@ -278,7 +278,9 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let blobs = Blobs::open(tmp.path()).await.unwrap();
         for len in [0usize, 1, 16 * 1024, 5 * 1024 * 1024 + 3] {
-            let data: Vec<u8> = (0..len).map(|i| (i * 31 % 251) as u8).collect();
+            let data: Vec<u8> = (0..len)
+                .map(|i| u8::try_from(i * 31 % 251).unwrap())
+                .collect();
             let hash = blobs.put(data.clone()).await.unwrap();
             assert_eq!(blobs.get(hash).await.unwrap().to_vec(), data, "{len} bytes");
         }

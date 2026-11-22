@@ -387,7 +387,7 @@ mod tests {
 
     #[test]
     fn a_device_id_reads_bare_or_written() {
-        let id = DeviceId::from_bytes(std::array::from_fn(|i| i as u8 * 7));
+        let id = DeviceId::from_bytes(std::array::from_fn(|i| u8::try_from(i).unwrap() * 7));
         let bare = id.to_bare();
         assert_eq!(bare.len(), 64);
         assert!(bare.starts_with("00070e151c"));
