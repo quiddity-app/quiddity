@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useSyncExternalStore, type ReactNode } from "react";
+import { useSyncExternalStore, type ReactNode } from 'react';
 
 const subscribe = () => () => {};
 

@@ -3,14 +3,31 @@ import nextPlugin from '@next/eslint-plugin-next';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
+/** The rules the code already keeps, which are errors. */
+const enforced = new Set([
+  // Formatting: Prettier's, so quotes, commas and line breaks.
+  'prettier/prettier',
+  // Imports.
+  'import/order',
+  'import/no-duplicates',
+  'import/no-extraneous-dependencies',
+  'import/export',
+  'no-duplicate-imports',
+  '@typescript-eslint/consistent-type-imports',
+  '@typescript-eslint/no-import-type-side-effects',
+]);
+
 /**
- * Turns an error into a warning, and leaves anything else as it is. The UI
- * wasn't written to these rules, so each is a warning until the code is fixed
- * and the rule can be an error. Delete this when none are left.
+ * Turns an error into a warning, unless the rule is enforced, and leaves
+ * anything else as it is. The UI wasn't written to the other rules, so each is
+ * a warning until the code is fixed and it can be enforced. Delete this when
+ * none are left.
  */
-const warn = (setting) => {
+const warn = (name, setting) => {
   const [level, ...options] = Array.isArray(setting) ? setting : [setting];
-  return level === 'error' || level === 2 ? ['warn', ...options] : setting;
+  return !enforced.has(name) && (level === 'error' || level === 2)
+    ? ['warn', ...options]
+    : setting;
 };
 
 const downgrade = (config) =>
@@ -20,7 +37,7 @@ const downgrade = (config) =>
         rules: Object.fromEntries(
           Object.entries(config.rules).map(([name, setting]) => [
             name,
-            warn(setting),
+            warn(name, setting),
           ]),
         ),
       }
@@ -72,6 +89,11 @@ export default tseslint
         ],
         '@typescript-eslint/no-inferrable-types': 'off',
         '@typescript-eslint/no-import-type-side-effects': 'error',
+        // The specs name a type from another module as `import('…').Type`.
+        '@typescript-eslint/consistent-type-imports': [
+          'error',
+          { disallowTypeAnnotations: false, fixStyle: 'inline-type-imports' },
+        ],
         'import/consistent-type-specifier-style': 'off',
         'unicorn/no-array-sort': 'off',
         'unicorn/no-array-reverse': 'off',
@@ -79,6 +101,18 @@ export default tseslint
         'import/no-extraneous-dependencies': 'error',
         'react/react-in-jsx-scope': 'off',
         'react/jsx-uses-react': 'off',
+      },
+    },
+    {
+      // Playwright is a development dependency, and the fixtures re-export it.
+      files: ['e2e/**', 'e2e-dev/**', 'playwright.config.ts'],
+      rules: {
+        'import/no-extraneous-dependencies': [
+          'error',
+          { devDependencies: true },
+        ],
+        'import/export': 'off',
+        'no-duplicate-imports': 'off',
       },
     },
   )

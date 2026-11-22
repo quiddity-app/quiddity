@@ -1,5 +1,5 @@
-import { ClientPage } from "@/components/client-page";
-import { Disambiguation } from "@/components/disambiguation";
+import { ClientPage } from '@/components/client-page';
+import { Disambiguation } from '@/components/disambiguation';
 
 export default function DisambiguatePage() {
   return (

@@ -1,15 +1,19 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
-import { useGraph } from "@/lib/use-graph";
-import type { Property, PropertyValue, ResolvedLink } from "@/lib/model";
-import { EntityLink } from "./entity-link";
-import { useView } from "./use-view";
-import { linkClass } from "./ui";
+import { useState, type ReactNode } from 'react';
 
-const unresolved = "cursor-help underline decoration-dashed underline-offset-2";
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+
+import { EntityLink } from './entity-link';
+import { useView } from './use-view';
+import { linkClass } from './ui';
+
+import type { Property, PropertyValue, ResolvedLink } from '@/lib/model';
+
+import { useGraph } from '@/lib/use-graph';
+
+const unresolved = 'cursor-help underline decoration-dashed underline-offset-2';
 
 /**
  * A link to an entity, as the core resolved it. `fallback` is the name to show
@@ -29,10 +33,10 @@ export function LinkOrNot({
 }>) {
   const view = useView();
   const resolved = links[linkKey];
-  const target = resolved ?? { kind: "missing" };
+  const target = resolved ?? { kind: 'missing' };
   const name = label ?? resolved?.name ?? fallback;
-  const qualifiers = resolved?.qualifiers ?? "";
-  if (target.kind === "entity") {
+  const qualifiers = resolved?.qualifiers ?? '';
+  if (target.kind === 'entity') {
     return (
       <EntityLink
         id={target.id}
@@ -43,14 +47,25 @@ export function LinkOrNot({
       </EntityLink>
     );
   }
-  if (target.kind === "missing") {
-    return <NewEntityLink name={name} linkKey={linkKey} qualifiers={qualifiers} />;
+  if (target.kind === 'missing') {
+    return (
+      <NewEntityLink name={name} linkKey={linkKey} qualifiers={qualifiers} />
+    );
   }
   return (
     <Link
-      href={view.href({ path: "/disambiguate/", main: null, open: view.open, link: linkKey })}
+      href={view.href({
+        path: '/disambiguate/',
+        main: null,
+        open: view.open,
+        link: linkKey,
+      })}
       className={`text-ink-muted ${unresolved}`}
-      title={qualifiers ? `Several entities match ${qualifiers}` : "Several entities match"}
+      title={
+        qualifiers
+          ? `Several entities match ${qualifiers}`
+          : 'Several entities match'
+      }
     >
       {name}
     </Link>
@@ -94,13 +109,15 @@ export function Value({
   links: Record<string, ResolvedLink>;
 }>) {
   switch (value.kind) {
-    case "text":
+    case 'text':
       return <>{value.text}</>;
-    case "link":
-      return <LinkOrNot linkKey={value.key} fallback={value.name} links={links} />;
-    case "ref":
+    case 'link':
+      return (
+        <LinkOrNot linkKey={value.key} fallback={value.name} links={links} />
+      );
+    case 'ref':
       return <span className="text-ink-muted">(({value.id}))</span>;
-    case "parts":
+    case 'parts':
       return (
         <>
           {value.items.map((item, i) => (
@@ -108,12 +125,12 @@ export function Value({
           ))}
         </>
       );
-    case "list":
+    case 'list':
       return (
         <>
           {value.items.map((item, i) => (
             <span key={i}>
-              {i > 0 && ", "}
+              {i > 0 && ', '}
               <Value value={item} links={links} />
             </span>
           ))}
@@ -123,7 +140,10 @@ export function Value({
 }
 
 /** A link to the entity holding a block, written `[label](((id)))`. */
-export function BlockRefLink({ id, children }: Readonly<{ id: string; children: ReactNode }>) {
+export function BlockRefLink({
+  id,
+  children,
+}: Readonly<{ id: string; children: ReactNode }>) {
   const graph = useGraph();
   const view = useView();
   const router = useRouter();
@@ -133,10 +153,12 @@ export function BlockRefLink({ id, children }: Readonly<{ id: string; children: 
       type="button"
       className={
         missing
-          ? "text-ink-muted cursor-help underline decoration-dashed underline-offset-2"
+          ? 'text-ink-muted cursor-help underline decoration-dashed underline-offset-2'
           : linkClass
       }
-      title={missing ? "No block has this id" : "Opens the page holding the block"}
+      title={
+        missing ? 'No block has this id' : 'Opens the page holding the block'
+      }
       onClick={(e) => {
         try {
           const entity = graph.followBlockRef(id);
@@ -166,7 +188,10 @@ function PropertyKey({
   const router = useRouter();
   if (property.definition !== null) {
     return (
-      <EntityLink id={property.definition} className={`${className} hover:underline`}>
+      <EntityLink
+        id={property.definition}
+        className={`${className} hover:underline`}
+      >
         {children}
       </EntityLink>
     );
@@ -190,7 +215,7 @@ function PropertyKey({
   );
 }
 
-const flaggedChip = "ring-1 ring-flag-ring";
+const flaggedChip = 'ring-1 ring-flag-ring';
 
 /**
  * A property written as a line, `key:: value`, drawn as text the way Logseq
@@ -209,16 +234,16 @@ export function PropertyLine({
   const flagged = property.flags.length > 0;
   return (
     <div
-      className={flagged ? `break-words rounded ${flaggedChip}` : "break-words"}
-      title={flagged ? property.flags.join("\n") : undefined}
+      className={flagged ? `break-words rounded ${flaggedChip}` : 'break-words'}
+      title={flagged ? property.flags.join('\n') : undefined}
       data-flagged={flagged || undefined}
     >
       {property.meta ? (
         <>
           <span className="text-ink-muted">##{property.key}</span>
-          {property.value?.kind === "text" && (
+          {property.value?.kind === 'text' && (
             <>
-              {" "}
+              {' '}
               <code>{property.value.text}</code>
             </>
           )}
@@ -230,7 +255,7 @@ export function PropertyLine({
           </PropertyKey>
           {property.value !== null && (
             <>
-              {" "}
+              {' '}
               <Value value={property.value} links={links} />
             </>
           )}
@@ -282,14 +307,16 @@ export function PropertyChip({
   const flagged = property.flags.length > 0;
   return (
     <span
-      className={`inline-flex items-baseline gap-1 rounded-full bg-surface-hover px-2 py-0.5 text-xs leading-5 ${flagged ? flaggedChip : ""}`}
-      title={flagged ? property.flags.join("\n") : undefined}
+      className={`inline-flex items-baseline gap-1 rounded-full bg-surface-hover px-2 py-0.5 text-xs leading-5 ${flagged ? flaggedChip : ''}`}
+      title={flagged ? property.flags.join('\n') : undefined}
       data-flagged={flagged || undefined}
     >
       {property.meta ? (
         <>
           <span className="text-ink-muted">##{property.key}</span>
-          {property.value?.kind === "text" && <code>{property.value.text}</code>}
+          {property.value?.kind === 'text' && (
+            <code>{property.value.text}</code>
+          )}
         </>
       ) : (
         <Body property={property} links={links} />

@@ -1,8 +1,15 @@
-"use client";
+'use client';
 
-import { useDeferredValue, useEffect, useState, useSyncExternalStore } from "react";
-import { useGraph } from "../use-graph";
-import type { Facet, Hit } from "./facet";
+import {
+  useDeferredValue,
+  useEffect,
+  useState,
+  useSyncExternalStore,
+} from 'react';
+
+import { useGraph } from '../use-graph';
+
+import type { Facet, Hit } from './facet';
 
 export interface Section {
   facet: Facet;
@@ -24,7 +31,11 @@ export interface Section {
  */
 export function useSearch(facets: Facet[], query: string): Section[] {
   const graph = useGraph();
-  const revision = useSyncExternalStore(graph.subscribe, graph.getRevision, graph.getRevision);
+  const revision = useSyncExternalStore(
+    graph.subscribe,
+    graph.getRevision,
+    graph.getRevision,
+  );
   const [answers, setAnswers] = useState<Record<string, Hit[]>>({});
   const trimmed = query.trim();
   const deferred = useDeferredValue(trimmed);
@@ -56,5 +67,8 @@ export function useSearch(facets: Facet[], query: string): Section[] {
     };
   }, [facets, deferred, graph, revision]);
 
-  return facets.map((facet) => ({ facet, hits: trimmed ? (answers[facet.id] ?? []) : [] }));
+  return facets.map((facet) => ({
+    facet,
+    hits: trimmed ? (answers[facet.id] ?? []) : [],
+  }));
 }

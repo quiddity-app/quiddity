@@ -1,6 +1,6 @@
 /** Where a link in a block's text may take the user: the web and mail. */
 export function isExternal(href: string | undefined): href is string {
-  return /^(https?:|mailto:)/i.test(href ?? "");
+  return /^(https?:|mailto:)/i.test(href ?? '');
 }
 
 /**
@@ -9,10 +9,10 @@ export function isExternal(href: string | undefined): href is string {
  */
 export async function openExternal(url: string) {
   if (!isExternal(url)) return;
-  if ("__TAURI_INTERNALS__" in window) {
-    const { openUrl } = await import("@tauri-apps/plugin-opener");
+  if ('__TAURI_INTERNALS__' in window) {
+    const { openUrl } = await import('@tauri-apps/plugin-opener');
     await openUrl(url);
   } else {
-    window.open(url, "_blank", "noopener,noreferrer");
+    window.open(url, '_blank', 'noopener,noreferrer');
   }
 }

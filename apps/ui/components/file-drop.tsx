@@ -1,10 +1,13 @@
-"use client";
+'use client';
 
-import { useState, type ClipboardEvent, type DragEvent } from "react";
-import { bootGraph } from "@/lib/graph";
-import type { EntityId } from "@/lib/model";
+import { useState, type ClipboardEvent, type DragEvent } from 'react';
 
-const hasFiles = (data: DataTransfer | null) => data?.types.includes("Files") === true;
+import type { EntityId } from '@/lib/model';
+
+import { bootGraph } from '@/lib/graph';
+
+const hasFiles = (data: DataTransfer | null) =>
+  data?.types.includes('Files') === true;
 
 /**
  * Lets files be dropped or pasted onto a page: spread `handlers` on the
@@ -27,14 +30,16 @@ export function useFileDrop(id: EntityId) {
     setProblem(undefined);
     const graph = await bootGraph();
     if (!graph.canKeepFiles()) {
-      setProblem("This build can’t keep files.");
+      setProblem('This build can’t keep files.');
       return;
     }
     for (const file of files) {
       try {
         await graph.addFile(id, file);
       } catch (error) {
-        setProblem(`Couldn’t add ${file.name || "the file"}: ${(error as Error).message}`);
+        setProblem(
+          `Couldn’t add ${file.name || 'the file'}: ${(error as Error).message}`,
+        );
         return;
       }
     }

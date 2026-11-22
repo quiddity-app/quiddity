@@ -1,6 +1,9 @@
-"use client";
+'use client';
 
-import { drag, type D3DragEvent } from "d3-drag";
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+
+import { useRouter } from 'next/navigation';
+import { drag, type D3DragEvent } from 'd3-drag';
 import {
   forceCollide,
   forceLink,
@@ -11,21 +14,41 @@ import {
   type Simulation,
   type SimulationLinkDatum,
   type SimulationNodeDatum,
-} from "d3-force";
-import { pointer, select, type Selection } from "d3-selection";
-import "d3-transition";
-import { zoom, zoomIdentity, type ZoomBehavior, type ZoomTransform } from "d3-zoom";
-import { useRouter } from "next/navigation";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { filterConnections, HIDE_ALL, type GraphShow } from "@/lib/graph-filter";
-import { fitTransform, largestGroup } from "@/lib/graph-fit";
-import { LABEL_PX, labelFits, linkStrength, linkWeight, radius as nodeRadius } from "@/lib/graph-style";
-import { cachedPosition as cachedPositionOf, cachedTransform as cachedTransformOf, remember } from "@/lib/graph-layout";
-import type { Connections } from "@/lib/model";
-import { useRead } from "@/lib/use-graph";
-import { Region, Skeleton } from "./boundary";
-import { useView } from "./use-view";
-import { Button } from "./ui";
+} from 'd3-force';
+import { pointer, select, type Selection } from 'd3-selection';
+import 'd3-transition';
+import {
+  zoom,
+  zoomIdentity,
+  type ZoomBehavior,
+  type ZoomTransform,
+} from 'd3-zoom';
+
+import { Region, Skeleton } from './boundary';
+import { useView } from './use-view';
+import { Button } from './ui';
+
+import type { Connections } from '@/lib/model';
+
+import {
+  filterConnections,
+  HIDE_ALL,
+  type GraphShow,
+} from '@/lib/graph-filter';
+import { fitTransform, largestGroup } from '@/lib/graph-fit';
+import {
+  LABEL_PX,
+  labelFits,
+  linkStrength,
+  linkWeight,
+  radius as nodeRadius,
+} from '@/lib/graph-style';
+import {
+  cachedPosition as cachedPositionOf,
+  cachedTransform as cachedTransformOf,
+  remember,
+} from '@/lib/graph-layout';
+import { useRead } from '@/lib/use-graph';
 
 interface Node extends SimulationNodeDatum {
   id: string;
@@ -49,11 +72,11 @@ const readColours = () => {
   const style = getComputedStyle(document.documentElement);
   const get = (name: string) => style.getPropertyValue(name).trim();
   return {
-    link: get("--graph-link"),
-    fill: get("--graph-node"),
-    stroke: get("--graph-node-stroke"),
-    text: get("--graph-label"),
-    current: get("--graph-current"),
+    link: get('--graph-link'),
+    fill: get('--graph-node'),
+    stroke: get('--graph-node-stroke'),
+    text: get('--graph-label'),
+    current: get('--graph-current'),
   };
 };
 
@@ -69,7 +92,7 @@ interface Drawing {
 
 /** Each entity's neighbours, and (filled in as it goes) how many links each has. */
 function neighbourhood(
-  edges: Connections["edges"],
+  edges: Connections['edges'],
   degree: Map<string, number>,
 ): Map<string, Set<string>> {
   const neighbours = new Map<string, Set<string>>();
@@ -114,7 +137,11 @@ function placeNew(
 }
 
 /** The nodes that pass `wanted`, as circles in one path, filled and stroked. */
-function circles(ctx: CanvasRenderingContext2D, nodes: Node[], wanted: (n: Node) => boolean) {
+function circles(
+  ctx: CanvasRenderingContext2D,
+  nodes: Node[],
+  wanted: (n: Node) => boolean,
+) {
   ctx.beginPath();
   for (const n of nodes) {
     if (n.x === undefined || !wanted(n)) continue;
@@ -137,7 +164,8 @@ function strokeLinks(
   ctx.beginPath();
   for (const l of links) {
     const { source, target } = l as { source: Node; target: Node };
-    if (!wanted(l) || source.x === undefined || target.x === undefined) continue;
+    if (!wanted(l) || source.x === undefined || target.x === undefined)
+      continue;
     drawn++;
     ctx.moveTo(source.x, source.y ?? 0);
     ctx.lineTo(target.x, target.y ?? 0);
@@ -175,7 +203,14 @@ function drawFocused(
 }
 
 /** Whether a node is near enough to what is on screen for its label to matter. */
-function inLabelRange(x: number, y: number, x0: number, x1: number, y0: number, y1: number) {
+function inLabelRange(
+  x: number,
+  y: number,
+  x0: number,
+  x1: number,
+  y0: number,
+  y1: number,
+) {
   return x >= x0 - 200 && x <= x1 + 50 && y >= y0 - 50 && y <= y1 + 50;
 }
 
@@ -202,19 +237,19 @@ export function draw(
   const cachedTransform = persist ? cachedTransformOf : () => null;
   let current: string | null = null;
   const root = select(canvas);
-  const dark = matchMedia("(prefers-color-scheme: dark)");
+  const dark = matchMedia('(prefers-color-scheme: dark)');
   let colours = readColours();
 
   let nodes: Node[] = [];
   let links: Link[] = [];
-  let edges: Connections["edges"] = [];
+  let edges: Connections['edges'] = [];
   let view: ZoomTransform = zoomIdentity;
   const simulation: Simulation<Node, Link> = forceSimulation<Node>()
     // d3's default strength, 1 / the fewer links of the two ends, scaled by
     // the link's weight: a spring between two hubs is slack, so hubs don't
     // drag each other into a knot.
     .force(
-      "link",
+      'link',
       forceLink<Node, Link>()
         .id((n) => n.id)
         .distance(60)
@@ -223,11 +258,14 @@ export function draw(
           return linkStrength(linkWeight(l.weak), a.degree, b.degree);
         }),
     )
-    .force("charge", forceManyBody<Node>().strength(-40))
-    .force("collide", forceCollide<Node>().radius((n) => radius(n) * 1.25))
+    .force('charge', forceManyBody<Node>().strength(-40))
+    .force(
+      'collide',
+      forceCollide<Node>().radius((n) => radius(n) * 1.25),
+    )
     // Loose islands drift towards the middle rather than away for good.
-    .force("x", forceX<Node>().strength(0.02))
-    .force("y", forceY<Node>().strength(0.02))
+    .force('x', forceX<Node>().strength(0.02))
+    .force('y', forceY<Node>().strength(0.02))
     .stop();
 
   let neighbours = new Map<string, Set<string>>();
@@ -244,13 +282,21 @@ export function draw(
   const paint = () => {
     frame = 0;
     if (document.hidden) return;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.setTransform(ratio * view.k, 0, 0, ratio * view.k, ratio * view.x, ratio * view.y);
+    ctx.setTransform(
+      ratio * view.k,
+      0,
+      0,
+      ratio * view.k,
+      ratio * view.x,
+      ratio * view.y,
+    );
 
-    const near = focused === null ? null : (neighbours.get(focused) ?? new Set<string>());
+    const near =
+      focused === null ? null : (neighbours.get(focused) ?? new Set<string>());
     const touches = (l: Link) =>
       (l.source as Node).id === focused || (l.target as Node).id === focused;
 
@@ -266,7 +312,8 @@ export function draw(
       strokeLinks(ctx, links, (l) => l.weak, dim * WEAK_ALPHA);
     // For tests: how many links the last paint drew, as `data-links` is only
     // how many there are to draw.
-    if (canvas.dataset.drawn !== String(drawn)) canvas.dataset.drawn = String(drawn);
+    if (canvas.dataset.drawn !== String(drawn))
+      canvas.dataset.drawn = String(drawn);
     if (focused !== null) {
       strokeLinks(ctx, links, (l) => !l.weak && touches(l), 1);
       strokeLinks(ctx, links, (l) => l.weak && touches(l), WEAK_ALPHA);
@@ -284,7 +331,8 @@ export function draw(
     }
 
     // The entity the graph is about, over the rest and always at full strength.
-    const subject = current === null ? undefined : nodes.find((n) => n.id === current);
+    const subject =
+      current === null ? undefined : nodes.find((n) => n.id === current);
     if (subject && subject.x !== undefined) {
       ctx.globalAlpha = 1;
       ctx.fillStyle = colours.current;
@@ -297,7 +345,7 @@ export function draw(
     }
 
     ctx.font = `${LABEL_PX * px}px ui-sans-serif, system-ui, sans-serif`;
-    ctx.textBaseline = "middle";
+    ctx.textBaseline = 'middle';
     ctx.fillStyle = colours.text;
     const x0 = -view.x / view.k;
     const y0 = -view.y / view.k;
@@ -305,8 +353,10 @@ export function draw(
     const y1 = (cssHeight - view.y) / view.k;
     let labels = 0;
     for (const n of nodes) {
-      if (n.x === undefined || !inLabelRange(n.x, n.y ?? 0, x0, x1, y0, y1)) continue;
-      if (n.id !== focused && n.id !== current && !labelFits(radius(n), view.k)) continue;
+      if (n.x === undefined || !inLabelRange(n.x, n.y ?? 0, x0, x1, y0, y1))
+        continue;
+      if (n.id !== focused && n.id !== current && !labelFits(radius(n), view.k))
+        continue;
       labels++;
       ctx.globalAlpha = near && n.id !== focused && !near.has(n.id) ? 0.25 : 1;
       ctx.fillText(n.title, n.x + radius(n) + 3 * px, n.y ?? 0);
@@ -323,7 +373,7 @@ export function draw(
     colours = readColours();
     repaint();
   };
-  dark.addEventListener("change", retheme);
+  dark.addEventListener('change', retheme);
 
   const resize = () => {
     const { width, height } = canvas.getBoundingClientRect();
@@ -344,7 +394,7 @@ export function draw(
   let density: MediaQueryList | undefined;
   const watchDensity = () => {
     density = matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
-    density.addEventListener("change", densityChanged, { once: true });
+    density.addEventListener('change', densityChanged, { once: true });
   };
   const densityChanged = () => {
     resize();
@@ -368,17 +418,20 @@ export function draw(
     }
   };
 
-  let items: Selection<HTMLAnchorElement, Node, HTMLElement, unknown> | undefined;
+  let items:
+    Selection<HTMLAnchorElement, Node, HTMLElement, unknown> | undefined;
   // The links carry where their entity is, but only once the layout is still:
   // `settled` says when. Nothing in the page reads them, but tests do.
   const settle = (still: boolean) => {
     canvas.dataset.settled = String(still);
     if (!still) return;
-    items?.attr("data-x", (n) => n.x ?? null).attr("data-y", (n) => n.y ?? null);
+    items
+      ?.attr('data-x', (n) => n.x ?? null)
+      .attr('data-y', (n) => n.y ?? null);
   };
 
-  simulation.on("tick", repaint);
-  simulation.on("end", () => {
+  simulation.on('tick', repaint);
+  simulation.on('end', () => {
     simulation.stop();
     unsettled.clear();
     release();
@@ -413,25 +466,37 @@ export function draw(
     return best;
   };
 
-  const behaviour: ZoomBehavior<HTMLCanvasElement, unknown> = zoom<HTMLCanvasElement, unknown>()
+  const behaviour: ZoomBehavior<HTMLCanvasElement, unknown> = zoom<
+    HTMLCanvasElement,
+    unknown
+  >()
     .scaleExtent([0.1, 4])
     // A press on a node is a drag of the node, not a pan.
     .filter((event: Event) => {
-      if ((event.type === "mousedown" || event.type === "touchstart") && nodeAt(pointer(event, canvas))) {
+      if (
+        (event.type === 'mousedown' || event.type === 'touchstart') &&
+        nodeAt(pointer(event, canvas))
+      ) {
         return false;
       }
-      return (!(event as MouseEvent).ctrlKey || event.type === "wheel") && !(event as MouseEvent).button;
+      return (
+        (!(event as MouseEvent).ctrlKey || event.type === 'wheel') &&
+        !(event as MouseEvent).button
+      );
     })
-    .on("zoom", (event: { transform: ZoomTransform; sourceEvent?: unknown }) => {
-      if (event.sourceEvent) tracking = false;
-      view = event.transform;
-      const vStr = `${view.x},${view.y},${view.k}`;
-      if (canvas.dataset.view !== vStr) canvas.dataset.view = vStr;
-      repaint();
-    })
-    .on("end", save);
+    .on(
+      'zoom',
+      (event: { transform: ZoomTransform; sourceEvent?: unknown }) => {
+        if (event.sourceEvent) tracking = false;
+        view = event.transform;
+        const vStr = `${view.x},${view.y},${view.k}`;
+        if (canvas.dataset.view !== vStr) canvas.dataset.view = vStr;
+        repaint();
+      },
+    )
+    .on('end', save);
   root.call(behaviour);
-  root.on("dblclick.zoom", null);
+  root.on('dblclick.zoom', null);
   const { width, height } = canvas.getBoundingClientRect();
   const start = cachedTransform();
   root.call(
@@ -443,26 +508,37 @@ export function draw(
 
   /** Frames these entities (the main body of the graph if none are given). */
   const fit = (ids: Set<string> | null, animate: boolean) => {
-    const wanted = ids ?? largestGroup(nodes.map((n) => n.id), edges);
+    const wanted =
+      ids ??
+      largestGroup(
+        nodes.map((n) => n.id),
+        edges,
+      );
     const box = canvas.getBoundingClientRect();
     const target = fitTransform(
       nodes
-        .filter((n) => wanted.has(n.id) && n.x !== undefined && n.y !== undefined)
+        .filter(
+          (n) => wanted.has(n.id) && n.x !== undefined && n.y !== undefined,
+        )
         .map((n) => ({ x: n.x!, y: n.y!, r: radius(n) })),
       box.width,
       box.height,
       // Zooming in on a few is welcome; blowing the whole graph up isn't.
-      ids ? { pad: 0.3, minScale: 0.1, maxScale: 2.5 } : { pad: 0.08, minScale: 0.1, maxScale: 1 },
+      ids
+        ? { pad: 0.3, minScale: 0.1, maxScale: 2.5 }
+        : { pad: 0.08, minScale: 0.1, maxScale: 1 },
     );
     if (!target) return;
     const to = zoomIdentity.translate(target.x, target.y).scale(target.k);
     // Animated unless the person has asked for less motion.
-    if (animate && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (
+      animate &&
+      !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ) {
       root.transition().duration(600).call(behaviour.transform, to);
-    }
-    else root.call(behaviour.transform, to);
+    } else root.call(behaviour.transform, to);
   };
-  root.on("dblclick.fit", (event: MouseEvent) => {
+  root.on('dblclick.fit', (event: MouseEvent) => {
     if (!nodeAt(pointer(event, canvas))) fit(null, true);
   });
 
@@ -471,21 +547,22 @@ export function draw(
     focused = id;
     repaint();
   };
-  root.on("mousemove.focus", (event: MouseEvent) => {
+  root.on('mousemove.focus', (event: MouseEvent) => {
     if (dragged) return;
     const n = nodeAt(pointer(event, canvas));
-    canvas.style.cursor = n ? "pointer" : "";
+    canvas.style.cursor = n ? 'pointer' : '';
     focus(n?.id ?? null);
   });
-  root.on("mouseleave.focus", () => {
+  root.on('mouseleave.focus', () => {
     if (!dragged) focus(null);
   });
   // A drag that doesn't move ends in a click; one that does, doesn't.
-  root.on("click.open", (event: MouseEvent) => {
+  root.on('click.open', (event: MouseEvent) => {
     const n = nodeAt(pointer(event, canvas));
     if (!n) return;
     // Alt-click looks closer instead of opening.
-    if (event.altKey) fit(new Set([n.id, ...(neighbours.get(n.id) ?? [])]), true);
+    if (event.altKey)
+      fit(new Set([n.id, ...(neighbours.get(n.id) ?? [])]), true);
     else open(n.id, event.shiftKey);
   });
 
@@ -501,18 +578,26 @@ export function draw(
   type Drag = D3DragEvent<HTMLCanvasElement, unknown, Grab>;
   const dragging = drag<HTMLCanvasElement, unknown, Grab | undefined>()
     .container(canvas)
-    .subject((event: D3DragEvent<HTMLCanvasElement, unknown, Grab | undefined>) => {
-      const node = nodeAt([event.x, event.y]);
-      return node && { x: (node.x ?? 0) * view.k + view.x, y: (node.y ?? 0) * view.k + view.y, node };
-    })
+    .subject(
+      (event: D3DragEvent<HTMLCanvasElement, unknown, Grab | undefined>) => {
+        const node = nodeAt([event.x, event.y]);
+        return (
+          node && {
+            x: (node.x ?? 0) * view.k + view.x,
+            y: (node.y ?? 0) * view.k + view.y,
+            node,
+          }
+        );
+      },
+    )
     // Pressing starts a drag, but nothing is disturbed until the pointer
     // moves: a click that stays on the graph (Alt, or Shift) must not stir it.
-    .on("start", (event: Drag) => {
+    .on('start', (event: Drag) => {
       dragged = event.subject.node;
       moved = false;
       focus(dragged.id);
     })
-    .on("drag", (event: Drag) => {
+    .on('drag', (event: Drag) => {
       const n = event.subject.node;
       if (!moved) {
         moved = true;
@@ -525,7 +610,7 @@ export function draw(
       n.fy = (event.y - view.y) / view.k;
       canvas.dataset.grabbed = `${event.x},${event.y}`;
     })
-    .on("end", (event: Drag) => {
+    .on('end', (event: Drag) => {
       if (moved) simulation.alphaTarget(0);
       event.subject.node.fx = null;
       event.subject.node.fy = null;
@@ -556,34 +641,40 @@ export function draw(
       // near the middle, so it doesn't fly in from nowhere and shove the rest.
       placeNew(nodes, neighbours, unsettled, cachedPosition);
       edges = data.edges;
-      links = data.edges.map(({ source, target, weak }) => ({ source, target, weak }));
+      links = data.edges.map(({ source, target, weak }) => ({
+        source,
+        target,
+        weak,
+      }));
       // Whether or not anything moves, the simulation is told what there is:
       // it is what turns a link's ends from IDs into the nodes `paint` draws
       // between, and a link left as IDs is not drawn.
       simulation.nodes(nodes);
-      simulation.force<ReturnType<typeof forceLink<Node, Link>>>("link")?.links(links);
+      simulation
+        .force<ReturnType<typeof forceLink<Node, Link>>>('link')
+        ?.links(links);
       // For tests: how many links are drawn (those whose ends were found), and
       // how many of them are weak.
-      const drawn = links.filter((l) => typeof l.source === "object");
+      const drawn = links.filter((l) => typeof l.source === 'object');
       canvas.dataset.links = String(drawn.length);
       canvas.dataset.weak = String(drawn.filter((l) => l.weak).length);
 
       items = select(list)
-        .selectAll<HTMLAnchorElement, Node>("a")
+        .selectAll<HTMLAnchorElement, Node>('a')
         .data(nodes, (n) => n.id)
         .join((enter) =>
           enter
-            .append("a")
-            .on("click", (event: MouseEvent, n) => {
+            .append('a')
+            .on('click', (event: MouseEvent, n) => {
               event.preventDefault();
               open(n.id, event.shiftKey);
             })
-            .on("focus", (_event, n) => focus(n.id))
-            .on("blur", () => focus(null)),
+            .on('focus', (_event, n) => focus(n.id))
+            .on('blur', () => focus(null)),
         )
-        .attr("href", (n) => hrefOf(n.id))
-        .attr("aria-label", (n) => n.title)
-        .attr("aria-current", (n) => (n.id === current ? "page" : null))
+        .attr('href', (n) => hrefOf(n.id))
+        .attr('aria-label', (n) => n.title)
+        .attr('aria-current', (n) => (n.id === current ? 'page' : null))
         .text((n) => n.title);
 
       // The simulation is what turns a link's IDs into the nodes it joins, so
@@ -591,7 +682,9 @@ export function draw(
       // nothing is unsettled, and without this the links stay as IDs and are
       // never drawn.
       simulation.nodes(nodes);
-      simulation.force<ReturnType<typeof forceLink<Node, Link>>>("link")?.links(links);
+      simulation
+        .force<ReturnType<typeof forceLink<Node, Link>>>('link')
+        ?.links(links);
 
       if (unsettled.size > 0) {
         for (const n of nodes) {
@@ -616,7 +709,7 @@ export function draw(
     highlight(id) {
       current = id;
       // Links carry it for assistive technology, and for tests.
-      items?.attr("aria-current", (n) => (n.id === id ? "page" : null));
+      items?.attr('aria-current', (n) => (n.id === id ? 'page' : null));
       repaint();
     },
     stop() {
@@ -624,18 +717,23 @@ export function draw(
       save();
       cancelAnimationFrame(frame);
       observer.disconnect();
-      density?.removeEventListener("change", densityChanged);
-      dark.removeEventListener("change", retheme);
+      density?.removeEventListener('change', densityChanged);
+      dark.removeEventListener('change', retheme);
       root.interrupt();
-      root.on(".zoom", null).on(".fit", null).on(".focus", null).on(".open", null).on(".drag", null);
+      root
+        .on('.zoom', null)
+        .on('.fit', null)
+        .on('.focus', null)
+        .on('.open', null)
+        .on('.drag', null);
     },
   };
 }
 
 const OPTIONS: [keyof GraphShow, string][] = [
-  ["propertyLinks", "Property links"],
-  ["journals", "Journal pages"],
-  ["orphans", "Orphan pages"],
+  ['propertyLinks', 'Property links'],
+  ['journals', 'Journal pages'],
+  ['orphans', 'Orphan pages'],
 ];
 
 function Canvas() {
@@ -662,7 +760,9 @@ function Canvas() {
         const { view, router } = latest.current;
         router.push(aside ? view.toSide(id) : view.toMain(id));
       },
-      (id) => process.env.NEXT_PUBLIC_QUIDDITY_BASE_PATH + latest.current.view.toMain(id),
+      (id) =>
+        process.env.NEXT_PUBLIC_QUIDDITY_BASE_PATH +
+        latest.current.view.toMain(id),
     );
     return () => {
       drawing.current?.stop();
@@ -679,7 +779,11 @@ function Canvas() {
       aria-label="Graph of entities"
       className="relative h-full min-h-80"
     >
-      <canvas ref={canvasRef} aria-hidden className="absolute inset-0 size-full touch-none" />
+      <canvas
+        ref={canvasRef}
+        aria-hidden
+        className="absolute inset-0 size-full touch-none"
+      />
       {/* The same entities as links, for keyboards and screen readers. */}
       <div ref={listRef} className="sr-only" />
       <Button
@@ -698,7 +802,7 @@ function Canvas() {
           aria-controls={panelId}
           onClick={() => setPanel(!panel)}
         >
-          {panel ? "Hide options" : "Options"}
+          {panel ? 'Hide options' : 'Options'}
         </Button>
         <div
           id={panelId}
@@ -733,7 +837,9 @@ export function GraphView() {
   return (
     <Region
       pending={<Skeleton className="m-6 h-64" />}
-      failed={(error) => <p className="p-6">The graph could not be drawn: {error.message}</p>}
+      failed={(error) => (
+        <p className="p-6">The graph could not be drawn: {error.message}</p>
+      )}
     >
       <Canvas />
     </Region>

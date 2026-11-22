@@ -1,17 +1,23 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useSyncExternalStore } from "react";
-import type { SyncState } from "@/lib/model";
-import { useGraph } from "@/lib/use-graph";
+import { useSyncExternalStore } from 'react';
+
+import Link from 'next/link';
+
+import type { SyncState } from '@/lib/model';
+
+import { useGraph } from '@/lib/use-graph';
 
 /** What each state is called, and the colour of its dot. */
 const states: Record<SyncState, { label: string; dot: string }> = {
-  alone: { label: "No other devices to sync with", dot: "bg-sync-alone" },
-  offline: { label: "Not connected to any other device", dot: "bg-sync-offline" },
-  behind: { label: "Connected, but out of date", dot: "bg-sync-behind" },
-  synced: { label: "Connected and up to date", dot: "bg-sync-synced" },
-  present: { label: "Another device is here", dot: "bg-sync-present" },
+  alone: { label: 'No other devices to sync with', dot: 'bg-sync-alone' },
+  offline: {
+    label: 'Not connected to any other device',
+    dot: 'bg-sync-offline',
+  },
+  behind: { label: 'Connected, but out of date', dot: 'bg-sync-behind' },
+  synced: { label: 'Connected and up to date', dot: 'bg-sync-synced' },
+  present: { label: 'Another device is here', dot: 'bg-sync-present' },
 };
 
 /**
@@ -21,7 +27,11 @@ const states: Record<SyncState, { label: string; dot: string }> = {
  */
 export function SyncIndicator() {
   const graph = useGraph();
-  const status = useSyncExternalStore(graph.subscribeToStatus, graph.getStatus, graph.getStatus);
+  const status = useSyncExternalStore(
+    graph.subscribeToStatus,
+    graph.getStatus,
+    graph.getStatus,
+  );
   if (status === undefined) return null;
   const { label, dot } = states[status];
   return (

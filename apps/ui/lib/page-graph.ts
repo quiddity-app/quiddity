@@ -1,4 +1,4 @@
-import type { Connections, EntityId } from "./model";
+import type { Connections, EntityId } from './model';
 
 /**
  * The part of the graph around one page: the page, its neighbours, and those
@@ -17,7 +17,11 @@ export function pageGraph(all: Connections, current: EntityId): Connections {
   if (!known.has(current)) return { nodes: [], edges: [] };
 
   const edges = all.edges.filter(
-    (e) => !e.weak && e.source !== e.target && known.has(e.source) && known.has(e.target),
+    (e) =>
+      !e.weak &&
+      e.source !== e.target &&
+      known.has(e.source) &&
+      known.has(e.target),
   );
   const adjacent = new Map<EntityId, Set<EntityId>>();
   const link = (a: EntityId, b: EntityId) => {

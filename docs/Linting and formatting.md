@@ -8,6 +8,8 @@
 	- CI: the `typecheck` job runs it after `tsc`, because the type-aware rules need the types of the generated `lib/wasm`.
 	- pre-commit: a hook runs `pnpm ui lint` when a UI file changes. The pre-commit job in CI skips it, since the `typecheck` job has what it needs.
 	- `mise run check` includes it.
+- What is enforced
+	- **Formatting and imports are errors**: [[Prettier]]'s, the order of imports and where they come from, and `import { type X }` rather than a separate `import type`. They are the `enforced` set in `eslint.config.mjs`, and `pnpm ui lint --fix` mends them.
+	- **Everything else is still a warning.** The UI wasn't written to the rest, so the config turns each of their errors into a warning (`downgrade`) and the lint passes. A rule is added to `enforced` once the code is fixed, and the helper goes when none are left.
 - Not built
-	- **Every rule is a warning for now.** The UI wasn't written to them, so the config turns each error into a warning (`downgrade` in `eslint.config.mjs`) and the lint passes. Rules become errors as the code is brought into line, a group at a time, and the helper goes when none are left.
 	- Only `apps/ui` is covered. `scripts/*.mjs` is not yet linted.

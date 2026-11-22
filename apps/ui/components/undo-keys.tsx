@@ -1,7 +1,8 @@
-"use client";
+'use client';
 
-import { useEffect } from "react";
-import { useGraph } from "@/lib/use-graph";
+import { useEffect } from 'react';
+
+import { useGraph } from '@/lib/use-graph';
 
 /**
  * Undo and redo when nothing is being typed in: the block editors and text
@@ -14,16 +15,19 @@ export function UndoKeys() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
-      if ((e.target as HTMLElement).closest("input, textarea, [contenteditable]")) return;
+      if (
+        (e.target as HTMLElement).closest('input, textarea, [contenteditable]')
+      )
+        return;
       const key = e.key.toLowerCase();
-      const redo = (key === "z" && e.shiftKey) || key === "y";
-      if (key !== "z" && key !== "y") return;
+      const redo = (key === 'z' && e.shiftKey) || key === 'y';
+      if (key !== 'z' && key !== 'y') return;
       e.preventDefault();
       if (redo) graph.redo();
       else graph.undo();
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, [graph]);
   return null;
 }

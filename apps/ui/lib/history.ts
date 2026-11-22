@@ -1,11 +1,11 @@
-import { parseView, type View } from "./nav";
+import { parseView, type View } from './nav';
 
 /**
  * Where the main pane is: its page, and the entity if it shows one. The side
  * panel is deliberately not part of it, so opening, closing and reordering
  * secondaries is never a step in the history.
  */
-export type Place = Pick<View, "path" | "main">;
+export type Place = Pick<View, 'path' | 'main'>;
 
 /**
  * The place an address is, as far as can be told without the graph, or
@@ -15,9 +15,9 @@ export type Place = Pick<View, "path" | "main">;
  * or the first place would be seen twice.
  */
 export function placeAt(pathname: string, search: string): Place | undefined {
-  if (pathname.startsWith("/page/")) return undefined;
+  if (pathname.startsWith('/page/')) return undefined;
   const { path, main } = parseView(pathname, new URLSearchParams(search));
-  return path === "/" && !main ? undefined : { path, main };
+  return path === '/' && !main ? undefined : { path, main };
 }
 
 /**
@@ -26,14 +26,18 @@ export function placeAt(pathname: string, search: string): Place | undefined {
  * followed, so each starts from here rather than from the first place it sees.
  */
 export function placeOpened(): Place | undefined {
-  if (typeof window === "undefined") return undefined;
-  const base = process.env.NEXT_PUBLIC_QUIDDITY_BASE_PATH ?? "";
+  if (typeof window === 'undefined') return undefined;
+  const base = process.env.NEXT_PUBLIC_QUIDDITY_BASE_PATH ?? '';
   const { pathname, search } = window.location;
-  const inApp = base && pathname.startsWith(base) ? pathname.slice(base.length) || "/" : pathname;
+  const inApp =
+    base && pathname.startsWith(base)
+      ? pathname.slice(base.length) || '/'
+      : pathname;
   return placeAt(inApp, search);
 }
 
-export const samePlace = (a: Place, b: Place) => a.path === b.path && a.main === b.main;
+export const samePlace = (a: Place, b: Place) =>
+  a.path === b.path && a.main === b.main;
 
 /**
  * The main pane's own back/forward history. The browser's would also replay
@@ -83,7 +87,9 @@ export class PlaceHistory {
 
   /** Steps forward and returns where to, or `undefined` at the end. */
   forward(): Place | undefined {
-    return this.at < this.places.length - 1 ? this.step(this.at + 1) : undefined;
+    return this.at < this.places.length - 1
+      ? this.step(this.at + 1)
+      : undefined;
   }
 
   private step(to: number): Place {

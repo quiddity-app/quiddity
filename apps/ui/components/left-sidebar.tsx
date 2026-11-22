@@ -1,23 +1,28 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import type { EntityRef } from "@/lib/model";
-import { entrypoints } from "@/lib/nav";
-import { useRecents } from "@/lib/recents";
-import { useMemo } from "react";
-import { useDeferredRead } from "@/lib/use-graph";
-import { Region, Skeleton } from "./boundary";
-import { EntityLink } from "./entity-link";
-import { useView } from "./use-view";
-import { paneHeading } from "./ui";
+import { useMemo } from 'react';
 
-function Section({ title, children }: Readonly<{ title: string; children: React.ReactNode }>) {
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+
+import { Region, Skeleton } from './boundary';
+import { EntityLink } from './entity-link';
+import { useView } from './use-view';
+import { paneHeading } from './ui';
+
+import type { EntityRef } from '@/lib/model';
+
+import { entrypoints } from '@/lib/nav';
+import { useRecents } from '@/lib/recents';
+import { useDeferredRead } from '@/lib/use-graph';
+
+function Section({
+  title,
+  children,
+}: Readonly<{ title: string; children: React.ReactNode }>) {
   return (
     <section className="px-2 py-2">
-      <h2 className={`px-2 pb-1 ${paneHeading}`}>
-        {title}
-      </h2>
+      <h2 className={`px-2 pb-1 ${paneHeading}`}>{title}</h2>
       {children}
     </section>
   );
@@ -35,7 +40,7 @@ function Items({ items }: Readonly<{ items: EntityRef[] }>) {
           <EntityLink
             id={item.id}
             className={`block truncate rounded px-2 py-1 text-sm coarse:py-3 hover:bg-surface-hover ${
-              item.id === main ? "bg-surface-hover font-medium" : ""
+              item.id === main ? 'bg-surface-hover font-medium' : ''
             }`}
           >
             {item.title}
@@ -57,7 +62,7 @@ function Favourites() {
   return <Items items={useDeferredRead((g) => g.favourites(), [])} />;
 }
 
-const sidebarEntrypoints = entrypoints.filter((e) => e.in === "sidebar");
+const sidebarEntrypoints = entrypoints.filter((e) => e.in === 'sidebar');
 
 function Entrypoints() {
   const pathname = usePathname();
@@ -71,7 +76,7 @@ function Entrypoints() {
             <Link
               href={href}
               className={`block truncate rounded px-2 py-1 text-sm coarse:py-3 hover:bg-surface-hover ${
-                here ? "bg-surface-hover font-medium" : ""
+                here ? 'bg-surface-hover font-medium' : ''
               }`}
             >
               {title}
@@ -90,7 +95,10 @@ function Recents() {
   const recents = useRecents();
   // Every entity's title, to look up a few: not what an edit waits for.
   const entities = useDeferredRead((g) => g.entities(), []);
-  const names = useMemo(() => new Map(entities.map((e) => [e.id, e.title])), [entities]);
+  const names = useMemo(
+    () => new Map(entities.map((e) => [e.id, e.title])),
+    [entities],
+  );
   const items = recents.flatMap((r) => {
     const title = names.get(r.id);
     return title === undefined ? [] : [{ id: r.id, title }];

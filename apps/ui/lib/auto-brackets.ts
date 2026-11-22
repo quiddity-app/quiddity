@@ -1,5 +1,5 @@
-import { EditorSelection, type Extension } from "@codemirror/state";
-import { EditorView, keymap } from "@codemirror/view";
+import { EditorSelection, type Extension } from '@codemirror/state';
+import { EditorView, keymap } from '@codemirror/view';
 
 /** What may follow a `[` for it to be closed: the end, space, or a closer. */
 const closable = /^(\s|[\])}]|$)/;
@@ -8,9 +8,9 @@ const closable = /^(\s|[\])}]|$)/;
 const open = (line: string, at: number) => {
   let depth = 0;
   for (let i = 0; i < at; i++) {
-    if (line[i] === "\\") i++;
-    else if (line[i] === "[") depth++;
-    else if (line[i] === "]" && depth > 0) depth--;
+    if (line[i] === '\\') i++;
+    else if (line[i] === '[') depth++;
+    else if (line[i] === ']' && depth > 0) depth--;
   }
   return depth;
 };
@@ -25,27 +25,31 @@ export function autoBrackets(): Extension {
     EditorView.inputHandler.of((view, from, to, text) => {
       if (view.composing) return false;
       const doc = view.state.doc;
-      if (text === "[") {
+      if (text === '[') {
         if (from !== to) {
           view.dispatch({
             changes: [
-              { from, insert: "[" },
-              { from: to, insert: "]" },
+              { from, insert: '[' },
+              { from: to, insert: ']' },
             ],
             selection: EditorSelection.range(from + 1, to + 1),
-            userEvent: "input.type",
+            userEvent: 'input.type',
           });
           return true;
         }
         if (!closable.test(doc.sliceString(from, from + 1))) return false;
         view.dispatch({
-          changes: { from, insert: "[]" },
+          changes: { from, insert: '[]' },
           selection: EditorSelection.cursor(from + 1),
-          userEvent: "input.type",
+          userEvent: 'input.type',
         });
         return true;
       }
-      if (text === "]" && from === to && doc.sliceString(from, from + 1) === "]") {
+      if (
+        text === ']' &&
+        from === to &&
+        doc.sliceString(from, from + 1) === ']'
+      ) {
         const line = doc.lineAt(from);
         if (open(line.text, from - line.from) > 0) {
           view.dispatch({ selection: EditorSelection.cursor(from + 1) });
@@ -56,15 +60,18 @@ export function autoBrackets(): Extension {
     }),
     keymap.of([
       {
-        key: "Backspace",
+        key: 'Backspace',
         run: (view) => {
           const { main } = view.state.selection;
           if (!main.empty) return false;
-          const around = view.state.doc.sliceString(main.head - 1, main.head + 1);
-          if (around !== "[]") return false;
+          const around = view.state.doc.sliceString(
+            main.head - 1,
+            main.head + 1,
+          );
+          if (around !== '[]') return false;
           view.dispatch({
             changes: { from: main.head - 1, to: main.head + 1 },
-            userEvent: "delete.backward",
+            userEvent: 'delete.backward',
           });
           return true;
         },

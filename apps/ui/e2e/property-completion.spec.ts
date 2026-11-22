@@ -1,72 +1,86 @@
-import { expect, test, editor, openEntity } from "./fixtures";
+import { expect, test, editor, openEntity } from './fixtures';
 
 // CRDT's properties block is `kind of:: data structure` and `merges:: without
 // coordination`, so those are the keys and values the graph already uses.
 // The first properties block is the entity's own: any after it belong to
 // entities listed as linking here, `kind of:: CRDT` among them.
-function ownProperties(page: import("@playwright/test").Page) {
-  return page.locator("main article [data-properties-block] [data-block-text]").first();
+function ownProperties(page: import('@playwright/test').Page) {
+  return page
+    .locator('main article [data-properties-block] [data-block-text]')
+    .first();
 }
 
-async function editProperties(page: import("@playwright/test").Page) {
-  await openEntity(page, "CRDT");
+async function editProperties(page: import('@playwright/test').Page) {
+  await openEntity(page, 'CRDT');
   await ownProperties(page).click();
-  await page.keyboard.press("End");
+  await page.keyboard.press('End');
 }
 
-test("a key being typed in a properties block is completed from the keys in use", async ({ page }) => {
+test('a key being typed in a properties block is completed from the keys in use', async ({
+  page,
+}) => {
   await editProperties(page);
-  await page.keyboard.press("Shift+Enter");
-  await page.keyboard.type("mer");
-  const list = page.getByRole("listbox");
-  await expect(list.getByRole("option", { name: /^merges/ })).toBeVisible();
+  await page.keyboard.press('Shift+Enter');
+  await page.keyboard.type('mer');
+  const list = page.getByRole('listbox');
+  await expect(list.getByRole('option', { name: /^merges/ })).toBeVisible();
   // Enter chooses it, rather than splitting the block.
-  await page.keyboard.press("Enter");
+  await page.keyboard.press('Enter');
   await expect(list).toHaveCount(0);
-  await expect(editor(page)).toContainText("merges:: ");
-  await expect(page.locator("main article > ul > li")).toHaveCount(1);
+  await expect(editor(page)).toContainText('merges:: ');
+  await expect(page.locator('main article > ul > li')).toHaveCount(1);
 });
 
-test("a value is completed from the values the key already has", async ({ page }) => {
+test('a value is completed from the values the key already has', async ({
+  page,
+}) => {
   await editProperties(page);
-  await page.keyboard.press("Shift+Enter");
-  await page.keyboard.type("merges:: ");
-  const option = page.getByRole("listbox").getByRole("option", { name: /^without coordination/ });
+  await page.keyboard.press('Shift+Enter');
+  await page.keyboard.type('merges:: ');
+  const option = page
+    .getByRole('listbox')
+    .getByRole('option', { name: /^without coordination/ });
   await expect(option).toBeVisible();
-  await page.keyboard.press("Enter");
-  await expect(editor(page)).toContainText("merges:: without coordination");
+  await page.keyboard.press('Enter');
+  await expect(editor(page)).toContainText('merges:: without coordination');
 });
 
-test("Enter in a properties block starts a line, and on an empty last line starts the body", async ({ page }) => {
+test('Enter in a properties block starts a line, and on an empty last line starts the body', async ({
+  page,
+}) => {
   await editProperties(page);
-  const blocks = page.locator("main article > ul > li");
+  const blocks = page.locator('main article > ul > li');
   const before = await blocks.count();
   // A line to type into, not a new block.
-  await page.keyboard.press("Enter");
+  await page.keyboard.press('Enter');
   await expect(blocks).toHaveCount(before);
   await expect(editor(page)).toHaveText(/without coordination\n?$/);
   // On the empty last line it makes a block after, and drops the empty line.
-  await page.keyboard.press("Enter");
+  await page.keyboard.press('Enter');
   await expect(blocks).toHaveCount(before + 1);
   await expect(ownProperties(page)).not.toContainText(/\n\s*$/);
-  await expect(editor(page)).toHaveText("");
+  await expect(editor(page)).toHaveText('');
 });
 
-test("nothing is offered in an ordinary block", async ({ page }) => {
-  await openEntity(page, "Quiddity");
-  await page.locator("main article > ul").getByText("Local-first").click();
-  await page.keyboard.press("End");
-  await page.keyboard.press("Shift+Enter");
-  await page.keyboard.type("mer");
-  await expect(page.getByRole("listbox")).toHaveCount(0);
+test('nothing is offered in an ordinary block', async ({ page }) => {
+  await openEntity(page, 'Quiddity');
+  await page.locator('main article > ul').getByText('Local-first').click();
+  await page.keyboard.press('End');
+  await page.keyboard.press('Shift+Enter');
+  await page.keyboard.type('mer');
+  await expect(page.getByRole('listbox')).toHaveCount(0);
 });
 
-test("the offered block is completed too, and Escape closes the list without leaving the block", async ({ page }) => {
-  await openEntity(page, "iroh");
-  await page.getByRole("button", { name: "+ Add properties" }).click();
-  await page.keyboard.type("kin");
-  await expect(page.getByRole("listbox").getByRole("option", { name: /^kind of/ })).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(page.getByRole("listbox")).toHaveCount(0);
+test('the offered block is completed too, and Escape closes the list without leaving the block', async ({
+  page,
+}) => {
+  await openEntity(page, 'iroh');
+  await page.getByRole('button', { name: '+ Add properties' }).click();
+  await page.keyboard.type('kin');
+  await expect(
+    page.getByRole('listbox').getByRole('option', { name: /^kind of/ }),
+  ).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('listbox')).toHaveCount(0);
   await expect(editor(page)).toBeFocused();
 });

@@ -1,13 +1,16 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useState } from "react";
-import type { EntityId } from "@/lib/model";
-import { Region, Skeleton } from "./boundary";
-import { EntityBody, EntityTitle } from "./entity-view";
-import { PageGraph } from "./page-graph";
-import { useView } from "./use-view";
-import { ErrorLine, iconButtonClass, paneHeading } from "./ui";
+import { useState } from 'react';
+
+import Link from 'next/link';
+
+import { Region, Skeleton } from './boundary';
+import { EntityBody, EntityTitle } from './entity-view';
+import { PageGraph } from './page-graph';
+import { useView } from './use-view';
+import { ErrorLine, iconButtonClass, paneHeading } from './ui';
+
+import type { EntityId } from '@/lib/model';
 
 /**
  * The header is outside the region that suspends, so a card can always be
@@ -33,12 +36,16 @@ function Secondary({ id }: Readonly<{ id: EntityId }>) {
           type="button"
           className={iconButtonClass}
           aria-expanded={!collapsed}
-          aria-label={collapsed ? "Expand" : "Collapse"}
+          aria-label={collapsed ? 'Expand' : 'Collapse'}
           onClick={() => setCollapsed((c) => !c)}
         >
-          {collapsed ? "▸" : "▾"}
+          {collapsed ? '▸' : '▾'}
         </button>
-        <Link href={view.toClosed(id)} className={iconButtonClass} aria-label="Close">
+        <Link
+          href={view.toClosed(id)}
+          className={iconButtonClass}
+          aria-label="Close"
+        >
           ✕
         </Link>
       </header>
@@ -51,9 +58,7 @@ function Secondary({ id }: Readonly<{ id: EntityId }>) {
                 <Skeleton className="h-4 w-2/3" />
               </div>
             }
-            failed={(error) => (
-              <ErrorLine>{error.message}</ErrorLine>
-            )}
+            failed={(error) => <ErrorLine>{error.message}</ErrorLine>}
           >
             <EntityBody id={id} />
           </Region>

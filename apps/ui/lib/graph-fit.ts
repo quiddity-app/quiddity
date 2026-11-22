@@ -32,7 +32,8 @@ export function largestGroup(
     return root;
   };
   for (const { source, target } of edges) {
-    if (parent.has(source) && parent.has(target)) parent.set(find(source), find(target));
+    if (parent.has(source) && parent.has(target))
+      parent.set(find(source), find(target));
   }
   const groups = new Map<string, string[]>();
   for (const id of ids) {
@@ -40,7 +41,8 @@ export function largestGroup(
     (groups.get(root) ?? groups.set(root, []).get(root)!).push(id);
   }
   let best: string[] = [];
-  for (const group of groups.values()) if (group.length > best.length) best = group;
+  for (const group of groups.values())
+    if (group.length > best.length) best = group;
   return new Set(best.length <= 1 ? ids : best);
 }
 
@@ -53,7 +55,11 @@ export function fitTransform(
   discs: readonly Disc[],
   width: number,
   height: number,
-  { pad, minScale, maxScale }: { pad: number; minScale: number; maxScale: number },
+  {
+    pad,
+    minScale,
+    maxScale,
+  }: { pad: number; minScale: number; maxScale: number },
 ): Fit | null {
   if (discs.length === 0 || width <= 0 || height <= 0) return null;
   let minX = Infinity;
@@ -68,7 +74,11 @@ export function fitTransform(
   }
   const k = Math.max(
     minScale,
-    Math.min(maxScale, width / ((maxX - minX) * (1 + 2 * pad)), height / ((maxY - minY) * (1 + 2 * pad))),
+    Math.min(
+      maxScale,
+      width / ((maxX - minX) * (1 + 2 * pad)),
+      height / ((maxY - minY) * (1 + 2 * pad)),
+    ),
   );
   return {
     k,

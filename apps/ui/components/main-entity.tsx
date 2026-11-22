@@ -1,16 +1,19 @@
-"use client";
+'use client';
 
-import { useEffect } from "react";
-import type { EntityId } from "@/lib/model";
-import { recordVisit } from "@/lib/recents";
-import { useRead } from "@/lib/use-graph";
-import { Region, Skeleton } from "./boundary";
-import { EditableTitle } from "./entity-title";
-import { EntityBody } from "./entity-view";
-import { useFileDrop } from "./file-drop";
-import { EntityFlags, MetaSections } from "./meta-sections";
-import { References } from "./references";
-import { ErrorLine } from "./ui";
+import { useEffect } from 'react';
+
+import { Region, Skeleton } from './boundary';
+import { EditableTitle } from './entity-title';
+import { EntityBody } from './entity-view';
+import { useFileDrop } from './file-drop';
+import { EntityFlags, MetaSections } from './meta-sections';
+import { References } from './references';
+import { ErrorLine } from './ui';
+
+import type { EntityId } from '@/lib/model';
+
+import { useRead } from '@/lib/use-graph';
+import { recordVisit } from '@/lib/recents';
 
 function Visit({ id }: Readonly<{ id: EntityId }>) {
   const { id: canonical, title } = useRead((g) => g.entity(id));
@@ -42,9 +45,7 @@ export function MainEntity({ id }: Readonly<{ id: EntityId }>) {
           failed={(error) => (
             <div role="alert">
               <h1 className="text-2xl font-semibold">Couldn't open this</h1>
-              <p className="mt-2 text-danger">
-                {error.message}
-              </p>
+              <p className="mt-2 text-danger">{error.message}</p>
             </div>
           )}
         >

@@ -1,8 +1,10 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import type { EntityId } from "@/lib/model";
-import { useGraph, useRead } from "@/lib/use-graph";
+import { useState } from 'react';
+
+import type { EntityId } from '@/lib/model';
+
+import { useGraph, useRead } from '@/lib/use-graph';
 
 /**
  * The heading of the entity in the main pane, which can be renamed in place:
@@ -42,8 +44,8 @@ export function EditableTitle({ id }: Readonly<{ id: EntityId }>) {
       onFocus={(e) => e.target.select()}
       onBlur={() => finish(true)}
       onKeyDown={(e) => {
-        if (e.key === "Enter") finish(true);
-        else if (e.key === "Escape") finish(false);
+        if (e.key === 'Enter') finish(true);
+        else if (e.key === 'Escape') finish(false);
       }}
     />
   );

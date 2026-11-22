@@ -1,4 +1,4 @@
-import type { EntityId } from "./model";
+import type { EntityId } from './model';
 
 /**
  * Where the graph view put each entity, and how it was panned and zoomed, so
@@ -16,28 +16,33 @@ export interface Transform extends Point {
   k: number;
 }
 
-const KEY = "quiddity:graph-layout";
+const KEY = 'quiddity:graph-layout';
 let positions = new Map<EntityId, Point>();
 let transform: Transform | null = null;
 let loaded = false;
 
-const isNumber = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
+const isNumber = (x: unknown): x is number =>
+  typeof x === 'number' && Number.isFinite(x);
 
 function load() {
   if (loaded) return;
   loaded = true;
   try {
-    const stored: unknown = JSON.parse(localStorage.getItem(KEY) ?? "null");
-    if (typeof stored !== "object" || stored === null) return;
-    const { positions: saved, transform: view } = stored as Record<string, unknown>;
-    if (typeof saved === "object" && saved !== null) {
+    const stored: unknown = JSON.parse(localStorage.getItem(KEY) ?? 'null');
+    if (typeof stored !== 'object' || stored === null) return;
+    const { positions: saved, transform: view } = stored as Record<
+      string,
+      unknown
+    >;
+    if (typeof saved === 'object' && saved !== null) {
       for (const [id, p] of Object.entries(saved)) {
         const { x, y } = (p ?? {}) as Partial<Point>;
         if (isNumber(x) && isNumber(y)) positions.set(id, { x, y });
       }
     }
     const { x, y, k } = (view ?? {}) as Partial<Transform>;
-    if (isNumber(x) && isNumber(y) && isNumber(k) && k > 0) transform = { x, y, k };
+    if (isNumber(x) && isNumber(y) && isNumber(k) && k > 0)
+      transform = { x, y, k };
   } catch {
     // Unreadable or no storage: start from nothing.
   }

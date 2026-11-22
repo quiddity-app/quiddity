@@ -1,17 +1,25 @@
-"use client";
+'use client';
 
-import { defaultKeymap, insertNewline } from "@codemirror/commands";
-import { EditorState, Prec } from "@codemirror/state";
-import { EditorView, keymap, type KeyBinding } from "@codemirror/view";
-import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from "react";
-import { useRouter } from "next/navigation";
-import { autoBrackets } from "@/lib/auto-brackets";
-import { fromGraph } from "@/lib/cm-annotations";
-import { linkCompletion } from "@/lib/link-completion";
-import { moveKeyName } from "@/lib/move-keys";
-import { propertyCompletion } from "@/lib/property-completion";
-import { useEditing, type Caret, type Editing } from "./editing-context";
-import { useView } from "./use-view";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useSyncExternalStore,
+} from 'react';
+
+import { defaultKeymap, insertNewline } from '@codemirror/commands';
+import { EditorState, Prec } from '@codemirror/state';
+import { EditorView, keymap, type KeyBinding } from '@codemirror/view';
+import { useRouter } from 'next/navigation';
+
+import { useEditing, type Caret, type Editing } from './editing-context';
+import { useView } from './use-view';
+
+import { autoBrackets } from '@/lib/auto-brackets';
+import { fromGraph } from '@/lib/cm-annotations';
+import { linkCompletion } from '@/lib/link-completion';
+import { moveKeyName } from '@/lib/move-keys';
+import { propertyCompletion } from '@/lib/property-completion';
 
 const isHighSurrogate = (s: string, i: number) => {
   const c = s.charCodeAt(i);
@@ -21,15 +29,24 @@ const isHighSurrogate = (s: string, i: number) => {
 /** The smallest edit that turns `from` into `to`. */
 function diff(from: string, to: string) {
   let start = 0;
-  while (start < from.length && start < to.length && from[start] === to[start]) start++;
+  while (start < from.length && start < to.length && from[start] === to[start])
+    start++;
   if (start > 0 && isHighSurrogate(from, start - 1)) start--;
   let endFrom = from.length;
   let endTo = to.length;
-  while (endFrom > start && endTo > start && from[endFrom - 1] === to[endTo - 1]) {
+  while (
+    endFrom > start &&
+    endTo > start &&
+    from[endFrom - 1] === to[endTo - 1]
+  ) {
     endFrom--;
     endTo--;
   }
-  if (endFrom < from.length && endFrom > 0 && isHighSurrogate(from, endFrom - 1)) {
+  if (
+    endFrom < from.length &&
+    endFrom > 0 &&
+    isHighSurrogate(from, endFrom - 1)
+  ) {
     endFrom++;
     endTo++;
   }
@@ -59,7 +76,7 @@ function outlinerKeys(
   };
   return [
     {
-      key: "Enter",
+      key: 'Enter',
       run: (view) => {
         if (!collapsed(view)) return false;
         const { graph, edit } = latest.current;
@@ -68,9 +85,10 @@ function outlinerKeys(
         // only waiting for a property, so it goes and the body begins.
         if (properties.current && view.state.doc.length > 0) {
           const line = view.state.doc.lineAt(head(view));
-          if (line.number !== view.state.doc.lines || line.length > 0) return insertNewline(view);
+          if (line.number !== view.state.doc.lines || line.length > 0)
+            return insertNewline(view);
           view.dispatch({ changes: { from: line.from - 1, to: line.to } });
-          edit(graph.split(id, view.state.doc.length), "start");
+          edit(graph.split(id, view.state.doc.length), 'start');
           return true;
         }
         // Enter in an empty block steps out a level, as in most outliners;
@@ -84,31 +102,31 @@ function outlinerKeys(
         const atStart = head(view) === 0 && view.state.doc.length > 0;
         if (atStart) edit(id, 0);
         const created = graph.split(id, head(view));
-        if (!atStart) edit(created, "start");
+        if (!atStart) edit(created, 'start');
         return true;
       },
     },
-    { key: "Shift-Enter", run: insertNewline },
+    { key: 'Shift-Enter', run: insertNewline },
     {
-      key: "Tab",
+      key: 'Tab',
       run: (view) => {
         const { graph, edit, announce } = latest.current;
         edit(id, head(view));
-        announce(graph.indent(id) ? "Indented" : "Can't indent");
+        announce(graph.indent(id) ? 'Indented' : "Can't indent");
         return true;
       },
     },
     {
-      key: "Shift-Tab",
+      key: 'Shift-Tab',
       run: (view) => {
         const { graph, edit, announce } = latest.current;
         edit(id, head(view));
-        announce(graph.outdent(id) ? "Outdented" : "Can't outdent");
+        announce(graph.outdent(id) ? 'Outdented' : "Can't outdent");
         return true;
       },
     },
     {
-      key: "Backspace",
+      key: 'Backspace',
       run: (view) => {
         if (!collapsed(view) || head(view) !== 0) return false;
         const { graph, edit } = latest.current;
@@ -118,43 +136,46 @@ function outlinerKeys(
       },
     },
     {
-      key: "ArrowUp",
+      key: 'ArrowUp',
       run: (view) =>
         collapsed(view) && view.state.doc.lineAt(head(view)).number === 1
-          ? go(neighbour(-1), "end")
+          ? go(neighbour(-1), 'end')
           : false,
     },
     {
-      key: "ArrowDown",
+      key: 'ArrowDown',
       run: (view) =>
         collapsed(view) &&
         view.state.doc.lineAt(head(view)).number === view.state.doc.lines
-          ? go(neighbour(1), "start")
+          ? go(neighbour(1), 'start')
           : false,
     },
     {
-      key: "ArrowLeft",
-      run: (view) => (collapsed(view) && head(view) === 0 ? go(neighbour(-1), "end") : false),
+      key: 'ArrowLeft',
+      run: (view) =>
+        collapsed(view) && head(view) === 0 ? go(neighbour(-1), 'end') : false,
     },
     {
-      key: "ArrowRight",
+      key: 'ArrowRight',
       run: (view) =>
         collapsed(view) && head(view) === view.state.doc.length
-          ? go(neighbour(1), "start")
+          ? go(neighbour(1), 'start')
           : false,
     },
     ...([-1, 1] as const).map((delta) => ({
-      key: moveKeyName(delta < 0 ? "ArrowUp" : "ArrowDown"),
+      key: moveKeyName(delta < 0 ? 'ArrowUp' : 'ArrowDown'),
       run: (view: EditorView) => {
         const { graph, edit, announce } = latest.current;
         edit(id, head(view));
-        const way = delta < 0 ? "up" : "down";
-        announce(graph.moveSibling(id, delta) ? `Moved ${way}` : `Can't move ${way}`);
+        const way = delta < 0 ? 'up' : 'down';
+        announce(
+          graph.moveSibling(id, delta) ? `Moved ${way}` : `Can't move ${way}`,
+        );
         return true;
       },
     })),
     {
-      key: "Escape",
+      key: 'Escape',
       run: () => {
         latest.current.stop(id);
         return true;
@@ -162,21 +183,21 @@ function outlinerKeys(
     },
     // Undo is the graph's, so it covers structure and other blocks too.
     {
-      key: "Mod-z",
+      key: 'Mod-z',
       run: () => {
         latest.current.graph.undo();
         return true;
       },
     },
     {
-      key: "Mod-Shift-z",
+      key: 'Mod-Shift-z',
       run: () => {
         latest.current.graph.redo();
         return true;
       },
     },
     {
-      key: "Mod-y",
+      key: 'Mod-y',
       run: () => {
         latest.current.graph.redo();
         return true;
@@ -229,8 +250,8 @@ export function BlockEditor({
   useEffect(() => {
     const doc = graph.blockText(id);
     let anchor = 0;
-    if (caret === "end") anchor = doc.length;
-    else if (caret !== "start") anchor = Math.min(caret, doc.length);
+    if (caret === 'end') anchor = doc.length;
+    else if (caret !== 'start') anchor = Math.min(caret, doc.length);
     const editor = new EditorView({
       parent: host.current!,
       state: EditorState.create({
@@ -240,7 +261,7 @@ export function BlockEditor({
           EditorView.lineWrapping,
           // CodeMirror turns the platform's spell checker off by default; blocks
           // are prose, so let it underline.
-          EditorView.contentAttributes.of({ spellcheck: "true" }),
+          EditorView.contentAttributes.of({ spellcheck: 'true' }),
           autoBrackets(),
           // Before the outliner's keys: in a link, arrows and Enter are the list's.
           Prec.highest(
@@ -255,7 +276,12 @@ export function BlockEditor({
                   if (graph.linkMatches(key).length < 2) return;
                   const { nav, router } = go.current;
                   router.push(
-                    nav.href({ path: "/disambiguate/", main: null, open: nav.open, link: key }),
+                    nav.href({
+                      path: '/disambiguate/',
+                      main: null,
+                      open: nav.open,
+                      link: key,
+                    }),
                   );
                   return;
                 }
@@ -268,7 +294,8 @@ export function BlockEditor({
           Prec.highest(
             propertyCompletion({
               keys: (query, limit) => graph.propertyKeys(query, limit),
-              values: (key, query, limit) => graph.propertyValues(key, query, limit),
+              values: (key, query, limit) =>
+                graph.propertyValues(key, query, limit),
               active: () => isProperties.current,
             }),
           ),
@@ -276,7 +303,8 @@ export function BlockEditor({
           keymap.of(defaultKeymap),
           EditorView.updateListener.of((update) => {
             if (!update.docChanged) return;
-            if (update.transactions.some((t) => t.annotation(fromGraph))) return;
+            if (update.transactions.some((t) => t.annotation(fromGraph)))
+              return;
             const changes: [number, number, string][] = [];
             update.changes.iterChanges((from, to, _fromB, _toB, inserted) =>
               changes.push([from, to, inserted.toString()]),
@@ -290,20 +318,21 @@ export function BlockEditor({
           EditorView.domEventHandlers({
             // Losing the window's focus isn't leaving the block.
             blur: () => {
-              if (!closing.current && document.hasFocus()) latest.current.stop(id);
+              if (!closing.current && document.hasFocus())
+                latest.current.stop(id);
             },
             // An outline pastes as blocks, and one bullet as its text; anything
             // else is left to the editor as the text it is.
             paste: (event, view) => {
-              const text = event.clipboardData?.getData("text/plain");
+              const text = event.clipboardData?.getData('text/plain');
               if (!text) return false;
               const pasted = graph.classifyPaste(text);
-              if (pasted.kind === "plain") return false;
+              if (pasted.kind === 'plain') return false;
               event.preventDefault();
-              if (pasted.kind === "block") {
+              if (pasted.kind === 'block') {
                 view.dispatch({
                   ...view.state.replaceSelection(pasted.text),
-                  userEvent: "input.paste",
+                  userEvent: 'input.paste',
                   scrollIntoView: true,
                 });
                 return true;
@@ -312,37 +341,43 @@ export function BlockEditor({
               graph.settle();
               const made = graph.pasteIntoBlock(id, text);
               const last = made.at(-1);
-              if (last !== undefined) latest.current.edit(last, "end");
+              if (last !== undefined) latest.current.edit(last, 'end');
               latest.current.announce(`${made.length} blocks pasted`);
               return true;
             },
           }),
           EditorView.theme({
-            "&": { backgroundColor: "transparent", color: "inherit" },
-            "&.cm-focused": { outline: "none" },
-            ".cm-scroller": { fontFamily: "inherit", lineHeight: "inherit" },
-            ".cm-content": { padding: "0", caretColor: "currentColor" },
-            ".cm-line": { padding: "0" },
+            '&': { backgroundColor: 'transparent', color: 'inherit' },
+            '&.cm-focused': { outline: 'none' },
+            '.cm-scroller': { fontFamily: 'inherit', lineHeight: 'inherit' },
+            '.cm-content': { padding: '0', caretColor: 'currentColor' },
+            '.cm-line': { padding: '0' },
             // The defaults assume a light background.
-            ".cm-cursor, .cm-dropCursor": { borderLeftColor: "currentColor" },
-            "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground": {
-              background: "var(--selection)",
-            },
+            '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'currentColor' },
+            '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground':
+              {
+                background: 'var(--selection)',
+              },
             // The completion list, in the page's colours.
-            ".cm-tooltip.cm-tooltip-autocomplete": {
-              backgroundColor: "var(--surface)",
-              color: "var(--ink)",
-              border: "1px solid var(--border)",
-              borderRadius: "0.375rem",
-              boxShadow: "var(--shadow-overlay)",
+            '.cm-tooltip.cm-tooltip-autocomplete': {
+              backgroundColor: 'var(--surface)',
+              color: 'var(--ink)',
+              border: '1px solid var(--border)',
+              borderRadius: '0.375rem',
+              boxShadow: 'var(--shadow-overlay)',
             },
-            ".cm-tooltip-autocomplete > ul": { fontFamily: "inherit" },
-            ".cm-tooltip-autocomplete > ul > li": { padding: "0.125rem 0.5rem" },
-            ".cm-tooltip-autocomplete > ul > li[aria-selected]": {
-              backgroundColor: "var(--surface-hover)",
-              color: "var(--ink)",
+            '.cm-tooltip-autocomplete > ul': { fontFamily: 'inherit' },
+            '.cm-tooltip-autocomplete > ul > li': {
+              padding: '0.125rem 0.5rem',
             },
-            ".cm-completionDetail": { color: "var(--ink-secondary)", marginLeft: "0.75rem" },
+            '.cm-tooltip-autocomplete > ul > li[aria-selected]': {
+              backgroundColor: 'var(--surface-hover)',
+              color: 'var(--ink)',
+            },
+            '.cm-completionDetail': {
+              color: 'var(--ink-secondary)',
+              marginLeft: '0.75rem',
+            },
           }),
         ],
       }),
@@ -355,7 +390,7 @@ export function BlockEditor({
     editor.contentDOM.focus({ preventScroll: true });
     editor.dispatch({
       effects: EditorView.scrollIntoView(editor.state.selection.main, {
-        y: "nearest",
+        y: 'nearest',
         yMargin: 48,
       }),
     });
@@ -369,7 +404,11 @@ export function BlockEditor({
 
   // Follow the graph. Compared with the graph's own text rather than what was
   // last rendered, which can lag a keystroke behind.
-  const revision = useSyncExternalStore(graph.subscribe, graph.getRevision, graph.getRevision);
+  const revision = useSyncExternalStore(
+    graph.subscribe,
+    graph.getRevision,
+    graph.getRevision,
+  );
   useEffect(() => {
     const editor = view.current;
     if (!editor) return;

@@ -3,7 +3,7 @@ export type Update = { version: string; notes: string | null };
 
 /** Only the app updates itself: a browser tab is always the latest build. */
 export function canUpdate(): boolean {
-  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
 /**
@@ -14,8 +14,8 @@ export function canUpdate(): boolean {
 export async function checkForUpdate(): Promise<Update | null> {
   if (!canUpdate()) return null;
   try {
-    const { invoke } = await import("@tauri-apps/api/core");
-    return await invoke<Update | null>("check_for_update");
+    const { invoke } = await import('@tauri-apps/api/core');
+    return await invoke<Update | null>('check_for_update');
   } catch (error) {
     console.info("Couldn't check for an update", error);
     return null;
@@ -24,6 +24,6 @@ export async function checkForUpdate(): Promise<Update | null> {
 
 /** Installs the update the last check found. The app restarts when it is done. */
 export async function installUpdate(): Promise<void> {
-  const { invoke } = await import("@tauri-apps/api/core");
-  await invoke("install_update");
+  const { invoke } = await import('@tauri-apps/api/core');
+  await invoke('install_update');
 }

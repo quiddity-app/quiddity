@@ -8,10 +8,11 @@ import {
   type Completion,
   type CompletionContext,
   type CompletionResult,
-} from "@codemirror/autocomplete";
-import type { Extension } from "@codemirror/state";
-import { keymap } from "@codemirror/view";
-import type { KeyHit, ValueHit } from "./model";
+} from '@codemirror/autocomplete';
+import { keymap } from '@codemirror/view';
+
+import type { Extension } from '@codemirror/state';
+import type { KeyHit, ValueHit } from './model';
 
 /** How many entries the list offers. */
 const MAX_HITS = 8;
@@ -45,23 +46,26 @@ export function propertyCompletion(source: PropertySource): Extension {
     // pending (a moment after typing, before any list) its Escape would close
     // nothing and still take the key, so leaving the block would need two.
     keymap.of([
-      { key: "Enter", run: acceptCompletion },
-      { key: "ArrowDown", run: moveCompletionSelection(true) },
-      { key: "ArrowUp", run: moveCompletionSelection(false) },
-      { key: "PageDown", run: moveCompletionSelection(true, "page") },
-      { key: "PageUp", run: moveCompletionSelection(false, "page") },
-      { key: "Ctrl-Space", run: startCompletion },
+      { key: 'Enter', run: acceptCompletion },
+      { key: 'ArrowDown', run: moveCompletionSelection(true) },
+      { key: 'ArrowUp', run: moveCompletionSelection(false) },
+      { key: 'PageDown', run: moveCompletionSelection(true, 'page') },
+      { key: 'PageUp', run: moveCompletionSelection(false, 'page') },
+      { key: 'Ctrl-Space', run: startCompletion },
       {
-        key: "Escape",
-        run: (view) => (completionStatus(view.state) === "active" ? closeCompletion(view) : false),
+        key: 'Escape',
+        run: (view) =>
+          completionStatus(view.state) === 'active'
+            ? closeCompletion(view)
+            : false,
       },
     ]),
   ];
 }
 
 function useCount(uses: number): string {
-  if (uses === 0) return "defined";
-  return `${uses} ${uses === 1 ? "use" : "uses"}`;
+  if (uses === 0) return 'defined';
+  return `${uses} ${uses === 1 ? 'use' : 'uses'}`;
 }
 
 function completion(source: PropertySource): Extension {
@@ -78,24 +82,31 @@ function completion(source: PropertySource): Extension {
   });
 }
 
-function complete(context: CompletionContext, source: PropertySource): CompletionResult | null {
+function complete(
+  context: CompletionContext,
+  source: PropertySource,
+): CompletionResult | null {
   if (!source.active()) return null;
   const line = context.state.doc.lineAt(context.pos);
   const before = line.text.slice(0, context.pos - line.from);
 
   const value = withValue.exec(before);
   if (value) {
-    const [, lead, key, gap, typed] = value as unknown as [string, string, string, string, string];
+    const [, lead, key, gap, typed] = value as unknown as [
+      string,
+      string,
+      string,
+      string,
+      string,
+    ];
     const hits = source.values(key.trim(), typed, MAX_HITS);
     if (hits.length === 0) return null;
     return {
       from: line.from + lead.length + key.length + 2 + gap.length,
-      options: hits.map(
-        (hit): Completion => ({
-          label: hit.value,
-          detail: hit.uses > 1 ? `${hit.uses} uses` : undefined,
-        }),
-      ),
+      options: hits.map((hit): Completion => ({
+        label: hit.value,
+        detail: hit.uses > 1 ? `${hit.uses} uses` : undefined,
+      })),
       filter: false,
     };
   }
@@ -103,18 +114,16 @@ function complete(context: CompletionContext, source: PropertySource): Completio
   const start = startOfKey.exec(before);
   if (!start) return null;
   const [, lead, typed] = start as unknown as [string, string, string];
-  if (typed.trim() === "" && !context.explicit) return null;
+  if (typed.trim() === '' && !context.explicit) return null;
   const hits = source.keys(typed, MAX_HITS);
   if (hits.length === 0) return null;
   return {
     from: line.from + lead.length,
-    options: hits.map(
-      (hit): Completion => ({
-        label: hit.key,
-        apply: `${hit.key}:: `,
-        detail: useCount(hit.uses),
-      }),
-    ),
+    options: hits.map((hit): Completion => ({
+      label: hit.key,
+      apply: `${hit.key}:: `,
+      detail: useCount(hit.uses),
+    })),
     filter: false,
   };
 }

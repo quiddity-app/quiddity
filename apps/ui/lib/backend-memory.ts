@@ -1,7 +1,8 @@
-import { Replica } from "./wasm/quiddity_wasm";
-import type { Backend } from "./graph";
-import type { SyncState } from "./model";
-import type { Recovery } from "./recovery";
+import { Replica } from './wasm/quiddity_wasm';
+
+import type { Backend } from './graph';
+import type { SyncState } from './model';
+import type { Recovery } from './recovery';
 
 interface Seed {
   text: string;
@@ -10,7 +11,7 @@ interface Seed {
 
 const b = (text: string, ...children: Seed[]): Seed => ({ text, children });
 
-const pad = (n: number) => String(n).padStart(2, "0");
+const pad = (n: number) => String(n).padStart(2, '0');
 
 function days(count: number): [string, Seed[]][] {
   return Array.from({ length: count }, (_, i) => {
@@ -21,8 +22,8 @@ function days(count: number): [string, Seed[]][] {
       date,
       [
         b(`##journal(${date})`),
-        b(i % 3 === 0 ? "Worked on [[Quiddity]]." : "A quiet day."),
-        ...(i % 5 === 0 ? [b("Read about loro again")] : []),
+        b(i % 3 === 0 ? 'Worked on [[Quiddity]].' : 'A quiet day.'),
+        ...(i % 5 === 0 ? [b('Read about loro again')] : []),
       ],
     ];
   });
@@ -30,44 +31,51 @@ function days(count: number): [string, Seed[]][] {
 
 const pages: [string, Seed[]][] = [
   [
-    "Quiddity",
+    'Quiddity',
     [
-      b("favourite:: true\ntype:: project"),
+      b('favourite:: true\ntype:: project'),
       b(
-        "Local-first, multiplayer second brain.",
-        b("Built on [[Loro]] and [[iroh]]."),
-        b("Shift-click a link to open it at the side."),
+        'Local-first, multiplayer second brain.',
+        b('Built on [[Loro]] and [[iroh]].'),
+        b('Shift-click a link to open it at the side.'),
       ),
-      b("Open questions", b("Eviction of unsynced edits.")),
+      b('Open questions', b('Eviction of unsynced edits.')),
     ],
   ],
   [
-    "Loro",
+    'Loro',
     [
-      b("favourite:: true\nkind of:: CRDT"),
-      b("A CRDT library. Documents are movable trees of text."),
+      b('favourite:: true\nkind of:: CRDT'),
+      b('A CRDT library. Documents are movable trees of text.'),
     ],
   ],
   // A small taxonomy, for the meta-properties.
   [
-    "kind of",
+    'kind of',
     [
-      b("##transitive\n##inherits\n##inverse(kinds)"),
+      b('##transitive\n##inherits\n##inverse(kinds)'),
       b("What something is a kind of. It has that thing's properties too."),
     ],
   ],
-  ["CRDT", [b("kind of:: data structure\nmerges:: without coordination")]],
-  ["data structure", [b("#structure")]],
-  ["iroh", [b("QUIC with hole punching, addressed by public key.")]],
+  ['CRDT', [b('kind of:: data structure\nmerges:: without coordination')]],
+  ['data structure', [b('#structure')]],
+  ['iroh', [b('QUIC with hole punching, addressed by public key.')]],
   [
-    "Reading list",
-    [b("Designing Data-Intensive Applications"), b("Notes on loro and other CRDTs")],
+    'Reading list',
+    [
+      b('Designing Data-Intensive Applications'),
+      b('Notes on loro and other CRDTs'),
+    ],
   ],
 ];
 
 function fill(replica: Replica, parent: string, seeds: Seed[]) {
   for (const seed of seeds) {
-    fill(replica, replica.createBlock(parent, undefined, seed.text), seed.children);
+    fill(
+      replica,
+      replica.createBlock(parent, undefined, seed.text),
+      seed.children,
+    );
   }
 }
 
@@ -75,7 +83,7 @@ function fill(replica: Replica, parent: string, seeds: Seed[]) {
 function entity(replica: Replica, name: string, [first, ...rest]: Seed[]) {
   const id = replica.createEntity(name);
   const empty = replica.entity(id).blocks[0].id;
-  replica.spliceText(empty, 0, 0, first?.text ?? "");
+  replica.spliceText(empty, 0, 0, first?.text ?? '');
   fill(replica, empty, first?.children ?? []);
   fill(replica, id, rest);
 }
@@ -83,7 +91,8 @@ function entity(replica: Replica, name: string, [first, ...rest]: Seed[]) {
 /** A made-up graph, for working on the UI in a plain browser. */
 function seeded(): Replica {
   const replica = Replica.empty();
-  for (const [name, blocks] of [...pages, ...days(30)]) entity(replica, name, blocks);
+  for (const [name, blocks] of [...pages, ...days(30)])
+    entity(replica, name, blocks);
   return replica;
 }
 
@@ -95,7 +104,13 @@ let started: Uint8Array | undefined;
 interface Remote {
   createEntity(name: string): void;
   /** A file another device has added to a page, whose bytes this one doesn't have. */
-  createBlob(page: string, name: string, hash: string, mime: string, size: number): void;
+  createBlob(
+    page: string,
+    name: string,
+    hash: string,
+    mime: string,
+    size: number,
+  ): void;
   /** The hashes of the files this page has kept. */
   kept: string[];
   /** The blocks the page last said it was editing. */
@@ -116,8 +131,10 @@ interface Remote {
 const files = new Map<string, Uint8Array>();
 
 async function hashOf(bytes: Uint8Array): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", bytes as BufferSource);
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  const digest = await crypto.subtle.digest('SHA-256', bytes as BufferSource);
+  return [...new Uint8Array(digest)]
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 /** What `?damaged` said, once the page has been asked. */
@@ -126,7 +143,7 @@ let damaged: string | false | undefined;
 export const memoryBackend: Backend = {
   async load() {
     // `?blank` is a device that has joined nothing yet.
-    started = new URLSearchParams(window.location.search).has("blank")
+    started = new URLSearchParams(window.location.search).has('blank')
       ? Replica.blank().snapshot()
       : seeded().snapshot();
     return started;
@@ -136,18 +153,22 @@ export const memoryBackend: Backend = {
   // redirects from `/` and loses the query; going on then reloads the page
   // without it, as the shell's cleared problem would.
   async startupProblem() {
-    damaged ??= new URLSearchParams(window.location.search).get("damaged") ?? false;
+    damaged ??=
+      new URLSearchParams(window.location.search).get('damaged') ?? false;
     return damaged === false
       ? null
-      : { dir: "/home/someone/graph", message: "the snapshot is not valid: unexpected end of data" };
+      : {
+          dir: '/home/someone/graph',
+          message: 'the snapshot is not valid: unexpected end of data',
+        };
   },
   async recover(how) {
     remote().recovered.push(how);
-    if (damaged === "stubborn") throw new Error("permission denied");
+    if (damaged === 'stubborn') throw new Error('permission denied');
     // What reloading would otherwise find again.
     const url = new URL(window.location.href);
-    url.searchParams.delete("damaged");
-    window.history.replaceState(null, "", url);
+    url.searchParams.delete('damaged');
+    window.history.replaceState(null, '', url);
   },
   // Nothing outlives the page: this is for looking at the UI. What the
   // shell would be told is kept for tests to read.
@@ -160,7 +181,7 @@ export const memoryBackend: Backend = {
   // A made-up device, and the shell's check that an ID is one (a 32-byte key
   // in hex), so the screen can be tried and tested outside the app.
   async deviceId() {
-    return "f00d".repeat(16);
+    return 'f00d'.repeat(16);
   },
   async allowDevice(device) {
     if (!/^[0-9a-f]{64}$/i.test(device)) {
@@ -172,7 +193,7 @@ export const memoryBackend: Backend = {
   // says otherwise.
   async subscribeStatus(onStatus) {
     remote().setStatus = onStatus;
-    onStatus("alone");
+    onStatus('alone');
   },
   async putBlob(bytes) {
     const hash = await hashOf(bytes);
@@ -197,7 +218,13 @@ export const memoryBackend: Backend = {
         onUpdates(before ? other.exportUpdates(before) : other.snapshot());
         before = other.version();
       },
-      createBlob(page: string, name: string, hash: string, mime: string, size: number) {
+      createBlob(
+        page: string,
+        name: string,
+        hash: string,
+        mime: string,
+        size: number,
+      ) {
         const before = other.version();
         other.attachBlob(page, hash, mime, BigInt(size), name);
         onUpdates(other.exportUpdates(before));

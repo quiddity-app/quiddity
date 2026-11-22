@@ -1,9 +1,12 @@
-"use client";
+'use client';
 
-import { useRouter } from "next/navigation";
-import { useEffect, useRef } from "react";
-import { PlaceHistory, placeOpened, type Place } from "@/lib/history";
-import { useView } from "./use-view";
+import { useEffect, useRef } from 'react';
+
+import { useRouter } from 'next/navigation';
+
+import { useView } from './use-view';
+
+import { PlaceHistory, placeOpened, type Place } from '@/lib/history';
 
 /**
  * Back and forward through the main pane: Alt-Left and Alt-Right, or
@@ -17,7 +20,8 @@ import { useView } from "./use-view";
  */
 const typing = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
-  (target.isContentEditable || target.closest("input, textarea, [contenteditable]") !== null);
+  (target.isContentEditable ||
+    target.closest('input, textarea, [contenteditable]') !== null);
 
 /**
  * One history for the page, started where the page was opened. The component
@@ -40,7 +44,7 @@ export function HistoryKeys() {
   // search, or the browser's own back button. `/` only redirects to home.
   const { path, main } = view;
   useEffect(() => {
-    if (path === "/" && !main) return;
+    if (path === '/' && !main) return;
     history.observe({ path, main });
   }, [path, main]);
 
@@ -54,15 +58,15 @@ export function HistoryKeys() {
       if (typing(e.target)) return;
       const alt = e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey;
       const mod = (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey;
-      const back = (alt && e.key === "ArrowLeft") || (mod && e.key === "[");
-      const forward = (alt && e.key === "ArrowRight") || (mod && e.key === "]");
+      const back = (alt && e.key === 'ArrowLeft') || (mod && e.key === '[');
+      const forward = (alt && e.key === 'ArrowRight') || (mod && e.key === ']');
       if (!back && !forward) return;
       e.preventDefault();
       e.stopPropagation();
       go(back ? history.back() : history.forward());
     };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   }, [router]);
   return null;
 }

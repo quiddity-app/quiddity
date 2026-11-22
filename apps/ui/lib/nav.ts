@@ -1,4 +1,4 @@
-import type { EntityId } from "./model";
+import type { EntityId } from './model';
 
 /**
  * The whole view state lives in the URL: `/entity/?id=<main>&open=<a>,<b>`.
@@ -40,38 +40,57 @@ function decode(segment: string): string {
   }
 }
 
-export function parseView(pathname: string, params: URLSearchParams, names?: Names | null): View {
-  const named = pathname.startsWith("/page/");
-  const mainName = named ? decode((pathname.slice("/page/".length).split("/")[0] ?? "")) : null;
+export function parseView(
+  pathname: string,
+  params: URLSearchParams,
+  names?: Names | null,
+): View {
+  const named = pathname.startsWith('/page/');
+  const mainName = named
+    ? decode(pathname.slice('/page/'.length).split('/')[0] ?? '')
+    : null;
   let main: string | null = null;
-  if (pathname.startsWith("/entity")) main = params.get("id");
+  if (pathname.startsWith('/entity')) main = params.get('id');
   else if (mainName !== null) main = names?.id(mainName) ?? null;
   // Names are written as they are, so unlike IDs they can't be split on a comma.
   const open = [
-    ...params.getAll("open").flatMap((value) => (names ? [value] : value.split(","))),
+    ...params
+      .getAll('open')
+      .flatMap((value) => (names ? [value] : value.split(','))),
   ]
     .filter(Boolean)
     .map((value) => (names ? (names.id(value) ?? value) : value));
   const path =
-    ["/journals/", "/all/", "/graph/", "/disambiguate/"].find((p) => pathname.startsWith(p.slice(0, -1))) ?? "/";
-  const link = path === "/disambiguate/" ? params.get("link") : null;
-  return { path, main, open: [...new Set(open)], link, pageGraph: params.get("pagegraph") === "1" };
+    ['/journals/', '/all/', '/graph/', '/disambiguate/'].find((p) =>
+      pathname.startsWith(p.slice(0, -1)),
+    ) ?? '/';
+  const link = path === '/disambiguate/' ? params.get('link') : null;
+  return {
+    path,
+    main,
+    open: [...new Set(open)],
+    link,
+    pageGraph: params.get('pagegraph') === '1',
+  };
 }
 
-export function viewHref({ path, main, open, link, pageGraph }: View, names?: Names | null): string {
+export function viewHref(
+  { path, main, open, link, pageGraph }: View,
+  names?: Names | null,
+): string {
   const params = new URLSearchParams();
-  if (main && pageGraph) params.set("pagegraph", "1");
-  if (!main && path === "/disambiguate/" && link) params.set("link", link);
+  if (main && pageGraph) params.set('pagegraph', '1');
+  if (!main && path === '/disambiguate/' && link) params.set('link', link);
   const mainName = main && names?.name(main);
-  if (main && !mainName) params.set("id", main);
+  if (main && !mainName) params.set('id', main);
   if (names) {
-    for (const id of open) params.append("open", names.name(id) ?? id);
+    for (const id of open) params.append('open', names.name(id) ?? id);
   } else if (open.length) {
-    params.set("open", open.join(","));
+    params.set('open', open.join(','));
   }
-  const query = params.size ? `?${params}` : "";
+  const query = params.size ? `?${params}` : '';
   if (mainName) return `/page/${encodeURIComponent(mainName)}/${query}`;
-  return `${main ? "/entity/" : path}${query}`;
+  return `${main ? '/entity/' : path}${query}`;
 }
 
 /**
@@ -80,11 +99,11 @@ export function viewHref({ path, main, open, link, pageGraph }: View, names?: Na
  * (`apps/app/src-tauri/src/menu.rs`) lists all of them, with these paths.
  */
 export const entrypoints = [
-  { title: "Journals", href: "/journals/", in: "sidebar" },
-  { title: "All entities", href: "/all/", in: "sidebar" },
-  { title: "Graph", href: "/graph/", in: "sidebar" },
-  { title: "Devices", href: "/devices/", in: "menu" },
-  { title: "Stats and debug", href: "/stats/", in: "menu" },
+  { title: 'Journals', href: '/journals/', in: 'sidebar' },
+  { title: 'All entities', href: '/all/', in: 'sidebar' },
+  { title: 'Graph', href: '/graph/', in: 'sidebar' },
+  { title: 'Devices', href: '/devices/', in: 'menu' },
+  { title: 'Stats and debug', href: '/stats/', in: 'menu' },
 ] as const;
 
 /** The pages a link in a block's text may name by path, as `[text](/graph/)`. */

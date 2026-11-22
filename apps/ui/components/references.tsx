@@ -1,13 +1,15 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import type { EntityId, Reference } from "@/lib/model";
-import { useDeferredRead } from "@/lib/use-graph";
-import { Region, Skeleton } from "./boundary";
-import { EntityLink } from "./entity-link";
-import { Outline } from "./entity-view";
-import { ErrorLine, linkClass, sectionHeading, subsectionTitle } from "./ui";
+import { useState } from 'react';
 
+import { Region, Skeleton } from './boundary';
+import { EntityLink } from './entity-link';
+import { Outline } from './entity-view';
+import { ErrorLine, linkClass, sectionHeading, subsectionTitle } from './ui';
+
+import type { EntityId, Reference } from '@/lib/model';
+
+import { useDeferredRead } from '@/lib/use-graph';
 
 function Groups({ references }: Readonly<{ references: Reference[] }>) {
   return (
@@ -15,10 +17,7 @@ function Groups({ references }: Readonly<{ references: Reference[] }>) {
       {references.map(({ source, blocks, links }) => (
         <li key={source.id}>
           <h3 className={subsectionTitle}>
-            <EntityLink
-              id={source.id}
-              className={linkClass}
-            >
+            <EntityLink id={source.id} className={linkClass}>
               {source.title}
             </EntityLink>
           </h3>
@@ -37,7 +36,9 @@ function Linked({ id }: Readonly<{ id: EntityId }>) {
   if (references.length === 0) return null;
   return (
     <section aria-label="Linked references">
-      <h2 className={`${sectionHeading} mb-3`}>Linked references ({count(references)})</h2>
+      <h2 className={`${sectionHeading} mb-3`}>
+        Linked references ({count(references)})
+      </h2>
       <Groups references={references} />
     </section>
   );
@@ -56,10 +57,10 @@ function Uses({ id }: Readonly<{ id: EntityId }>) {
             <EntityLink id={entity.id} className={linkClass}>
               {entity.title}
             </EntityLink>
-            {values.some((v) => v !== "") && (
+            {values.some((v) => v !== '') && (
               <span className="text-ink-secondary">
-                {": "}
-                {values.filter((v) => v !== "").join("; ")}
+                {': '}
+                {values.filter((v) => v !== '').join('; ')}
               </span>
             )}
           </li>
@@ -82,7 +83,9 @@ function Unlinked({ id }: Readonly<{ id: EntityId }>) {
   const [shown, setShown] = useState(false);
   return (
     <details onToggle={(e) => setShown(e.currentTarget.open)}>
-      <summary className={`${sectionHeading} cursor-pointer select-none`}>Unlinked references</summary>
+      <summary className={`${sectionHeading} cursor-pointer select-none`}>
+        Unlinked references
+      </summary>
       {shown && (
         <div className="mt-3">
           <Region

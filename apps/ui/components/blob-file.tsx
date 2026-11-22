@@ -1,9 +1,12 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import type { BlobInfo } from "@/lib/model";
-import { useGraph } from "@/lib/use-graph";
-import { Button, linkClass } from "./ui";
+import { useEffect, useState } from 'react';
+
+import { Button, linkClass } from './ui';
+
+import type { BlobInfo } from '@/lib/model';
+
+import { useGraph } from '@/lib/use-graph';
 
 type Loaded = { key: string } & ({ url: string } | { reason: string });
 
@@ -12,7 +15,11 @@ type Loaded = { key: string } & ({ url: string } | { reason: string });
  * the page moves on. `attempt` asks again: the bytes may have arrived from
  * another device since. Undefined while it is being read.
  */
-function useFileUrl(hash: string, mime: string, attempt: number): Loaded | undefined {
+function useFileUrl(
+  hash: string,
+  mime: string,
+  attempt: number,
+): Loaded | undefined {
   const graph = useGraph();
   const key = `${hash}/${mime}/${attempt}`;
   const [loaded, setLoaded] = useState<Loaded>();
@@ -22,7 +29,9 @@ function useFileUrl(hash: string, mime: string, attempt: number): Loaded | undef
     graph.readFile(hash).then(
       (bytes) => {
         if (cancelled) return;
-        url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: mime }));
+        url = URL.createObjectURL(
+          new Blob([bytes as BlobPart], { type: mime }),
+        );
         setLoaded({ key, url });
       },
       (error: Error) => {
@@ -37,7 +46,7 @@ function useFileUrl(hash: string, mime: string, attempt: number): Loaded | undef
   return loaded?.key === key ? loaded : undefined;
 }
 
-const units = ["bytes", "KB", "MB", "GB", "TB"];
+const units = ['bytes', 'KB', 'MB', 'GB', 'TB'];
 
 /** A size for people: 1.5 MB, not 1572864. */
 export function formatSize(bytes: number): string {
@@ -47,7 +56,10 @@ export function formatSize(bytes: number): string {
     value /= 1000;
     unit++;
   }
-  const shown = unit === 0 || value >= 100 ? Math.round(value) : Math.round(value * 10) / 10;
+  const shown =
+    unit === 0 || value >= 100
+      ? Math.round(value)
+      : Math.round(value * 10) / 10;
   return `${shown} ${units[unit]}`;
 }
 
@@ -59,15 +71,19 @@ function File({ blob: asset }: Readonly<{ blob: BlobInfo }>) {
   const details = `${formatSize(asset.size)}, ${asset.mime}`;
 
   if (!graph.canKeepFiles()) {
-    return <p role="status">This build can’t show files. {name} is {details}.</p>;
+    return (
+      <p role="status">
+        This build can’t show files. {name} is {details}.
+      </p>
+    );
   }
   if (!file) return <p role="status">Loading {name}…</p>;
-  if ("reason" in file) {
+  if ('reason' in file) {
     return (
       <div role="status" className="space-y-2">
         <p>
-          {name} ({details}) isn’t on this device yet. It arrives when a device that has it is
-          reachable.
+          {name} ({details}) isn’t on this device yet. It arrives when a device
+          that has it is reachable.
         </p>
         <Button onClick={() => setAttempt((n) => n + 1)}>Try again</Button>
       </div>
@@ -75,15 +91,19 @@ function File({ blob: asset }: Readonly<{ blob: BlobInfo }>) {
   }
   return (
     <div className="space-y-2">
-      {asset.mime.startsWith("image/") && (
+      {asset.mime.startsWith('image/') && (
         // A blob URL: next/image has nothing to optimise.
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={file.url} alt={name} className="max-h-[32rem] max-w-full rounded" />
+        <img
+          src={file.url}
+          alt={name}
+          className="max-h-[32rem] max-w-full rounded"
+        />
       )}
       <p>
         <a href={file.url} download={name} className={linkClass}>
           Download {name}
-        </a>{" "}
+        </a>{' '}
         <span className="text-ink-muted">({details})</span>
       </p>
     </div>

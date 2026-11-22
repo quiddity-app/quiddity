@@ -1,15 +1,19 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef } from "react";
-import { pageGraph } from "@/lib/page-graph";
-import type { EntityId } from "@/lib/model";
-import { useRead } from "@/lib/use-graph";
-import { draw } from "./graph-view";
-import { Region, Skeleton } from "./boundary";
-import { useView } from "./use-view";
-import { iconButtonClass, paneHeading } from "./ui";
+import { useEffect, useMemo, useRef } from 'react';
+
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+
+import { draw } from './graph-view';
+import { Region, Skeleton } from './boundary';
+import { useView } from './use-view';
+import { iconButtonClass, paneHeading } from './ui';
+
+import type { EntityId } from '@/lib/model';
+
+import { useRead } from '@/lib/use-graph';
+import { pageGraph } from '@/lib/page-graph';
 
 function Canvas({ id }: { id: EntityId }) {
   const all = useRead((g) => g.connections());
@@ -32,7 +36,9 @@ function Canvas({ id }: { id: EntityId }) {
         const { view, router } = latest.current;
         router.push(aside ? view.toSide(to) : view.toMain(to));
       },
-      (to) => process.env.NEXT_PUBLIC_QUIDDITY_BASE_PATH + latest.current.view.toMain(to),
+      (to) =>
+        process.env.NEXT_PUBLIC_QUIDDITY_BASE_PATH +
+        latest.current.view.toMain(to),
       // This is a part of the graph, so it keeps to itself: the whole graph's
       // positions are not its own, and its are not the whole graph's.
       { persist: false },
@@ -50,8 +56,16 @@ function Canvas({ id }: { id: EntityId }) {
   }, [data, id]);
 
   return (
-    <div role="group" aria-label="Entities near this page" className="relative h-72">
-      <canvas ref={canvasRef} aria-hidden className="absolute inset-0 size-full touch-none" />
+    <div
+      role="group"
+      aria-label="Entities near this page"
+      className="relative h-72"
+    >
+      <canvas
+        ref={canvasRef}
+        aria-hidden
+        className="absolute inset-0 size-full touch-none"
+      />
       <div ref={listRef} className="sr-only" />
     </div>
   );
@@ -65,17 +79,28 @@ function Canvas({ id }: { id: EntityId }) {
 export function PageGraph({ id }: { id: EntityId }) {
   const view = useView();
   return (
-    <section aria-label="Page graph" className="mx-3 mb-3 rounded-lg border border-border bg-surface">
+    <section
+      aria-label="Page graph"
+      className="mx-3 mb-3 rounded-lg border border-border bg-surface"
+    >
       <header className="flex items-center gap-1 px-3 py-0.5">
         <h2 className={`${paneHeading} min-w-0 flex-1`}>Page graph</h2>
-        <Link href={view.togglePageGraph()} className={iconButtonClass} aria-label="Close page graph">
+        <Link
+          href={view.togglePageGraph()}
+          className={iconButtonClass}
+          aria-label="Close page graph"
+        >
           ✕
         </Link>
       </header>
       <div className="border-t border-border">
         <Region
           pending={<Skeleton className="m-3 h-64" />}
-          failed={(error) => <p className="p-3 text-sm">The graph could not be drawn: {error.message}</p>}
+          failed={(error) => (
+            <p className="p-3 text-sm">
+              The graph could not be drawn: {error.message}
+            </p>
+          )}
         >
           <Canvas id={id} />
         </Region>

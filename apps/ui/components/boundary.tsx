@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { Component, Suspense, type ReactNode } from "react";
+import { Component, Suspense, type ReactNode } from 'react';
 
 class ErrorBoundary extends Component<
   { fallback: (error: Error) => ReactNode; children: ReactNode },
@@ -11,7 +11,9 @@ class ErrorBoundary extends Component<
     return { error };
   }
   render() {
-    return this.state.error ? this.props.fallback(this.state.error) : this.props.children;
+    return this.state.error
+      ? this.props.fallback(this.state.error)
+      : this.props.children;
   }
 }
 
@@ -35,7 +37,7 @@ export function Region({
   );
 }
 
-export function Skeleton({ className = "" }: Readonly<{ className?: string }>) {
+export function Skeleton({ className = '' }: Readonly<{ className?: string }>) {
   return (
     <div
       aria-hidden

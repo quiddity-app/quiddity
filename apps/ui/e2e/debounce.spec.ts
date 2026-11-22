@@ -1,11 +1,12 @@
-import { expect, test } from "@playwright/test";
-import { debounce } from "../lib/debounce";
+import { expect, test } from '@playwright/test';
+
+import { debounce } from '../lib/debounce';
 
 // No page needed: this is the debounce on its own, in Node.
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-test("a burst of calls is one run, once it has been quiet", async () => {
+test('a burst of calls is one run, once it has been quiet', async () => {
   let runs = 0;
   const d = debounce(() => runs++, 40, 1000);
   for (let i = 0; i < 5; i++) {
@@ -18,7 +19,7 @@ test("a burst of calls is one run, once it has been quiet", async () => {
   expect(d.pending).toBe(false);
 });
 
-test("calls that never pause still run it, every `max`", async () => {
+test('calls that never pause still run it, every `max`', async () => {
   let runs = 0;
   // A call every 10 ms never leaves the 50 ms of quiet a plain debounce wants.
   const d = debounce(() => runs++, 50, 150);

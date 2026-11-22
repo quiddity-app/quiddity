@@ -1,5 +1,5 @@
 const isPlain = (x: unknown): x is Record<string, unknown> => {
-  if (typeof x !== "object" || x === null) return false;
+  if (typeof x !== 'object' || x === null) return false;
   const proto: unknown = Object.getPrototypeOf(x);
   return proto === Object.prototype || proto === null;
 };
@@ -16,7 +16,10 @@ export function share<T>(previous: unknown, next: T): T {
   if (Array.isArray(next) && Array.isArray(previous)) {
     const parts = next.map((x: unknown, i) => share(previous[i], x));
     return (
-      parts.length === previous.length && parts.every((x, i) => x === previous[i]) ? previous : parts
+      parts.length === previous.length &&
+      parts.every((x, i) => x === previous[i])
+        ? previous
+        : parts
     ) as T;
   }
   if (isPlain(next) && isPlain(previous)) {

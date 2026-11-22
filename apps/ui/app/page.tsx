@@ -1,5 +1,5 @@
-import { ClientPage } from "@/components/client-page";
-import { Home } from "@/components/home";
+import { ClientPage } from '@/components/client-page';
+import { Home } from '@/components/home';
 
 export default function HomePage() {
   return (
