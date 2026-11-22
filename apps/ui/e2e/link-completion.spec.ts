@@ -95,3 +95,33 @@ test("Enter in a link that wasn't being completed follows it", async ({ page }) 
   await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { name: "Loro", level: 1 })).toBeVisible();
 });
+
+test("a key pressed straight after typing chooses from what was typed, not from an earlier search", async ({ page }) => {
+  await block(page).click();
+  await page.keyboard.press("End");
+  // No wait for the list: the search runs after the keystrokes are drawn, and
+  // the key that follows must not slip past it.
+  await page.keyboard.type(" [[Lor");
+  await page.keyboard.press("ArrowDown");
+  expect(await editor(page).textContent()).toMatch(/ \[\[Loro\]\]$/);
+  await expect(page.getByRole("option").first()).toHaveAttribute("aria-selected", "true");
+});
+
+test("typing on past a list shows the answer for what is there now", async ({ page }) => {
+  await typeAtEnd(page, " [[Lor");
+  const options = page.getByRole("option");
+  await expect(options.first()).toContainText("Loro");
+  // The list for `Lor` stays up while the search for what follows is pending,
+  // and is replaced by it: nothing is left that no longer matches.
+  await page.keyboard.type("em ipsum");
+  await expect(options).toHaveCount(0);
+});
+
+test("the link being typed doesn't offer itself as a page", async ({ page }) => {
+  await typeAtEnd(page, " [[Lor");
+  const options = page.getByRole("option");
+  await expect(options.first()).toContainText("Loro");
+  // The block's text is in the graph by the time the search runs, and `Lor` is
+  // a link to nowhere there: that is the text, not a page to choose.
+  await expect(options).toHaveCount(1);
+});

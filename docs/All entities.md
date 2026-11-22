@@ -7,6 +7,7 @@
 - Filtering
 	- The box above the table keeps the entities whose title contains what is typed, ignoring case. It does not make an entity: a new one is made by linking to it, or from the journal. [[Links to nowhere]] [[Journal]]
 	- **Hide journals** is ticked to begin with, since a day each swamps the list. Unticking it shows them. The view crate marks each row as a journal or not (`Summary::journal`), so the UI never works it out.
+	- The table follows what is typed a moment behind it (`useDeferredValue`), so typing is never held up by filtering thousands of rows. The filtered rows, and the sorted ones, are kept until the filter, the sort or the graph changes.
 	- Selecting and deleting only count the rows shown, so nothing goes that you can't see.
 - Sorting
 	- Click a column heading to sort by it, and click it again to reverse. The heading says which way with an arrow, and `aria-sort`.

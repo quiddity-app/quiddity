@@ -12,10 +12,11 @@
 	- Going back, by key or by the browser's button, finds each page scrolled to where it was left; a page not seen before starts at the top. Where each was left is kept in memory for the most recent 200 places, so a reload forgets it. A feed that loads more as you scroll (journals) comes back only as far as it has loaded by then. The scrolling pane is `main`, not the window, which is why the browser can't do this itself (`lib/scroll-memory.ts`, `components/scroll-restore.tsx`).
 - The UI holds its own replica of the graph.
 	- The core is compiled to WASM (`crates/wasm`, over `crates/view`) and loaded from a snapshot at startup. Every query is answered locally and every edit applies locally, so nothing typed waits on IPC. [[Editing]]
-	- The shell is sent the updates a moment later, 300 ms after the last edit.
+	- The shell is sent the updates a moment later, 300 ms after the last edit and no later than a second after the first one it hasn't been sent, so typing that never pauses is still saved as it goes. [[Publish gate]]
 	- Changes from other devices come the other way, from the shell, and are imported at once. [[App sync]]
-	- `lib/graph.ts` is the one place that touches the replica. Reads are kept until the next edit, so what a component reads is stable between edits.
-	- Typing notifies the views after a pause and structure changes notify at once, so a block is not rebuilt per keystroke.
+	- `lib/graph.ts` is the one place that touches the replica. Reads are kept until the next edit, so what a component reads is stable between edits. A read made again after an edit gives back, for whatever the edit didn't change, the very objects it gave before, so a block that hasn't changed isn't drawn again.
+	- Typing notifies the views after a pause, and no later than a second after the first of a run of typing that doesn't stop; structure changes notify at once. So a block is not rebuilt per keystroke, and the views aren't left behind for as long as someone types.
+	- What can wait for the keystroke to be drawn does: the sidebar and the references under a page are read in a deferred render (`useDeferredRead`), the table in All entities and the search panel follow what is typed a moment behind it, and link completion searches after the character is on screen. What can't, and what is planned, is in [[Performance]].
 - View state is the URL: `/entity/?id=<main>&open=<a>,<b>`.
 	- `/` is home: it goes on to wherever the graph's `home` setting says, `/journals/` by default. [[Graph settings]]
 		- A link followed before it has gone on (the sidebar works as soon as the graph loads) is where the person is going, so the redirect leaves it alone.

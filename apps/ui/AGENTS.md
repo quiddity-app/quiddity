@@ -12,10 +12,23 @@ the current entity in the middle, open secondaries on the right.
   the user types waits on IPC.
 - **`lib/graph.ts` is the one place that touches the replica.** Reads are kept
   until the next edit (every edit clears the cache), so what a component reads
-  is stable between edits. **Typing notifies subscribers after a pause and
+  is stable between edits. **A read made again gives back the objects it gave
+  before for whatever the edit didn't change** (`lib/share.ts`), so `memo` on a
+  block can hold; a read that isn't one of the graph's own (a `Map` made in the
+  selector) is made afresh each time. **Typing notifies subscribers after a
+  pause, and no later than a second after the first of a run that doesn't stop;
   structure changes notify at once**, so a block isn't rebuilt per keystroke;
   `settle()` delivers a pending notification, and runs before a block stops
-  being edited so it never shows its old text.
+  being edited so it never shows its old text. **Nothing waits for typing to
+  stop**: the push to the shell and the notification both use `debounce`
+  (`lib/debounce.ts`), which waits for quiet but never past a maximum from the
+  first call it hasn't answered. Don't write a bare `clearTimeout`/`setTimeout`
+  debounce for something that must happen while typing goes on.
+- **Reads that can lag an edit are deferred**: `useDeferredRead(read, deps)`
+  (`lib/use-graph.ts`) reads in a deferred render, which React does after what
+  the person did has been drawn and drops for what they do next. The sidebar
+  and the references use it. `useRead` is for what must be right in the render
+  that follows an edit (the page itself).
 - **Backends** (`backend-tauri.ts`, `backend-memory.ts`) are chosen at runtime.
   A backend may `subscribe` to what other devices change: the shell sends it
   on a channel and `Graph.receive` imports it and tells views at once, without
@@ -301,7 +314,13 @@ never writes the `##blob` line: Rust does.
   `<a href="#">` drawn like any other, and following it makes the entity
   (`graph.followLink`).
 - **Links are completed in the editor** (`lib/link-completion.ts`, with
-  `lib/auto-brackets.ts` pairing `[`). Its keys sit above the outliner's, so
+  `lib/auto-brackets.ts` pairing `[`). **The search is not part of the
+  keystroke**: a plugin runs it a frame later, for what is typed by then, and
+  the list keeps its last answer until it lands. Down and Up (`find`) search
+  first if it hasn't, so they never choose from an answer to older text. It
+  leaves out a link to nowhere whose name is the text being typed: the block's
+  text is in the graph by then, so the half-written link would offer itself.
+  Its keys sit above the outliner's, so
   in a link the arrows and Enter are the list's; **Escape is left to the
   outliner** unless an entry is chosen, or leaving the block would no longer
   save it. The list opens only on a user edit that touches the link (never a
@@ -445,7 +464,10 @@ The action strip above the main pane holds the search button; **Cmd/Ctrl-K**
   in order. A facet is `search(query, graph) => Hit[] | Promise<Hit[]>`, best
   first. `useSearch` runs them independently and keeps each one's latest
   answer, so a slow facet (full text, embeddings) never holds up a fast one
-  and an old answer stays until its replacement arrives.
+  and an old answer stays until its replacement arrives. **It searches for the
+  deferred query** (`useDeferredValue`), each facet in a task of its own that
+  a newer query cancels before it starts: the replica is in this thread, so
+  the saving is the work never begun.
 - **Make new facets by composing**: `limited(n, facet)`, `when(applies, facet)`
   (a prefix such as `>` that selects actions, say). A hit's `target` is data
   (`entity`, or `run`), not a callback, so hits can be ranked and logged later.
@@ -464,7 +486,9 @@ The action strip above the main pane holds the search button; **Cmd/Ctrl-K**
 `AllEntities` is a sortable table with a checkbox on each row, above a title
 filter and a "Hide journals" checkbox (ticked to begin with; the rows say
 `journal`, from Rust). It makes no entities: the tests make one by linking to
-it from a journal block. **Selection is the set of IDs ticked, filtered by the
+it from a journal block. The filter is read as `useDeferredValue`, and the
+filtered and sorted rows are `useMemo`ed, so typing in the box isn't held up
+by thousands of rows. **Selection is the set of IDs ticked, filtered by the
 rows still there and shown**, so an entity that an undo or a sync removes, or
 that the filter hides, simply stops counting. Deleting asks first, inline
 (`role="alertdialog"`) rather than with `window.confirm`, which the Tauri
@@ -504,6 +528,8 @@ if the page logs an error. Pitfalls:
   Playwright's full Chromium doesn't ask for `/favicon.ico`, whose 404 would
   fail every test. Keep the link: without it, full Chromium needs an empty
   `favicon.ico` in `out/` and `public/` for the run.
+- `e2e/debounce.spec.ts` and `e2e/share.spec.ts` test `lib/` modules in Node
+  and use no page.
 - Typing `\n` presses Enter, which splits the block; use Shift-Enter for a
   newline. Press `Control+Shift+Z`, not `Control+Shift+z`: Playwright otherwise
   sends a lowercase `z` that no keyboard does.

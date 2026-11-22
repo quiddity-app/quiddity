@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { EntityId, Reference } from "@/lib/model";
-import { useRead } from "@/lib/use-graph";
+import { useDeferredRead } from "@/lib/use-graph";
 import { Region, Skeleton } from "./boundary";
 import { EntityLink } from "./entity-link";
 import { Outline } from "./entity-view";
@@ -33,7 +33,7 @@ const count = (references: Reference[]) =>
   references.reduce((n, r) => n + r.blocks.length, 0);
 
 function Linked({ id }: Readonly<{ id: EntityId }>) {
-  const references = useRead((g) => g.references(id));
+  const references = useDeferredRead((g) => g.references(id), [id]);
   if (references.length === 0) return null;
   return (
     <section aria-label="Linked references">
@@ -45,7 +45,7 @@ function Linked({ id }: Readonly<{ id: EntityId }>) {
 
 /** On a property's page: who has it, with what, a row per entity. */
 function Uses({ id }: Readonly<{ id: EntityId }>) {
-  const uses = useRead((g) => g.uses(id));
+  const uses = useDeferredRead((g) => g.uses(id), [id]);
   if (uses.length === 0) return null;
   return (
     <section aria-label="Uses">
@@ -70,7 +70,7 @@ function Uses({ id }: Readonly<{ id: EntityId }>) {
 }
 
 function UnlinkedList({ id }: Readonly<{ id: EntityId }>) {
-  const references = useRead((g) => g.unlinkedReferences(id));
+  const references = useDeferredRead((g) => g.unlinkedReferences(id), [id]);
   if (references.length === 0) {
     return <p className="text-sm text-ink-muted">None.</p>;
   }

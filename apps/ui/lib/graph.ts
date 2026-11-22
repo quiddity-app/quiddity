@@ -1,5 +1,7 @@
 import init, { Replica, mergeVersions } from "./wasm/quiddity_wasm";
+import { debounce } from "./debounce";
 import type { Problem, Recovery } from "./recovery";
+import { share } from "./share";
 import type {
   BlockHit,
   Check,
@@ -56,12 +58,17 @@ export interface Backend {
   recover?(how: Recovery): Promise<void>;
 }
 
-/** Views catch up this long after typing stops; structure changes at once. */
+/** Views catch up this long after typing stops; structure changes at once.
+ * Typing that doesn't stop is caught up with every `NOTIFY_MAX_MS` instead. */
 const NOTIFY_MS = 120;
+const NOTIFY_MAX_MS = 1000;
 /** Typing is one undo step until it pauses this long. */
 const TYPING_MS = 800;
-/** The shell hears of edits this long after the last one. */
+/** The shell hears of edits this long after the last one, and no more than
+ * `PUSH_MAX_MS` after the first it hasn't heard of: saving can't wait for
+ * someone to stop typing. */
 const PUSH_MS = 300;
+const PUSH_MAX_MS = 1000;
 const RETRY_MS = 2000;
 
 const sameBytes = (a: Uint8Array, b: Uint8Array) =>
@@ -78,11 +85,17 @@ export function today(): string {
  * The UI's replica of the graph. Reads are answered locally and kept until the
  * next edit; edits apply locally, tell subscribers, and go to the shell as
  * updates a moment later, so nothing the user types waits on IPC.
+ *
+ * A read made again after an edit gives back, for each part of the answer that
+ * the edit didn't change, the object it gave before (`share`), so a view can
+ * tell that a block is the same block and not draw it again.
  */
 export class Graph {
   private revision = 0;
   private readonly listeners = new Set<() => void>();
   private cache = new Map<string, unknown>();
+  /** What was read before the last edit, for the next read to share with. */
+  private previous = new Map<string, unknown>();
   private pushed: Uint8Array;
   /** Blocks typed in since the last push, and whether anything else changed. */
   private typed = new Set<string>();
@@ -92,8 +105,10 @@ export class Graph {
   /** What the shell was last told, to say nothing twice. */
   private reported = "";
   private pushing: Promise<void> = Promise.resolve();
-  private pushTimer: ReturnType<typeof setTimeout> | undefined;
-  private notifyTimer: ReturnType<typeof setTimeout> | undefined;
+  private readonly pushSoon = debounce(() => void this.flush(), PUSH_MS, PUSH_MAX_MS);
+  private retryTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Typing views haven't been told of yet. */
+  private readonly typingNotice = debounce(() => this.notify(), NOTIFY_MS, NOTIFY_MAX_MS);
   private typingTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(
@@ -115,8 +130,7 @@ export class Graph {
   getRevision = () => this.revision;
 
   private notify() {
-    clearTimeout(this.notifyTimer);
-    this.notifyTimer = undefined;
+    this.typingNotice.cancel();
     this.revision++;
     this.listeners.forEach((l) => l());
   }
@@ -124,11 +138,17 @@ export class Graph {
   /** Tells subscribers now of typing they haven't heard about yet. Call
    * before a view that was being typed in goes back to showing the graph. */
   settle() {
-    if (this.notifyTimer !== undefined) this.notify();
+    if (this.typingNotice.pending) this.notify();
+  }
+
+  /** Forgets what has been read, keeping it for the next read to share with. */
+  private invalidate() {
+    if (this.cache.size > 0) this.previous = this.cache;
+    this.cache = new Map();
   }
 
   private read<T>(key: string, read: () => unknown): T {
-    if (!this.cache.has(key)) this.cache.set(key, read());
+    if (!this.cache.has(key)) this.cache.set(key, share(this.previous.get(key), read()));
     return this.cache.get(key) as T;
   }
 
@@ -254,7 +274,7 @@ export class Graph {
     // and a replica that joined a compacted graph has no history to send.
     this.pushed = mergeVersions(this.pushed, brought);
     this.begin();
-    this.cache.clear();
+    this.invalidate();
     this.notify();
   }
 
@@ -275,10 +295,10 @@ export class Graph {
    * being typed in isn't rebuilt per keystroke; structure notifies at once. */
   private edited<T>(result: T, typing = false): T {
     if (!typing) this.structural = true;
-    this.cache.clear();
-    this.schedulePush();
+    this.invalidate();
+    this.pushSoon.call();
     if (typing) {
-      this.notifyTimer ??= setTimeout(() => this.notify(), NOTIFY_MS);
+      this.typingNotice.call();
     } else {
       this.notify();
     }
@@ -340,7 +360,12 @@ export class Graph {
    * links it gained that go nowhere get an entity, and one made from a link
    * just corrected is renamed. Returns the ids made. */
   commitBlock(id: string, before: string) {
-    return this.edited(this.replica.commitBlock(id, before));
+    // Leaving a block mostly changes nothing, and then it is no edit: no
+    // views to tell, nothing read to forget, and nothing structural for the
+    // shell, which would otherwise not hold back the typing that came before.
+    const version = this.replica.version();
+    const made = this.replica.commitBlock(id, before);
+    return sameBytes(version, this.replica.version()) ? made : this.edited(made);
   }
 
   /** Splits a block at `at`; returns the new block. */
@@ -422,14 +447,10 @@ export class Graph {
     this.replica.clearUndo();
   }
 
-  private schedulePush(delay = PUSH_MS) {
-    clearTimeout(this.pushTimer);
-    this.pushTimer = setTimeout(() => void this.flush(), delay);
-  }
-
   /** Sends the shell what it hasn't seen. Resolves once it has been told. */
   flush(): Promise<void> {
-    clearTimeout(this.pushTimer);
+    this.pushSoon.cancel();
+    clearTimeout(this.retryTimer);
     this.pushing = this.pushing.then(async () => {
       const version = this.replica.version();
       if (sameBytes(version, this.pushed)) return;
@@ -445,7 +466,7 @@ export class Graph {
         console.error("Couldn't save to the shell; will retry", error);
         typed.forEach((id) => this.typed.add(id));
         this.structural ||= structural;
-        this.schedulePush(RETRY_MS);
+        this.retryTimer = setTimeout(() => void this.flush(), RETRY_MS);
       }
     });
     return this.pushing;

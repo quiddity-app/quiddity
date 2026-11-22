@@ -55,6 +55,7 @@
 - Links
 	- `[` makes `[]` with the caret inside, so `[[` makes `[[]]`. With a selection, the brackets go round it. `]` steps over a closer rather than doubling it, and Backspace in an empty pair removes both. A `[` before a word is left alone.
 	- Typing in a `[[link]]`, or making a new one, offers the pages whose titles match, by the same matching as search. [[Title matching]]
+	- The search is not part of the keystroke. The character is drawn first and the search runs after, once a frame at most and for what is typed by then, so quick typing searches for where it has got to and not for each step. The list keeps its last answer until the new one arrives. Down and Up search first if it hasn't yet, so they never choose from an answer to text that has since changed. The link being typed is not offered as a page: by the time the search runs it is in the graph as a link to nowhere, and matches itself.
 	- Each entry shows the page's properties. When several pages share the title, the link written also carries the qualifiers that tell them apart: `Mercury#type(planet)`. [[Links]]
 	- The list is offered when the link's name is typed in or the link is new, not when the caret merely arrives. A link already written is left alone until it is edited.
 	- Down and Up, or a click, move into the list and write the entry into the link, so the text is what was chosen. Past either end is back to what was typed, and Escape with an entry chosen puts that back too.

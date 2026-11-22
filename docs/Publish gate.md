@@ -17,5 +17,5 @@
 - The app drives it.
 	- The UI says which block is being edited, and the shell passes that to `Peer::set_focus`. It tells the shell after the typing before it, so moving to another block ends the typing in the last. The UI runs `View` in the browser and only the shell has a peer, so it reports to the shell with commands. [[App sync]] [[Architecture]]
 	- The UI also says which blocks an update was typed in, when typing is all it was. The shell calls `Peer::edited` for those, and `Peer::changed` for anything else, so structure is never held back.
-	- The wait is longer than 2 s in practice: the UI pushes 300 ms after the last edit, and the gate waits its 2 s from then.
+	- The wait is longer than 2 s in practice: the UI pushes 300 ms after the last edit (or a second after the first it hasn't pushed, in typing that never pauses), and the gate waits its 2 s from then.
 - Tests run real iroh connections on localhost: idle release, a watched block, a block that becomes watched, moving away, and ending the edit. [[Testing]]

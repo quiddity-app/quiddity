@@ -4,6 +4,7 @@
 - A panel is a list of facets, one section each.
 	- A facet is a function from the query to hits, best first. It may be asynchronous. Pages and Text are the two so far.
 	- Each facet runs on its own and its section fills in when it finishes, so a slow one (embeddings, say) never holds up a fast one. An old answer stays on screen until its replacement arrives, so sections don't flicker.
+	- What is typed goes into the box at once, and the searching is for the deferred query (`useDeferredValue`): React gets to it once the keystroke has been drawn, and drops it for a newer query if more has been typed. Each facet then runs in a task of its own, so a fast one is drawn before a slow one starts, and a query that has been replaced by then never starts the slow ones. The matching is still in the page's thread, so what this saves is the work not done. [[Performance]]
 	- A hit is data: a label, the runs to highlight, a score and a target, either an entity to open or something to run. It is not a callback, so hits can be ranked and logged later.
 	- New facets are built from old ones with `limited(n, facet)` and `when(applies, facet)`. The second is for a prefix that selects a facet, such as `>` for actions.
 - Where things live
