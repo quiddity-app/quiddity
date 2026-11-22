@@ -22,7 +22,7 @@ fn blobs_are_kept_in_the_file() {
         let blobs = blob_store::open(&graph).unwrap();
         let mut kept = Vec::new();
         for (i, len) in EDGES.into_iter().enumerate() {
-            let data = bytes(len, i as u8);
+            let data = bytes(len, u8::try_from(i).unwrap());
             let hash = blobs.add_bytes(data.clone()).await.unwrap().hash;
             assert_eq!(hash, Hash::new(&data), "{len} bytes");
             assert_eq!(
@@ -146,7 +146,7 @@ fn ranges_are_read_as_asked() {
         let (_dir, graph) = graph();
         let blobs = blob_store::open(&graph).unwrap();
         for (i, len) in EDGES.into_iter().enumerate().skip(1) {
-            let data = bytes(len, i as u8);
+            let data = bytes(len, u8::try_from(i).unwrap());
             let hash = blobs.add_bytes(data.clone()).await.unwrap().hash;
 
             let mut whole = Vec::new();

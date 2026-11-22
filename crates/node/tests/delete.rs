@@ -7,7 +7,12 @@ use quiddity_node::blobs::{Blobs, Hash};
 
 fn bytes(seed: u8, len: usize) -> Vec<u8> {
     (0..len)
-        .map(|i| (i as u8).wrapping_mul(seed).wrapping_add(seed))
+        .map(|i| {
+            u8::try_from(i % 256)
+                .expect("below 256")
+                .wrapping_mul(seed)
+                .wrapping_add(seed)
+        })
         .collect()
 }
 
@@ -20,7 +25,7 @@ async fn only_the_doomed_blobs_go_and_the_rest_are_untouched() {
     let sizes = [1usize, 100, 5_000, 70_000, 3_000_000];
     let mut all = Vec::new();
     for (i, size) in sizes.iter().cycle().take(20).enumerate() {
-        let data = bytes(i as u8 + 1, *size + i);
+        let data = bytes(u8::try_from(i).unwrap() + 1, *size + i);
         all.push((blobs.put(data.clone()).await.unwrap(), data));
     }
     let doomed: BTreeSet<Hash> = all.iter().step_by(3).map(|(h, _)| *h).collect();

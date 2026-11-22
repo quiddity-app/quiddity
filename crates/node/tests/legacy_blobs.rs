@@ -34,7 +34,10 @@ async fn old_store(graph_dir: &Path, blobs: &[Vec<u8>]) -> Vec<Hash> {
 fn old_blobs_are_moved_into_the_file() {
     runtime().block_on(async {
         let (dir, graph) = graph();
-        let held: Vec<_> = SIZES.iter().map(|n| bytes(*n, *n as u8)).collect();
+        let held: Vec<_> = SIZES
+            .iter()
+            .map(|n| bytes(*n, u8::try_from(*n % 256).unwrap()))
+            .collect();
         let hashes = old_store(dir.path(), &held).await;
         let blobs = blob_store::open(&graph).unwrap();
 

@@ -109,7 +109,7 @@ fn to_base62(bytes: &[u8], digits: usize) -> String {
         let mut remainder = 0u32;
         for byte in &mut number {
             let current = remainder * 256 + u32::from(*byte);
-            *byte = (current / 62) as u8;
+            *byte = u8::try_from(current / 62).expect("current is below 62 * 256");
             remainder = current % 62;
         }
         *slot = ALPHABET[remainder as usize];
@@ -123,7 +123,7 @@ fn to_base62(bytes: &[u8], digits: usize) -> String {
 fn from_base62(text: &str, len: usize) -> Option<Vec<u8>> {
     let mut number = vec![0u8; len];
     for c in text.bytes() {
-        let digit = ALPHABET.iter().position(|&a| a == c)? as u32;
+        let digit = u32::try_from(ALPHABET.iter().position(|&a| a == c)?).ok()?;
         // number = number * 62 + digit
         let mut carry = digit;
         for byte in number.iter_mut().rev() {
@@ -196,11 +196,16 @@ mod tests {
     #[test]
     fn the_digit_counts_cover_every_payload_and_no_more() {
         for kind in Kind::ALL {
-            let bits = kind.payload_len() as u32 * 8;
+            let bits = f64::from(u32::try_from(kind.payload_len()).unwrap() * 8);
+            let digits = f64::from(u32::try_from(kind.digits()).unwrap());
             // 62^digits >= 2^bits > 62^(digits - 1), by logarithm to be exact
             // enough for sizes this small.
-            let log62 = f64::from(bits) / 62f64.log2();
-            assert_eq!(kind.digits(), log62.ceil() as usize, "{kind:?}");
+            let log62 = 62f64.log2();
+            assert!(digits * log62 >= bits, "{kind:?} has too few digits");
+            assert!(
+                (digits - 1.0) * log62 < bits,
+                "{kind:?} has too many digits"
+            );
             assert_eq!(
                 to_base62(&vec![0xFF; kind.payload_len()], kind.digits()).len(),
                 kind.digits()
@@ -256,7 +261,10 @@ mod tests {
     #[test]
     fn swapping_neighbours_is_noticed() {
         for kind in Kind::ALL {
-            let text = encode(kind, &(0..kind.payload_len() as u8).collect::<Vec<_>>());
+            let text = encode(
+                kind,
+                &(0..u8::try_from(kind.payload_len()).unwrap()).collect::<Vec<_>>(),
+            );
             let start = kind.prefix().len() + 1;
             for at in start..text.len() - 1 {
                 let mut swapped = text.clone().into_bytes();

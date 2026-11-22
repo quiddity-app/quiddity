@@ -267,7 +267,9 @@ pub fn import_dir(graph: &Graph, dir: &Path) -> Result<Vec<BlockId>> {
 /// `a%20` is `a`. A `%` that isn't followed by two hex digits is just a `%`.
 fn percent_decode(s: &str) -> String {
     fn hex(b: u8) -> Option<u8> {
-        char::from(b).to_digit(16).map(|d| d as u8)
+        char::from(b)
+            .to_digit(16)
+            .and_then(|d| u8::try_from(d).ok())
     }
     // An iterator, not an index: a loop that steps by a counter can be sent
     // round for ever by a mutant, and the run counts that as a failure.
@@ -512,7 +514,7 @@ fn logseq_day_name(date: Date) -> String {
     };
     format!(
         "{day}{suffix} {} {}",
-        MONTHS[date.month() as usize - 1],
+        MONTHS[usize::from(date.month().unsigned_abs()) - 1],
         date.year()
     )
 }

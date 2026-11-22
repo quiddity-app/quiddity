@@ -44,7 +44,7 @@ pub fn bytes(len: usize, seed: u8) -> Vec<u8> {
             state ^= state << 13;
             state ^= state >> 7;
             state ^= state << 17;
-            (state >> 24) as u8
+            u8::try_from((state >> 24) & 0xff).unwrap()
         })
         .collect()
 }

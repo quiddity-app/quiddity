@@ -65,7 +65,7 @@ fn main() {
     }
     println!(
         "{pages} pages, snapshot {:.1} MB",
-        snapshot.len() as f64 / 1e6
+        f64::from(u32::try_from(snapshot.len()).unwrap()) / 1e6
     );
 
     let loaded = timed("Graph::from_snapshot", || {
