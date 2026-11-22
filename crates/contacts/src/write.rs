@@ -281,6 +281,11 @@ fn rewrite(
         return Ok(false);
     }
     match block {
+        // Nothing left of it, and nothing under it: not an empty block left
+        // at the top of the page.
+        Some(block) if new.trim().is_empty() && graph.children(block).is_empty() => {
+            graph.delete_block(block)?;
+        }
         Some(block) => graph.set_text(block, &new)?,
         None => {
             graph.create_block(Some(entity), Some(0), &new)?;

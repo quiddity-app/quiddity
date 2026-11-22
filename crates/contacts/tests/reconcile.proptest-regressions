@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc bd0a411df1859abd55edca03170a2c749b7f8fcee29438b4d358213f4f460025 # shrinks to ops = [PhoneCreate("0", "a"), PhoneDelete(1), Sync, GraphAdd(0, "a")]

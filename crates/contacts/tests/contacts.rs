@@ -503,3 +503,17 @@ fn an_entry_the_entity_gained_itself_is_not_added_again() -> Result<()> {
     );
     Ok(())
 }
+
+#[test]
+fn forgetting_all_there_is_leaves_no_empty_block() -> Result<()> {
+    let graph = graph()?;
+    let jane = person(&graph, "Jane", "mobile:: 111")?;
+    forget(&graph, &index(&graph)?, jane)?;
+    assert_eq!(graph.children(jane), []);
+    // And it can be a contact again.
+    let base = contact("Jane", vec![]);
+    let desired = contact("Jane", vec![entry(F::Phone, Some("mobile"), "222")]);
+    apply(&graph, &index(&graph)?, Some(jane), Some(&base), &desired)?;
+    assert_eq!(properties_text(&graph, jane)?, "mobile:: 222");
+    Ok(())
+}

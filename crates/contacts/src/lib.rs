@@ -10,7 +10,9 @@
 //! serialises, for whatever carries it.
 
 mod model;
+mod sync;
 mod write;
 
 pub use model::{Contact, Entry, contact_of, contacts};
+pub use sync::{Edited, Error, Held, Report, Store, reconcile};
 pub use write::{Applied, apply, forget};
