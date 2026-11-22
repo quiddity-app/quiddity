@@ -28,7 +28,7 @@ function BlockRow({
     !isEditing && !block.blob && prose.trim() === '' && lineProps.length > 0;
   return (
     <li
-      className={`flex gap-2 ${block.propertiesBlock ? 'rounded bg-surface-properties px-2' : ''}`}
+      className={`flex items-baseline gap-2 ${block.propertiesBlock ? 'rounded bg-surface-properties px-2' : ''}`}
       data-properties-block={block.propertiesBlock ? '' : undefined}
       data-block-id={editing ? block.id : undefined}
       data-outline={editing?.scope}
@@ -36,7 +36,15 @@ function BlockRow({
       <span
         aria-hidden
         data-bullet
-        className={`mt-2.5 size-1.5 shrink-0 rounded-full bg-bullet ${propsOnly ? 'invisible' : ''}`}
+        // The row aligns on baselines, and an empty box's baseline is its bottom
+        // edge, so the margin lifts the dot to half the x-height (0.26em) less
+        // its own radius: level with the middle of the first line's lowercase
+        // letters, whatever the size of the text. A file is drawn above its
+        // caption, so its first baseline is the foot of the image: that dot
+        // stays beside the top instead.
+        className={`size-1.5 shrink-0 rounded-full bg-bullet ${
+          block.blob ? 'mt-3.25 self-start' : 'mb-[calc(0.26em-3px)]'
+        } ${propsOnly ? 'invisible' : ''}`}
       />
       <div className="min-w-0 flex-1 py-0.5">
         {isEditing ? (
