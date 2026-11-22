@@ -18,7 +18,7 @@ alias:: [link, qualifier, backlinks, references]
 - A link with words of its own is Markdown, `[text](destination)`, and the destination says where it goes. [[Rendering]]
 	- `[the library]([[Loro]])` is a link to an entity, with the same name matching and qualifiers as `[[Loro]]`. It counts as a link to that entity, so backlinks and the graph see it, and it shows "the library".
 	- `[that point](((id)))` is a link to a block. It opens the entity that holds the block, since a block cannot be shown on its own yet. [[Block references]]
-	- `[the graph](/graph/)` goes to a page of the app: `/graph/`, `/all/`, `/journals/` or `/devices/`. It works wherever the app is served from.
+	- `[the graph](/graph/)` goes to a page of the app: `/graph/`, `/all/`, `/journals/`, `/devices/` or `/stats/`. It works wherever the app is served from.
 	- `[the source](https://example.com)` goes to the web or mail, in the system's browser.
 	- Any other destination is shown as plain text.
 - Property values can be links too: `author:: [[Jane]]`, or bare `type:: person` for a property whose values are references. [[type]]

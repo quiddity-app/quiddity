@@ -5,6 +5,7 @@
 - Writing to it makes it real.
 	- Typing the first block, or renaming it, makes the entity in the same edit, named as the first link wrote it. One step of undo. [[Undo]]
 	- Renaming keeps the old name as an alias, so links to it still work. [[Renaming]]
+- [[Stats and debug]] lists every virtual entity with its ID and its incoming links, so a misspelt link, or a name linked to everywhere that has no page yet, is easy to find.
 - Deleting a virtual entity does nothing while anything links to it. Deleting a real entity leaves the links to it in the text, and they go to a virtual entity again. [[All entities]]
 - A link with qualifiers, such as `[[Jane #type(person)]]`, makes an entity, since the properties have to be written somewhere.
 	- Following it makes the entity if none matches. So does saving a block that gained the link: `commit_block(id, before)` compares the links before and after, and one that was already there, which may have come from another device, makes nothing. [[Editing]]

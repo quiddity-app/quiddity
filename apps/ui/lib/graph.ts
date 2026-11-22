@@ -2,6 +2,7 @@ import init, { Replica, mergeVersions } from "./wasm/quiddity_wasm";
 import type { Problem, Recovery } from "./recovery";
 import type {
   BlockHit,
+  Check,
   Connections,
   Device,
   SyncState,
@@ -15,6 +16,7 @@ import type {
   Use,
   ValueHit,
   Start,
+  Stats,
   Summary,
   TitleHit,
 } from "./model";
@@ -133,6 +135,9 @@ export class Graph {
   entity = (id: EntityId) => this.read<Entity>(`e:${id}`, () => this.replica.entity(id));
   entities = () => this.read<EntityRef[]>("entities", () => this.replica.entities());
   summaries = () => this.read<Summary[]>("summaries", () => this.replica.summaries());
+  stats = () => this.read<Stats>("stats", () => this.replica.stats());
+  /** Reads the whole graph again, so it is asked for only when wanted. */
+  check = () => this.read<Check>("check", () => this.replica.check());
   connections = () =>
     this.read<Connections>("connections", () => this.replica.connections());
   favourites = () => this.read<EntityRef[]>("favourites", () => this.replica.favourites());

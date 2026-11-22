@@ -84,6 +84,7 @@ export const entrypoints = [
   { title: "All entities", href: "/all/", in: "sidebar" },
   { title: "Graph", href: "/graph/", in: "sidebar" },
   { title: "Devices", href: "/devices/", in: "menu" },
+  { title: "Stats and debug", href: "/stats/", in: "menu" },
 ] as const;
 
 /** The pages a link in a block's text may name by path, as `[text](/graph/)`. */

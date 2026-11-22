@@ -3457,11 +3457,537 @@ mod revisions {
                 if matches!(step, Step::Look) {
                     let fresh = fresh_of(&v);
                     prop_assert_eq!(answers(&v), answers(&fresh), "after {:?}", step);
+                    let check = v.check().unwrap();
+                    prop_assert_eq!(check.faults(), 0, "{:?} after {:?}", check.integrity, step);
                 }
             }
             let fresh = fresh_of(&v);
             prop_assert_eq!(answers(&v), answers(&fresh), "after all of {:?}", steps);
+            let check = v.check().unwrap();
+            prop_assert_eq!(check.faults(), 0, "{:?} after all of {:?}", check.integrity, steps);
         }
+    }
+}
+
+mod stats {
+    use std::collections::BTreeSet;
+
+    use quiddity_core::Index;
+
+    use super::*;
+    use crate::stats::{
+        Check, LISTED, Outcome, Problem, dangling, diff_blocks, diff_indexes, malformed, outcome,
+    };
+    use crate::virtual_entity::Virtual;
+
+    /// A graph with every kind of link: to an entity, to nowhere, by a tag and
+    /// by a property key, an entity nothing links to, and a journal made twice.
+    fn busy() -> View {
+        view_with(|g| {
+            let a = g.create_entity("A", &[]).unwrap();
+            note(g, a, "[[Nowhere]] and [[Nowhere]]");
+            note(g, a, "[[B]]");
+            let b = g.create_entity("B", &[]).unwrap();
+            note(g, b, "[[nowhere]]");
+            g.create_entity("Lonely", &[]).unwrap();
+            // Linked to itself only, which connects it to nothing.
+            let me = g.create_entity("Introspective", &[]).unwrap();
+            note(g, me, "[[Introspective]]");
+            let c = g.create_entity("C", &[("mood", text("x"))]).unwrap();
+            note(g, c, "#tagged");
+            quiddity_core::create_journal(g, today()).unwrap();
+            quiddity_core::create_journal(g, today()).unwrap();
+        })
+    }
+
+    fn found<'a>(check: &'a Check, name: &str) -> &'a Outcome {
+        check
+            .integrity
+            .iter()
+            .chain(&check.content)
+            .find(|o| o.name.contains(name))
+            .unwrap()
+    }
+
+    fn said(outcome: &Outcome) -> Vec<&str> {
+        outcome
+            .problems
+            .iter()
+            .map(|p| p.message.as_str())
+            .collect()
+    }
+
+    #[test]
+    fn an_empty_graph_has_nothing_to_count() {
+        let stats = view_with(|_| {}).stats().unwrap();
+        assert_eq!(
+            (stats.blocks, stats.entities, stats.links, stats.orphans),
+            (0, 0, 0, 0)
+        );
+        assert!(stats.virtuals.is_empty());
+    }
+
+    #[test]
+    fn it_counts_what_the_graph_holds() {
+        let v = busy();
+        let stats = v.stats().unwrap();
+        assert_eq!(stats.blocks, v.graph().blocks().len());
+        assert_eq!(
+            stats.entities, 6,
+            "A, B, Lonely, Introspective, C and one journal"
+        );
+        assert_eq!(stats.journals, 1);
+        assert_eq!(stats.merged_duplicates, 1, "the journal made twice");
+        assert_eq!(stats.links, 2, "A to B, and Introspective to itself");
+        assert_eq!(
+            stats.links_to_nowhere, 4,
+            "Nowhere three times, tagged once"
+        );
+        assert_eq!(stats.ambiguous, 0);
+        assert_eq!(stats.blobs, 0);
+        assert_eq!(
+            stats.orphans, 2,
+            "Lonely, and Introspective that links only to itself: A and B link, \
+             C links to nowhere, and a journal is none"
+        );
+    }
+
+    #[test]
+    fn virtual_entities_are_listed_most_linked_first_with_who_links() {
+        let v = busy();
+        let virtuals = v.stats().unwrap().virtuals;
+        let rows: Vec<_> = virtuals
+            .iter()
+            .map(|s| {
+                (
+                    s.id.as_str(),
+                    s.title.as_str(),
+                    s.links,
+                    s.linked_from,
+                    s.key_uses,
+                )
+            })
+            .collect();
+        assert_eq!(
+            rows,
+            [
+                ("~nowhere", "Nowhere", 3, 2, 0),
+                ("~tagged", "tagged", 1, 1, 0),
+                ("~mood", "mood", 0, 0, 1),
+            ]
+        );
+        // What All entities says is incoming is what this says.
+        for s in &virtuals {
+            let row = v
+                .summaries()
+                .unwrap()
+                .into_iter()
+                .find(|r| r.id == s.id)
+                .unwrap();
+            assert_eq!(row.incoming, s.links, "{}", s.id);
+        }
+    }
+
+    #[test]
+    fn equally_linked_virtual_entities_are_in_name_order() {
+        let v = view_with(|g| {
+            let page = g.create_entity("Page", &[]).unwrap();
+            note(g, page, "[[b]] [[C]] [[a]]");
+        });
+        let titles: Vec<_> = v
+            .stats()
+            .unwrap()
+            .virtuals
+            .into_iter()
+            .map(|s| s.title)
+            .collect();
+        assert_eq!(titles, ["a", "b", "C"]);
+    }
+
+    #[test]
+    fn a_link_that_matches_several_entities_is_counted_once_per_block() {
+        let v = view_with(|g| {
+            g.create_entity("Same", &[]).unwrap();
+            g.create_entity("Same", &[]).unwrap();
+            let page = g.create_entity("Page", &[]).unwrap();
+            note(g, page, "[[Same]] and [[Same]]");
+            note(g, page, "[[Page]]");
+        });
+        assert_eq!(v.stats().unwrap().ambiguous, 1);
+    }
+
+    #[test]
+    fn a_blob_is_counted() {
+        let (v, entity, _) = page(&[]);
+        v.attach_blob(&entity, HASH, "image/png", 12, None).unwrap();
+        assert_eq!(v.stats().unwrap().blobs, 1);
+    }
+
+    #[test]
+    fn faults_are_the_integrity_problems_and_not_the_content_ones() {
+        let problems = |n: usize| (0..n).map(|i| Problem::new(i.to_string())).collect();
+        let outcome = |name: &str, n| Outcome {
+            name: name.to_owned(),
+            problems: problems(n),
+        };
+        let check = Check {
+            integrity: vec![outcome("a", 2), outcome("b", 1), outcome("c", 0)],
+            content: vec![outcome("d", 4)],
+        };
+        assert_eq!(check.faults(), 3);
+    }
+
+    /// The check reads the graph afresh, so an edit that the view was never
+    /// told of is what it finds.
+    #[test]
+    fn an_edit_the_view_was_not_told_of_is_a_fault() {
+        let (v, _, blocks) = page(&["held"]);
+        v.stats().unwrap();
+        let block: BlockId = blocks[0].parse().unwrap();
+        v.graph().set_text(block, "edited behind its back").unwrap();
+        v.graph().commit();
+        let check = v.check().unwrap();
+        assert_eq!(check.faults(), 1, "{check:?}");
+        assert_eq!(
+            said(found(&check, "blocks held")),
+            [format!("{block} holds old text: \"held\"")]
+        );
+        v.changed();
+        assert_eq!(v.check().unwrap().faults(), 0, "once it is told");
+    }
+
+    #[test]
+    fn a_graph_that_has_been_edited_for_a_while_has_no_faults() {
+        let v = busy();
+        let check = v.check().unwrap();
+        assert_eq!(check.faults(), 0, "{check:?}");
+        assert_eq!(check.integrity.len(), 5);
+        assert!(check.content.iter().all(|o| o.problems.is_empty()));
+    }
+
+    #[test]
+    fn content_that_doesnt_fit_its_schema_is_reported_with_its_entity() {
+        let v = view_with(|g| {
+            let rating = g.create_entity("rating", &[]).unwrap();
+            note(g, rating, "type:: property\n##value-type(number)");
+            let film = g.create_block(None, None, "Film").unwrap();
+            note(g, film, "rating:: lots");
+        });
+        let check = v.check().unwrap();
+        let flagged = found(&check, "schemas");
+        assert_eq!(said(flagged), ["Film: Not a number"]);
+        assert_eq!(flagged.problems[0].id, Some(id_of(&v, "Film")));
+        assert_eq!(
+            check.faults(),
+            0,
+            "text that is wrong is not a fault in the graph"
+        );
+    }
+
+    #[test]
+    fn a_blob_line_that_cant_be_read_is_a_problem() {
+        let (v, entity, _) = page(&["##blob(nonsense)"]);
+        let check = v.check().unwrap();
+        assert_eq!(
+            said(found(&check, "##blob")),
+            ["1 of 1 ##blob lines can't be read"]
+        );
+        v.attach_blob(&entity, HASH, "image/png", 12, None).unwrap();
+        let check = v.check().unwrap();
+        assert_eq!(
+            said(found(&check, "##blob")),
+            ["1 of 2 ##blob lines can't be read"]
+        );
+        let (v, entity, _) = page(&[]);
+        v.attach_blob(&entity, HASH, "image/png", 12, None).unwrap();
+        assert!(found(&v.check().unwrap(), "##blob").problems.is_empty());
+    }
+
+    #[test]
+    fn a_long_list_of_problems_is_cut_and_says_how_many_it_left_out() {
+        let problems = |n: usize| (0..n).map(|i| Problem::new(i.to_string())).collect();
+        assert_eq!(outcome("x", problems(LISTED)).problems.len(), LISTED);
+        let cut = outcome("x", problems(LISTED + 10));
+        assert_eq!(cut.problems.len(), LISTED + 1);
+        assert_eq!(cut.problems[LISTED].message, "…and 10 more");
+        assert_eq!(cut.problems[LISTED - 1].message, (LISTED - 1).to_string());
+    }
+
+    fn blocks_of(v: &View) -> Vec<quiddity_core::Scanned> {
+        v.corpus().unwrap().to_vec()
+    }
+
+    #[test]
+    fn blocks_that_are_the_graphs_have_no_difference() {
+        let blocks = blocks_of(&busy());
+        assert!(diff_blocks(&blocks, &blocks).is_empty());
+    }
+
+    #[test]
+    fn blocks_that_have_changed_are_each_named() {
+        let blocks = blocks_of(&busy());
+        let id = blocks[2].id;
+
+        let mut old = blocks.clone();
+        old[2].text.push_str(" edited");
+        let said: Vec<_> = diff_blocks(&old, &blocks)
+            .into_iter()
+            .map(|p| p.message)
+            .collect();
+        assert_eq!(said, [format!("{id} holds old text: {:?}", old[2].text)]);
+
+        let mut moved = blocks.clone();
+        moved[2].parent = blocks
+            .iter()
+            .map(|b| b.id)
+            .find(|b| Some(*b) != blocks[2].parent);
+        let said: Vec<_> = diff_blocks(&moved, &blocks)
+            .into_iter()
+            .map(|p| p.message)
+            .collect();
+        assert_eq!(said, [format!("{id} is held under another parent")]);
+
+        let said: Vec<_> = diff_blocks(&blocks[..2], &blocks[..3])
+            .into_iter()
+            .map(|p| p.message)
+            .collect();
+        assert_eq!(
+            said,
+            [
+                "2 blocks held, and 3 in the graph".to_owned(),
+                format!("{id} is in the graph and not held")
+            ]
+        );
+
+        let said: Vec<_> = diff_blocks(&blocks[..3], &blocks[..2])
+            .into_iter()
+            .map(|p| p.message)
+            .collect();
+        assert_eq!(
+            said,
+            [
+                "3 blocks held, and 2 in the graph".to_owned(),
+                format!("{id} is held and no longer in the graph")
+            ]
+        );
+    }
+
+    #[test]
+    fn the_same_blocks_in_another_order_are_a_difference_too() {
+        let blocks = blocks_of(&busy());
+        let mut swapped = blocks.clone();
+        swapped.swap(1, 2);
+        let said: Vec<_> = diff_blocks(&swapped, &blocks)
+            .into_iter()
+            .map(|p| p.message)
+            .collect();
+        assert_eq!(said, ["the same blocks, in another order"]);
+    }
+
+    /// The index of `v`'s graph, now.
+    fn index_of(v: &View) -> Index {
+        Index::build(v.graph()).unwrap()
+    }
+
+    fn differences(live: &Index, fresh: &Index) -> Vec<String> {
+        diff_indexes(live, fresh)
+            .into_iter()
+            .map(|p| p.message)
+            .collect()
+    }
+
+    #[test]
+    fn indexes_of_the_same_graph_agree() {
+        let v = busy();
+        assert!(differences(&index_of(&v), &index_of(&v)).is_empty());
+    }
+
+    #[test]
+    fn a_missing_backlink_is_named_by_its_entity() {
+        let mut ids = None;
+        let v = view_with(|g| {
+            let a = g.create_entity("A", &[]).unwrap();
+            let b = g.create_entity("B", &[]).unwrap();
+            ids = Some((a, b));
+        });
+        let (a, b) = ids.unwrap();
+        let before = index_of(&v);
+        note(v.graph(), b, "[[A]]");
+        let after = index_of(&v);
+        assert_eq!(
+            differences(&before, &after),
+            ["A has 0 backlinks, and 1 in a fresh index"]
+        );
+        assert_eq!(diff_indexes(&before, &after)[0].id, Some(a.to_string()));
+        assert_eq!(
+            differences(&after, &before),
+            ["A has 1 backlinks, and 0 in a fresh index"]
+        );
+    }
+
+    #[test]
+    fn a_virtual_entity_linked_a_different_number_of_times_is_named_by_its_id() {
+        let mut page = None;
+        let v =
+            view_with(|g| page = Some(g.create_entity("Page", &[("mood", text("x"))]).unwrap()));
+        let page = page.unwrap();
+        note(v.graph(), page, "[[Nowhere]]");
+        let before = index_of(&v);
+        note(v.graph(), page, "[[nowhere]] [[Elsewhere]]");
+        let after = index_of(&v);
+        let said = diff_indexes(&before, &after);
+        let rows: Vec<_> = said
+            .iter()
+            .map(|p| (p.id.as_deref(), p.message.as_str()))
+            .collect();
+        assert_eq!(
+            rows,
+            [
+                (
+                    Some("~elsewhere"),
+                    "elsewhere is linked 0 times, and 1 in a fresh index"
+                ),
+                (
+                    Some("~nowhere"),
+                    "nowhere is linked 1 times, and 2 in a fresh index"
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_property_key_used_a_different_number_of_times_is_a_difference() {
+        let v = view_with(|g| {
+            g.create_entity("C", &[("mood", text("x"))]).unwrap();
+        });
+        let before = index_of(&v);
+        v.graph()
+            .create_entity("D", &[("mood", text("y"))])
+            .unwrap();
+        let after = index_of(&v);
+        let said = differences(&before, &after);
+        assert!(
+            said.contains(&"mood is used as a key 1 times, and 2 in a fresh index".to_owned()),
+            "{said:?}"
+        );
+        assert!(
+            said.iter()
+                .any(|m| m == "D is an entity in a fresh index only"),
+            "{said:?}"
+        );
+        assert!(
+            differences(&after, &before)
+                .iter()
+                .any(|m| m == "D isn't an entity in a fresh index")
+        );
+    }
+
+    #[test]
+    fn an_entity_with_another_name_or_other_properties_is_a_difference() {
+        let mut ids = None;
+        let v = view_with(|g| {
+            let a = g.create_entity("A", &[]).unwrap();
+            let p = g.create_entity("P", &[("x", text("1"))]).unwrap();
+            ids = Some((a, g.children(p)[0]));
+        });
+        let (a, props) = ids.unwrap();
+        let before = index_of(&v);
+        v.graph().set_text(a, "A2").unwrap();
+        assert_eq!(
+            differences(&before, &index_of(&v)),
+            ["A is called A2 in a fresh index"]
+        );
+        v.graph().set_text(a, "A").unwrap();
+        v.graph().set_text(props, "x:: 2").unwrap();
+        assert_eq!(
+            differences(&before, &index_of(&v)),
+            ["P has other properties in a fresh index"]
+        );
+    }
+
+    #[test]
+    fn a_blob_one_index_lists_and_the_other_doesnt_is_a_difference() {
+        let (v, entity, _) = page(&[]);
+        let before = index_of(&v);
+        v.attach_blob(&entity, HASH, "image/png", 12, None).unwrap();
+        assert_eq!(
+            differences(&before, &index_of(&v)),
+            ["the blobs listed differ from a fresh index's"]
+        );
+    }
+
+    fn all_blocks(v: &View) -> BTreeSet<BlockId> {
+        v.corpus().unwrap().iter().map(|b| b.id).collect()
+    }
+
+    #[test]
+    fn links_from_blocks_that_are_there_dangle_nowhere() {
+        let v = busy();
+        let index = index_of(&v);
+        assert!(dangling(&index, &all_blocks(&v)).is_empty());
+        let none = dangling(&index, &BTreeSet::new());
+        let mut who: Vec<_> = none.iter().map(|p| p.id.clone().unwrap()).collect();
+        who.sort();
+        let mut linked = vec![id_of(&v, "B"), id_of(&v, "Introspective")];
+        linked.sort();
+        assert_eq!(who, linked, "A's link to B, and Introspective's to itself");
+        assert!(
+            none.iter().all(|p| p.message.contains(" has a link from ")),
+            "{none:?}"
+        );
+    }
+
+    fn virtual_of(id: &str, title: &str, sources: &[BlockId]) -> Virtual {
+        Virtual {
+            id: id.to_owned(),
+            title: title.to_owned(),
+            sources: sources.to_vec(),
+        }
+    }
+
+    fn malformed_said(v: &Virtual, index: &Index, blocks: &BTreeSet<BlockId>) -> Vec<String> {
+        malformed(v, index, blocks)
+            .into_iter()
+            .map(|p| p.message)
+            .collect()
+    }
+
+    #[test]
+    fn a_virtual_entity_that_couldnt_be_one_says_why() {
+        let v = busy();
+        let index = index_of(&v);
+        let blocks = all_blocks(&v);
+        for real in v.virtuals().unwrap() {
+            assert!(
+                malformed_said(&real, &index, &blocks).is_empty(),
+                "{}",
+                real.id
+            );
+        }
+        let source = index.mention("nowhere")[0].source;
+
+        assert_eq!(
+            malformed_said(&virtual_of("~x", "Y", &[source]), &index, &blocks),
+            ["~x: its title, \"Y\", makes another ID"]
+        );
+        assert_eq!(
+            malformed_said(&virtual_of("~a", "A", &[source]), &index, &blocks),
+            ["~a: an entity has this name, so it is not virtual"]
+        );
+        assert_eq!(
+            malformed_said(&virtual_of("~y", "Y", &[]), &index, &blocks),
+            ["~y: nothing links to it or uses it as a key"]
+        );
+        assert!(
+            malformed_said(&virtual_of("~mood", "mood", &[]), &index, &blocks).is_empty(),
+            "a key needs no link"
+        );
+        assert_eq!(
+            malformed_said(&virtual_of("~y", "Y", &[source]), &index, &BTreeSet::new()),
+            [format!("~y: linked from {source}, which is in no entity")]
+        );
+        let problem = &malformed(&virtual_of("~y", "Y", &[]), &index, &blocks)[0];
+        assert_eq!(problem.id.as_deref(), Some("~y"));
     }
 }
 

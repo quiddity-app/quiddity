@@ -6,6 +6,7 @@ favourite:: true
 	- [[Architecture]]: the app, the headless node and the crates.
 	- [[Running the app]], [[Testing]], [[Releases]] and [[Updates]].
 	- [[Performance]]: what costs time in a large graph, and what is still to do.
+	- [[Stats and debug]]: numbers about a graph, and a check that what is derived from it agrees with it.
 - The parts
 	- Crates: [[quiddity-syntax]], [[quiddity-identity]], [[quiddity-core]], [[quiddity-sync]], [[quiddity-node]], [[quiddity-view]] and [[quiddity-wasm]].
 	- Apps: [[The UI]] and [[The shell]]. How they look: the [[Design language]].
