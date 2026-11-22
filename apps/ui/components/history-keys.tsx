@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
-import { PlaceHistory, type Place } from "@/lib/history";
+import { PlaceHistory, placeOpened, type Place } from "@/lib/history";
 import { useView } from "./use-view";
 
 /**
@@ -19,10 +19,20 @@ const typing = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
   (target.isContentEditable || target.closest("input, textarea, [contenteditable]") !== null);
 
+/**
+ * One history for the page, started where the page was opened. The component
+ * below mounts only once the URL can be read, which can be after a link has been
+ * followed, and a history that begins at the place reached would have nowhere to
+ * go back to. Opening the page is a place whether or not anything was
+ * listening, so it is recorded as the module loads, before anything renders.
+ */
+const history = new PlaceHistory();
+const opened = placeOpened();
+if (opened) history.observe(opened);
+
 export function HistoryKeys() {
   const router = useRouter();
   const view = useView();
-  const history = useRef(new PlaceHistory());
   const latest = useRef(view);
   latest.current = view;
 
@@ -31,7 +41,7 @@ export function HistoryKeys() {
   const { path, main } = view;
   useEffect(() => {
     if (path === "/" && !main) return;
-    history.current.observe({ path, main });
+    history.observe({ path, main });
   }, [path, main]);
 
   useEffect(() => {
@@ -49,7 +59,7 @@ export function HistoryKeys() {
       if (!back && !forward) return;
       e.preventDefault();
       e.stopPropagation();
-      go(back ? history.current.back() : history.current.forward());
+      go(back ? history.back() : history.forward());
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);

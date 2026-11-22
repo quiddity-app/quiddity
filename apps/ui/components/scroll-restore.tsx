@@ -1,6 +1,7 @@
 "use client";
 
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect } from "react";
+import { placeOpened } from "@/lib/history";
 import { ScrollMemory } from "@/lib/scroll-memory";
 import { useView } from "./use-view";
 
@@ -14,6 +15,31 @@ const GIVE_UP_MS = 5000;
 
 /** What the person does that means the scroll position is theirs again. */
 const TAKEOVER = ["wheel", "touchstart", "pointerdown", "keydown"] as const;
+
+const memory = new ScrollMemory();
+/** Where the pane is being put back to, while that is going on. */
+let restoring: number | null = null;
+
+// Remembering starts where the page was opened and hears the pane from the
+// first, not from when the component below mounts: that waits for the URL, and
+// the page can be scrolled and followed away from before then, which would
+// leave the place it was scrolled on unknown. `scroll` doesn't bubble, so it is
+// heard on the way down.
+if (typeof document !== "undefined") {
+  const opened = placeOpened();
+  if (opened) memory.arrive(opened);
+  document.addEventListener(
+    "scroll",
+    ({ target }) => {
+      if (!(target instanceof HTMLElement) || target !== document.querySelector("main")) return;
+      // Something other than the person moved it: a short page clamping it, or
+      // the router scrolling a new route to the top. Put it back.
+      if (restoring === null) memory.scrolled(target.scrollTop);
+      else if (target.scrollTop !== restoring) target.scrollTop = restoring;
+    },
+    { capture: true, passive: true },
+  );
+}
 
 /**
  * Puts the main pane back where it was left when it returns to a page, and at
@@ -31,37 +57,20 @@ const TAKEOVER = ["wheel", "touchstart", "pointerdown", "keydown"] as const;
  */
 export function ScrollRestore() {
   const { path, main } = useView();
-  const memory = useRef(new ScrollMemory());
-  /** Where the pane is being put back to, while that is going on. */
-  const restoring = useRef<number | null>(null);
-
-  useLayoutEffect(() => {
-    const pane = document.querySelector("main");
-    if (!pane) return;
-    const onScroll = () => {
-      const target = restoring.current;
-      // Something other than the person moved it: a short page clamping it, or
-      // the router scrolling a new route to the top. Put it back.
-      if (target === null) memory.current.scrolled(pane.scrollTop);
-      else if (pane.scrollTop !== target) pane.scrollTop = target;
-    };
-    pane.addEventListener("scroll", onScroll, { passive: true });
-    return () => pane.removeEventListener("scroll", onScroll);
-  }, []);
 
   // `/` only redirects to home, and shows no page of its own to remember.
   const home = path === "/" && !main;
   useLayoutEffect(() => {
     const pane = document.querySelector("main");
     if (!pane || home) return;
-    const target = memory.current.arrive({ path, main });
+    const target = memory.arrive({ path, main });
     const apply = () => {
       pane.scrollTop = target;
     };
     apply();
     if (target === 0) return;
 
-    restoring.current = target;
+    restoring = target;
     const watcher = new MutationObserver(() => {
       apply();
       // Still loading, so wait longer.
@@ -74,7 +83,7 @@ export function ScrollRestore() {
     const cap = setTimeout(stop, GIVE_UP_MS);
     for (const type of TAKEOVER) window.addEventListener(type, stop, { capture: true, passive: true });
     function stop() {
-      restoring.current = null;
+      restoring = null;
       watcher.disconnect();
       clearTimeout(quiet);
       clearTimeout(cap);
