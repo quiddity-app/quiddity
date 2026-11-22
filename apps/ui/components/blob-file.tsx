@@ -28,19 +28,25 @@ function useFileUrl(
     let url: string | undefined;
     graph.readFile(hash).then(
       (bytes) => {
-        if (cancelled) return;
+        if (cancelled) {
+          return;
+        }
         url = URL.createObjectURL(
           new Blob([bytes as BlobPart], { type: mime }),
         );
         setLoaded({ key, url });
       },
       (error: Error) => {
-        if (!cancelled) setLoaded({ key, reason: error.message });
+        if (!cancelled) {
+          setLoaded({ key, reason: error.message });
+        }
       },
     );
     return () => {
       cancelled = true;
-      if (url) URL.revokeObjectURL(url);
+      if (url) {
+        URL.revokeObjectURL(url);
+      }
     };
   }, [graph, hash, mime, key]);
   return loaded?.key === key ? loaded : undefined;
@@ -77,7 +83,9 @@ function File({ blob: asset }: Readonly<{ blob: BlobInfo }>) {
       </p>
     );
   }
-  if (!file) return <p role="status">Loading {name}…</p>;
+  if (!file) {
+    return <p role="status">Loading {name}…</p>;
+  }
   if ('reason' in file) {
     return (
       <div role="status" className="space-y-2">
@@ -85,7 +93,13 @@ function File({ blob: asset }: Readonly<{ blob: BlobInfo }>) {
           {name} ({details}) isn’t on this device yet. It arrives when a device
           that has it is reachable.
         </p>
-        <Button onClick={() => setAttempt((n) => n + 1)}>Try again</Button>
+        <Button
+          onClick={() => {
+            setAttempt((n) => n + 1);
+          }}
+        >
+          Try again
+        </Button>
       </div>
     );
   }

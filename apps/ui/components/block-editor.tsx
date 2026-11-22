@@ -23,15 +23,22 @@ import { propertyCompletion } from '@/lib/property-completion';
 
 const isHighSurrogate = (s: string, i: number) => {
   const c = s.charCodeAt(i);
-  return c >= 0xd800 && c <= 0xdbff;
+  return c >= 0xd8_00 && c <= 0xdb_ff;
 };
 
 /** The smallest edit that turns `from` into `to`. */
 function diff(from: string, to: string) {
   let start = 0;
-  while (start < from.length && start < to.length && from[start] === to[start])
+  while (
+    start < from.length &&
+    start < to.length &&
+    from[start] === to[start]
+  ) {
     start++;
-  if (start > 0 && isHighSurrogate(from, start - 1)) start--;
+  }
+  if (start > 0 && isHighSurrogate(from, start - 1)) {
+    start--;
+  }
   let endFrom = from.length;
   let endTo = to.length;
   while (
@@ -70,7 +77,9 @@ function outlinerKeys(
     return order[order.indexOf(id) + delta];
   };
   const go = (to: string | undefined, caret: Caret) => {
-    if (to === undefined) return false;
+    if (to === undefined) {
+      return false;
+    }
     latest.current.edit(to, caret);
     return true;
   };
@@ -78,15 +87,18 @@ function outlinerKeys(
     {
       key: 'Enter',
       run: (view) => {
-        if (!collapsed(view)) return false;
+        if (!collapsed(view)) {
+          return false;
+        }
         const { graph, edit } = latest.current;
         // In the properties block each property is a line, so Enter starts
         // another, until it is pressed on the empty last line: that line was
         // only waiting for a property, so it goes and the body begins.
         if (properties.current && view.state.doc.length > 0) {
           const line = view.state.doc.lineAt(head(view));
-          if (line.number !== view.state.doc.lines || line.length > 0)
+          if (line.number !== view.state.doc.lines || line.length > 0) {
             return insertNewline(view);
+          }
           view.dispatch({ changes: { from: line.from - 1, to: line.to } });
           edit(graph.split(id, view.state.doc.length), 'start');
           return true;
@@ -95,14 +107,20 @@ function outlinerKeys(
         // at the top level there is nowhere to go, so it splits as usual.
         if (view.state.doc.length === 0) {
           edit(id, 0);
-          if (graph.outdent(id)) return true;
+          if (graph.outdent(id)) {
+            return true;
+          }
         }
         // At the start of a block with text the new block is an empty one
         // before it, so the caret stays where it is.
         const atStart = head(view) === 0 && view.state.doc.length > 0;
-        if (atStart) edit(id, 0);
+        if (atStart) {
+          edit(id, 0);
+        }
         const created = graph.split(id, head(view));
-        if (!atStart) edit(created, 'start');
+        if (!atStart) {
+          edit(created, 'start');
+        }
         return true;
       },
     },
@@ -128,10 +146,14 @@ function outlinerKeys(
     {
       key: 'Backspace',
       run: (view) => {
-        if (!collapsed(view) || head(view) !== 0) return false;
+        if (!collapsed(view) || head(view) !== 0) {
+          return false;
+        }
         const { graph, edit } = latest.current;
         const merged = graph.mergeIntoPrevious(id);
-        if (merged) edit(merged.into, merged.at);
+        if (merged) {
+          edit(merged.into, merged.at);
+        }
         return true;
       },
     },
@@ -250,8 +272,11 @@ export function BlockEditor({
   useEffect(() => {
     const doc = graph.blockText(id);
     let anchor = 0;
-    if (caret === 'end') anchor = doc.length;
-    else if (caret !== 'start') anchor = Math.min(caret, doc.length);
+    if (caret === 'end') {
+      anchor = doc.length;
+    } else if (caret !== 'start') {
+      anchor = Math.min(caret, doc.length);
+    }
     const editor = new EditorView({
       parent: host.current!,
       state: EditorState.create({
@@ -273,7 +298,9 @@ export function BlockEditor({
                   target = graph.followLink(key);
                 } catch {
                   // Empty, which goes nowhere, or ambiguous, which has a page to choose on.
-                  if (graph.linkMatches(key).length < 2) return;
+                  if (graph.linkMatches(key).length < 2) {
+                    return;
+                  }
                   const { nav, router } = go.current;
                   router.push(
                     nav.href({
@@ -302,9 +329,12 @@ export function BlockEditor({
           Prec.highest(keymap.of(outlinerKeys(id, latest, isProperties))),
           keymap.of(defaultKeymap),
           EditorView.updateListener.of((update) => {
-            if (!update.docChanged) return;
-            if (update.transactions.some((t) => t.annotation(fromGraph)))
+            if (!update.docChanged) {
               return;
+            }
+            if (update.transactions.some((t) => t.annotation(fromGraph))) {
+              return;
+            }
             const changes: [number, number, string][] = [];
             update.changes.iterChanges((from, to, _fromB, _toB, inserted) =>
               changes.push([from, to, inserted.toString()]),
@@ -318,16 +348,21 @@ export function BlockEditor({
           EditorView.domEventHandlers({
             // Losing the window's focus isn't leaving the block.
             blur: () => {
-              if (!closing.current && document.hasFocus())
+              if (!closing.current && document.hasFocus()) {
                 latest.current.stop(id);
+              }
             },
             // An outline pastes as blocks, and one bullet as its text; anything
             // else is left to the editor as the text it is.
             paste: (event, view) => {
               const text = event.clipboardData?.getData('text/plain');
-              if (!text) return false;
+              if (!text) {
+                return false;
+              }
               const pasted = graph.classifyPaste(text);
-              if (pasted.kind === 'plain') return false;
+              if (pasted.kind === 'plain') {
+                return false;
+              }
               event.preventDefault();
               if (pasted.kind === 'block') {
                 view.dispatch({
@@ -341,7 +376,9 @@ export function BlockEditor({
               graph.settle();
               const made = graph.pasteIntoBlock(id, text);
               const last = made.at(-1);
-              if (last !== undefined) latest.current.edit(last, 'end');
+              if (last !== undefined) {
+                latest.current.edit(last, 'end');
+              }
               latest.current.announce(`${made.length} blocks pasted`);
               return true;
             },
@@ -411,7 +448,9 @@ export function BlockEditor({
   );
   useEffect(() => {
     const editor = view.current;
-    if (!editor) return;
+    if (!editor) {
+      return;
+    }
     let text: string;
     try {
       text = graph.blockText(id);
@@ -419,7 +458,9 @@ export function BlockEditor({
       return; // Deleted; this editor is about to go.
     }
     const now = editor.state.doc.toString();
-    if (text === now) return;
+    if (text === now) {
+      return;
+    }
     editor.dispatch({
       changes: diff(now, text),
       annotations: fromGraph.of(true),

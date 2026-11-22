@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "prelint": "pnpm wasm",
     "lint": "eslint",
+    "format": "eslint --fix",
     "test:e2e": "playwright test"
   },
   "dependencies": {

@@ -123,7 +123,9 @@ function placeNew(
 ) {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   for (const n of nodes) {
-    if (cachedPosition(n.id)) continue;
+    if (cachedPosition(n.id)) {
+      continue;
+    }
     if (n.x === undefined || n.y === undefined) {
       const friend = [...(neighbours.get(n.id) ?? [])]
         .map((id) => byId.get(id))
@@ -144,7 +146,9 @@ function circles(
 ) {
   ctx.beginPath();
   for (const n of nodes) {
-    if (n.x === undefined || !wanted(n)) continue;
+    if (n.x === undefined || !wanted(n)) {
+      continue;
+    }
     const r = radius(n);
     ctx.moveTo(n.x + r, n.y ?? 0);
     ctx.arc(n.x, n.y ?? 0, r, 0, Math.PI * 2);
@@ -164,8 +168,9 @@ function strokeLinks(
   ctx.beginPath();
   for (const l of links) {
     const { source, target } = l as { source: Node; target: Node };
-    if (!wanted(l) || source.x === undefined || target.x === undefined)
+    if (!wanted(l) || source.x === undefined || target.x === undefined) {
       continue;
+    }
     drawn++;
     ctx.moveTo(source.x, source.y ?? 0);
     ctx.lineTo(target.x, target.y ?? 0);
@@ -233,7 +238,7 @@ export function draw(
    */
   { persist = true }: { persist?: boolean } = {},
 ): Drawing {
-  const cachedPosition = persist ? cachedPositionOf : () => undefined;
+  const cachedPosition = persist ? cachedPositionOf : () => {};
   const cachedTransform = persist ? cachedTransformOf : () => null;
   let current: string | null = null;
   const root = select(canvas);
@@ -281,9 +286,13 @@ export function draw(
   // not at all while the page is hidden: the layout carries on, the GPU doesn't.
   const paint = () => {
     frame = 0;
-    if (document.hidden) return;
+    if (document.hidden) {
+      return;
+    }
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) {
+      return;
+    }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.setTransform(
@@ -312,8 +321,9 @@ export function draw(
       strokeLinks(ctx, links, (l) => l.weak, dim * WEAK_ALPHA);
     // For tests: how many links the last paint drew, as `data-links` is only
     // how many there are to draw.
-    if (canvas.dataset.drawn !== String(drawn))
+    if (canvas.dataset.drawn !== String(drawn)) {
       canvas.dataset.drawn = String(drawn);
+    }
     if (focused !== null) {
       strokeLinks(ctx, links, (l) => !l.weak && touches(l), 1);
       strokeLinks(ctx, links, (l) => l.weak && touches(l), WEAK_ALPHA);
@@ -333,7 +343,7 @@ export function draw(
     // The entity the graph is about, over the rest and always at full strength.
     const subject =
       current === null ? undefined : nodes.find((n) => n.id === current);
-    if (subject && subject.x !== undefined) {
+    if (subject?.x !== undefined) {
       ctx.globalAlpha = 1;
       ctx.fillStyle = colours.current;
       ctx.strokeStyle = colours.stroke;
@@ -353,20 +363,30 @@ export function draw(
     const y1 = (cssHeight - view.y) / view.k;
     let labels = 0;
     for (const n of nodes) {
-      if (n.x === undefined || !inLabelRange(n.x, n.y ?? 0, x0, x1, y0, y1))
+      if (n.x === undefined || !inLabelRange(n.x, n.y ?? 0, x0, x1, y0, y1)) {
         continue;
-      if (n.id !== focused && n.id !== current && !labelFits(radius(n), view.k))
+      }
+      if (
+        n.id !== focused &&
+        n.id !== current &&
+        !labelFits(radius(n), view.k)
+      ) {
         continue;
+      }
       labels++;
       ctx.globalAlpha = near && n.id !== focused && !near.has(n.id) ? 0.25 : 1;
       ctx.fillText(n.title, n.x + radius(n) + 3 * px, n.y ?? 0);
     }
     ctx.globalAlpha = 1;
     const countStr = String(labels);
-    if (canvas.dataset.labels !== countStr) canvas.dataset.labels = countStr;
+    if (canvas.dataset.labels !== countStr) {
+      canvas.dataset.labels = countStr;
+    }
   };
   const repaint = () => {
-    if (frame === 0) frame = requestAnimationFrame(paint);
+    if (frame === 0) {
+      frame = requestAnimationFrame(paint);
+    }
   };
   // A change of scheme changes what the stylesheet says, so ask it again.
   const retheme = () => {
@@ -406,7 +426,9 @@ export function draw(
   // zoom ends a zoom, which would otherwise forget the layout it is about to
   // restore.
   const save = () => {
-    if (persist && nodes.length > 0) remember(nodes, view);
+    if (persist && nodes.length > 0) {
+      remember(nodes, view);
+    }
   };
   // Entities placed by this layout run and not yet settled: they are the only
   // ones free to move.
@@ -424,7 +446,9 @@ export function draw(
   // `settled` says when. Nothing in the page reads them, but tests do.
   const settle = (still: boolean) => {
     canvas.dataset.settled = String(still);
-    if (!still) return;
+    if (!still) {
+      return;
+    }
     items
       ?.attr('data-x', (n) => n.x ?? null)
       .attr('data-y', (n) => n.y ?? null);
@@ -456,7 +480,9 @@ export function draw(
     let best: Node | undefined;
     let nearest = Infinity;
     for (const n of nodes) {
-      if (n.x === undefined || n.y === undefined) continue;
+      if (n.x === undefined || n.y === undefined) {
+        continue;
+      }
       const away = Math.hypot(n.x - x, n.y - y);
       if (away < radius(n) + 3 / view.k && away < nearest) {
         nearest = away;
@@ -487,10 +513,14 @@ export function draw(
     .on(
       'zoom',
       (event: { transform: ZoomTransform; sourceEvent?: unknown }) => {
-        if (event.sourceEvent) tracking = false;
+        if (event.sourceEvent) {
+          tracking = false;
+        }
         view = event.transform;
         const vStr = `${view.x},${view.y},${view.k}`;
-        if (canvas.dataset.view !== vStr) canvas.dataset.view = vStr;
+        if (canvas.dataset.view !== vStr) {
+          canvas.dataset.view = vStr;
+        }
         repaint();
       },
     )
@@ -528,7 +558,9 @@ export function draw(
         ? { pad: 0.3, minScale: 0.1, maxScale: 2.5 }
         : { pad: 0.08, minScale: 0.1, maxScale: 1 },
     );
-    if (!target) return;
+    if (!target) {
+      return;
+    }
     const to = zoomIdentity.translate(target.x, target.y).scale(target.k);
     // Animated unless the person has asked for less motion.
     if (
@@ -536,34 +568,48 @@ export function draw(
       !window.matchMedia('(prefers-reduced-motion: reduce)').matches
     ) {
       root.transition().duration(600).call(behaviour.transform, to);
-    } else root.call(behaviour.transform, to);
+    } else {
+      root.call(behaviour.transform, to);
+    }
   };
   root.on('dblclick.fit', (event: MouseEvent) => {
-    if (!nodeAt(pointer(event, canvas))) fit(null, true);
+    if (!nodeAt(pointer(event, canvas))) {
+      fit(null, true);
+    }
   });
 
   const focus = (id: string | null) => {
-    if (focused === id) return;
+    if (focused === id) {
+      return;
+    }
     focused = id;
     repaint();
   };
   root.on('mousemove.focus', (event: MouseEvent) => {
-    if (dragged) return;
+    if (dragged) {
+      return;
+    }
     const n = nodeAt(pointer(event, canvas));
     canvas.style.cursor = n ? 'pointer' : '';
     focus(n?.id ?? null);
   });
   root.on('mouseleave.focus', () => {
-    if (!dragged) focus(null);
+    if (!dragged) {
+      focus(null);
+    }
   });
   // A drag that doesn't move ends in a click; one that does, doesn't.
   root.on('click.open', (event: MouseEvent) => {
     const n = nodeAt(pointer(event, canvas));
-    if (!n) return;
+    if (!n) {
+      return;
+    }
     // Alt-click looks closer instead of opening.
-    if (event.altKey)
+    if (event.altKey) {
       fit(new Set([n.id, ...(neighbours.get(n.id) ?? [])]), true);
-    else open(n.id, event.shiftKey);
+    } else {
+      open(n.id, event.shiftKey);
+    }
   });
 
   // d3-drag reports a drag in the subject's own coordinates: the subject's
@@ -611,7 +657,9 @@ export function draw(
       canvas.dataset.grabbed = `${event.x},${event.y}`;
     })
     .on('end', (event: Drag) => {
-      if (moved) simulation.alphaTarget(0);
+      if (moved) {
+        simulation.alphaTarget(0);
+      }
       event.subject.node.fx = null;
       event.subject.node.fy = null;
       dragged = null;
@@ -669,8 +717,12 @@ export function draw(
               event.preventDefault();
               open(n.id, event.shiftKey);
             })
-            .on('focus', (_event, n) => focus(n.id))
-            .on('blur', () => focus(null)),
+            .on('focus', (_event, n) => {
+              focus(n.id);
+            })
+            .on('blur', () => {
+              focus(null);
+            }),
         )
         .attr('href', (n) => hrefOf(n.id))
         .attr('aria-label', (n) => n.title)
@@ -688,12 +740,18 @@ export function draw(
 
       if (unsettled.size > 0) {
         for (const n of nodes) {
-          if (unsettled.has(n.id)) continue;
+          if (unsettled.has(n.id)) {
+            continue;
+          }
           const remembered = cachedPosition(n.id);
           n.fx = remembered?.x ?? n.x;
           n.fy = remembered?.y ?? n.y;
-          if (n.fx !== undefined) n.x = n.fx;
-          if (n.fy !== undefined) n.y = n.fy;
+          if (n.fx !== undefined) {
+            n.x = n.fx;
+          }
+          if (n.fy !== undefined) {
+            n.y = n.fy;
+          }
         }
         settle(false);
         simulation.alpha(1).restart();
@@ -702,10 +760,14 @@ export function draw(
         save();
         settle(true);
       }
-      if (tracking) fit(null, false);
+      if (tracking) {
+        fit(null, false);
+      }
       repaint();
     },
-    fit: () => fit(null, true),
+    fit: () => {
+      fit(null, true);
+    },
     highlight(id) {
       current = id;
       // Links carry it for assistive technology, and for tests.
@@ -761,7 +823,7 @@ function Canvas() {
         router.push(aside ? view.toSide(id) : view.toMain(id));
       },
       (id) =>
-        process.env.NEXT_PUBLIC_QUIDDITY_BASE_PATH +
+        (process.env.NEXT_PUBLIC_QUIDDITY_BASE_PATH ?? '') +
         latest.current.view.toMain(id),
     );
     return () => {
@@ -800,7 +862,9 @@ function Canvas() {
           variant="overlay"
           aria-expanded={panel}
           aria-controls={panelId}
-          onClick={() => setPanel(!panel)}
+          onClick={() => {
+            setPanel(!panel);
+          }}
         >
           {panel ? 'Hide options' : 'Options'}
         </Button>
@@ -816,7 +880,9 @@ function Canvas() {
               <input
                 type="checkbox"
                 checked={show[key]}
-                onChange={(e) => setShow({ ...show, [key]: e.target.checked })}
+                onChange={(e) => {
+                  setShow({ ...show, [key]: e.target.checked });
+                }}
               />
               {label}
             </label>

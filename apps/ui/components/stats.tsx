@@ -181,9 +181,7 @@ function Outcomes({
                     n === 0 ? 'text-ink-secondary' : 'font-medium text-danger'
                   }
                 >
-                  {n === 0
-                    ? 'Passed'
-                    : `${n === 1 ? '1 problem' : `${n} problems`}`}
+                  {n === 0 ? 'Passed' : n === 1 ? '1 problem' : `${n} problems`}
                 </span>
                 {': '}
                 {outcome.name}

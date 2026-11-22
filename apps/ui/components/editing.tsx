@@ -57,7 +57,9 @@ function AddProperties() {
       empty={false}
       emptyLabel=""
       label="+ Add properties"
-      onAdd={() => editing.addProperties()}
+      onAdd={() => {
+        editing.addProperties();
+      }}
     />
   );
 }
@@ -105,22 +107,30 @@ export function EditableOutline({
   // the one being worked on.
   const selectedKey = [...selected].join(',');
   useEffect(() => {
-    if (selectedKey === '') return;
+    if (selectedKey === '') {
+      return;
+    }
     const timer = setTimeout(() => {
-      if (Date.now() - lastAction.current < 1000) return;
+      if (Date.now() - lastAction.current < 1000) {
+        return;
+      }
       const ids = selectedKey.split(',');
       let text = `${plural(ids.length)} selected`;
       if (ids.length === 1) {
         try {
           const first = graph.blockText(ids[0]!).split('\n')[0]!.slice(0, 80);
-          if (first !== '') text += `: ${first}`;
+          if (first !== '') {
+            text += `: ${first}`;
+          }
         } catch {
           // The block has gone; the count will do.
         }
       }
       setAnnouncement((a) => ({ text, count: a.count + 1 }));
     }, 300);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+    };
   }, [graph, selectedKey]);
   // Each block being edited, with its text from when editing began, so that
   // saving can tell the links it gained from the ones it had.
@@ -132,10 +142,14 @@ export function EditableOutline({
     (id: string) => {
       const before = opened.current.get(id);
       opened.current.delete(id);
-      if (before === undefined) return;
+      if (before === undefined) {
+        return;
+      }
       try {
         graph.commitBlock(id, before);
-        if (offered.current.delete(id)) graph.dropEmptyFirstBlock(id);
+        if (offered.current.delete(id)) {
+          graph.dropEmptyFirstBlock(id);
+        }
       } catch {
         // The block went in an undo, so there is nothing to save.
       }
@@ -145,13 +159,21 @@ export function EditableOutline({
   // Other devices are told which block is open.
   const open = current?.id;
   useEffect(() => {
-    if (open === undefined) return;
+    if (open === undefined) {
+      return;
+    }
     graph.focus(open);
-    return () => graph.blur(open);
+    return () => {
+      graph.blur(open);
+    };
   }, [graph, open]);
   // Leaving the page is leaving the block.
   useEffect(
-    () => () => [...opened.current.keys()].forEach((key) => save(key)),
+    () => () => {
+      for (const key of opened.current.keys()) {
+        save(key);
+      }
+    },
     [entityId, save],
   );
   const editing = useMemo<Editing>(
@@ -165,11 +187,14 @@ export function EditableOutline({
       announce,
       edit: (id, caret) => {
         graph.settle();
-        [...opened.current.keys()]
-          .filter((other) => other !== id)
-          .forEach((key) => save(key));
-        if (!opened.current.has(id))
+        for (const key of [...opened.current.keys()].filter(
+          (other) => other !== id,
+        )) {
+          save(key);
+        }
+        if (!opened.current.has(id)) {
           opened.current.set(id, graph.blockText(id));
+        }
         setSelection(null);
         setCurrent({ id, caret });
       },
@@ -183,7 +208,9 @@ export function EditableOutline({
         const id = graph.createBlock(entityId, 0, '');
         offered.current.add(id);
         graph.settle();
-        [...opened.current.keys()].forEach((key) => save(key));
+        for (const key of opened.current.keys()) {
+          save(key);
+        }
         opened.current.set(id, graph.blockText(id));
         setSelection(null);
         setCurrent({ id, caret: 'start' });
@@ -219,7 +246,7 @@ export function EditableOutline({
         className="sr-only"
       >
         {announcement.text}
-        {announcement.count % 2 === 0 ? '' : '\u00a0'}
+        {announcement.count % 2 === 0 ? '' : '\u00A0'}
       </div>
     </EditingContext.Provider>
   );
@@ -245,7 +272,9 @@ function blockAtHeight(scope: string, y: number): string | null {
   );
   let found: HTMLElement | undefined = rows[0];
   for (const row of rows) {
-    if (row.getBoundingClientRect().top > y) break;
+    if (row.getBoundingClientRect().top > y) {
+      break;
+    }
     found = row;
   }
   return found?.dataset.blockId ?? null;
@@ -282,10 +311,13 @@ function moveBlocks(
   scope: string,
 ) {
   const { editing, selection } = live.current;
-  if (e.target instanceof Element && e.target.closest('.cm-editor')) return;
-  const own = blockOf(e.target, scope);
-  if (selection ? e.target !== document.body && own === null : own === null)
+  if (e.target instanceof Element && e.target.closest('.cm-editor')) {
     return;
+  }
+  const own = blockOf(e.target, scope);
+  if (selection ? e.target !== document.body && own === null : own === null) {
+    return;
+  }
   e.preventDefault();
   const moved = editing.graph.moveBlocks(
     selection ? [...editing.selected] : [own!],
@@ -312,8 +344,12 @@ function deleteSelected(
   scope: string,
   setSelection: SetSelection,
 ) {
-  if (!isForBlocks(e, scope)) return;
-  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (!isForBlocks(e, scope)) {
+    return;
+  }
+  if (e.metaKey || e.ctrlKey || e.altKey) {
+    return;
+  }
   e.preventDefault();
   const { editing } = live.current;
   const ids = [...editing.selected];
@@ -324,7 +360,9 @@ function deleteSelected(
 
 /** Tab and Shift-Tab indent and outdent what is selected, as they do the block being edited. */
 function indentSelected(e: KeyboardEvent, live: Live, scope: string) {
-  if (!isForBlocks(e, scope)) return;
+  if (!isForBlocks(e, scope)) {
+    return;
+  }
   e.preventDefault();
   const { graph, selected, announce } = live.current.editing;
   const ids = [...selected];
@@ -346,7 +384,9 @@ function editorHasNoTextLeft(target: EventTarget | null): boolean {
       ? target.closest<HTMLElement>('.cm-editor')
       : null;
   const view = host ? EditorView.findFromDOM(host) : null;
-  if (!view) return true;
+  if (!view) {
+    return true;
+  }
   const { from, to } = view.state.selection.main;
   return from === 0 && to === view.state.doc.length;
 }
@@ -362,22 +402,31 @@ function selectAll(
     e.altKey ||
     e.shiftKey ||
     e.key.toLowerCase() !== 'a'
-  )
+  ) {
     return;
+  }
   const { blocks, editing, selection } = live.current;
   // With blocks selected nothing has the focus; the body is where keys land.
   const anchor =
     blockOf(e.target, scope) ??
     (selection && e.target === document.body ? selection.anchor : null);
-  if (anchor === null) return;
-  if (!editorHasNoTextLeft(e.target)) return;
+  if (anchor === null) {
+    return;
+  }
+  if (!editorHasNoTextLeft(e.target)) {
+    return;
+  }
   e.preventDefault();
   // Before the editor, which would select its text.
   e.stopPropagation();
   const from = selection?.anchor ?? anchor;
   const next = expandSelection(blocks, from, selection?.ids ?? new Set());
-  if (!next) return;
-  if (editing.current) editing.stop(editing.current.id);
+  if (!next) {
+    return;
+  }
+  if (editing.current) {
+    editing.stop(editing.current.id);
+  }
   setSelection({ anchor: from, ids: next });
 }
 
@@ -416,38 +465,63 @@ function dragSelection(scope: string, live: Live, setSelection: SetSelection) {
   let drag: { anchor: string; crossed: boolean } | null = null;
   let userSelect = '';
   const end = () => {
-    if (!drag) return;
+    if (!drag) {
+      return;
+    }
     if (drag.crossed) {
       document.body.style.userSelect = userSelect;
       // The release would otherwise click the block it was over, and edit it.
-      const swallow = (e: Event) => e.stopPropagation();
-      window.addEventListener('click', swallow, { capture: true, once: true });
-      setTimeout(() => window.removeEventListener('click', swallow, true));
+      const swallow = (e: Event) => {
+        e.stopPropagation();
+      };
+      window.addEventListener('click', swallow, {
+        capture: true,
+        once: true,
+      });
+      setTimeout(() => {
+        window.removeEventListener('click', swallow, true);
+      });
     }
     drag = null;
   };
   const down = (e: PointerEvent) => {
     end();
-    if (e.button !== 0) return;
-    if (live.current.selection) setSelection(null);
-    // A finger drags to scroll.
-    if (e.pointerType === 'touch') return;
-    const anchor = blockOf(e.target, scope);
-    if (anchor === null || (e.target as Element).closest('a, button, input'))
+    if (e.button !== 0) {
       return;
+    }
+    if (live.current.selection) {
+      setSelection(null);
+    }
+    // A finger drags to scroll.
+    if (e.pointerType === 'touch') {
+      return;
+    }
+    const anchor = blockOf(e.target, scope);
+    if (anchor === null || (e.target as Element).closest('a, button, input')) {
+      return;
+    }
     drag = { anchor, crossed: false };
   };
   const move = (e: PointerEvent) => {
-    if (!drag) return;
-    if (!(e.buttons & 1)) return end();
+    if (!drag) {
+      return;
+    }
+    if (!(e.buttons & 1)) {
+      end();
+      return;
+    }
     const over = blockAtHeight(scope, e.clientY);
-    if (over === null || (!drag.crossed && over === drag.anchor)) return;
+    if (over === null || (!drag.crossed && over === drag.anchor)) {
+      return;
+    }
     if (!drag.crossed) {
       drag.crossed = true;
       userSelect = document.body.style.userSelect;
       document.body.style.userSelect = 'none';
       const { editing } = live.current;
-      if (editing.current) editing.stop(editing.current.id);
+      if (editing.current) {
+        editing.stop(editing.current.id);
+      }
     }
     window.getSelection()?.removeAllRanges();
     setSelection({
@@ -467,12 +541,16 @@ function pasteBlocks(
 ) {
   const { blocks, editing, selection } = live.current;
   const after = selection ? lastSelected(blocks, editing.selected) : own;
-  if (after === null) return;
+  if (after === null) {
+    return;
+  }
   const text = e.clipboardData?.getData('text/plain') ?? '';
   e.preventDefault();
   const made = editing.graph.pasteBlocks(after, text);
   const [first] = made;
-  if (first !== undefined) setSelection({ anchor: first, ids: new Set(made) });
+  if (first !== undefined) {
+    setSelection({ anchor: first, ids: new Set(made) });
+  }
   editing.announce(
     made.length > 0 ? `${plural(made.length)} pasted` : 'Nothing to paste',
   );
@@ -497,12 +575,16 @@ function handleClipboard(
     return;
   }
   const own = blockOf(e.target, scope);
-  if (e.target !== document.body && own === null) return;
+  if (e.target !== document.body && own === null) {
+    return;
+  }
   if (e.type === 'paste') {
     pasteBlocks(e, own, live, setSelection);
     return;
   }
-  if (!selection) return;
+  if (!selection) {
+    return;
+  }
   e.preventDefault();
   const ids = [...editing.selected];
   e.clipboardData?.setData('text/plain', editing.graph.copyBlocks(ids));
@@ -535,9 +617,12 @@ function selectionHandlers(
   live: Live,
   setSelection: SetSelection,
 ): () => void {
-  const onKey = (e: KeyboardEvent) => handleKey(e, live, scope, setSelection);
-  const onClipboard = (e: ClipboardEvent) =>
+  const onKey = (e: KeyboardEvent) => {
+    handleKey(e, live, scope, setSelection);
+  };
+  const onClipboard = (e: ClipboardEvent) => {
     handleClipboard(e, live, scope, setSelection);
+  };
   const drag = dragSelection(scope, live, setSelection);
   document.addEventListener('copy', onClipboard);
   document.addEventListener('cut', onClipboard);

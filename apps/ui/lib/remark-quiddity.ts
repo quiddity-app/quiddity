@@ -20,12 +20,11 @@ const custom = (
   name: string,
   properties: Record<string, string>,
   text: string,
-): PhrasingContent =>
-  ({
-    type: 'text',
-    value: text,
-    data: { hName: name, hProperties: properties },
-  }) as PhrasingContent;
+): PhrasingContent => ({
+  type: 'text',
+  value: text,
+  data: { hName: name, hProperties: properties },
+});
 
 export function remarkQuiddity() {
   return (tree: Root) => {
@@ -34,7 +33,9 @@ export function remarkQuiddity() {
     visit(tree, 'link', (node) => {
       const entity = /^\[\[(.+)\]\]$/.exec(node.url);
       const block = /^\(\(([^\s()]+)\)\)$/.exec(node.url);
-      if (!entity && !block) return;
+      if (!entity && !block) {
+        return;
+      }
       node.data = {
         hName: 'quiddity-to',
         hProperties: entity
@@ -43,28 +44,36 @@ export function remarkQuiddity() {
       };
     });
     visit(tree, 'text', (node, index, parent) => {
-      if (!parent || index === undefined) return;
+      if (!parent || index === undefined) {
+        return;
+      }
       const parts: PhrasingContent[] = [];
       let last = 0;
       for (const m of node.value.matchAll(TOKEN)) {
-        if (m.index > last)
+        if (m.index > last) {
           parts.push({ type: 'text', value: node.value.slice(last, m.index) });
+        }
         if (m[1] !== undefined) {
           const props =
-            m[2] !== undefined
-              ? { kind: 'entity', to: m[2] }
-              : { kind: 'block', to: m[3]! };
+            m[2] === undefined
+              ? { kind: 'block', to: m[3]! }
+              : { kind: 'entity', to: m[2] };
           parts.push(custom('quiddity-to', props, m[1]));
-        } else if (m[4] !== undefined)
+        } else if (m[4] !== undefined) {
           parts.push(custom('quiddity-link', { name: m[4] }, m[4]));
-        else if (m[5] !== undefined)
+        } else if (m[5] === undefined) {
+          parts.push(custom('quiddity-prop', { index: m[6]! }, ''));
+        } else {
           parts.push(custom('quiddity-ref', { id: m[5] }, m[0]));
-        else parts.push(custom('quiddity-prop', { index: m[6]! }, ''));
+        }
         last = m.index + m[0].length;
       }
-      if (parts.length === 0) return;
-      if (last < node.value.length)
+      if (parts.length === 0) {
+        return;
+      }
+      if (last < node.value.length) {
         parts.push({ type: 'text', value: node.value.slice(last) });
+      }
       parent.children.splice(index, 1, ...parts);
       return index + parts.length;
     });

@@ -37,7 +37,9 @@ function Secondary({ id }: Readonly<{ id: EntityId }>) {
           className={iconButtonClass}
           aria-expanded={!collapsed}
           aria-label={collapsed ? 'Expand' : 'Collapse'}
-          onClick={() => setCollapsed((c) => !c)}
+          onClick={() => {
+            setCollapsed((c) => !c);
+          }}
         >
           {collapsed ? '▸' : '▾'}
         </button>
@@ -71,7 +73,9 @@ function Secondary({ id }: Readonly<{ id: EntityId }>) {
 export function RightPane() {
   const { main, open, pageGraph, toAllClosed } = useView();
   const graph = main !== null && pageGraph === true;
-  if (open.length === 0 && !graph) return null;
+  if (open.length === 0 && !graph) {
+    return null;
+  }
   return (
     <>
       {graph && <PageGraph id={main} />}

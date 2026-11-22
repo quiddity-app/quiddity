@@ -9,7 +9,6 @@ import type { Page } from '@playwright/test';
 //     Shift-click a link to open it at the side.
 //   Open questions
 //     Eviction of unsynced edits.
-const PARENT = 'Local-first, multiplayer second brain.';
 const LEAF = 'Shift-click a link to open it at the side.';
 const QUESTIONS = 'Open questions';
 
@@ -33,7 +32,9 @@ async function hears(page: Page, key: string, text: string) {
 /** Selects the block with this text, and as many levels more as `more` says. */
 async function select(page: Page, text: string, more = 0) {
   await block(page, text).click();
-  for (let i = 0; i < 2 + more; i++) await page.keyboard.press('Control+a');
+  for (let i = 0; i < 2 + more; i++) {
+    await page.keyboard.press('Control+a');
+  }
 }
 
 test('selecting says how many blocks, and reads out a single one', async ({

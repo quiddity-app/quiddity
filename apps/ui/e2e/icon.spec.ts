@@ -104,8 +104,11 @@ for (const file of launcherIcons) {
       };
       const along = (at: (i: number) => boolean) => {
         const found: number[] = [];
-        for (let i = 1; i < image.width; i++)
-          if (at(i) !== at(i - 1)) found.push(i);
+        for (let i = 1; i < image.width; i++) {
+          if (at(i) !== at(i - 1)) {
+            found.push(i);
+          }
+        }
         return found;
       };
       const middle = Math.floor(image.width / 2);

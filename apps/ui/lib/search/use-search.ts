@@ -57,13 +57,17 @@ export function useSearch(facets: Facet[], query: string): Section[] {
             return [];
           })
           .then((hits) => {
-            if (!stale) setAnswers((old) => ({ ...old, [facet.id]: hits }));
+            if (!stale) {
+              setAnswers((old) => ({ ...old, [facet.id]: hits }));
+            }
           });
       }, 0),
     );
     return () => {
       stale = true;
-      timers.forEach(clearTimeout);
+      for (const timer of timers) {
+        clearTimeout(timer);
+      }
     };
   }, [facets, deferred, graph, revision]);
 

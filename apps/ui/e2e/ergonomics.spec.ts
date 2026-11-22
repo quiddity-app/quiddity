@@ -64,6 +64,8 @@ test.describe('on a touch screen', () => {
         page.getByRole('button', { name: 'More' }),
       ].map(async (target) => (await target.boundingBox())!.height),
     );
-    for (const height of heights) expect(height).toBeGreaterThanOrEqual(44);
+    for (const height of heights) {
+      expect(height).toBeGreaterThanOrEqual(44);
+    }
   });
 });

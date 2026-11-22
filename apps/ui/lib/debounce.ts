@@ -29,8 +29,11 @@ export function debounce(
   return {
     call() {
       const now = Date.now();
-      if (timer === undefined) first = now;
-      else clearTimeout(timer);
+      if (timer === undefined) {
+        first = now;
+      } else {
+        clearTimeout(timer);
+      }
       timer = setTimeout(fire, Math.max(0, Math.min(wait, first + max - now)));
     },
     get pending() {

@@ -39,7 +39,9 @@ const when = new Intl.DateTimeFormat(undefined, {
 });
 
 function When({ seconds }: Readonly<{ seconds: number | null }>) {
-  if (seconds === null) return null;
+  if (seconds === null) {
+    return null;
+  }
   const date = new Date(seconds * 1000);
   return <time dateTime={date.toISOString()}>{when.format(date)}</time>;
 }
@@ -51,15 +53,19 @@ const collator = new Intl.Collator(undefined, {
 
 function compare(column: Column, a: Summary, b: Summary): number {
   switch (column) {
-    case 'title':
+    case 'title': {
       return collator.compare(a.title, b.title);
-    case 'tags':
+    }
+    case 'tags': {
       return collator.compare(a.tags.join(' '), b.tags.join(' '));
+    }
     case 'created':
-    case 'modified':
+    case 'modified': {
       return (a[column] ?? 0) - (b[column] ?? 0);
-    default:
+    }
+    default: {
       return a[column] - b[column];
+    }
   }
 }
 
@@ -94,7 +100,9 @@ function List({
       rows.toSorted((a, b) => {
         const gap =
           Number(unknown(sort.column, a)) - Number(unknown(sort.column, b));
-        if (gap !== 0) return gap;
+        if (gap !== 0) {
+          return gap;
+        }
         const order = compare(sort.column, a, b);
         return sort.descending ? -order : order;
       }),
@@ -123,13 +131,16 @@ function List({
   const all = selected.length === rows.length;
   const them = selected.length === 1 ? 'it' : 'them';
   useEffect(() => {
-    if (everyone.current)
+    if (everyone.current) {
       everyone.current.indeterminate = selected.length > 0 && !all;
+    }
   });
   const hasMore = shown < rows.length;
   useEffect(() => {
     const el = more.current;
-    if (!el) return;
+    if (!el) {
+      return;
+    }
     const watcher = new IntersectionObserver(
       ([entry]) => entry?.isIntersecting && setShown((n) => n + ROWS),
       { rootMargin: '400px' },
@@ -137,12 +148,13 @@ function List({
     watcher.observe(el);
     return () => watcher.disconnect();
   }, [shown, hasMore]);
-  if (rows.length === 0)
+  if (rows.length === 0) {
     return (
       <p>
         {everything.length === 0 ? 'Nothing here yet.' : 'Nothing matches.'}
       </p>
     );
+  }
   const sortBy = (column: Column) => {
     setShown(ROWS);
     setSort((s) => ({

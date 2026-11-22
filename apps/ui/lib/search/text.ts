@@ -17,8 +17,10 @@ export const text: Facet = {
         let from = Math.max(0, (ranges[0]?.[0] ?? 0) - LEAD);
         // Don't start in the middle of a surrogate pair.
         const unit = text.codePointAt(from) ?? 0;
-        if (from > 0 && unit >= 0xdc00 && unit <= 0xdfff) from++;
-        const shown = text.slice(from, from + WIDTH).replace(/\s/g, ' ');
+        if (from > 0 && unit >= 0xdc_00 && unit <= 0xdf_ff) {
+          from++;
+        }
+        const shown = text.slice(from, from + WIDTH).replaceAll(/\s/g, ' ');
         const lead = from > 0 ? '…' : '';
         return {
           key: block,

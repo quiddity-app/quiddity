@@ -1,5 +1,5 @@
-import type { Graph } from '../graph';
 import type { EntityId } from '../model';
+import type { Graph } from '../graph';
 
 /** What choosing a hit does. Data rather than a callback where it can be, so
  * a hit can be kept, ranked and logged. */

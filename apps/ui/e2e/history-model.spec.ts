@@ -9,7 +9,9 @@ const at = (main: string | null): Place => ({
 
 function visited(...mains: (string | null)[]) {
   const history = new PlaceHistory();
-  for (const m of mains) history.observe(at(m));
+  for (const m of mains) {
+    history.observe(at(m));
+  }
   return history;
 }
 

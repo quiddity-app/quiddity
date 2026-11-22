@@ -1,5 +1,8 @@
 /** An update the app has found and can install. */
-export type Update = { version: string; notes: string | null };
+export interface Update {
+  version: string;
+  notes: string | null;
+}
 
 /** Only the app updates itself: a browser tab is always the latest build. */
 export function canUpdate(): boolean {
@@ -12,7 +15,9 @@ export function canUpdate(): boolean {
  * check is the same as nothing found.
  */
 export async function checkForUpdate(): Promise<Update | null> {
-  if (!canUpdate()) return null;
+  if (!canUpdate()) {
+    return null;
+  }
   try {
     const { invoke } = await import('@tauri-apps/api/core');
     return await invoke<Update | null>('check_for_update');

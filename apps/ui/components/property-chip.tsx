@@ -109,15 +109,18 @@ export function Value({
   links: Record<string, ResolvedLink>;
 }>) {
   switch (value.kind) {
-    case 'text':
+    case 'text': {
       return <>{value.text}</>;
-    case 'link':
+    }
+    case 'link': {
       return (
         <LinkOrNot linkKey={value.key} fallback={value.name} links={links} />
       );
-    case 'ref':
+    }
+    case 'ref': {
       return <span className="text-ink-muted">(({value.id}))</span>;
-    case 'parts':
+    }
+    case 'parts': {
       return (
         <>
           {value.items.map((item, i) => (
@@ -125,7 +128,8 @@ export function Value({
           ))}
         </>
       );
-    case 'list':
+    }
+    case 'list': {
       return (
         <>
           {value.items.map((item, i) => (
@@ -136,6 +140,7 @@ export function Value({
           ))}
         </>
       );
+    }
   }
 }
 

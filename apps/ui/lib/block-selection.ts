@@ -6,7 +6,9 @@ export interface Node {
 
 function subtree(node: Node, out = new Set<string>()): Set<string> {
   out.add(node.id);
-  for (const child of node.children) subtree(child, out);
+  for (const child of node.children) {
+    subtree(child, out);
+  }
   return out;
 }
 
@@ -16,9 +18,13 @@ function pathTo(
   id: string,
 ): { node: Node; siblings: Node[] }[] | null {
   for (const node of blocks) {
-    if (node.id === id) return [{ node, siblings: blocks }];
+    if (node.id === id) {
+      return [{ node, siblings: blocks }];
+    }
     const below = pathTo(node.children, id);
-    if (below) return [{ node, siblings: blocks }, ...below];
+    if (below) {
+      return [{ node, siblings: blocks }, ...below];
+    }
   }
   return null;
 }
@@ -41,12 +47,16 @@ export function expandSelection(
   selected: ReadonlySet<string>,
 ): Set<string> | null {
   const path = pathTo(blocks, anchor);
-  if (!path) return null;
+  if (!path) {
+    return null;
+  }
   const steps: Set<string>[] = [new Set([anchor])];
   for (const { node, siblings } of [...path].reverse()) {
     steps.push(subtree(node));
     const all = new Set<string>();
-    for (const sibling of siblings) subtree(sibling, all);
+    for (const sibling of siblings) {
+      subtree(sibling, all);
+    }
     steps.push(all);
   }
   return (
@@ -68,7 +78,9 @@ export function selectRange(
 ): Set<string> {
   const a = order.indexOf(from);
   const b = order.indexOf(to);
-  if (a < 0 || b < 0) return new Set();
+  if (a === -1 || b === -1) {
+    return new Set();
+  }
   return new Set(order.slice(Math.min(a, b), Math.max(a, b) + 1));
 }
 
@@ -84,8 +96,11 @@ export function lastSelected(
   let found: string | null = null;
   const walk = (nodes: Node[]) => {
     for (const node of nodes) {
-      if (selected.has(node.id)) found = node.id;
-      else walk(node.children);
+      if (selected.has(node.id)) {
+        found = node.id;
+      } else {
+        walk(node.children);
+      }
     }
   };
   walk(blocks);

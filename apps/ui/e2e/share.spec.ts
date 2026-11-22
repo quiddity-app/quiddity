@@ -8,7 +8,7 @@ import { share } from '../lib/share';
 function random(seed: number) {
   let state = seed;
   return () => {
-    state = (state * 1664525 + 1013904223) >>> 0;
+    state = (state * 1_664_525 + 1_013_904_223) >>> 0;
     return state / 2 ** 32;
   };
 }
@@ -17,15 +17,19 @@ function random(seed: number) {
  * keys and values so that two of them often agree in part. */
 function value(next: () => number, depth = 0): unknown {
   const pick = next();
-  if (depth > 3 || pick < 0.3)
+  if (depth > 3 || pick < 0.3) {
     return [1, 'a', null, true][Math.floor(next() * 4)];
-  if (pick < 0.65)
+  }
+  if (pick < 0.65) {
     return Array.from({ length: Math.floor(next() * 4) }, () =>
       value(next, depth + 1),
     );
+  }
   const object: Record<string, unknown> = {};
   for (const key of ['id', 'text', 'children', 'links']) {
-    if (next() < 0.6) object[key] = value(next, depth + 1);
+    if (next() < 0.6) {
+      object[key] = value(next, depth + 1);
+    }
   }
   return object;
 }

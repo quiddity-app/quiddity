@@ -30,10 +30,9 @@ test('it shows each state the shell can report', async ({ page }) => {
   const indicator = page.getByRole('link', { name: /^Sync:/ });
   await expect(indicator).toBeVisible();
   for (const [state, label] of states) {
-    await page.evaluate(
-      (state) => window.__quiddityRemote!.setStatus(state),
-      state,
-    );
+    await page.evaluate((state) => {
+      window.__quiddityRemote!.setStatus(state);
+    }, state);
     await expect(indicator).toHaveAttribute('data-state', state);
     await expect(indicator).toHaveAccessibleName(`Sync: ${label}`);
   }
@@ -45,10 +44,9 @@ test('each state has a colour of its own', async ({ page }) => {
   await expect(indicator).toBeVisible();
   const colours: string[] = [];
   for (const [state] of states) {
-    await page.evaluate(
-      (state) => window.__quiddityRemote!.setStatus(state),
-      state,
-    );
+    await page.evaluate((state) => {
+      window.__quiddityRemote!.setStatus(state);
+    }, state);
     await expect(indicator).toHaveAttribute('data-state', state);
     colours.push(
       await indicator

@@ -97,7 +97,11 @@ function components(
     ),
     // A remote image would be a request to whoever wrote it.
     img: ({ alt }: Readonly<{ alt?: string }>) => (
-      <span className={muted}>[{alt || 'image'}]</span>
+      <span className={muted}>
+        [{/* An empty alt text is no name either. */}
+        {/* eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing */}
+        {alt || 'image'}]
+      </span>
     ),
     a: ({
       href,
@@ -152,7 +156,7 @@ function components(
       ) : null;
     },
   };
-  return map as Components;
+  return map;
 }
 
 /** A block's text as it reads, not as it is written. */
@@ -190,7 +194,7 @@ export const RenderedBlock = memo(function RenderedBlock({
         </ReactMarkdown>
       )}
       {lineProps.length > 0 && (
-        <div className={prose.trim() !== '' ? 'mt-1' : ''}>
+        <div className={prose.trim() === '' ? '' : 'mt-1'}>
           {lineProps.map((p) => (
             <PropertyLine key={p.start} property={p} links={links} />
           ))}

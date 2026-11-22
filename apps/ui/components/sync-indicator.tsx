@@ -32,7 +32,9 @@ export function SyncIndicator() {
     graph.getStatus,
     graph.getStatus,
   );
-  if (status === undefined) return null;
+  if (status === undefined) {
+    return null;
+  }
   const { label, dot } = states[status];
   return (
     <Link

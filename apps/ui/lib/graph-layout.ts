@@ -25,11 +25,15 @@ const isNumber = (x: unknown): x is number =>
   typeof x === 'number' && Number.isFinite(x);
 
 function load() {
-  if (loaded) return;
+  if (loaded) {
+    return;
+  }
   loaded = true;
   try {
     const stored: unknown = JSON.parse(localStorage.getItem(KEY) ?? 'null');
-    if (typeof stored !== 'object' || stored === null) return;
+    if (typeof stored !== 'object' || stored === null) {
+      return;
+    }
     const { positions: saved, transform: view } = stored as Record<
       string,
       unknown
@@ -37,12 +41,15 @@ function load() {
     if (typeof saved === 'object' && saved !== null) {
       for (const [id, p] of Object.entries(saved)) {
         const { x, y } = (p ?? {}) as Partial<Point>;
-        if (isNumber(x) && isNumber(y)) positions.set(id, { x, y });
+        if (isNumber(x) && isNumber(y)) {
+          positions.set(id, { x, y });
+        }
       }
     }
     const { x, y, k } = (view ?? {}) as Partial<Transform>;
-    if (isNumber(x) && isNumber(y) && isNumber(k) && k > 0)
+    if (isNumber(x) && isNumber(y) && isNumber(k) && k > 0) {
       transform = { x, y, k };
+    }
   } catch {
     // Unreadable or no storage: start from nothing.
   }
@@ -66,7 +73,9 @@ export function remember(
   load();
   const next = new Map<EntityId, Point>();
   for (const { id, x, y } of nodes) {
-    if (isNumber(x) && isNumber(y)) next.set(id, { x, y });
+    if (isNumber(x) && isNumber(y)) {
+      next.set(id, { x, y });
+    }
   }
   positions = next;
   transform = view ?? transform;

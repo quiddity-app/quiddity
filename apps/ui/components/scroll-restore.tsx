@@ -29,19 +29,25 @@ let restoring: number | null = null;
 // heard on the way down.
 if (typeof document !== 'undefined') {
   const opened = placeOpened();
-  if (opened) memory.arrive(opened);
+  if (opened) {
+    memory.arrive(opened);
+  }
   document.addEventListener(
     'scroll',
     ({ target }) => {
       if (
         !(target instanceof HTMLElement) ||
         target !== document.querySelector('main')
-      )
+      ) {
         return;
+      }
       // Something other than the person moved it: a short page clamping it, or
       // the router scrolling a new route to the top. Put it back.
-      if (restoring === null) memory.scrolled(target.scrollTop);
-      else if (target.scrollTop !== restoring) target.scrollTop = restoring;
+      if (restoring === null) {
+        memory.scrolled(target.scrollTop);
+      } else if (target.scrollTop !== restoring) {
+        target.scrollTop = restoring;
+      }
     },
     { capture: true, passive: true },
   );
@@ -68,13 +74,17 @@ export function ScrollRestore() {
   const home = path === '/' && !main;
   useLayoutEffect(() => {
     const pane = document.querySelector('main');
-    if (!pane || home) return;
+    if (!pane || home) {
+      return;
+    }
     const target = memory.arrive({ path, main });
     const apply = () => {
       pane.scrollTop = target;
     };
     apply();
-    if (target === 0) return;
+    if (target === 0) {
+      return;
+    }
 
     restoring = target;
     const watcher = new MutationObserver(() => {
@@ -87,15 +97,17 @@ export function ScrollRestore() {
     watcher.observe(pane, { childList: true, subtree: true, attributes: true });
     let quiet = setTimeout(stop, QUIET_MS);
     const cap = setTimeout(stop, GIVE_UP_MS);
-    for (const type of TAKEOVER)
+    for (const type of TAKEOVER) {
       window.addEventListener(type, stop, { capture: true, passive: true });
+    }
     function stop() {
       restoring = null;
       watcher.disconnect();
       clearTimeout(quiet);
       clearTimeout(cap);
-      for (const type of TAKEOVER)
+      for (const type of TAKEOVER) {
         window.removeEventListener(type, stop, { capture: true });
+      }
     }
     return stop;
   }, [path, main, home]);

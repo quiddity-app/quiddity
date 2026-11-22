@@ -141,24 +141,31 @@ export class Graph {
   private notify() {
     this.typingNotice.cancel();
     this.revision++;
-    this.listeners.forEach((l) => l());
+    for (const l of this.listeners) {
+      l();
+    }
   }
 
   /** Tells subscribers now of typing they haven't heard about yet. Call
    * before a view that was being typed in goes back to showing the graph. */
   settle() {
-    if (this.typingNotice.pending) this.notify();
+    if (this.typingNotice.pending) {
+      this.notify();
+    }
   }
 
   /** Forgets what has been read, keeping it for the next read to share with. */
   private invalidate() {
-    if (this.cache.size > 0) this.previous = this.cache;
+    if (this.cache.size > 0) {
+      this.previous = this.cache;
+    }
     this.cache = new Map();
   }
 
   private read<T>(key: string, read: () => unknown): T {
-    if (!this.cache.has(key))
+    if (!this.cache.has(key)) {
       this.cache.set(key, share(this.previous.get(key), read()));
+    }
     return this.cache.get(key) as T;
   }
 
@@ -223,9 +230,13 @@ export class Graph {
   getStatus = () => this.status;
 
   setStatus(status: SyncState) {
-    if (this.status === status) return;
+    if (this.status === status) {
+      return;
+    }
     this.status = status;
-    this.statusListeners.forEach((l) => l());
+    for (const l of this.statusListeners) {
+      l();
+    }
   }
 
   /** The devices the graph records, most recently seen first. */
@@ -313,7 +324,9 @@ export class Graph {
    * graph it joins won't have. Making the page isn't the user's doing, so it
    * isn't theirs to undo. */
   begin() {
-    if (this.begun || this.replica.isBlank()) return;
+    if (this.begun || this.replica.isBlank()) {
+      return;
+    }
     this.begun = true;
     this.ensureToday();
     this.replica.clearUndo();
@@ -322,7 +335,9 @@ export class Graph {
   /** Records an edit. Typing notifies after a pause, so a view of the block
    * being typed in isn't rebuilt per keystroke; structure notifies at once. */
   private edited<T>(result: T, typing = false): T {
-    if (!typing) this.structural = true;
+    if (!typing) {
+      this.structural = true;
+    }
     this.invalidate();
     this.pushSoon.call();
     if (typing) {
@@ -471,7 +486,9 @@ export class Graph {
   ensureToday(): EntityRef {
     const before = this.replica.version();
     const day = this.replica.ensureJournal(today()) as EntityRef;
-    if (!sameBytes(before, this.replica.version())) this.edited(undefined);
+    if (!sameBytes(before, this.replica.version())) {
+      this.edited(undefined);
+    }
     return day;
   }
 
@@ -485,7 +502,9 @@ export class Graph {
     clearTimeout(this.retryTimer);
     this.pushing = this.pushing.then(async () => {
       const version = this.replica.version();
-      if (sameBytes(version, this.pushed)) return;
+      if (sameBytes(version, this.pushed)) {
+        return;
+      }
       // Only typing can be held back: anything else goes at once.
       const typed = this.structural ? [] : [...this.typed];
       const structural = this.structural;
@@ -496,7 +515,9 @@ export class Graph {
         this.pushed = version;
       } catch (error) {
         console.error("Couldn't save to the shell; will retry", error);
-        typed.forEach((id) => this.typed.add(id));
+        for (const id of typed) {
+          this.typed.add(id);
+        }
         this.structural ||= structural;
         this.retryTimer = setTimeout(() => void this.flush(), RETRY_MS);
       }
@@ -507,14 +528,18 @@ export class Graph {
   /** `id` is the block being edited. The shell is told after it has what was
    * typed before, so moving between blocks ends the typing in the last. */
   focus(id: string) {
-    if (this.focused === id) return;
+    if (this.focused === id) {
+      return;
+    }
     this.focused = id;
     void this.report();
   }
 
   /** `id` is no longer being edited, unless another block has been since. */
   blur(id: string) {
-    if (this.focused !== id) return;
+    if (this.focused !== id) {
+      return;
+    }
     this.focused = undefined;
     void this.report();
   }
@@ -526,7 +551,9 @@ export class Graph {
       await this.flush();
       const blocks = this.focused === undefined ? [] : [this.focused];
       const key = blocks.join(',');
-      if (key === this.reported) return;
+      if (key === this.reported) {
+        return;
+      }
       this.reported = key;
       await this.backend.focus?.(blocks);
     } catch (error) {
@@ -543,7 +570,9 @@ export async function chooseBackend(): Promise<Backend> {
   if (process.env.NEXT_PUBLIC_QUIDDITY_STATIC_GRAPH) {
     return (await import('./backend-static')).staticBackend;
   }
-  if (inTauri) return (await import('./backend-tauri')).tauriBackend;
+  if (inTauri) {
+    return (await import('./backend-tauri')).tauriBackend;
+  }
   return (await import('./backend-memory')).memoryBackend;
 }
 

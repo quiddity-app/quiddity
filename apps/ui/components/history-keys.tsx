@@ -32,7 +32,9 @@ const typing = (target: EventTarget | null) =>
  */
 const history = new PlaceHistory();
 const opened = placeOpened();
-if (opened) history.observe(opened);
+if (opened) {
+  history.observe(opened);
+}
 
 export function HistoryKeys() {
   const router = useRouter();
@@ -44,23 +46,31 @@ export function HistoryKeys() {
   // search, or the browser's own back button. `/` only redirects to home.
   const { path, main } = view;
   useEffect(() => {
-    if (path === '/' && !main) return;
+    if (path === '/' && !main) {
+      return;
+    }
     history.observe({ path, main });
   }, [path, main]);
 
   useEffect(() => {
     const go = (place: Place | undefined) => {
-      if (!place) return;
+      if (!place) {
+        return;
+      }
       // Replace, not push: stepping through the history mustn't add to the browser's.
       router.replace(latest.current.href({ ...latest.current, ...place }));
     };
     const onKey = (e: KeyboardEvent) => {
-      if (typing(e.target)) return;
+      if (typing(e.target)) {
+        return;
+      }
       const alt = e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey;
       const mod = (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey;
       const back = (alt && e.key === 'ArrowLeft') || (mod && e.key === '[');
       const forward = (alt && e.key === 'ArrowRight') || (mod && e.key === ']');
-      if (!back && !forward) return;
+      if (!back && !forward) {
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
       go(back ? history.back() : history.forward());

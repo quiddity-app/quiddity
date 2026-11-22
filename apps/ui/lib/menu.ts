@@ -15,8 +15,12 @@ function inApp(): boolean {
 
 /** Reads what the shell sent. Anything else, including a path that isn't an entrypoint, is ignored. */
 export function parseMenuCommand(payload: unknown): MenuCommand | null {
-  if (payload === 'delete-entity') return { kind: 'delete-entity' };
-  if (typeof payload !== 'string' || !payload.startsWith('go:')) return null;
+  if (payload === 'delete-entity') {
+    return { kind: 'delete-entity' };
+  }
+  if (typeof payload !== 'string' || !payload.startsWith('go:')) {
+    return null;
+  }
   const path = payload.slice('go:'.length);
   return entrypoints.some((e) => e.href === path) ? { kind: 'go', path } : null;
 }
@@ -25,22 +29,31 @@ export function parseMenuCommand(payload: unknown): MenuCommand | null {
 export function listenToMenu(
   handler: (command: MenuCommand) => void,
 ): () => void {
-  if (!inApp()) return () => {};
+  if (!inApp()) {
+    return () => {};
+  }
   let stop: (() => void) | undefined;
   let stopped = false;
   void import('@tauri-apps/api/event')
     .then(({ listen }) =>
       listen<unknown>('menu', (event) => {
         const command = parseMenuCommand(event.payload);
-        if (command) handler(command);
+        if (command) {
+          handler(command);
+        }
       }),
     )
     .then((unlisten) => {
       // Stopped while still subscribing.
-      if (stopped) unlisten();
-      else stop = unlisten;
+      if (stopped) {
+        unlisten();
+      } else {
+        stop = unlisten;
+      }
     })
-    .catch((error) => console.info("Couldn't listen to the menu", error));
+    .catch((error) => {
+      console.info("Couldn't listen to the menu", error);
+    });
   return () => {
     stopped = true;
     stop?.();
@@ -52,8 +65,12 @@ export function listenToMenu(
  * the File menu needs to be on. A failure leaves the item as it was.
  */
 export function setEntityOpen(open: boolean) {
-  if (!inApp()) return;
+  if (!inApp()) {
+    return;
+  }
   void import('@tauri-apps/api/core')
     .then(({ invoke }) => invoke('set_entity_open', { open }))
-    .catch((error) => console.info("Couldn't update the menu", error));
+    .catch((error) => {
+      console.info("Couldn't update the menu", error);
+    });
 }

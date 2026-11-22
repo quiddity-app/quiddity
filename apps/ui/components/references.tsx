@@ -33,7 +33,9 @@ const count = (references: Reference[]) =>
 
 function Linked({ id }: Readonly<{ id: EntityId }>) {
   const references = useDeferredRead((g) => g.references(id), [id]);
-  if (references.length === 0) return null;
+  if (references.length === 0) {
+    return null;
+  }
   return (
     <section aria-label="Linked references">
       <h2 className={`${sectionHeading} mb-3`}>
@@ -47,7 +49,9 @@ function Linked({ id }: Readonly<{ id: EntityId }>) {
 /** On a property's page: who has it, with what, a row per entity. */
 function Uses({ id }: Readonly<{ id: EntityId }>) {
   const uses = useDeferredRead((g) => g.uses(id), [id]);
-  if (uses.length === 0) return null;
+  if (uses.length === 0) {
+    return null;
+  }
   return (
     <section aria-label="Uses">
       <h2 className={`${sectionHeading} mb-3`}>Uses ({uses.length})</h2>

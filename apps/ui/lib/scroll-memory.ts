@@ -28,8 +28,12 @@ export class ScrollMemory {
    * and returns the current position, so it is safe to call on every render.
    */
   arrive(place: Place): number {
-    if (this.place && samePlace(this.place, place)) return this.top;
-    if (this.place) this.remember(this.place, this.top);
+    if (this.place && samePlace(this.place, place)) {
+      return this.top;
+    }
+    if (this.place) {
+      this.remember(this.place, this.top);
+    }
     this.place = place;
     this.top = this.tops.get(key(place)) ?? 0;
     return this.top;
@@ -40,8 +44,9 @@ export class ScrollMemory {
     // Re-inserting moves it to the end, which is what the oldest-first eviction wants.
     this.tops.delete(k);
     this.tops.set(k, top);
-    if (this.tops.size > this.capacity)
+    if (this.tops.size > this.capacity) {
       this.tops.delete(this.tops.keys().next().value!);
+    }
   }
 }
 

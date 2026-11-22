@@ -104,9 +104,14 @@ depends = ["setup", "doctor"]
 run = "pnpm ui typecheck"
 
 [tasks."lint:ui"]
-description = "Lint the UI's TypeScript (ESLint runs Prettier too, so it checks the formatting)"
+description = "Lint the UI's TypeScript, and check its formatting (ESLint runs Prettier)"
 depends = ["setup", "doctor"]
 run = "pnpm ui lint"
+
+[tasks."fmt:ui"]
+description = "Format the UI's TypeScript and fix what ESLint can"
+depends = ["setup", "doctor"]
+run = "pnpm ui format"
 
 [tasks.test]
 description = "Run the Rust tests (the workspace, shell included)"

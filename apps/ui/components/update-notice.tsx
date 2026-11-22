@@ -21,7 +21,9 @@ export function UpdateNotice() {
   const [state, setState] = useState<'idle' | 'installing' | 'failed'>('idle');
 
   useEffect(() => {
-    if (!canUpdate()) return;
+    if (!canUpdate()) {
+      return;
+    }
     let current = true;
     void checkForUpdate().then((found) => current && setUpdate(found));
     return () => {
@@ -29,7 +31,9 @@ export function UpdateNotice() {
     };
   }, []);
 
-  if (update === null) return null;
+  if (update === null) {
+    return null;
+  }
   const install = () => {
     setState('installing');
     installUpdate().catch((error) => {
@@ -38,8 +42,11 @@ export function UpdateNotice() {
     });
   };
   let label = `Update to ${update.version}`;
-  if (state === 'installing') label = 'Updating…';
-  else if (state === 'failed') label = 'Update failed: retry';
+  if (state === 'installing') {
+    label = 'Updating…';
+  } else if (state === 'failed') {
+    label = 'Update failed: retry';
+  }
   return (
     <Button
       compact

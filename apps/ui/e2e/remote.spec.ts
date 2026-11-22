@@ -14,9 +14,9 @@ test('changes from another device appear without reloading', async ({
   });
   await expect(arrived).toHaveCount(0);
 
-  await page.evaluate(() =>
-    window.__quiddityRemote!.createEntity('From another device'),
-  );
+  await page.evaluate(() => {
+    window.__quiddityRemote!.createEntity('From another device');
+  });
   await expect(arrived.first()).toBeVisible();
 });
 
@@ -33,9 +33,9 @@ test('a page that has joined no graph makes nothing until one arrives', async ({
     0,
   );
 
-  await page.evaluate(() =>
-    window.__quiddityRemote!.createEntity('From another device'),
-  );
+  await page.evaluate(() => {
+    window.__quiddityRemote!.createEntity('From another device');
+  });
   await expect(
     main
       .getByRole('link', { name: 'From another device', exact: true })

@@ -20,7 +20,7 @@ function isRef(x: unknown): x is EntityRef {
 function read(): EntityRef[] {
   try {
     const parsed: unknown = JSON.parse(localStorage.getItem(KEY) ?? '[]');
-    return Array.isArray(parsed) ? parsed.filter(isRef) : empty;
+    return Array.isArray(parsed) ? parsed.filter((item) => isRef(item)) : empty;
   } catch {
     return empty;
   }
@@ -38,7 +38,9 @@ export function recordVisit(entity: EntityRef) {
   } catch {
     // Private mode or quota: recents just won't persist.
   }
-  listeners.forEach((l) => l());
+  for (const l of listeners) {
+    l();
+  }
 }
 
 export function useRecents(): EntityRef[] {

@@ -158,7 +158,9 @@ test('Tab and Shift-Tab indent and outdent what is selected, in one undo step', 
   expect(await topLevel(page)).toBe(3);
   // Open questions, with what is under it.
   await block(page, QUESTIONS).click();
-  for (let i = 0; i < 3; i++) await page.keyboard.press('Control+a');
+  for (let i = 0; i < 3; i++) {
+    await page.keyboard.press('Control+a');
+  }
   expect(await selected(page)).toEqual([QUESTIONS, EVICTION]);
 
   // It nests under the block before it, and what was under it goes along.
@@ -178,7 +180,9 @@ test('Tab and Shift-Tab indent and outdent what is selected, in one undo step', 
 test("a run with nothing before it can't be indented", async ({ page }) => {
   // The parent's two children: the first has no sibling to nest under.
   await block(page, LEAF).click();
-  for (let i = 0; i < 3; i++) await page.keyboard.press('Control+a');
+  for (let i = 0; i < 3; i++) {
+    await page.keyboard.press('Control+a');
+  }
   expect(await selected(page)).toHaveLength(2);
   await page.keyboard.press('Tab');
   expect(await topLevel(page)).toBe(3);
@@ -204,7 +208,9 @@ test('Alt-Shift-arrows move the selected blocks, with their children, in one und
   const before = await topTexts(page);
   expect(before.at(-1)).toBe(QUESTIONS);
   await block(page, QUESTIONS).click();
-  for (let i = 0; i < 3; i++) await page.keyboard.press('Control+a');
+  for (let i = 0; i < 3; i++) {
+    await page.keyboard.press('Control+a');
+  }
 
   await page.keyboard.press('Alt+Shift+ArrowUp');
   await expect
@@ -249,7 +255,9 @@ test("a selection that includes the first block can't move up", async ({
   const before = await topTexts(page);
   await block(page, PARENT).click();
   // Everything, which has the first block in it.
-  for (let i = 0; i < 6; i++) await page.keyboard.press('Control+a');
+  for (let i = 0; i < 6; i++) {
+    await page.keyboard.press('Control+a');
+  }
   expect(await selected(page)).toHaveLength(6);
   await page.keyboard.press('Alt+Shift+ArrowUp');
   expect(await topTexts(page)).toEqual(before);
@@ -263,7 +271,9 @@ for (const key of ['Backspace', 'Delete']) {
   }) => {
     const before = await topTexts(page);
     await block(page, QUESTIONS).click();
-    for (let i = 0; i < 3; i++) await page.keyboard.press('Control+a');
+    for (let i = 0; i < 3; i++) {
+      await page.keyboard.press('Control+a');
+    }
     expect(await selected(page)).toEqual([QUESTIONS, EVICTION]);
 
     await page.keyboard.press(key);
@@ -308,7 +318,9 @@ test('copy and paste duplicate the selected blocks after them, and select the co
 }) => {
   const before = await topTexts(page);
   await block(page, QUESTIONS).click();
-  for (let i = 0; i < 3; i++) await page.keyboard.press('Control+a');
+  for (let i = 0; i < 3; i++) {
+    await page.keyboard.press('Control+a');
+  }
 
   await page.keyboard.press('Control+c');
   await page.keyboard.press('Control+v');
@@ -326,13 +338,17 @@ test('cut takes the blocks away, and paste puts them back where they are pasted'
 }) => {
   const before = await topTexts(page);
   await block(page, QUESTIONS).click();
-  for (let i = 0; i < 3; i++) await page.keyboard.press('Control+a');
+  for (let i = 0; i < 3; i++) {
+    await page.keyboard.press('Control+a');
+  }
   await page.keyboard.press('Control+x');
   await expect.poll(() => topTexts(page)).toEqual(before.slice(0, -1));
 
   // After the parent, which is above where they were.
   await block(page, PARENT).click();
-  for (let i = 0; i < 2; i++) await page.keyboard.press('Control+a');
+  for (let i = 0; i < 2; i++) {
+    await page.keyboard.press('Control+a');
+  }
   await page.keyboard.press('Control+v');
   await expect
     .poll(() => topTexts(page))
@@ -345,7 +361,9 @@ test('pasting text that is an outline adds its blocks, nested as written', async
   page,
 }) => {
   await block(page, PARENT).click();
-  for (let i = 0; i < 2; i++) await page.keyboard.press('Control+a');
+  for (let i = 0; i < 2; i++) {
+    await page.keyboard.press('Control+a');
+  }
   await paste(page, '- first\n\t- under it\n- second\n');
   await expect.poll(() => topTexts(page)).toContain('second');
   expect(await topTexts(page)).toEqual([
@@ -400,8 +418,9 @@ const shape = (page: Page) =>
           let p = li.parentElement?.closest('li');
           p;
           p = p.parentElement?.closest('li')
-        )
+        ) {
           depth++;
+        }
         const own = li.querySelector(
           ':scope > div > [data-block-text], :scope > div > div .cm-content',
         );
@@ -425,7 +444,9 @@ test('a block moves on into the neighbouring parent, and back', async ({
 
   // Open questions' only child, going up: the end of the parent before.
   await block(page, EVICTION).click();
-  for (let i = 0; i < 2; i++) await page.keyboard.press('Control+a');
+  for (let i = 0; i < 2; i++) {
+    await page.keyboard.press('Control+a');
+  }
   await page.keyboard.press('Alt+Shift+ArrowUp');
   await expect
     .poll(() => shape(page))
@@ -460,7 +481,9 @@ test('a block with no parent beyond steps out beside its own', async ({
 }) => {
   // The last child of the last parent, going down.
   await block(page, EVICTION).click();
-  for (let i = 0; i < 2; i++) await page.keyboard.press('Control+a');
+  for (let i = 0; i < 2; i++) {
+    await page.keyboard.press('Control+a');
+  }
   await page.keyboard.press('Alt+Shift+ArrowDown');
   await expect
     .poll(() => shape(page))
@@ -581,7 +604,9 @@ test("text that isn't an outline is pasted as text, as the editor does", async (
 
 test('copied blocks paste into an editor as blocks', async ({ page }) => {
   await block(page, QUESTIONS).click();
-  for (let i = 0; i < 3; i++) await page.keyboard.press('Control+a');
+  for (let i = 0; i < 3; i++) {
+    await page.keyboard.press('Control+a');
+  }
   await page.keyboard.press('Control+c');
   await block(page, PARENT).click();
   await page.keyboard.press('Control+v');

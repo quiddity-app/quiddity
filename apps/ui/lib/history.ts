@@ -15,7 +15,9 @@ export type Place = Pick<View, 'path' | 'main'>;
  * or the first place would be seen twice.
  */
 export function placeAt(pathname: string, search: string): Place | undefined {
-  if (pathname.startsWith('/page/')) return undefined;
+  if (pathname.startsWith('/page/')) {
+    return undefined;
+  }
   const { path, main } = parseView(pathname, new URLSearchParams(search));
   return path === '/' && !main ? undefined : { path, main };
 }
@@ -26,7 +28,9 @@ export function placeAt(pathname: string, search: string): Place | undefined {
  * followed, so each starts from here rather than from the first place it sees.
  */
 export function placeOpened(): Place | undefined {
-  if (typeof window === 'undefined') return undefined;
+  if (typeof window === 'undefined') {
+    return undefined;
+  }
   const base = process.env.NEXT_PUBLIC_QUIDDITY_BASE_PATH ?? '';
   const { pathname, search } = window.location;
   const inApp =
@@ -62,7 +66,9 @@ export class PlaceHistory {
 
   /** The main pane has gone somewhere new: forwards is forgotten, as in a browser. */
   visit(place: Place): void {
-    if (this.current && samePlace(this.current, place)) return;
+    if (this.current && samePlace(this.current, place)) {
+      return;
+    }
     this.places = [...this.places.slice(0, this.at + 1), place];
     this.at = this.places.length - 1;
   }
@@ -74,7 +80,9 @@ export class PlaceHistory {
       this.left = [];
       return;
     }
-    if (this.left.some((l) => samePlace(l, place))) return;
+    if (this.left.some((l) => samePlace(l, place))) {
+      return;
+    }
     this.pending = undefined;
     this.left = [];
     this.visit(place);

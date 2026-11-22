@@ -41,8 +41,9 @@ function scanLink(
   let to = from;
   let nameEnd = -1;
   while (to < line.length && !(line[to] === ']' && line[to + 1] === ']')) {
-    if (line[to] === '\\') to++;
-    else if (
+    if (line[to] === '\\') {
+      to++;
+    } else if (
       nameEnd < 0 &&
       line[to] === '#' &&
       qualifierStart.test(line[to + 1] ?? '')
@@ -51,7 +52,9 @@ function scanLink(
     }
     to++;
   }
-  if (to >= line.length) return null;
+  if (to >= line.length) {
+    return null;
+  }
   return { to, nameEnd: nameEnd < 0 ? to : nameEnd };
 }
 
@@ -84,7 +87,9 @@ export function linkAt(state: EditorState, pos: number): LinkSpan | null {
   const line = state.doc.lineAt(pos);
   const at = pos - line.from;
   const found = linksIn(line.text).find((l) => at >= l.from && at <= l.to);
-  if (!found) return null;
+  if (!found) {
+    return null;
+  }
   return {
     from: line.from + found.from,
     to: line.from + found.to,
@@ -111,7 +116,7 @@ interface Open {
 /** Marks our own replacement of the link's text. */
 const previewing = Annotation.define<boolean>();
 const choose = StateEffect.define<number | null>();
-const dismiss = StateEffect.define<null>();
+const dismiss = StateEffect.define();
 /** What the search for `typed` found. */
 const found = StateEffect.define<{ typed: string; hits: TitleHit[] }>();
 
@@ -142,7 +147,9 @@ export function linkCompletion(options: LinkCompletion): Extension {
   const field = StateField.define<Open | null>({
     create: () => null,
     update(before, tr) {
-      if (tr.effects.some((e) => e.is(dismiss))) return null;
+      if (tr.effects.some((e) => e.is(dismiss))) {
+        return null;
+      }
       // What a search found, if it was for what is typed still.
       let open = before;
       for (const e of tr.effects) {
@@ -151,7 +158,9 @@ export function linkCompletion(options: LinkCompletion): Extension {
         }
       }
       const span = linkAt(tr.state, tr.state.selection.main.head);
-      if (!span) return null;
+      if (!span) {
+        return null;
+      }
 
       if (tr.annotation(previewing)) {
         const picked = tr.effects.find((e) => e.is(choose));
@@ -164,19 +173,26 @@ export function linkCompletion(options: LinkCompletion): Extension {
           }
         );
       }
-      if (!tr.docChanged)
+      if (!tr.docChanged) {
         return open && { ...open, from: span.from, to: span.to };
+      }
 
       // Typed in the link, or the link is new: the brackets are part of what
       // changed. Changes from elsewhere don't open a list.
       let touched = false;
       if (!tr.annotation(fromGraph)) {
         tr.changes.iterChangedRanges((_a, _b, from, to) => {
-          if (from <= span.to + 2 && to >= span.from - 2) touched = true;
+          if (from <= span.to + 2 && to >= span.from - 2) {
+            touched = true;
+          }
         });
       }
-      if (!touched) return open && { ...open, from: span.from, to: span.to };
-      if (tr.state.selection.main.head > span.nameEnd) return null;
+      if (!touched) {
+        return open && { ...open, from: span.from, to: span.to };
+      }
+      if (tr.state.selection.main.head > span.nameEnd) {
+        return null;
+      }
 
       const typed = tr.state.doc.sliceString(span.from, span.nameEnd);
       const query = typed.trim();
@@ -196,7 +212,9 @@ export function linkCompletion(options: LinkCompletion): Extension {
   /** Searches for what is typed, if that hasn't been done. */
   function find(view: EditorView) {
     const open = view.state.field(field, false);
-    if (!open || open.fresh) return;
+    if (!open || open.fresh) {
+      return;
+    }
     const query = open.typed.trim();
     // By now the block's text, with the link as far as it is typed, is in the
     // graph, where a link to a name nobody has made is an entity (`~name`):
@@ -219,8 +237,14 @@ export function linkCompletion(options: LinkCompletion): Extension {
       constructor(private readonly view: EditorView) {}
       update(update: ViewUpdate) {
         const open = update.state.field(field);
-        if (!open || open.fresh || this.frame !== 0 || this.timer !== undefined)
+        if (
+          !open ||
+          open.fresh ||
+          this.frame !== 0 ||
+          this.timer !== undefined
+        ) {
           return;
+        }
         this.frame = requestAnimationFrame(() => {
           this.frame = 0;
           this.timer = setTimeout(() => {
@@ -249,7 +273,9 @@ export function linkCompletion(options: LinkCompletion): Extension {
   }
 
   function tooltip(open: Open | null): Tooltip | null {
-    if (!open || open.hits.length === 0) return null;
+    if (!open || open.hits.length === 0) {
+      return null;
+    }
     return {
       pos: open.from,
       above: false,
@@ -258,11 +284,11 @@ export function linkCompletion(options: LinkCompletion): Extension {
         dom.className = 'cm-link-completions';
         dom.setAttribute('role', 'listbox');
         dom.setAttribute('aria-label', 'Pages');
-        open.hits.forEach((hit, index) => {
+        for (const [index, hit] of open.hits.entries()) {
           dom.append(
             row(hit, index === open.selected, () => pick(view, open, index)),
           );
-        });
+        }
         return { dom };
       },
     };
@@ -275,7 +301,9 @@ export function linkCompletion(options: LinkCompletion): Extension {
     // The entries are for what is written now, or the wrong one is chosen.
     find(view);
     const open = current(view);
-    if (!open || open.hits.length === 0) return false;
+    if (!open || open.hits.length === 0) {
+      return false;
+    }
     const slots = open.hits.length + 1; // The entries, then "as typed".
     const at = open.selected ?? open.hits.length;
     const next = (at + delta + slots) % slots;
@@ -290,9 +318,13 @@ export function linkCompletion(options: LinkCompletion): Extension {
       key: 'Enter',
       run: (view) => {
         const { main } = view.state.selection;
-        if (!main.empty) return false;
+        if (!main.empty) {
+          return false;
+        }
         const span = linkAt(view.state, main.head);
-        if (!span) return false;
+        if (!span) {
+          return false;
+        }
         if (current(view)) {
           // Accept what is written, and carry on after the link.
           view.dispatch({
@@ -311,7 +343,12 @@ export function linkCompletion(options: LinkCompletion): Extension {
       key: 'Escape',
       run: (view) => {
         const open = current(view);
-        if (!open || open.selected === null) return false;
+        // With no list open there is nothing to put back, which `selected`
+        // being null (nothing chosen) doesn't say.
+        // eslint-disable-next-line @typescript-eslint/prefer-optional-chain
+        if (!open || open.selected === null) {
+          return false;
+        }
         pick(view, open, null);
         view.dispatch({ effects: dismiss.of(null) });
         return true;
@@ -366,7 +403,9 @@ function row(
   // The ranges are in the alias when that is what matched.
   const label = hit.alias ?? hit.entity.title;
   for (const [start, end] of hit.ranges) {
-    if (start > at) title.append(label.slice(at, start));
+    if (start > at) {
+      title.append(label.slice(at, start));
+    }
     const mark = document.createElement('mark');
     mark.textContent = label.slice(start, end);
     mark.style.cssText =
@@ -392,7 +431,7 @@ function row(
   }
   el.append(title);
 
-  if (hit.properties.length) {
+  if (hit.properties.length > 0) {
     const props = document.createElement('div');
     props.className = 'cm-link-completion-properties';
     props.style.cssText =
