@@ -27,7 +27,7 @@ export function Shell({
   const [drawer, setDrawer] = useState(false);
   const pane = "bg-surface-pane";
   return (
-    <div className="flex h-dvh overflow-hidden">
+    <div className="relative flex h-dvh overflow-hidden">
       <aside
         className={`${pane} fixed inset-y-0 left-0 z-(--z-drawer) flex w-64 shrink-0 flex-col border-r border-border motion-safe:transition-transform md:static md:translate-x-0 ${
           drawer ? "translate-x-0" : "-translate-x-full"
