@@ -17,6 +17,7 @@ pub mod blobs;
 pub mod gc;
 pub mod keyring;
 pub mod legacy_blobs;
+mod link_new;
 pub mod places;
 pub mod store;
 
