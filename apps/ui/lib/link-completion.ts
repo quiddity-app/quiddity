@@ -6,7 +6,15 @@ import {
   type EditorState,
   type Extension,
 } from "@codemirror/state";
-import { EditorView, keymap, showTooltip, type KeyBinding, type Tooltip } from "@codemirror/view";
+import {
+  EditorView,
+  ViewPlugin,
+  keymap,
+  showTooltip,
+  type KeyBinding,
+  type Tooltip,
+  type ViewUpdate,
+} from "@codemirror/view";
 import { fromGraph } from "./cm-annotations";
 import type { TitleHit } from "./model";
 
@@ -82,7 +90,11 @@ interface Open {
   to: number;
   /** What the user typed, which comes back if they leave the list. */
   typed: string;
+  /** Pages that match, as far as is known: those for an earlier `typed`
+   * until the search for this one has run (`fresh`). */
   hits: TitleHit[];
+  /** Whether `hits` are for `typed`. */
+  fresh: boolean;
   /** The entry the text was replaced by, or null while it is as typed. */
   selected: number | null;
 }
@@ -91,6 +103,8 @@ interface Open {
 const previewing = Annotation.define<boolean>();
 const choose = StateEffect.define<number | null>();
 const dismiss = StateEffect.define<null>();
+/** What the search for `typed` found. */
+const found = StateEffect.define<{ typed: string; hits: TitleHit[] }>();
 
 export interface LinkCompletion {
   /** Pages whose titles match, best first. */
@@ -107,12 +121,26 @@ export interface LinkCompletion {
  * and put the entry in the link, so what is written is what was chosen; Enter
  * accepts whatever is written and steps out of the link. Enter in a link that
  * was not being completed follows it.
+ *
+ * The search isn't part of the keystroke: the character is drawn first, and
+ * the search runs after, once per frame at most and for what is typed by then,
+ * so typing quickly searches for what it has reached rather than for each
+ * step on the way. The list shows the last answer until the new one arrives.
+ * A key that would choose from it searches first, so it never chooses from an
+ * answer to something that has since been changed.
  */
 export function linkCompletion(options: LinkCompletion): Extension {
   const field = StateField.define<Open | null>({
     create: () => null,
-    update(open, tr) {
+    update(before, tr) {
       if (tr.effects.some((e) => e.is(dismiss))) return null;
+      // What a search found, if it was for what is typed still.
+      let open = before;
+      for (const e of tr.effects) {
+        if (e.is(found) && open?.typed === e.value.typed) {
+          open = { ...open, hits: e.value.hits, fresh: true };
+        }
+      }
       const span = linkAt(tr.state, tr.state.selection.main.head);
       if (!span) return null;
 
@@ -139,12 +167,53 @@ export function linkCompletion(options: LinkCompletion): Extension {
         from: span.from,
         to: span.to,
         typed,
-        hits: query ? options.search(query, MAX_HITS) : [],
+        // The last answer stays up until the search for this one has run.
+        hits: query ? (open?.hits ?? []) : [],
+        fresh: !query,
         selected: null,
       };
     },
     provide: (f) => showTooltip.from(f, (open) => tooltip(open)),
   });
+
+  /** Searches for what is typed, if that hasn't been done. */
+  function find(view: EditorView) {
+    const open = view.state.field(field, false);
+    if (!open || open.fresh) return;
+    const query = open.typed.trim();
+    // By now the block's text, with the link as far as it is typed, is in the
+    // graph, where a link to a name nobody has made is an entity (`~name`):
+    // the half-written link would offer itself.
+    const hits = options
+      .search(query, MAX_HITS)
+      .filter((hit) => !(hit.entity.id.startsWith("~") && hit.entity.title.trim() === query));
+    view.dispatch({ effects: found.of({ typed: open.typed, hits }) });
+  }
+
+  /** Runs the search once the keystroke that wants it has been drawn: on the
+   * next frame, then in a task of its own after it is painted. */
+  const searcher = ViewPlugin.fromClass(
+    class {
+      private frame = 0;
+      private timer: ReturnType<typeof setTimeout> | undefined;
+      constructor(private readonly view: EditorView) {}
+      update(update: ViewUpdate) {
+        const open = update.state.field(field);
+        if (!open || open.fresh || this.frame !== 0 || this.timer !== undefined) return;
+        this.frame = requestAnimationFrame(() => {
+          this.frame = 0;
+          this.timer = setTimeout(() => {
+            this.timer = undefined;
+            find(this.view);
+          }, 0);
+        });
+      }
+      destroy() {
+        cancelAnimationFrame(this.frame);
+        clearTimeout(this.timer);
+      }
+    },
+  );
 
   /** Writes `hit`'s link (or the text as typed) in place of the link's text. */
   function pick(view: EditorView, open: Open, index: number | null) {
@@ -180,6 +249,8 @@ export function linkCompletion(options: LinkCompletion): Extension {
 
   /** Moves through the entries; past either end is back to what was typed. */
   const move = (delta: 1 | -1) => (view: EditorView) => {
+    // The entries are for what is written now, or the wrong one is chosen.
+    find(view);
     const open = current(view);
     if (!open || open.hits.length === 0) return false;
     const slots = open.hits.length + 1; // The entries, then "as typed".
@@ -227,6 +298,7 @@ export function linkCompletion(options: LinkCompletion): Extension {
 
   return [
     field,
+    searcher,
     keymap.of(keys),
     EditorView.theme({
       ".cm-tooltip.cm-link-completions": {

@@ -36,3 +36,32 @@ test("typing is pushed as typing, and anything else as itself", async ({ page })
   await expect.poll(async () => (await pushes()).at(-1)?.length).toBe(0);
   expect((await pushes()).length).toBeGreaterThan(1);
 });
+
+test("typing that never pauses is still pushed as it goes", async ({ page }) => {
+  await openEntity(page, "Loro");
+  await editBlock(page, block);
+  await page.keyboard.press("End");
+  // Pushes of typing in one block: the page's own start-up ones are structure.
+  const pushes = () =>
+    page.evaluate(() => window.__quiddityRemote?.typed.filter((t) => t.length === 1).length ?? 0);
+  const before = await pushes();
+  // A key every 40 ms for three seconds is never the 300 ms of quiet a plain
+  // debounce waits for. Read before the trailing push is due, so what is
+  // counted was sent while the typing was still going on.
+  await page.keyboard.type("x".repeat(75), { delay: 40 });
+  expect((await pushes()) - before).toBeGreaterThanOrEqual(2);
+});
+
+test("leaving a block that was only typed in is still told as typing", async ({ page }) => {
+  await openEntity(page, "Loro");
+  await editBlock(page, block);
+  await page.keyboard.press("End");
+  await page.keyboard.type(" Typed.");
+  await clickAway(page);
+  const focus = () => page.evaluate(() => window.__quiddityRemote?.focus.length);
+  await expect.poll(focus).toBe(0);
+  // Saving the block on leaving it changed nothing, so it isn't structure that
+  // the shell must not hold back.
+  const last = () => page.evaluate(() => window.__quiddityRemote?.typed.at(-1)?.length);
+  expect(await last()).toBe(1);
+});

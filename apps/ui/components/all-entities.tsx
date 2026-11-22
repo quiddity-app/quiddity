@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import type { Summary } from "@/lib/model";
 import { useGraph, useRead } from "@/lib/use-graph";
 import { Region, Skeleton } from "./boundary";
@@ -53,16 +53,30 @@ const unknown = (column: Column, row: Summary) =>
 
 function List({ filter, journals }: Readonly<{ filter: string; journals: boolean }>) {
   const everything = useRead((g) => g.summaries());
-  const needle = filter.trim().toLowerCase();
+  // What is typed in the box goes in at once; the table catches up when React
+  // has drawn that, and skips a stretch of typing it was too slow for.
+  const needle = useDeferredValue(filter).trim().toLowerCase();
   // Selection only counts what is shown, so nothing is deleted out of sight.
-  const rows = everything.filter(
-    (r) => (journals || !r.journal) && r.title.toLowerCase().includes(needle),
+  const rows = useMemo(
+    () =>
+      everything.filter((r) => (journals || !r.journal) && r.title.toLowerCase().includes(needle)),
+    [everything, journals, needle],
   );
   // Rows arrive by title, and the sort is stable, so ties stay in that order.
   const [sort, setSort] = useState<{ column: Column; descending: boolean }>({
     column: "title",
     descending: false,
   });
+  const sorted = useMemo(
+    () =>
+      rows.toSorted((a, b) => {
+        const gap = Number(unknown(sort.column, a)) - Number(unknown(sort.column, b));
+        if (gap !== 0) return gap;
+        const order = compare(sort.column, a, b);
+        return sort.descending ? -order : order;
+      }),
+    [rows, sort],
+  );
   const graph = useGraph();
   const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set());
   const [confirming, setConfirming] = useState(false);
@@ -96,12 +110,6 @@ function List({ filter, journals }: Readonly<{ filter: string; journals: boolean
     return () => watcher.disconnect();
   }, [shown, hasMore]);
   if (rows.length === 0) return <p>{everything.length === 0 ? "Nothing here yet." : "Nothing matches."}</p>;
-  const sorted = rows.toSorted((a, b) => {
-    const gap = Number(unknown(sort.column, a)) - Number(unknown(sort.column, b));
-    if (gap !== 0) return gap;
-    const order = compare(sort.column, a, b);
-    return sort.descending ? -order : order;
-  });
   const sortBy = (column: Column) => {
     setShown(ROWS);
     setSort((s) => ({

@@ -5,7 +5,8 @@ import { usePathname } from "next/navigation";
 import type { EntityRef } from "@/lib/model";
 import { entrypoints } from "@/lib/nav";
 import { useRecents } from "@/lib/recents";
-import { useRead } from "@/lib/use-graph";
+import { useMemo } from "react";
+import { useDeferredRead } from "@/lib/use-graph";
 import { Region, Skeleton } from "./boundary";
 import { EntityLink } from "./entity-link";
 import { useView } from "./use-view";
@@ -53,7 +54,7 @@ const listSkeleton = (
 );
 
 function Favourites() {
-  return <Items items={useRead((g) => g.favourites())} />;
+  return <Items items={useDeferredRead((g) => g.favourites(), [])} />;
 }
 
 const sidebarEntrypoints = entrypoints.filter((e) => e.in === "sidebar");
@@ -87,7 +88,9 @@ function Entrypoints() {
  * under their current names. */
 function Recents() {
   const recents = useRecents();
-  const names = useRead((g) => new Map(g.entities().map((e) => [e.id, e.title])));
+  // Every entity's title, to look up a few: not what an edit waits for.
+  const entities = useDeferredRead((g) => g.entities(), []);
+  const names = useMemo(() => new Map(entities.map((e) => [e.id, e.title])), [entities]);
   const items = recents.flatMap((r) => {
     const title = names.get(r.id);
     return title === undefined ? [] : [{ id: r.id, title }];
