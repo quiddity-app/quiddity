@@ -28,7 +28,9 @@ alias:: [Meta-properties, meta-property, ## properties]
 	  | `##inherits` | an entity has the other properties of the entities it refers to |
 	  | `##inverse(label)` | the name of the relation the other way round |
 	  | `##symmetric` | the relation holds both ways |
+	  | `##contact(phone:work)` | the field of a contact that the property's values fill. [[Contacts]] |
 	- `##values` and `##applies-to` take a query. [[Queries]]
+	- `##contact` takes a field, `phone`, `email`, `address`, `organisation`, `job-title`, `nickname`, `website`, `birthday` or `note`, and after a colon a label for the values: `##contact(email:work)`. It says nothing about how values are read, so a birthday also wants `##value-type(date)`. [[Contacts]]
 	- `##cardinality` is written as UML writes multiplicity: `1`, `0..1`, `1..*`, `2..5`, or `*` for any number. It counts values, not lines: `#steps([a, b, c])` is three, and so are three `#step` lines. A list keeps its order; that is all that makes it different.
 	- `##values`, `##transitive`, `##inherits`, `##inverse` and `##symmetric` only make sense for references, so a property with any of them is a `ref` property unless `##value-type` says otherwise. As now, a bare name in a reference is a name: with `parent` a reference, `parent:: Scotland` means `parent:: [[Scotland]]`. [[Links]]
 - Defaults

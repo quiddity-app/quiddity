@@ -12,6 +12,7 @@
 
 mod asset;
 mod check;
+pub mod contact;
 mod devices;
 mod effective;
 mod entity;

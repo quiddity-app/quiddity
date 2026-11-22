@@ -7,6 +7,7 @@ use quiddity_syntax::{
     parse_block, parse_properties_block, ref_items,
 };
 
+use crate::contact::ContactMapping;
 use crate::effective::Effective;
 use crate::schema::{PropertySchema, ValueType};
 use crate::tags;
@@ -191,6 +192,9 @@ pub struct Index {
     pub(crate) schemas: HashMap<String, PropertySchema>,
     /// What couldn't be read of each property entity's meta-properties.
     pub(crate) meta_flags: HashMap<BlockId, Vec<Flag>>,
+    /// The properties that fill a contact's fields, by key as the property
+    /// entity is named, in key order.
+    contact_keys: Vec<(String, ContactMapping)>,
     pub(crate) effective: HashMap<BlockId, Effective>,
     /// For each inverse label and entity, the entities whose property
     /// refers to it, and whether directly (as written).
@@ -511,6 +515,7 @@ impl Index {
     fn read_schemas(&mut self) {
         let mut schemas = HashMap::new();
         let mut flags = HashMap::new();
+        let mut contact_keys = Vec::new();
         for (&id, info) in &self.entities {
             // `##tag` is for any entity, and isn't about the property.
             let meta: Vec<_> = info
@@ -531,12 +536,24 @@ impl Index {
                 let (schema, problems) = base.with_meta(&meta);
                 if key == normalise_name(&info.name) {
                     flags.insert(id, problems);
+                    if let Some(mapping) = &schema.contact {
+                        contact_keys.push((info.name.clone(), mapping.clone()));
+                    }
                 }
                 schemas.insert(key, schema);
             }
         }
+        contact_keys.sort();
         self.schemas = schemas;
         self.meta_flags = flags;
+        self.contact_keys = contact_keys;
+    }
+
+    /// The properties that fill a contact's fields, as their entities are
+    /// named, in name order: what `##contact` says, for every property
+    /// entity that defines one.
+    pub fn contact_keys(&self) -> &[(String, ContactMapping)] {
+        &self.contact_keys
     }
 
     /// The schema for the property `key`.

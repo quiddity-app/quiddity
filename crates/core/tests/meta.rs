@@ -680,3 +680,70 @@ fn a_property_entity_is_found_by_an_alias() -> Result<()> {
     assert!(index.defines_property(score));
     Ok(())
 }
+
+mod contact {
+    use super::*;
+    use quiddity_core::contact::{ContactField, ContactMapping};
+
+    fn mapping(field: ContactField, label: Option<&str>) -> ContactMapping {
+        ContactMapping {
+            field,
+            label: label.map(str::to_owned),
+        }
+    }
+
+    /// A property entity's `##contact` line is its schema's mapping, and
+    /// the index lists the properties that have one by the name they are
+    /// given, so that a new value can be written under it.
+    #[test]
+    fn contact_lines_map_properties() -> Result<()> {
+        let graph = Graph::new();
+        entity(&graph, "mobile", "type:: property\n##contact(phone:mobile)")?;
+        entity(&graph, "cell", "alias:: handset\n##contact(Phone)")?;
+        entity(&graph, "nick", "##value-type(text)")?;
+        let index = Index::build(&graph)?;
+        assert_eq!(
+            index.schema("mobile").contact,
+            Some(mapping(ContactField::Phone, Some("mobile")))
+        );
+        assert_eq!(
+            index.schema("handset").contact,
+            Some(mapping(ContactField::Phone, None)),
+            "an alias finds the schema too"
+        );
+        assert_eq!(index.schema("nick").contact, None);
+        assert_eq!(
+            index.contact_keys(),
+            [
+                ("cell".to_owned(), mapping(ContactField::Phone, None)),
+                (
+                    "mobile".to_owned(),
+                    mapping(ContactField::Phone, Some("mobile"))
+                ),
+            ],
+            "each property once, by its own name"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn unreadable_contact_lines_are_flagged() -> Result<()> {
+        let graph = Graph::new();
+        let bad = entity(&graph, "fax", "##contact(fax)")?;
+        let none = entity(&graph, "tel", "##contact")?;
+        let index = Index::build(&graph)?;
+        assert_eq!(index.schema("fax").contact, None);
+        assert!(index.contact_keys().is_empty());
+        for id in [bad, none] {
+            assert!(
+                index
+                    .flags(id)
+                    .iter()
+                    .any(|f| matches!(f, Flag::BadMeta { key, .. } if key == "contact")),
+                "{:?}",
+                index.flags(id)
+            );
+        }
+        Ok(())
+    }
+}
