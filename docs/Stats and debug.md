@@ -1,0 +1,24 @@
+- Stats and debug is a page for finding out what is in the graph, and whether what Quiddity has worked out from it is right. It is in the More menu, and the Mac's Go menu, as **Stats and debug**, at `/stats/`. Nothing on it changes the graph. [[Menus]] [[The UI]]
+- The graph
+	- Numbers, each with a hint when the label is hovered: blocks, entities (a merged duplicate is not one), journal pages, merged duplicates, files, links to entities, links to nowhere, blocks with an ambiguous link, orphans and virtual entities.
+	- An orphan is an entity that nothing links to and that links to nothing, apart from journal pages, which would swamp the count. A link to nowhere counts as a link out, so a page whose only link is to a name nobody has made is not an orphan.
+	- A link is counted once each, so a block that links to the same page twice counts twice. An ambiguous link, one that matches several entities, is counted once for its block. [[Disambiguation]]
+- Virtual entities
+	- Every name that is linked to, or is a property's key, and that no entity has, as a table: its name (a link to its page), its ID, its incoming links, the entities those links are in, and how many entities use it as a property key. [[Links to nowhere]]
+	- The ID is `~` and the name as names are compared (`~fresh` for `[[Fresh]]` and `[[fresh]]`), which is how a page, a row of [[All entities]] and a node of the [[Graph view]] address something nothing is stored for.
+	- Incoming links are the same number that [[All entities]] shows, once for each link. A property key is not a link, so one that is only a key has none, and shows its uses instead.
+	- The most linked come first, then by name. Only the first hundred are drawn until Show more is pressed, since a large graph links to thousands of names.
+- The consistency check
+	- It reads the whole graph again, so it runs when Run check is pressed and not on every edit. When the graph changes after it has run, the page says so, and Run again finds out about the graph as it now is.
+	- **Integrity** is what Quiddity keeps up to date, compared with the graph. A problem here is a bug, in Quiddity or in how an edit was applied, and is worth reporting with what was done before it.
+		- The blocks held are the graph's blocks: every block, its parent and its text, and their order, against a fresh read from [[Loro]]. The view keeps them because reading each block from Loro is the costly part of every whole-graph answer.
+		- The index agrees with one built afresh: entities and their names and properties, each entity's backlinks, the names linked to and the keys used that no entity has, and the blobs. The index is updated in place as a block is typed in, which is what this is there to catch going wrong. [[Performance]]
+		- Every link is from a block and to an entity: a backlink whose block is not in the graph, or in no entity.
+		- Every virtual entity is well formed: its ID follows from its title, no entity has its name, something links to it or uses it as a key, and each link is from a block that is there.
+		- Every ##blob line can be read. A file's line that can't be is flagged on its block too. [[Binaries]]
+	- **Content** is what is written, against what it says: the flags on each entity's page, listed together, with a link to the entity. A problem here is in the text, and is what the page of the entity shows beside the line it is about. [[Built-in properties]]
+	- Each check says Passed, or how many problems it found and what each is. Only the first fifty are listed, followed by how many were left out.
+- How it works
+	- `View::stats()` and `View::check()` in [[quiddity-view]], carried to the page by [[quiddity-wasm]] as `stats()` and `check()`. `stats()` walks what the index already holds; `check()` builds a second index to compare with the one in use.
+	- The comparisons are plain functions of two inputs (`diff_blocks`, `diff_indexes`, `dangling`, `malformed`), so the tests give them inputs that disagree and check what they say. A property test applies random edits, undo and redo, and edits made behind the view's back, and asserts that the integrity checks find nothing after each.
+	- Not built: references to a block that does not exist (`((id))`), and a way to copy the results to attach to a bug report.

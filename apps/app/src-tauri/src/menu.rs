@@ -14,11 +14,12 @@ use tracing::warn;
 /// The Go menu: each entrypoint's title and path. The paths are those in
 /// `entrypoints` in `apps/ui/lib/nav.ts`, which a test holds this to.
 #[cfg(any(target_os = "macos", test))]
-const GO: [(&str, &str); 4] = [
+const GO: [(&str, &str); 5] = [
     ("Journals", "/journals/"),
     ("All Entities", "/all/"),
     ("Graph", "/graph/"),
     ("Devices", "/devices/"),
+    ("Stats and Debug", "/stats/"),
 ];
 
 #[cfg(target_os = "macos")]

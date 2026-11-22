@@ -136,6 +136,17 @@ impl Replica {
         js(&self.view.connections()?)
     }
 
+    /// Numbers about the graph, and each virtual entity's incoming links.
+    pub fn stats(&self) -> Result<JsValue, JsError> {
+        js(&self.view.stats()?)
+    }
+
+    /// Checks what is derived from the graph against it, and what is written
+    /// against its schemas. Reads the whole graph again.
+    pub fn check(&self) -> Result<JsValue, JsError> {
+        js(&self.view.check()?)
+    }
+
     /// The devices the graph lists, most recently seen first.
     pub fn devices(&self) -> Result<JsValue, JsError> {
         js(&self.view.devices())

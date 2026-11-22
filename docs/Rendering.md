@@ -14,5 +14,5 @@
 	- On a link to nowhere the tooltip also says that opening it makes the entity, with the qualifiers it will have. On an ambiguous link it says which qualifiers several entities match, and the link goes to its [[Disambiguation]] page.
 - Block text comes from other devices, so it is untrusted.
 	- Raw HTML is shown as text, never run. There is no `rehype-raw` and none should be added.
-	- Only `http(s)` and `mailto` links, entity and block destinations, and the app's own pages (`/graph/`, `/all/`, `/journals/`, `/devices/`) are links. Web links open in the system's browser rather than replacing the app. Anything else is inert text.
+	- Only `http(s)` and `mailto` links, entity and block destinations, and the app's own pages (`/graph/`, `/all/`, `/journals/`, `/devices/`, `/stats/`) are links. Web links open in the system's browser rather than replacing the app. Anything else is inert text.
 	- Remote images are not fetched, because fetching one is a request to whoever wrote it.

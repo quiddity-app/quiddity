@@ -118,6 +118,24 @@ app's Go menu share) and Delete Entity for the main pane's entity
   on then. A browser has no menu, and both do nothing there. Go navigates as
   the sidebar's links do, so it drops the side pane.
 
+## Stats and debug
+
+`/stats/` (`components/stats.tsx`, in the More menu with Devices) shows
+`graph.stats()` (counts, and a table of the virtual entities with their incoming
+links) and the result of `graph.check()` (`docs/Stats and debug.md`).
+
+- **The check runs when asked, not on render**, because it reads the whole graph
+  again. The page keeps the result with the revision it was run at, and says
+  when the graph has since changed; it doesn't rerun by itself. A failure of
+  the check itself is shown, not thrown, so it doesn't take the page's boundary.
+- **Each outcome says Passed or its problem count in words**, so it doesn't
+  rest on colour; a problem with an `id` is an `EntityLink`, which takes a `~`
+  ID too.
+- The virtual entities are drawn 100 at a time (`Show more`): a real graph links
+  to thousands of names. The Rust side already orders them.
+- `e2e/stats.spec.ts` leans on the made-up graph: `merges::` is a key no entity
+  defines, so `~merges` is virtual, and a test makes `Fresh` by linking to it.
+
 ## Joining
 
 **A replica with no history is left alone** (`Replica.isBlank`): `Graph.begin()`

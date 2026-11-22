@@ -13,6 +13,7 @@ mod links;
 mod meta;
 mod query;
 mod search;
+mod stats;
 
 use std::cell::{Cell, Ref, RefCell};
 use std::collections::{HashMap, HashSet};
@@ -29,6 +30,7 @@ pub use query::{
     PropertyValue, Reference, ResolvedLink, Start, Summary,
 };
 pub use search::{HitProperty, Match, TitleHit, fuzzy_match};
+pub use stats::{Check, Outcome, Problem, Stats, VirtualStat};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

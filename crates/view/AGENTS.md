@@ -148,6 +148,29 @@ what the All entities table shows.
   the corpus is (`rescan`, `reread`); a new way of changing the corpus must
   drop them too, or `summaries` answers from the old.
 
+## Stats and check
+
+`stats.rs` is the Stats and debug page's two queries (`docs/Stats and debug.md`).
+
+- **`stats()` is cheap and `check()` is not**, so they are separate calls: `check()`
+  scans the graph again and builds a second index, and the UI runs it only when
+  asked. Don't fold it into `stats()`.
+- **`check()` has two lists with different meanings.** *Integrity* compares what
+  the view keeps up to date (the corpus, the index) with the graph, so a problem
+  is a bug; the `a_view_edited_for_a_while_agrees_with_a_fresh_one` property
+  asserts `faults()` is 0 after random edits, so a new integrity check must hold
+  for every graph that can be made. *Content* is the entities' flags, which are
+  the text's and never a fault.
+- **A check is a plain function of its inputs** (`diff_blocks`, `diff_indexes`,
+  `dangling`, `malformed`), so the tests hand it inputs that disagree. A check
+  nothing can fail (an invariant the index builder guarantees, such as a merged
+  duplicate being listed) is redundant and left out, or mutation testing
+  can't kill it. `diff_indexes` can only compare what `Index` makes public.
+- A virtual entity's **incoming links** are `Virtual::sources`, one per link, as
+  `summaries()` counts them. `stats()` and `summaries()` must agree, and a test
+  says so.
+- Problems are listed up to `LISTED` per check, then say how many were left out.
+
 ## Links to nowhere
 
 A name that is linked to (or tagged), or is a property's key, and that no

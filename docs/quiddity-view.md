@@ -5,5 +5,6 @@ type:: crate
 - It also lists the devices the graph records (`View::devices`), most recently seen first. They are sync metadata kept beside the blocks, not entities. [[Device list]]
 - Offsets are UTF-16 code units, which is what JavaScript and [[CodeMirror]] count in. Rust's byte offsets never leave the crate.
 - It turns what [[Built-in properties]] say into what a page shows: `##` lines, flags in words on the lines they concern, inherited values, and inverse trees.
+- It counts the graph and checks it against itself (`View::stats`, `View::check`): numbers, every virtual entity with its incoming links, and whether the blocks and index it holds agree with a fresh reading. [[Stats and debug]]
 - Pages that lean on it: [[Editing]], [[Undo]], [[Links to nowhere]], [[All entities]], [[Graph view]], [[Title matching]], [[Text search]] and [[Graph settings]].
 - A block says what file it is, if it is a blob (`Block.blob`: hash, MIME type, size and name), so the UI never reads the `##blob` line itself. `attach_blob` adds a block for a file the shell has kept at the end of a page, checking its parts first, so a bad answer leaves nothing behind, as one undo step. [[Binaries]]

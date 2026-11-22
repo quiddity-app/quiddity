@@ -129,6 +129,63 @@ export interface Summary extends EntityRef {
   journal: boolean;
 }
 
+/** Numbers about the graph, for the Stats and debug page. */
+export interface Stats {
+  /** Every block, entities' root blocks included. */
+  blocks: number;
+  /** Entities that have been written, merged duplicates not counted. */
+  entities: number;
+  /** How many of them are journal pages. */
+  journals: number;
+  /** Entities made twice and merged into another, which are kept and hidden. */
+  mergedDuplicates: number;
+  /** Blocks that hold a file. */
+  blobs: number;
+  /** Links to entities that have been written, once for each link. */
+  links: number;
+  /** Links to a name nobody has made: the sum of the virtual entities' `links`. */
+  linksToNowhere: number;
+  /** Blocks with a link that matches more than one entity. */
+  ambiguous: number;
+  /** Entities nothing links to and that link to nothing, journal pages apart. */
+  orphans: number;
+  /** Virtual entities, most linked first. */
+  virtuals: VirtualStat[];
+}
+
+/** One virtual entity, and how much it is wanted. */
+export interface VirtualStat {
+  /** `~` and the name as names are compared. */
+  id: EntityId;
+  title: string;
+  /** Links to it, once for each. */
+  links: number;
+  /** The entities those links are in, once each. */
+  linkedFrom: number;
+  /** Entities that use the name as a property key. */
+  keyUses: number;
+}
+
+/** What the consistency check found. */
+export interface Check {
+  /** What is derived from the graph, against the graph. A problem is a bug. */
+  integrity: Outcome[];
+  /** What is written, against what it says. A problem is in the text. */
+  content: Outcome[];
+}
+
+/** One thing checked: a claim that is true if there are no problems. */
+export interface Outcome {
+  name: string;
+  problems: Problem[];
+}
+
+export interface Problem {
+  message: string;
+  /** The entity it is about, if there is one to go to. */
+  id: EntityId | null;
+}
+
 /** Every entity, and which link to which: one edge per pair, however many links. */
 export interface Connections {
   nodes: (EntityRef & { /** Whether it is a journal page. */ journal: boolean })[];
