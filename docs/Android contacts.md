@@ -6,6 +6,7 @@ alias:: Android contact provider
 	- Edit one in any contacts app and the graph changes to match, a moment later, if Quiddity is running. Make one in the Quiddity account and an entity is made. Delete one and its contact values go, and the page stays.
 	- Removing the account in the system's settings turns contacts off, and the contacts go with it. The graph is untouched.
 	- **Only while Quiddity runs.** The graph is in the app's own process, and nothing else can read it, so a change made in the contacts app waits until the app is next open. The system's own sync, which would wake the app, is wired up and does nothing.
+	- While it runs the shell reconciles when the graph changes (after two quiet seconds, so typing isn't one a keystroke), when contacts are turned on, and every five seconds to look for an edit made in the contacts app, which only asks which rows are dirty. [[The shell]]
 - How it works
 	- A tauri plugin (`apps/app/plugins/contacts`, `tauri-plugin-quiddity-contacts`) has a Rust side, which is the `Store` that [[quiddity-contacts]] keeps in step, and an Android library, which does the work in the system's contacts. [[Tauri]]
 	- A contact is a *raw contact* of the Quiddity account. Its source ID is the entity's ID, and `SYNC1` holds the contact as it was last handed over, as JSON. That is what turns a phone's edit into a three-way merge: the contacts app only says what the contact is now. [[Contacts]]
@@ -17,5 +18,5 @@ alias:: Android contact provider
 - Not built
 	- Photos, groups and the rest of a contact's fields. A contact's structured name (given and family) is read as the name it makes.
 	- A sync that runs when the app doesn't.
-	- A switch in the app's UI.
+	- A switch in the app's UI: the shell has the commands (`contacts_status`, `contacts_enable` and `contacts_disable`), and nothing calls them yet.
 	- **The Android library has never been compiled or run.** There is no CI for Android: it was written against Tauri's own Kotlin sources and the Android reference, in a sandbox with no Android SDK. Expect to fix it on first build (`mise run android`).

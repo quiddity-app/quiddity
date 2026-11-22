@@ -40,6 +40,8 @@ pub enum Error {
     Keys(String),
     #[error("{0:?} is not a hash")]
     NotAHash(String),
+    #[error("contacts: {0}")]
+    Contacts(String),
 }
 
 impl Serialize for Error {
@@ -222,6 +224,28 @@ impl Session {
             SyncState::Synced => "synced",
             SyncState::Present => "present",
         }
+    }
+
+    /// Keeps a copy of the contacts in step with the graph (see
+    /// `quiddity_contacts::reconcile`), and then does with the graph what
+    /// the UI's edits are given: saves it, and tells the other devices and
+    /// the UI, which hears of it as it does of an edit from another device.
+    #[cfg_attr(not(target_os = "android"), allow(dead_code))]
+    pub fn reconcile_contacts<S: quiddity_contacts::Store>(
+        &self,
+        store: &mut S,
+    ) -> Result<quiddity_contacts::Report, Error> {
+        let graph = self.peer.graph();
+        let done = quiddity_contacts::reconcile(graph, store);
+        // An edit made before the store failed is in the graph all the same,
+        // and is kept: it will be found made when the store is tried again.
+        if !matches!(&done, Ok(report) if !report.changed) {
+            graph.commit();
+            self.peer.tidy()?;
+            self.store.save(graph)?;
+            self.peer.changed();
+        }
+        done.map_err(|e| Error::Contacts(e.to_string()))
     }
 
     /// Lets the device `device` connect: lists it in the graph, or, if this

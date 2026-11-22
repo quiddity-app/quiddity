@@ -5066,6 +5066,7 @@ name = "quiddity-app"
 version = "0.1.0"
 dependencies = [
  "iroh",
+ "quiddity-contacts",
  "quiddity-core",
  "quiddity-node",
  "serde",
@@ -5073,6 +5074,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-opener",
+ "tauri-plugin-quiddity-contacts",
  "tauri-plugin-updater",
  "tempfile",
  "thiserror 2.0.21",
