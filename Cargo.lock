@@ -5082,6 +5082,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "quiddity-contacts"
+version = "0.1.0"
+dependencies = [
+ "proptest",
+ "quiddity-core",
+ "serde",
+]
+
+[[package]]
 name = "quiddity-core"
 version = "0.1.0"
 dependencies = [

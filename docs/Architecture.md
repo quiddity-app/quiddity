@@ -14,6 +14,7 @@
 	- [[quiddity-sync]]: the sync protocol, independent of transport.
 	- [[quiddity-node]]: sync over [[iroh]], the on-disk store and the command line.
 	- [[quiddity-view]]: what a UI shows of a graph, and the edits it makes.
+	- [[quiddity-contacts]]: entities as [[Contacts]], and an edit to one made elsewhere.
 	- [[quiddity-wasm]]: the view, compiled for the browser.
 	- Each has its own `AGENTS.md` for what isn't obvious from the code.
 - Between devices

@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc d20851e52a4d138090c4845158df296ca07597ee75605aabb32ede9e391f88fb # shrinks to before = [Entry { field: Phone, label: Some("mobile"), value: "(" }, Entry { field: Phone, label: Some("mobile"), value: "a" }, Entry { field: Phone, label: Some("mobile"), value: "\"" }, Entry { field: Phone, label: Some("mobile"), value: "+" }], after = [Entry { field: Phone, label: Some("mobile"), value: "0" }], keep = [false, false, false, false, false, false]
+cc e4d86bdd7873a783fcee5de7b659007f4afc28150ca8ba1470cb0e7f835ea6a8 # shrinks to before = [Entry { field: Phone, label: Some("mobile"), value: "[" }, Entry { field: Phone, label: Some("mobile"), value: "\"" }, Entry { field: Phone, label: Some("mobile"), value: "a" }, Entry { field: Phone, label: None, value: "z" }], after = [Entry { field: Phone, label: None, value: "z" }], keep = [false, false, false, true, false, false]
