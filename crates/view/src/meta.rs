@@ -42,6 +42,11 @@ pub struct Inverse {
 #[serde(rename_all = "camelCase")]
 pub struct InverseNode {
     pub entity: EntityRef,
+    /// Whether it is related as written. Not so for an entity listed only
+    /// because what is related to it is related to the entity above through
+    /// it: a subclass, under a class's instances, holding the instances that
+    /// are the class's by `##through`.
+    pub direct: bool,
     pub children: Vec<InverseNode>,
     /// How many of its children aren't shown, because the tree reached its
     /// limit. They are on its own page.
@@ -180,7 +185,7 @@ impl View {
         let index = self.index()?;
         let mut out = Vec::new();
         for (label, property) in index.inverse_labels() {
-            if index.inverse(&label, id, true).is_empty() {
+            if index.inverse(&label, id, false).is_empty() {
                 continue;
             }
             let shown = index
@@ -190,8 +195,10 @@ impl View {
                 .unwrap_or(label.clone());
             let mut budget = INVERSE_LIMIT;
             let mut path = BTreeSet::from([id]);
-            let (tree, _) = inverse_tree(&index, &label, id, &mut budget, &mut path);
-            out.push(Inverse { label: shown, tree });
+            let (tree, _) = inverse_tree(&index, &label, &property, id, &mut budget, &mut path);
+            if !tree.is_empty() {
+                out.push(Inverse { label: shown, tree });
+            }
         }
         Ok(out)
     }
@@ -202,30 +209,43 @@ impl View {
 /// beneath them, so a deep branch can't use up the limit before the rest of
 /// its level. An entity already on the path from the top isn't repeated
 /// beneath itself.
+///
+/// If `property` goes `##through` another, an entity that has `id` as a value
+/// of that one (a subclass) is listed too, after those related as written,
+/// when anything is related to it: its own tree is where what is related to
+/// `id` only through it is found.
 fn inverse_tree(
     index: &Index,
     label: &str,
+    property: &str,
     id: BlockId,
     budget: &mut usize,
     path: &mut BTreeSet<BlockId>,
 ) -> (Vec<InverseNode>, usize) {
-    let related: Vec<BlockId> = index
-        .inverse(label, id, true)
+    let direct = index.inverse(label, id, true);
+    let through = index
+        .through_children(property, id)
         .into_iter()
-        .filter(|e| !path.contains(e))
+        .filter(|c| !direct.contains(c) && !index.inverse(label, *c, false).is_empty());
+    let related: Vec<(BlockId, bool)> = direct
+        .iter()
+        .map(|&e| (e, true))
+        .chain(through.map(|e| (e, false)))
+        .filter(|(e, _)| !path.contains(e))
         .collect();
     let shown = related.len().min(*budget);
     *budget -= shown;
     let mut nodes = Vec::new();
-    for &e in &related[..shown] {
+    for &(e, direct) in &related[..shown] {
         path.insert(e);
-        let (children, hidden) = inverse_tree(index, label, e, budget, path);
+        let (children, hidden) = inverse_tree(index, label, property, e, budget, path);
         path.remove(&e);
         nodes.push(InverseNode {
             entity: EntityRef {
                 id: e.to_string(),
                 title: index.entity(e).map_or_else(String::new, |i| i.name.clone()),
             },
+            direct,
             children,
             hidden,
         });

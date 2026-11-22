@@ -195,6 +195,10 @@ pub struct Index {
     /// For each inverse label and entity, the entities whose property
     /// refers to it, and whether directly (as written).
     pub(crate) inverse: HashMap<(String, BlockId), Vec<(BlockId, bool)>>,
+    /// For each property with `##through` and entity, the entities that
+    /// have it as a value of the property it goes through, as written: the
+    /// subclasses of a class, say. See [`Index::through_children`].
+    pub(crate) through: HashMap<(String, BlockId), Vec<BlockId>>,
 }
 
 impl Index {

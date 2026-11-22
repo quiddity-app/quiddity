@@ -135,6 +135,18 @@ impl Index {
                                 ));
                             }
                         }
+                        if let Some(through) = &schema.through {
+                            for item in theirs.get(&normalise_name(through)).into_iter().flatten() {
+                                additions.push((
+                                    id,
+                                    key.clone(),
+                                    Item {
+                                        from: item.from.or(Some(t)),
+                                        ..item.clone()
+                                    },
+                                ));
+                            }
+                        }
                         if schema.inherits {
                             for (k, their_items) in theirs {
                                 if k == key
@@ -210,6 +222,31 @@ impl Index {
                 }
             }
         }
+
+        // What a `##through` property's values are written as the values of:
+        // the subclasses of a class, for a page to nest under it.
+        let mut through: HashMap<(String, BlockId), Vec<BlockId>> = HashMap::new();
+        for (key, schema) in &self.schemas {
+            let Some(via) = schema.through.as_deref().map(normalise_name) else {
+                continue;
+            };
+            for &id in &ids {
+                let written = effective[&id].get(&via).into_iter().flatten();
+                for t in written
+                    .filter(|i| i.from.is_none())
+                    .filter_map(|i| i.target)
+                {
+                    let list = through.entry((key.clone(), t)).or_default();
+                    if !list.contains(&id) {
+                        list.push(id);
+                    }
+                }
+            }
+        }
+        for list in through.values_mut() {
+            list.sort();
+        }
+        self.through = through;
         self.effective = effective;
         self.inverse = inverse
             .into_iter()
@@ -265,6 +302,17 @@ impl Index {
             .filter(|(_, d)| *d || !direct)
             .map(|&(e, _)| e)
             .collect()
+    }
+
+    /// The entities that have `id` as a written value of the property
+    /// `key`'s `##through` names, in order of ID: with
+    /// `##through(parent)` on `type`, the subclasses of a class. Empty for a
+    /// property with no `##through`.
+    pub fn through_children(&self, key: &str, id: BlockId) -> Vec<BlockId> {
+        self.through
+            .get(&(normalise_name(key), self.canonical(id)))
+            .cloned()
+            .unwrap_or_default()
     }
 
     /// The inverse labels of every property, with the property each belongs

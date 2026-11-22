@@ -15,7 +15,7 @@ alias:: property
 	- A property entity describes the property in prose, and can give it a schema.
 	- It can be renamed. The old name stays as an alias, so the key still finds it. [[Renaming]]
 - Schemas
-	- A property entity says how its property's values are read, and how it relates entities, with [[Built-in properties]]: `##value-type`, `##values`, `##applies-to` and `##cardinality` for what a property holds, and `##transitive`, `##inherits`, `##inverse` and `##symmetric` for how it relates entities.
+	- A property entity says how its property's values are read, and how it relates entities, with [[Built-in properties]]: `##value-type`, `##values`, `##applies-to` and `##cardinality` for what a property holds, and `##transitive`, `##inherits`, `##through`, `##inverse` and `##symmetric` for how it relates entities.
 	- Value types: `text`, `number` (a double), `boolean` (`true`, `false`, `yes` or `no`), `date` (an ISO 8601 date), `datetime` (RFC 3339, with an offset) or `ref`. More will come, such as `blob`. [[Binaries]]
 	- A property nobody has described is text, with any number of values. A value may always be a list.
 	- References: for a `ref` property, bare text is a name, so `type:: person` means `type:: [[person]]`. [[Links]]
