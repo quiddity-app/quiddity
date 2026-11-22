@@ -8,10 +8,13 @@
 use std::fmt;
 
 use quiddity_syntax::normalise_name;
+use serde::{Deserialize, Serialize};
 
 /// A field of a contact. An entity's name is the contact's name, and isn't
 /// one of these.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// Serialised as it is written in `##contact`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum ContactField {
     Phone,
     Email,

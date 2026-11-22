@@ -20,6 +20,8 @@ where to find the notes on each crate.
   line and headless sync node.
 - `crates/view`: what a UI shows of a graph (entities, references, favourites,
   journals) and the outliner's edits, tested natively.
+- `crates/contacts`: entities as contacts, for a phone's contacts app: which
+  are contacts (by `##contact`), and an edit made to one applied back.
 - `crates/wasm`: `quiddity-view` compiled to WASM: the UI's own replica of the
   graph.
 - `apps/ui`: the Next.js UI (static export): three panes, with entrypoints,

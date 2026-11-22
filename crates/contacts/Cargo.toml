@@ -1,0 +1,18 @@
+[package]
+name = "quiddity-contacts"
+description = "Entities as contacts: reads them from a graph, and applies an edit made to one elsewhere"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+quiddity-core.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+
+[lints]
+workspace = true
