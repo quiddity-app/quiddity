@@ -733,7 +733,7 @@ impl Store {
             Ok::<(), StoreError>(())
         })();
         if let Err(e) = made {
-            let _ = fs::remove_file(&staged);
+            drop(fs::remove_file(&staged));
             return Err(e);
         }
         Ok(staged)
@@ -742,7 +742,7 @@ impl Store {
     /// Puts a built file in the graph's place, unless one is there already.
     fn link(&self, staged: &Path) -> Result<(), StoreError> {
         let linked = link_new(staged, &self.file());
-        let _ = fs::remove_file(staged);
+        drop(fs::remove_file(staged));
         match linked {
             Ok(()) => Ok(sync_dir(&self.folder())?),
             Err(e) if e.kind() == io::ErrorKind::AlreadyExists => Ok(()),
@@ -931,7 +931,7 @@ impl Store {
             Ok::<(), StoreError>(())
         })();
         if let Err(e) = filled {
-            let _ = fs::remove_file(&staged);
+            drop(fs::remove_file(&staged));
             return Err(e);
         }
         self.link(&staged)?;

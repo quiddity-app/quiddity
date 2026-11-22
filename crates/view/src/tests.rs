@@ -964,7 +964,7 @@ mod blocks_together {
             "an entity has no siblings"
         );
         assert_eq!(top_level(&v, &page), ["a"]);
-        let _ = ids;
+        drop(ids);
     }
 
     proptest! {
@@ -3490,15 +3490,15 @@ mod revisions {
                 let pick = |i: &Index| blocks[i.index(blocks.len())].clone();
                 // An edit that doesn't apply changes nothing, which is fine.
                 match step {
-                    Step::Type(i, w) => { let _ = v.splice_text(&pick(i), 0, 0, w); }
-                    Step::Create(i, w) => { let _ = v.create_block(&pick(i), None, w); }
-                    Step::Split(i) => { let _ = v.split(&pick(i), 0); }
-                    Step::Indent(i) => { let _ = v.indent(&pick(i)); }
-                    Step::Outdent(i) => { let _ = v.outdent(&pick(i)); }
-                    Step::Move(i, up) => { let _ = v.move_sibling(&pick(i), if *up { -1 } else { 1 }); }
-                    Step::Merge(i) => { let _ = v.merge_into_previous(&pick(i)); }
-                    Step::Undo => { let _ = v.undo(); }
-                    Step::Redo => { let _ = v.redo(); }
+                    Step::Type(i, w) => { drop(v.splice_text(&pick(i), 0, 0, w)); }
+                    Step::Create(i, w) => { drop(v.create_block(&pick(i), None, w)); }
+                    Step::Split(i) => { drop(v.split(&pick(i), 0)); }
+                    Step::Indent(i) => { drop(v.indent(&pick(i))); }
+                    Step::Outdent(i) => { drop(v.outdent(&pick(i))); }
+                    Step::Move(i, up) => { drop(v.move_sibling(&pick(i), if *up { -1 } else { 1 })); }
+                    Step::Merge(i) => { drop(v.merge_into_previous(&pick(i))); }
+                    Step::Undo => { drop(v.undo()); }
+                    Step::Redo => { drop(v.redo()); }
                     Step::Direct(i, w) => {
                         let block: BlockId = pick(i).parse().unwrap();
                         v.graph().set_text(block, w).unwrap();

@@ -341,7 +341,7 @@ proptest! {
                     let graph = &replicas[*replica];
                     let (Some(block), parent) = (pick(graph, block), parent.as_ref().and_then(|p| pick(graph, p))) else { continue };
                     // A move under its own descendant is refused locally.
-                    let _ = graph.move_block(block, parent, None);
+                    drop(graph.move_block(block, parent, None));
                 }
                 Addition::Sync(a, b) => sync(&replicas[*a], &replicas[*b]).unwrap(),
             }

@@ -333,7 +333,7 @@ mod tests {
         session.allow(&guest_id(&endpoint)).unwrap();
         let (peer, connect_to) = (guest.clone(), endpoint.clone());
         let connection = tokio::spawn(async move {
-            let _ = peer.connect(&connect_to, addr, None).await;
+            drop(peer.connect(&connect_to, addr, None).await);
         });
         wait_for("the guest to join", || {
             guest.graph().version() == session.peer().graph().version()
@@ -744,7 +744,7 @@ mod tests {
             .with_ip_addr(server.endpoint().bound_sockets()[0]);
         let (peer, endpoint) = (guest.clone(), guest_server.endpoint().clone());
         let connection = tokio::spawn(async move {
-            let _ = peer.connect(&endpoint, to, None).await;
+            drop(peer.connect(&endpoint, to, None).await);
         });
 
         let hash: quiddity_node::blobs::Hash = hash.parse().unwrap();
