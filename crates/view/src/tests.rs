@@ -3099,6 +3099,64 @@ mod meta {
     }
 
     #[test]
+    fn instances_of_subclasses_nest_under_their_class() {
+        let v = view_with(|g| {
+            entity(g, "parent", "type:: property\n##inverse(children)");
+            entity(
+                g,
+                "type",
+                "type:: property\n##through(parent)\n##inverse(Instances)",
+            );
+            entity(g, "Persons", "");
+            entity(g, "Biblical figures", "parent:: Persons");
+            entity(g, "Prophets", "parent:: Biblical figures");
+            entity(g, "Empty class", "parent:: Persons");
+            entity(g, "Ada", "type:: Persons");
+            entity(g, "Eve", "type:: Biblical figures");
+            entity(g, "Moses", "type:: Prophets");
+        });
+        let persons = v.entity(&id_of(&v, "Persons")).unwrap();
+        let instances = persons
+            .inverses
+            .iter()
+            .find(|i| i.label == "Instances")
+            .unwrap();
+        assert_eq!(
+            titles_of(&instances.tree),
+            ["Ada", "Biblical figures [Eve, Prophets [Moses]]"],
+            "a subclass with instances holds them; one without is left out"
+        );
+        let direct: Vec<_> = instances
+            .tree
+            .iter()
+            .map(|n| (n.entity.title.as_str(), n.direct))
+            .collect();
+        assert_eq!(direct, [("Ada", true), ("Biblical figures", false)]);
+        assert!(instances.tree[1].children[0].direct, "Eve is written");
+        assert!(!instances.tree[1].children[1].direct, "Prophets is a class");
+    }
+
+    #[test]
+    fn a_class_with_only_indirect_instances_lists_them() {
+        let v = view_with(|g| {
+            entity(g, "parent", "type:: property\n##value-type(ref)");
+            entity(
+                g,
+                "type",
+                "type:: property\n##through(parent)\n##inverse(instances)",
+            );
+            entity(g, "Persons", "");
+            entity(g, "Biblical figures", "parent:: Persons");
+            entity(g, "Moses", "type:: Biblical figures");
+        });
+        let persons = v.entity(&id_of(&v, "Persons")).unwrap();
+        assert_eq!(
+            titles_of(&persons.inverses[0].tree),
+            ["Biblical figures [Moses]"]
+        );
+    }
+
+    #[test]
     fn inverse_trees_stop_at_the_limit() {
         let v = view_with(|g| {
             entity(g, "parent", "type:: property\n##inverse(children)");

@@ -86,6 +86,11 @@ export interface Inherited {
 /** An entity in an inverse tree, with those related to it in turn. */
 export interface InverseNode {
   entity: EntityRef;
+  /**
+   * False for an entity listed only to hold what is related to the one
+   * above through it, such as a subclass under a class's instances.
+   */
+  direct: boolean;
   children: InverseNode[];
   /** Children not shown because the tree reached its limit. */
   hidden: number;

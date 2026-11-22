@@ -94,6 +94,11 @@ pub struct PropertySchema {
     pub inverse: Option<String>,
     /// The relation holds both ways.
     pub symmetric: bool,
+    /// `##through`: the property to follow from a value to the values it
+    /// has of that property, which this one then has too. A property chain:
+    /// with `##through(parent)` on `type`, an entity of type Biblical
+    /// figures, whose `parent` is Persons, is of type Persons too.
+    pub through: Option<String>,
 }
 
 impl Default for PropertySchema {
@@ -117,6 +122,7 @@ impl PropertySchema {
             inherits: false,
             inverse: None,
             symmetric: false,
+            through: None,
         }
     }
 
@@ -190,6 +196,10 @@ impl PropertySchema {
                     self.inverse = Some(p.to_owned());
                     None
                 }
+                (Meta::Through, Some(p)) => {
+                    self.through = Some(p.to_owned());
+                    None
+                }
             };
             flags.extend(problem.map(|message| Flag::BadMeta {
                 key: m.key.clone(),
@@ -200,7 +210,8 @@ impl PropertySchema {
             || self.transitive
             || self.inherits
             || self.inverse.is_some()
-            || self.symmetric;
+            || self.symmetric
+            || self.through.is_some();
         if relates && !typed {
             self.value_type = ValueType::Ref;
         }
@@ -229,6 +240,7 @@ enum Meta {
     Inherits,
     Inverse,
     Symmetric,
+    Through,
 }
 
 const META: &[(&str, Meta)] = &[
@@ -240,6 +252,7 @@ const META: &[(&str, Meta)] = &[
     ("inherits", Meta::Inherits),
     ("inverse", Meta::Inverse),
     ("symmetric", Meta::Symmetric),
+    ("through", Meta::Through),
 ];
 
 /// How `##value-type` is spelt.
@@ -377,6 +390,11 @@ mod tests {
         assert_eq!(schema.applies_to, parse_query("#type(film)").ok());
         assert_eq!(schema.cardinality, Cardinality::OPTIONAL);
         assert_eq!(schema.inverse.as_deref(), Some("rated"));
+        assert_eq!(schema.through, None);
+
+        let (schema, flags) = read("##through(parent)");
+        assert_eq!(flags, []);
+        assert_eq!(schema.through.as_deref(), Some("parent"));
 
         let (schema, flags) = read("##values(#type(place))\n##transitive\n##inherits\n##symmetric");
         assert_eq!(flags, []);
@@ -397,6 +415,7 @@ mod tests {
             "##inherits",
             "##inverse(x)",
             "##symmetric",
+            "##through(x)",
         ] {
             assert_eq!(read(meta).0.value_type, ValueType::Ref, "{meta}");
             let typed = format!("{meta}\n##value-type(text)");
@@ -410,7 +429,7 @@ mod tests {
     #[test]
     fn unreadable_meta_properties_are_flagged() {
         let (schema, flags) = read(
-            "##nonsense\n##transitive(yes)\n##values\n##values(a &)\n##value-type(colour)\n##cardinality(5..2)",
+            "##nonsense\n##transitive(yes)\n##values\n##values(a &)\n##value-type(colour)\n##cardinality(5..2)\n##through",
         );
         assert_eq!(
             schema,
@@ -433,7 +452,8 @@ mod tests {
                 "bad values",
                 "bad values",
                 "bad value-type",
-                "bad cardinality"
+                "bad cardinality",
+                "bad through"
             ]
         );
     }

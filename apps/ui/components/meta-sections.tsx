@@ -61,7 +61,10 @@ function Tree({ nodes }: Readonly<{ nodes: InverseNode[] }>) {
     <ul className="space-y-0.5 pl-4">
       {nodes.map((node) => {
         const title = (
-          <EntityLink id={node.entity.id} className={linkClass}>
+          <EntityLink
+            id={node.entity.id}
+            className={`${linkClass}${node.direct ? "" : " italic"}`}
+          >
             {node.entity.title}
           </EntityLink>
         );

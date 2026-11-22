@@ -107,6 +107,80 @@ proptest! {
     }
 }
 
+proptest! {
+    /// A property that goes `##through` another has the values the other
+    /// has of each of its values, as far as they go, cycles included: what
+    /// is of a class is of its superclasses too. Only what is written counts
+    /// as direct, and the entities it goes through are those that have the
+    /// value as written.
+    #[test]
+    fn through_follows_a_chain(
+        supers in vec(vec(0..N, 0..3), N),
+        types in vec(vec(0..N, 0..3), N),
+        through in any::<bool>(),
+    ) {
+        let graph = Graph::new();
+        entity(&graph, "parent", "type:: property\n##value-type(ref)")?;
+        let meta = if through { "##through(parent)\n" } else { "" };
+        entity(&graph, "type", &format!("type:: property\n{meta}##inverse(instances)"))?;
+        let list = |edges: &[usize]| -> String {
+            edges.iter().map(|j| format!("c{j}")).collect::<Vec<_>>().join(", ")
+        };
+        let classes: Vec<BlockId> = (0..N)
+            .map(|i| {
+                let props = if supers[i].is_empty() {
+                    String::new()
+                } else {
+                    format!("parent:: [{}]", list(&supers[i]))
+                };
+                entity(&graph, &format!("c{i}"), &props)
+            })
+            .collect::<Result<_>>()?;
+        let items: Vec<BlockId> = (0..N)
+            .map(|i| {
+                let props = if types[i].is_empty() {
+                    String::new()
+                } else {
+                    format!("type:: [{}]", list(&types[i]))
+                };
+                entity(&graph, &format!("i{i}"), &props)
+            })
+            .collect::<Result<_>>()?;
+        let index = Index::build(&graph)?;
+
+        let reach = |i: usize| -> BTreeSet<usize> {
+            let mut seen = BTreeSet::new();
+            let mut stack: Vec<usize> = types[i].clone();
+            while let Some(j) = stack.pop() {
+                if seen.insert(j) && through {
+                    stack.extend(&supers[j]);
+                }
+            }
+            seen
+        };
+        for i in 0..N {
+            let expected: BTreeSet<BlockId> = reach(i).iter().map(|&j| classes[j]).collect();
+            prop_assert_eq!(targets(&index, items[i], "type"), expected, "i{}", i);
+
+            let all: BTreeSet<_> = index.inverse("instances", classes[i], false).into_iter().collect();
+            let of_class: BTreeSet<_> =
+                (0..N).filter(|&k| reach(k).contains(&i)).map(|k| items[k]).collect();
+            prop_assert_eq!(all, of_class, "instances of c{}", i);
+            let direct: BTreeSet<_> = index.inverse("instances", classes[i], true).into_iter().collect();
+            let written: BTreeSet<_> =
+                (0..N).filter(|&k| types[k].contains(&i)).map(|k| items[k]).collect();
+            prop_assert_eq!(direct, written, "direct instances of c{}", i);
+
+            let subs: BTreeSet<_> = index.through_children("type", classes[i]).into_iter().collect();
+            let subclasses: BTreeSet<_> = (0..N)
+                .filter(|&k| through && supers[k].contains(&i))
+                .map(|k| classes[k])
+                .collect();
+            prop_assert_eq!(subs, subclasses, "subclasses of c{}", i);
+        }
+    }
+}
+
 // Small pools, so that names and values collide. Values are text, so a
 // query's meaning can be worked out from what is written alone.
 const NAMES: [&str; 3] = ["Ann", "bob", "Cat"];
@@ -286,6 +360,49 @@ fn inheritance() -> Result<()> {
     assert_eq!(found(&index, "#alive"), ["living thing", "plant", "tree"]);
     assert_eq!(found(&index, "#subtypes(tree)"), ["living thing", "plant"]);
     assert_eq!(index.inverse("subtypes", living, true), [plant]);
+    Ok(())
+}
+
+/// The example the meta-property is for: instances of a subclass are
+/// instances of its class, but not as written.
+#[test]
+fn through_makes_subclass_instances_indirect() -> Result<()> {
+    let graph = Graph::new();
+    entity(&graph, "parent", "type:: property\n##inverse(children)")?;
+    entity(
+        &graph,
+        "type",
+        "type:: property\n##through(parent)\n##inverse(instances)",
+    )?;
+    let persons = entity(&graph, "Persons", "")?;
+    let biblical = entity(&graph, "Biblical figures", "parent:: Persons")?;
+    let ada = entity(&graph, "Ada", "type:: Persons")?;
+    let moses = entity(&graph, "Moses", "type:: Biblical figures")?;
+    let index = Index::build(&graph)?;
+
+    assert_eq!(targets(&index, moses, "type"), [biblical, persons].into());
+    let from: Vec<_> = index
+        .effective_values(moses, "type")
+        .into_iter()
+        .map(|i| i.from)
+        .collect();
+    assert_eq!(from, [None, Some(biblical)], "written on the subclass");
+    assert_eq!(index.inverse("instances", persons, true), [ada]);
+    assert_eq!(
+        index
+            .inverse("instances", persons, false)
+            .into_iter()
+            .collect::<BTreeSet<_>>(),
+        [ada, moses].into()
+    );
+    assert_eq!(
+        found(&index, "#instances(Moses)"),
+        ["Biblical figures", "Persons"]
+    );
+    assert_eq!(found(&index, "#type(Persons)"), ["Ada", "Moses"]);
+    assert_eq!(index.through_children("type", persons), [biblical]);
+    assert_eq!(index.through_children("Type", biblical), []);
+    assert_eq!(index.through_children("parent", persons), []);
     Ok(())
 }
 

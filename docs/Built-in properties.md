@@ -26,11 +26,12 @@ alias:: [Meta-properties, meta-property, ## properties]
 	  | `##cardinality(0..1)` | how many values an entity may have |
 	  | `##transitive` | an entity has the property's values' values too |
 	  | `##inherits` | an entity has the other properties of the entities it refers to |
+	  | `##through(property)` | an entity has the values its values have of another property |
 	  | `##inverse(label)` | the name of the relation the other way round |
 	  | `##symmetric` | the relation holds both ways |
 	- `##values` and `##applies-to` take a query. [[Queries]]
 	- `##cardinality` is written as UML writes multiplicity: `1`, `0..1`, `1..*`, `2..5`, or `*` for any number. It counts values, not lines: `#steps([a, b, c])` is three, and so are three `#step` lines. A list keeps its order; that is all that makes it different.
-	- `##values`, `##transitive`, `##inherits`, `##inverse` and `##symmetric` only make sense for references, so a property with any of them is a `ref` property unless `##value-type` says otherwise. As now, a bare name in a reference is a name: with `parent` a reference, `parent:: Scotland` means `parent:: [[Scotland]]`. [[Links]]
+	- `##values`, `##transitive`, `##inherits`, `##through`, `##inverse` and `##symmetric` only make sense for references, so a property with any of them is a `ref` property unless `##value-type` says otherwise. As now, a bare name in a reference is a name: with `parent` a reference, `parent:: Scotland` means `parent:: [[Scotland]]`. [[Links]]
 - Defaults
 	- A property with no meta-properties is text, with any number of values, on anything.
 	- Quiddity's own properties ([[type]], [[alias]], [[favourite]] and [[title]]) have built-in meta-properties, so a new graph needs nothing written into it. A property entity overrides each one it writes, so they are editable like any other.
@@ -38,6 +39,11 @@ alias:: [Meta-properties, meta-property, ## properties]
 - Transitive properties
 	- With `##transitive` on [[type]], `Oak` with `type:: tree`, and `tree` with `type:: plant`, Oak's types are tree and plant, and the query `#type(plant)` finds both Oak and tree.
 	- Values are followed to the entities they refer to, as far as they go. A cycle, an entity that is its own ancestor, is followed once round and flagged.
+- Following another property
+	- `##through(parent)` on [[type]] says that an entity has the types its types have as `parent`, as well as its own. It is a property chain: where `##transitive` follows one property through itself, `##through` follows a different one, so that being of a class and being a subclass of one can be separate properties.
+	- With `parent:: Persons` on `Biblical figures`, and `type:: Biblical figures` on `Moses`, Moses is of type Persons too. `#type(Persons)` finds him, and `#instances(Persons)` is written the other way, as for any inverse. The class may itself have a `parent`, and so on as far as they go; a cycle is followed once round.
+	- The property it goes through must be a reference, or its values refer to nothing and there is nothing to follow.
+	- Only what is written counts as direct. Moses is an instance of Biblical figures as written and of Persons only through it, listed under Inherited with the class it comes by.
 - Inheriting
 	- With `##inherits` on a property, an entity has the properties of each entity the property refers to, as well as its own. The entities it inherits from may themselves inherit, and so on.
 	- A taxonomy, for example: `supertype`, with `##transitive`, `##inherits` and `##inverse(subtypes)`. If `tree` has `supertype:: plant` and `plant` has `#alive`, then tree is `#alive` too, a query for `#alive` finds it, and plant's page lists tree under subtypes.
@@ -46,6 +52,7 @@ alias:: [Meta-properties, meta-property, ## properties]
 	- An entity's page lists what it has from others under Inherited, below its body, apart from what it writes itself: each value with a link to the entity it is written on. A value that can be reached more than one way is listed once. Values a transitive property reaches are listed there too.
 - Inverses
 	- `##inverse(children)` on `parent` gives each entity a list headed children: the entities whose `parent` is it. It is shown below the entity's body, above the references, as a tree of children's children, open by default. A tree stops at 100 entities, showing all of an entity's children before any of theirs, and says how many more an entity has where it stops; they are on that entity's own page. An entity isn't repeated beneath itself.
+	- With `##through` on the property, a class's list also nests what is of its subclasses under each subclass, the instances of Biblical figures under Biblical figures in Persons' instances, in italics because it isn't itself an instance. A subclass with nothing of it is left out, and an entity is directly related only if it is written so: Persons' instances are those written `type:: Persons`, plus the subclasses that hold the rest.
 	- Queries can use the label: `#children(Edinburgh)` finds entities with Edinburgh as a child, Edinburgh's parents. For a transitive property, that includes its grandparents, as `#parent(Scotland)` includes Scotland's grandchildren.
 	- If several properties have the same label, the list has what any of them relate. An entity counts as direct, on the page, if any of them refers to it as written.
 	- The label can't be written as a property (a `children:: Edinburgh` line is an ordinary `children` property, unrelated to `parent`), and a property entity named for a label is flagged.
@@ -61,7 +68,7 @@ alias:: [Meta-properties, meta-property, ## properties]
 - How it works
 	- [[quiddity-syntax]] reads a `##key(…)` line as a meta-property, keeping the parameter as text. It finds the closing parenthesis by reading the parameter as the query parser does, so a query needs no escaping, and a line that is a meta-property isn't scanned for `#tags`. Links in a parameter that reads as a query are links like any other, and show in references. A properties block may hold meta-property lines as well as property lines. `##key:: value` is read the way a property line is, so its links count and its value shows on the line.
 		- A parameter ending in a backslash, `##k(C:\ )`, needs the space: `\)` would be a literal parenthesis.
-	- [[quiddity-core]] reads each property's meta-properties into its schema, and, after building the index, works out each entity's effective properties (its own, inherited, transitive and symmetric) by repeating until nothing changes, which copes with cycles. [[Queries]] are answered against the effective properties; the checks look at what is written.
+	- [[quiddity-core]] reads each property's meta-properties into its schema, and, after building the index, works out each entity's effective properties (its own, inherited, transitive, through and symmetric) by repeating until nothing changes, which copes with cycles. [[Queries]] are answered against the effective properties; the checks look at what is written.
 	- A reference refers to an entity only if it resolves to exactly one. An ambiguous link, or one to nowhere, is followed nowhere and checked against nothing.
 	- The work grows with the graph and how far its relations reach, and is redone at every rebuild of the index. On a graph of 3,150 pages it is about 20 ms of an 80 ms rebuild. [[Performance]]
 	- [[quiddity-view]] puts each flag on its line, in words, and gives an entity's page its inherited values and inverse trees.
