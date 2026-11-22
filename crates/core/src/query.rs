@@ -6,6 +6,7 @@ use crate::{BlockId, Index, Item, Resolution, canonical_value};
 
 impl Index {
     /// The entities a query finds, merged duplicates left out, in ID order.
+    #[must_use]
     pub fn query(&self, query: &Query) -> Vec<BlockId> {
         self.entities()
             .map(|e| e.id)
@@ -16,6 +17,7 @@ impl Index {
     /// Whether a query finds the entity. It sees effective properties:
     /// inherited ones, values a transitive property reaches, and inverse
     /// labels.
+    #[must_use]
     pub fn matches_query(&self, id: BlockId, query: &Query) -> bool {
         let id = self.canonical(id);
         match query {

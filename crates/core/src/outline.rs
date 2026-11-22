@@ -115,6 +115,7 @@ pub fn import_outline(graph: &Graph, outline: &Outline, fallback_name: &str) -> 
     Ok(entity)
 }
 
+#[must_use]
 pub fn format_outline(outline: &Outline) -> String {
     let mut out = String::new();
     if let Some(title) = &outline.title {

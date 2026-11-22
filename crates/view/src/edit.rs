@@ -35,6 +35,7 @@ pub enum PastedText {
 
 /// What pasting `text` into a block should do. Only text that starts with a
 /// bullet is an outline, so a sentence with a dash in it is just text.
+#[must_use]
 pub fn classify_paste(text: &str) -> PastedText {
     let first = text.trim_start().lines().next().unwrap_or("");
     let bulleted = first == "-" || first.starts_with("- ") || first.starts_with("-\t");

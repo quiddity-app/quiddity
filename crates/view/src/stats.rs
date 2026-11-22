@@ -74,6 +74,7 @@ pub struct Check {
 
 impl Check {
     /// How many problems there are in the integrity checks.
+    #[must_use]
     pub fn faults(&self) -> usize {
         self.integrity.iter().map(|o| o.problems.len()).sum()
     }

@@ -56,11 +56,9 @@ rust_2018_idioms = { level = "warn", priority = -1 }
 all = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
 # Docs for internal crates say what a thing is for; they don't need a
-# `# Errors` or `# Panics` section on every function, or `#[must_use]` on
-# every getter.
+# `# Errors` or `# Panics` section on every function.
 missing_errors_doc = "allow"
 missing_panics_doc = "allow"
-must_use_candidate = "allow"
 # Pedantic lints that don't earn their keep here. The hashing, offset and
 # scoring code casts between integer widths and to floats on purpose, and a
 # lint on every cast hides the ones that matter; the rest are judgement calls

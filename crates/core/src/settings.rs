@@ -101,6 +101,7 @@ impl Settings {
     }
 
     /// Whether nothing is set.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self == &Self::default()
     }

@@ -257,6 +257,7 @@ impl Index {
     /// The values of `key` an entity effectively has: its own, those a
     /// transitive property reaches, inherited ones, and, for an inverse
     /// label, the entities whose property refers to it.
+    #[must_use]
     pub fn effective_values(&self, id: BlockId, key: &str) -> Vec<Item> {
         let key = normalise_name(key);
         let id = self.canonical(id);
@@ -283,6 +284,7 @@ impl Index {
 
     /// Every property an entity effectively has, by normalised key, not
     /// counting inverse labels.
+    #[must_use]
     pub fn effective_properties(&self, id: BlockId) -> Effective {
         self.effective
             .get(&self.canonical(id))
@@ -294,6 +296,7 @@ impl Index {
     /// inverse: with `##inverse(children)` on `parent`, `inverse("children",
     /// scotland)` is everything with Scotland as a parent. `direct` leaves
     /// out those reached only through a transitive or inherited value.
+    #[must_use]
     pub fn inverse(&self, label: &str, id: BlockId, direct: bool) -> Vec<BlockId> {
         self.inverse
             .get(&(normalise_name(label), self.canonical(id)))
@@ -308,6 +311,7 @@ impl Index {
     /// `key`'s `##through` names, in order of ID: with
     /// `##through(parent)` on `type`, the subclasses of a class. Empty for a
     /// property with no `##through`.
+    #[must_use]
     pub fn through_children(&self, key: &str, id: BlockId) -> Vec<BlockId> {
         self.through
             .get(&(normalise_name(key), self.canonical(id)))
@@ -317,6 +321,7 @@ impl Index {
 
     /// The inverse labels of every property, with the property each belongs
     /// to, by normalised label.
+    #[must_use]
     pub fn inverse_labels(&self) -> BTreeMap<String, String> {
         self.schemas
             .iter()

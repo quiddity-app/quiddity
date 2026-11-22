@@ -195,6 +195,7 @@ impl Store {
 
     /// The graph's path as it was named, which is what to give anything else
     /// that opens the same graph.
+    #[must_use]
     pub fn dir(&self) -> &Path {
         &self.dir
     }

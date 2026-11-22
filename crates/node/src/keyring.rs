@@ -39,10 +39,12 @@ impl Keyring {
     /// The directory a device keeps its key in unless told otherwise: the
     /// platform's, for a program of this name. `None` if the environment
     /// doesn't say where.
+    #[must_use]
     pub fn default_dir() -> Option<PathBuf> {
         config_dir(Platform::current(), |name| std::env::var_os(name))
     }
 
+    #[must_use]
     pub fn dir(&self) -> &Path {
         &self.dir
     }

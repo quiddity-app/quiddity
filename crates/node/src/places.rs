@@ -45,6 +45,7 @@ pub struct Places {
 
 impl Places {
     /// The table kept in `dir`, which is made if there is none.
+    #[must_use]
     pub fn new(dir: &Path) -> Self {
         Self {
             file: dir.join(FILE),

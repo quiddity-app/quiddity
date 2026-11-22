@@ -97,6 +97,7 @@ impl Graph {
     /// A node ID at random, and never the one Loro refuses (the remainder
     /// leaves out only that one, and the bias of leaving out one in 2^64 is
     /// nothing).
+    #[must_use]
     pub fn fresh_node_id() -> NodeId {
         let bytes = *uuid::Uuid::new_v4().as_bytes();
         let random = u64::from_be_bytes(bytes[..8].try_into().expect("eight bytes of sixteen"));

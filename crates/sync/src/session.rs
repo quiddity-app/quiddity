@@ -64,17 +64,20 @@ impl Session {
         }
     }
 
+    #[must_use]
     pub fn state(&self) -> &State {
         &self.state
     }
 
     /// Everything the peer is known to have: what it said it had, plus
     /// everything sent to it or received from it since.
+    #[must_use]
     pub fn theirs(&self) -> &Version {
         &self.theirs
     }
 
     /// The peer's device ID, once its hello has arrived.
+    #[must_use]
     pub fn peer(&self) -> Option<&str> {
         self.peer.as_deref()
     }

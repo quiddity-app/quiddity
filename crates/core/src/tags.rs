@@ -12,12 +12,14 @@ use quiddity_syntax::{Block, Link, MetaProperty, Property, PropertyStyle, Value,
 pub const KEY: &str = "tag";
 
 /// Whether a `##` line is a `##tag` line.
+#[must_use]
 pub fn is_tag(meta: &MetaProperty) -> bool {
     normalise_name(&meta.key) == KEY
 }
 
 /// The names a `##tag` value holds, as written. A value that names nothing, a
 /// reference to a block, say, holds none.
+#[must_use]
 pub fn names(value: &Value) -> Vec<(&str, bool)> {
     fn collect<'a>(value: &'a Value, out: &mut Vec<(&'a str, bool)>) {
         match value {
@@ -33,6 +35,7 @@ pub fn names(value: &Value) -> Vec<(&str, bool)> {
 }
 
 /// The link a tag is: to the entity of that name.
+#[must_use]
 pub fn link(key: &str) -> Link {
     Link {
         name: key.to_owned(),

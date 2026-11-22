@@ -47,6 +47,7 @@ impl FromStr for BlockId {
 pub struct Version(VersionVector);
 
 impl Version {
+    #[must_use]
     pub fn encode(&self) -> Vec<u8> {
         self.0.encode()
     }
@@ -61,6 +62,7 @@ impl Version {
     }
 
     /// Whether everything in `other` is included in this version.
+    #[must_use]
     pub fn includes(&self, other: &Version) -> bool {
         self.0.includes_vv(&other.0)
     }
@@ -72,6 +74,7 @@ impl Version {
     }
 
     /// Every replica that made an edit this version includes, in order.
+    #[must_use]
     pub fn nodes(&self) -> Vec<NodeId> {
         let mut nodes: Vec<_> = self.0.keys().map(|&peer| NodeId::new(peer)).collect();
         nodes.sort();
@@ -79,6 +82,7 @@ impl Version {
     }
 
     /// How many edits by `node` this version includes.
+    #[must_use]
     pub fn count_of(&self, node: NodeId) -> u64 {
         self.0
             .get(&node.get())
@@ -110,6 +114,7 @@ impl Default for Graph {
 impl Graph {
     /// Creates a new, empty graph, as a replica with a node ID of its own that
     /// nothing keeps: the next one will have another.
+    #[must_use]
     pub fn new() -> Self {
         Self::new_as(Self::fresh_node_id())
     }
@@ -117,6 +122,7 @@ impl Graph {
     /// Creates a new, empty graph, as the replica `node`, so that what it
     /// writes to begin with is by that replica and not by one that is never
     /// heard of again.
+    #[must_use]
     pub fn new_as(node: NodeId) -> Self {
         let graph = Self::blank();
         graph
