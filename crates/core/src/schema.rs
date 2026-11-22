@@ -15,6 +15,7 @@ use quiddity_syntax::{
 };
 
 use crate::Flag;
+use crate::contact::ContactMapping;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ValueType {
@@ -94,6 +95,8 @@ pub struct PropertySchema {
     pub inverse: Option<String>,
     /// The relation holds both ways.
     pub symmetric: bool,
+    /// `##contact`: the field of a contact the property's values fill.
+    pub contact: Option<ContactMapping>,
 }
 
 impl Default for PropertySchema {
@@ -117,6 +120,7 @@ impl PropertySchema {
             inherits: false,
             inverse: None,
             symmetric: false,
+            contact: None,
         }
     }
 
@@ -190,6 +194,16 @@ impl PropertySchema {
                     self.inverse = Some(p.to_owned());
                     None
                 }
+                (Meta::Contact, Some(p)) => match ContactMapping::parse(p) {
+                    Some(mapping) => {
+                        self.contact = Some(mapping);
+                        None
+                    }
+                    None => Some(
+                        "expected a contact field, such as phone, email:work or address:home"
+                            .to_owned(),
+                    ),
+                },
             };
             flags.extend(problem.map(|message| Flag::BadMeta {
                 key: m.key.clone(),
@@ -229,6 +243,7 @@ enum Meta {
     Inherits,
     Inverse,
     Symmetric,
+    Contact,
 }
 
 const META: &[(&str, Meta)] = &[
@@ -240,6 +255,7 @@ const META: &[(&str, Meta)] = &[
     ("inherits", Meta::Inherits),
     ("inverse", Meta::Inverse),
     ("symmetric", Meta::Symmetric),
+    ("contact", Meta::Contact),
 ];
 
 /// How `##value-type` is spelt.
