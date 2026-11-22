@@ -45,11 +45,13 @@ impl Cardinality {
         max: Some(1),
     };
 
+    #[must_use]
     pub fn allows(self, count: usize) -> bool {
         count >= self.min && self.max.is_none_or(|max| count <= max)
     }
 
     /// Reads `*`, `2`, `0..1`, `1..*` or `2..5`.
+    #[must_use]
     pub fn parse(s: &str) -> Option<Self> {
         let bound = |b: &str| match b.trim() {
             "*" => Some(None),
@@ -112,6 +114,7 @@ impl PropertySchema {
     pub const DEFAULT: Self = Self::of(ValueType::Text, Cardinality::ANY);
 
     /// A schema that only says how values are read and how many there are.
+    #[must_use]
     pub const fn of(value_type: ValueType, cardinality: Cardinality) -> Self {
         Self {
             value_type,
@@ -127,6 +130,7 @@ impl PropertySchema {
     }
 
     /// Schemas for the properties Quiddity itself relies on.
+    #[must_use]
     pub fn builtin(key: &str) -> Option<Self> {
         let key = normalise_name(key);
         BUILTIN
@@ -137,6 +141,7 @@ impl PropertySchema {
 
     /// The schema `meta` makes of `base`, with what couldn't be read. Each
     /// meta-property written overrides what `base` says.
+    #[must_use]
     pub fn with_meta(mut self, meta: &[MetaProperty]) -> (Self, Vec<Flag>) {
         let mut flags = Vec::new();
         let mut typed = false;

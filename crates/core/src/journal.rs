@@ -10,11 +10,13 @@ use crate::{BlockId, Graph, Index, Result};
 pub const KEY: &str = "journal";
 
 /// Whether a `##` line is a `##journal` line.
+#[must_use]
 pub fn is_journal(meta: &MetaProperty) -> bool {
     normalise_name(&meta.key) == KEY
 }
 
 /// The day of the first `##journal` line, if it reads as one.
+#[must_use]
 pub fn date(meta: &[MetaProperty]) -> Option<Date> {
     let first = meta.iter().find(|m| is_journal(m))?;
     first.parameter.as_deref()?.parse().ok()

@@ -278,6 +278,7 @@ impl Peer {
         }
     }
 
+    #[must_use]
     pub fn graph(&self) -> &Graph {
         &self.inner.graph
     }
@@ -429,6 +430,7 @@ impl Peer {
     }
 
     /// The devices connected now, as far as the sync protocol knows.
+    #[must_use]
     pub fn connected_devices(&self) -> Vec<EndpointId> {
         let state = self.presence();
         state
@@ -616,11 +618,13 @@ impl Peer {
 
     /// Whether another device, one we are connected to or can reach through
     /// those that are, has `block` open.
+    #[must_use]
     pub fn watched(&self, block: &str) -> bool {
         self.presence().presence.watched(block)
     }
 
     /// The other devices that are here, and what they have open.
+    #[must_use]
     pub fn present(&self) -> Vec<Record> {
         let state = self.presence();
         state.presence.present().into_iter().cloned().collect()
@@ -629,6 +633,7 @@ impl Peer {
     /// How this device stands with the others, for showing the user. It is
     /// about the devices this one is connected to, which may be relaying for
     /// others.
+    #[must_use]
     pub fn sync_state(&self) -> SyncState {
         let others_listed = self
             .graph()
@@ -643,6 +648,7 @@ impl Peer {
     }
 
     /// Watches for changes that may change [`Peer::sync_state`].
+    #[must_use]
     pub fn subscribe_status(&self) -> watch::Receiver<u64> {
         self.inner.status_changes.subscribe()
     }
@@ -661,6 +667,7 @@ impl Peer {
     }
 
     /// Watches for changes to who is here and what they have open.
+    #[must_use]
     pub fn subscribe_presence(&self) -> watch::Receiver<u64> {
         self.inner.presence_changes.subscribe()
     }
@@ -724,6 +731,7 @@ impl Peer {
     }
 
     /// Watches for changes to the graph, local or from peers.
+    #[must_use]
     pub fn subscribe(&self) -> watch::Receiver<u64> {
         self.inner.changes.subscribe()
     }
@@ -975,6 +983,7 @@ pub struct Server {
 }
 
 impl Server {
+    #[must_use]
     pub fn endpoint(&self) -> &Endpoint {
         self.router.endpoint()
     }

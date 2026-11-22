@@ -67,11 +67,13 @@ impl Presence {
     }
 
     /// This device's own record.
+    #[must_use]
     pub fn own(&self) -> &Record {
         &self.records[&self.me]
     }
 
     /// The latest record held for `device`, live or not.
+    #[must_use]
     pub fn record(&self, device: &str) -> Option<&Record> {
         self.records.get(device)
     }
@@ -147,6 +149,7 @@ impl Presence {
     }
 
     /// The records of the other live devices.
+    #[must_use]
     pub fn present(&self) -> Vec<&Record> {
         let live = self.live();
         self.records
@@ -157,6 +160,7 @@ impl Presence {
 
     /// The live devices, this one included: those reachable over links that
     /// both ends list.
+    #[must_use]
     pub fn live(&self) -> BTreeSet<String> {
         let mut live = BTreeSet::from([self.me.clone()]);
         let mut frontier = vec![&self.me];
@@ -175,6 +179,7 @@ impl Presence {
     }
 
     /// Whether some other live device has `block` open.
+    #[must_use]
     pub fn watched(&self, block: &str) -> bool {
         self.present().iter().any(|r| r.focus.contains(block))
     }

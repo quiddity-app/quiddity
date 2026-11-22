@@ -75,6 +75,7 @@ impl Ledger {
 
     /// The files that may go: first seen unreferenced at least `grace` ago, at
     /// a version `stored_by_all` includes.
+    #[must_use]
     pub fn due(
         &self,
         now: Timestamp,
@@ -95,10 +96,12 @@ impl Ledger {
         self.seen.retain(|hash, _| !hashes.contains(hash));
     }
 
+    #[must_use]
     pub fn len(&self) -> usize {
         self.seen.len()
     }
 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.seen.is_empty()
     }
@@ -108,6 +111,7 @@ impl Ledger {
     /// 1970) and the graph's version then (in hex). A line it cannot read is
     /// left out, which only starts that file's clock again: waiting longer is
     /// the safe mistake.
+    #[must_use]
     pub fn from_text(text: &str) -> Self {
         let seen = text
             .lines()

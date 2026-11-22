@@ -34,6 +34,7 @@ pub enum Query {
 impl Query {
     /// The links written in the query, including those in values, in order.
     /// Links inside a link's qualifiers aren't counted, as in properties.
+    #[must_use]
     pub fn links(&self) -> Vec<&Link> {
         let mut out = Vec::new();
         self.collect_links(&mut out);
@@ -95,6 +96,7 @@ pub fn parse_query(src: &str) -> Result<Query, QueryError> {
 
 /// Writes a query so that [`parse_query`] reads it back the same, with no
 /// more parentheses or quotes than that needs.
+#[must_use]
 pub fn format_query(query: &Query) -> String {
     write(query, 0)
 }

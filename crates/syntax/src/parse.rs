@@ -80,6 +80,7 @@ pub struct Block {
 }
 
 /// Parses a block's text. Never fails: malformed syntax is plain text.
+#[must_use]
 pub fn parse_block(text: &str) -> Block {
     let mut block = Block::default();
     let mut fence: Option<(char, usize)> = None;
@@ -116,6 +117,7 @@ pub struct PropertiesBlock {
 /// makes a block a blob and nothing else. Any later line that is none of
 /// those is stray, so prose typed into a properties block neither becomes a
 /// property nor hides the others.
+#[must_use]
 pub fn parse_properties_block(text: &str) -> Option<PropertiesBlock> {
     let mut found = PropertiesBlock::default();
     let mut offset = 0;
@@ -176,6 +178,7 @@ fn is_tags_line(line: &str) -> bool {
 
 /// Whether a block consists only of `key:: value` lines (and `##` lines), like the initial block of an entity that holds the entity's
 /// properties.
+#[must_use]
 pub fn is_properties_block(text: &str) -> bool {
     let mut any = false;
     for line in text.lines().filter(|l| !l.trim().is_empty()) {
@@ -196,6 +199,7 @@ pub fn is_properties_block(text: &str) -> bool {
 /// The key must start with a letter, digit or underscore and may not contain
 /// `:`, `#`, brackets or parentheses. `::` must be followed by whitespace or
 /// the end of the line.
+#[must_use]
 pub fn parse_property_line(line: &str) -> Option<(String, Option<Value>)> {
     split_property_line(line)
         .map(|(key, value)| (key, value.map(parse_line_value)))
@@ -274,6 +278,7 @@ pub fn parse_meta_line(line: &str) -> Option<(String, Option<String>)> {
 /// written as a property line's is, so a list or a link needs no query syntax.
 /// `::` must be followed by whitespace or the end of the line, and a line with
 /// no value is the same as `##key`.
+#[must_use]
 pub fn parse_meta_value_line(line: &str) -> Option<(String, Option<Value>)> {
     split_meta_value_line(line).map(|(key, value)| (key, value.map(parse_line_value)))
 }
@@ -316,6 +321,7 @@ fn split_property_line(line: &str) -> Option<(String, Option<&str>)> {
 ///
 /// A value that is exactly a list, quoted string, link or block reference is
 /// parsed as such; anything else is the text as written.
+#[must_use]
 pub fn parse_line_value(value: &str) -> Value {
     line_value(value).0
 }
@@ -676,6 +682,7 @@ pub fn ref_items(value: &Value) -> Vec<Value> {
 /// Reads text as it should be shown: the links and block references written
 /// in it as values, and the text between them as text. Text with neither is
 /// returned as it is, in one piece.
+#[must_use]
 pub fn text_with_links(text: &str) -> Vec<Value> {
     text_parts(text, false)
 }

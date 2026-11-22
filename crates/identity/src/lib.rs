@@ -74,10 +74,12 @@ impl GraphId {
     /// The ID with these bytes, which must be random: the caller says where
     /// from, so this crate needs no source of randomness, and builds for
     /// WASM.
+    #[must_use]
     pub const fn from_bytes(bytes: [u8; 16]) -> Self {
         Self(bytes)
     }
 
+    #[must_use]
     pub const fn to_bytes(self) -> [u8; 16] {
         self.0
     }
@@ -99,10 +101,12 @@ public_id!(GraphId, Kind::GraphId);
 pub struct NodeId(u64);
 
 impl NodeId {
+    #[must_use]
     pub const fn new(id: u64) -> Self {
         Self(id)
     }
 
+    #[must_use]
     pub const fn get(self) -> u64 {
         self.0
     }
@@ -117,6 +121,7 @@ impl NodeId {
 
     /// This ID in the form to keep it in, readable only with the mask it was
     /// sealed with.
+    #[must_use]
     pub fn seal(self, mask: &NodeMask) -> SealedNodeId {
         let mut bytes = [0; 12];
         bytes[..8].copy_from_slice(&(self.0 ^ mask.0).to_be_bytes());
@@ -133,10 +138,12 @@ public_id!(NodeId, Kind::NodeId);
 pub struct DeviceId([u8; 32]);
 
 impl DeviceId {
+    #[must_use]
     pub const fn from_bytes(bytes: [u8; 32]) -> Self {
         Self(bytes)
     }
 
+    #[must_use]
     pub const fn to_bytes(self) -> [u8; 32] {
         self.0
     }
@@ -151,6 +158,7 @@ impl DeviceId {
 
     /// The bare form devices have always been listed under in a graph:
     /// 64 lower-case hexadecimal digits.
+    #[must_use]
     pub fn to_bare(self) -> String {
         self.0
             .iter()
@@ -192,12 +200,14 @@ const NODE_MASK_CONTEXT: &str = "quiddity 2026-11 identity v1 node mask";
 
 impl DeviceKey {
     /// The key with these bytes, which must be random.
+    #[must_use]
     pub fn from_bytes(bytes: [u8; 32]) -> Self {
         Self(Zeroizing::new(bytes))
     }
 
     /// The key as it is written to the file that keeps it. The text is
     /// wiped when dropped.
+    #[must_use]
     pub fn to_token(&self) -> Zeroizing<String> {
         Zeroizing::new(token::encode(Kind::DeviceKey, &*self.0))
     }
@@ -216,11 +226,13 @@ impl DeviceKey {
     /// `salt`: the same key and salt give the same seed, and no two salts
     /// give related ones. Whoever has the seed is the device, so it is
     /// wiped when dropped.
+    #[must_use]
     pub fn endpoint_seed(&self, salt: &Salt) -> Zeroizing<[u8; 32]> {
         Zeroizing::new(self.derive(ENDPOINT_CONTEXT, salt))
     }
 
     /// The mask that ties a [`NodeId`] to this device and salt.
+    #[must_use]
     pub fn node_mask(&self, salt: &Salt) -> NodeMask {
         let derived = Zeroizing::new(self.derive(NODE_MASK_CONTEXT, salt));
         let mut mask = [0; 8];
@@ -251,10 +263,12 @@ impl fmt::Debug for DeviceKey {
 pub struct Salt([u8; 16]);
 
 impl Salt {
+    #[must_use]
     pub const fn from_bytes(bytes: [u8; 16]) -> Self {
         Self(bytes)
     }
 
+    #[must_use]
     pub const fn to_bytes(self) -> [u8; 16] {
         self.0
     }
@@ -279,16 +293,19 @@ impl fmt::Debug for NodeMask {
 pub struct SealedNodeId([u8; 12]);
 
 impl SealedNodeId {
+    #[must_use]
     pub const fn from_bytes(bytes: [u8; 12]) -> Self {
         Self(bytes)
     }
 
+    #[must_use]
     pub const fn to_bytes(self) -> [u8; 12] {
         self.0
     }
 
     /// The ID, if `mask` is the one it was sealed with. A wrong mask is
     /// told apart with all but a 1 in 2^32 chance.
+    #[must_use]
     pub fn open(&self, mask: &NodeMask) -> Option<NodeId> {
         let (masked, check) = self.0.split_at(8);
         let id = NodeId(u64::from_be_bytes(masked.try_into().ok()?) ^ mask.0);

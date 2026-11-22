@@ -31,6 +31,7 @@ impl Kind {
     pub const ALL: [Kind; 4] = [Kind::DeviceKey, Kind::DeviceId, Kind::GraphId, Kind::NodeId];
 
     /// The prefix, without its underscore.
+    #[must_use]
     pub const fn prefix(self) -> &'static str {
         match self {
             Kind::DeviceKey => "qdk",
@@ -41,6 +42,7 @@ impl Kind {
     }
 
     /// What the kind is called in an error message.
+    #[must_use]
     pub const fn name(self) -> &'static str {
         match self {
             Kind::DeviceKey => "device key",
@@ -51,6 +53,7 @@ impl Kind {
     }
 
     /// How many bytes the payload has.
+    #[must_use]
     pub const fn payload_len(self) -> usize {
         match self {
             Kind::DeviceKey | Kind::DeviceId => 32,
@@ -70,6 +73,7 @@ impl Kind {
     }
 
     /// The kind whose prefix `text` begins with.
+    #[must_use]
     pub fn of(text: &str) -> Option<Kind> {
         Kind::ALL.into_iter().find(|kind| {
             text.strip_prefix(kind.prefix())

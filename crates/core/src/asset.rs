@@ -78,6 +78,7 @@ impl Asset {
     /// if it is a common one; otherwise `bin`. It is always lower-case letters
     /// and digits, so it is safe as part of a path whatever the name says. The
     /// hash is what identifies the file: the extension is only a convenience.
+    #[must_use]
     pub fn file_name(&self) -> String {
         format!("{}.{}", self.hash, self.extension())
     }
@@ -109,6 +110,7 @@ impl Asset {
     }
 
     /// The parameter of the `##blob` line that says this.
+    #[must_use]
     pub fn parameter(&self) -> String {
         let mut p = format!("{}, {}, {}", self.hash, self.mime, self.size);
         if let Some(name) = &self.name {
@@ -119,6 +121,7 @@ impl Asset {
     }
 
     /// The `##blob` line that says this.
+    #[must_use]
     pub fn line(&self) -> String {
         format_meta_line(KEY, Some(&self.parameter()))
     }
@@ -139,11 +142,13 @@ impl Asset {
     /// The parameter of the `##blob` line a block starts with, as written,
     /// whether or not it can be read: the outer `None` is a block that is no
     /// blob, the inner one a line with no parameter.
+    #[must_use]
     pub fn line_of(text: &str) -> Option<Option<String>> {
         blob_line(text)
     }
 
     /// The caption of the blob in `text`: what follows its first line.
+    #[must_use]
     pub fn caption(text: &str) -> &str {
         text.split_once('\n').map_or("", |(_, rest)| rest).trim()
     }

@@ -89,6 +89,7 @@ pub struct EntityInfo {
 impl EntityInfo {
     /// The other names it answers to: the items of every `alias` property,
     /// which may each be a single name or a list of them.
+    #[must_use]
     pub fn aliases(&self) -> Vec<&Value> {
         self.values("alias")
             .flat_map(|v| match v {
@@ -121,6 +122,7 @@ impl EntityInfo {
     }
 
     /// Whether one of the entity's properties satisfies the qualifier.
+    #[must_use]
     pub fn matches(&self, q: &Qualifier) -> bool {
         let key = normalise_name(&q.key);
         self.properties
@@ -544,6 +546,7 @@ impl Index {
     }
 
     /// The schema for the property `key`.
+    #[must_use]
     pub fn schema(&self, key: &str) -> Cow<'_, PropertySchema> {
         let key = normalise_name(key);
         match self.schemas.get(&key) {
@@ -554,10 +557,12 @@ impl Index {
 
     /// The entity a block is in, before duplicates are merged: the block
     /// itself if it is one. `None` for a block the index has not seen.
+    #[must_use]
     pub fn entity_of(&self, block: BlockId) -> Option<BlockId> {
         self.root_of.get(&block).copied()
     }
 
+    #[must_use]
     pub fn entity(&self, id: BlockId) -> Option<&EntityInfo> {
         self.entities.get(&id)
     }
@@ -584,11 +589,13 @@ impl Index {
     }
 
     /// The entity a duplicate has been merged into, or `id` itself.
+    #[must_use]
     pub fn canonical(&self, id: BlockId) -> BlockId {
         self.canonical.get(&id).copied().unwrap_or(id)
     }
 
     /// Entities with this name or alias.
+    #[must_use]
     pub fn named(&self, name: &str) -> Vec<BlockId> {
         self.by_name
             .get(&normalise_name(name))
@@ -598,6 +605,7 @@ impl Index {
 
     /// Follows a link: entities with the link's name or alias whose
     /// properties match all of the link's qualifiers.
+    #[must_use]
     pub fn resolve(&self, link: &Link) -> Resolution {
         let mut matches: Vec<_> = self
             .named(&link.name)
@@ -618,6 +626,7 @@ impl Index {
     }
 
     /// The block with this `id` property.
+    #[must_use]
     pub fn resolve_block_ref(&self, id: &str) -> Option<BlockId> {
         self.by_ref_id.get(id).copied()
     }
@@ -628,16 +637,19 @@ impl Index {
     }
 
     /// The entity with this identity.
+    #[must_use]
     pub fn by_identity(&self, identity: &Identity) -> Option<BlockId> {
         self.by_identity.get(identity).map(|ids| ids[0])
     }
 
     /// The journal page for `date`.
+    #[must_use]
     pub fn journal(&self, date: Date) -> Option<BlockId> {
         self.by_identity(&Identity::Journal(date))
     }
 
     /// The day a link names, if it leads to a journal.
+    #[must_use]
     pub fn link_day(&self, link: &Link) -> Option<Date> {
         let Resolution::Unique(id) = self.resolve(link) else {
             return None;
@@ -650,6 +662,7 @@ impl Index {
     /// A date property's value with each link to a journal read as its day,
     /// so that `[[2026-10-25]]` and `2026-10-25` mean the same. Anything else
     /// is left as it was.
+    #[must_use]
     pub fn read_days(&self, value: &Value) -> Value {
         match value {
             Value::Link(link) => self
@@ -663,6 +676,7 @@ impl Index {
     /// The entity that defines the property `key`: the only entity with that
     /// name or alias, found as a link to the name alone would. With none, or
     /// several, the property has no entity to define it.
+    #[must_use]
     pub fn property_entity(&self, key: &str) -> Option<BlockId> {
         let found = self.named(key);
         match found.as_slice() {
@@ -672,6 +686,7 @@ impl Index {
     }
 
     /// Whether `id` is the entity that defines the property of its own name.
+    #[must_use]
     pub fn defines_property(&self, id: BlockId) -> bool {
         self.entities
             .get(&id)

@@ -10,6 +10,7 @@ use quiddity_syntax::{MetaProperty, normalise_name};
 pub const KEY: &str = "id";
 
 /// Whether a `##` line is a `##id` line.
+#[must_use]
 pub fn is_id(meta: &MetaProperty) -> bool {
     normalise_name(&meta.key) == KEY
 }
@@ -17,6 +18,7 @@ pub fn is_id(meta: &MetaProperty) -> bool {
 /// The ID of the first `##id` line that has one. A line with none says
 /// nothing, so it doesn't hide one after it: a block can be given an ID by
 /// adding a line, whatever else it holds.
+#[must_use]
 pub fn of(meta: &[MetaProperty]) -> Option<&str> {
     meta.iter()
         .filter(|m| is_id(m))

@@ -12,6 +12,7 @@ enum Context {
 }
 
 /// Formats a property key for use after `#`, bracketing it if necessary.
+#[must_use]
 pub fn format_key(key: &str) -> String {
     if is_bare_key(key) {
         key.to_owned()
@@ -21,16 +22,19 @@ pub fn format_key(key: &str) -> String {
 }
 
 /// Formats a value for use inside a link's qualifier, `#key(…)`.
+#[must_use]
 pub fn format_value(value: &Value) -> String {
     format_in(value, Context::Paren)
 }
 
 /// Formats a tag, `#key`.
+#[must_use]
 pub fn format_tag(key: &str) -> String {
     format!("#{}", format_key(key))
 }
 
 /// Formats a link's qualifier, `#key` or `#key(value)`.
+#[must_use]
 pub fn format_qualifier(key: &str, value: Option<&Value>) -> String {
     match value {
         Some(v) => format!("#{}({})", format_key(key), format_value(v)),
@@ -40,6 +44,7 @@ pub fn format_qualifier(key: &str, value: Option<&Value>) -> String {
 
 /// Formats a `key:: value` line, or `key::` for a property without a value.
 /// The key must be valid as a line key.
+#[must_use]
 pub fn format_property_line(key: &str, value: Option<&Value>) -> String {
     match value {
         Some(v) => format!("{key}:: {}", format_in(v, Context::Line)),
@@ -48,6 +53,7 @@ pub fn format_property_line(key: &str, value: Option<&Value>) -> String {
 }
 
 /// Formats a `##key:: value` line, or `##key` for one without a value.
+#[must_use]
 pub fn format_meta_value_line(key: &str, value: Option<&Value>) -> String {
     match value {
         Some(v) => format!("##{}:: {}", format_key(key), format_in(v, Context::Line)),
@@ -59,6 +65,7 @@ pub fn format_meta_value_line(key: &str, value: Option<&Value>) -> String {
 /// as it is, so it must balance as [`crate::parse_meta_line`] expects, which
 /// anything [`crate::format_query`] writes does. One ending in a backslash
 /// gets a space before the `)`, which the backslash would otherwise escape.
+#[must_use]
 pub fn format_meta_line(key: &str, parameter: Option<&str>) -> String {
     match parameter {
         Some(p) if p.ends_with('\\') => format!("##{}({p} )", format_key(key)),
@@ -68,6 +75,7 @@ pub fn format_meta_line(key: &str, parameter: Option<&str>) -> String {
 }
 
 /// Formats a link, escaping its name only where necessary.
+#[must_use]
 pub fn format_link(link: &Link) -> String {
     let qualifiers: String = link
         .qualifiers

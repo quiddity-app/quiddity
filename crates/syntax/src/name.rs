@@ -5,6 +5,7 @@ use unicode_normalization::{UnicodeNormalization, char::is_combining_mark, is_nf
 /// Text in the form Quiddity stores: Unicode NFC (canonical composition), so
 /// that `é` typed as one character or as `e` plus an accent is stored the same
 /// way. Borrows when the text is already NFC, which is nearly always.
+#[must_use]
 pub fn nfc(text: &str) -> Cow<'_, str> {
     if is_nfc(text) {
         Cow::Borrowed(text)
@@ -14,12 +15,14 @@ pub fn nfc(text: &str) -> Cow<'_, str> {
 }
 
 /// Whether `c` is a combining mark: part of the letter before it.
+#[must_use]
 pub fn is_mark(c: char) -> bool {
     is_combining_mark(c)
 }
 
 /// Whether `c` is part of a word for names, tags and search: a letter or
 /// digit, or a combining mark, which belongs to the letter before it.
+#[must_use]
 pub fn is_word_char(c: char) -> bool {
     c.is_alphanumeric() || is_mark(c)
 }
@@ -34,6 +37,7 @@ fn is_invisible(c: char) -> bool {
 /// The form in which words are compared and indexed: NFKC (so compatibility
 /// forms such as `ﬁ` and `Ａ` match their plain spellings), case folded (so
 /// `Straße` matches `STRASSE`), and without invisible characters.
+#[must_use]
 pub fn fold(word: &str) -> String {
     let plain: String = word.chars().filter(|&c| !is_invisible(c)).nfkc().collect();
     // Folding can denormalise, so compose again.
@@ -46,6 +50,7 @@ pub fn fold(word: &str) -> String {
 /// and differences of Unicode form (see [`fold`]), so `[[Jane  Doe]]` and
 /// `[[jane doe]]` refer to the same names, and so do a composed and a
 /// decomposed `Café`.
+#[must_use]
 pub fn normalise_name(name: &str) -> String {
     // Fold before splitting: invisible characters can't hide or make a
     // boundary, and NFKC can itself make whitespace (`¯` is a space and a

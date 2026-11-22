@@ -52,6 +52,7 @@ pub enum DecodeError {
 }
 
 impl Message {
+    #[must_use]
     pub fn encode(&self) -> Vec<u8> {
         match self {
             Message::Hello {
