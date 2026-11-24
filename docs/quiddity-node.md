@@ -10,6 +10,7 @@ alias:: headless node
 	- `gc` deletes the files nothing refers to any more, once it is safe to, and `gc --dry-run` says what it would do. The node must not be serving. [[Binaries]]
 	- `allow` lists a device in the graph, so it may connect, and `devices` lists the devices holding the graph with when each last saved. [[Device list]]
 	- `serve` keeps the graph online until interrupted. With `--export DIR`, SIGUSR1 writes the running graph to `DIR` as Markdown, replacing what is there: the pre-backup hook for something like Home Assistant's online backups. [[Export and import]]
+	- With `--debug-http ADDR`, `serve` also answers `GET /status` there with JSON: the node's own ID, its [[Sync status]] as a word, the devices connected now, and the devices the graph lists with when each last saved. A running node's store can't be opened by another process, so this is the only way to ask it. It says nothing of the graph's content and has no authentication, so bind it to loopback or behind a trusted proxy.
 	- `sync` syncs with one device until neither has anything more to send.
 - Logging
 	- The crates log with `tracing`; only the binaries install a subscriber, which writes to stderr. What a command reports (`imported 2 entities`, an ID, the device list) is its output and goes to stdout whatever the log level, so `-q` never hides it.

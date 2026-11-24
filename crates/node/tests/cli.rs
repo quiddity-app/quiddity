@@ -136,6 +136,58 @@ fn import_serve_sync_export() {
     assert!(files(&tmp.path().join("c-out")).is_empty());
 }
 
+/// A running node answers `GET /status` with what it knows of itself, and
+/// nothing else.
+#[test]
+fn serve_debug_http_reports_status() {
+    use std::io::{Read, Write};
+    let tmp = tempfile::tempdir().unwrap();
+    let graph = tmp.path().join("g");
+    let id = run(node(&graph).arg("init"));
+    let mut server = node(&graph)
+        .args([
+            "serve",
+            "--allow-any",
+            "--local",
+            "127.0.0.1:0",
+            "--debug-http",
+            "127.0.0.1:0",
+        ])
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut out = BufReader::new(server.stdout.take().unwrap());
+    let (mut serving, mut http) = (String::new(), String::new());
+    out.read_line(&mut serving).unwrap();
+    out.read_line(&mut http).unwrap();
+    let addr = http
+        .trim()
+        .strip_prefix("debug http at ")
+        .unwrap()
+        .to_owned();
+
+    let get = |request: &str| {
+        let mut stream = std::net::TcpStream::connect(&addr).unwrap();
+        stream.write_all(request.as_bytes()).unwrap();
+        let mut response = String::new();
+        stream.read_to_string(&mut response).unwrap();
+        response
+    };
+    let ok = get("GET /status HTTP/1.1\r\nHost: x\r\n\r\n");
+    let missing = get("GET /graph HTTP/1.1\r\n\r\n");
+    let post = get("POST /status HTTP/1.1\r\n\r\n");
+    server.kill().unwrap();
+    server.wait().unwrap();
+
+    assert!(ok.starts_with("HTTP/1.1 200 OK"), "{ok}");
+    // Only this device is listed, and nobody is connected.
+    assert!(ok.contains(&format!(r#""device":"{id}""#)), "{ok}");
+    assert!(ok.contains(r#""state":"alone""#), "{ok}");
+    assert!(ok.contains(r#""connected":[]"#), "{ok}");
+    assert!(missing.starts_with("HTTP/1.1 404"), "{missing}");
+    assert!(post.starts_with("HTTP/1.1 405"), "{post}");
+}
+
 #[test]
 fn serve_needs_to_be_told_who_may_connect() {
     let tmp = tempfile::tempdir().unwrap();

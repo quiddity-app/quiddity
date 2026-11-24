@@ -16,3 +16,4 @@
 	- Listed: the other devices the graph lists, connected or not. Typing held back: how many blocks. Here now: how many devices have a block open.
 	- `Peer::sync_details` gathers them, and `sync_state` is its `state`, so the two can't disagree.
 - Not yet: it cannot say how far behind. Behind can show for a moment whenever typing is held back, before the [[Publish gate]] lets it go.
+- The headless node reports it too: `serve --debug-http` answers `GET /status` with the state's word and the connected devices. [[quiddity-node]]

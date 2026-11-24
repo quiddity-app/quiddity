@@ -15,6 +15,13 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
   `exported N entities to DIR` when done: the signal can't report that, so
   callers wait for the line. Without `--export` the signal is logged and
   ignored (the default action would kill the process).
+- **`serve --debug-http ADDR` is `debug_http.rs`**: a hand-written HTTP/1.1
+  responder (no HTTP dependency, one request per connection, `GET /` or
+  `/status` only) over tokio's `TcpListener`. It is how anything learns about a
+  running node, since the store allows one process at a time. It has no
+  authentication and must stay free of graph content: state, device IDs and
+  when they last saved, nothing a user wrote. The JSON is written by hand
+  (`quote` escapes it); don't add a field that holds text from the graph.
 - **The graph is one SQLite file, `graph.quiddity`**, with a `snapshot` row,
   a `slot` row (a random salt) and, only in a graph made before the device's key
   was kept apart, an `endpoint_key` row (`store.rs`). `save` is one transaction in a rollback journal with `synchronous=FULL`, so it
