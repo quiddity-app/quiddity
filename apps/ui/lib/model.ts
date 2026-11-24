@@ -25,6 +25,26 @@ export type SyncState =
   /** Connected and up to date, and another device has a block open. */
   | 'present';
 
+/** How this device stands with the others, and what that rests on. */
+export interface SyncDetails {
+  state: SyncState;
+  /** Other devices the graph lists, connected or not. */
+  listed: number;
+  /** The devices connected now, by ID. */
+  connected: ConnectedDevice[];
+  /** Blocks with typing held back until another device can see it. */
+  held: number;
+  /** Devices with a block open. */
+  watching: number;
+}
+
+/** A device this one is connected to. */
+export interface ConnectedDevice {
+  device: string;
+  /** Whether it is known to have something this device lacks. */
+  ahead: boolean;
+}
+
 /** A device the graph records: one that holds it, or has been let in to it. */
 export interface Device {
   /** Its endpoint ID, which another device needs to let it in. */

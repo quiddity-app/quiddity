@@ -183,8 +183,8 @@ struct Inner {
     /// Bumped whenever presence changes, so every connection announces it.
     presence_changes: watch::Sender<u64>,
     /// What each connected peer is known to have, by connection, for
-    /// [`Peer::sync_state`].
-    syncs: Mutex<BTreeMap<u64, Version>>,
+    /// [`Peer::sync_state`], with the device each connection is to.
+    syncs: Mutex<BTreeMap<u64, (String, Version)>>,
     next_link: AtomicU64,
     /// Bumped whenever [`Peer::sync_state`] may have changed.
     status_changes: watch::Sender<u64>,
@@ -635,16 +635,36 @@ impl Peer {
     /// others.
     #[must_use]
     pub fn sync_state(&self) -> SyncState {
-        let others_listed = self
+        self.sync_details().state
+    }
+
+    /// [`Peer::sync_state`] and what it was worked out from, for showing the
+    /// user why.
+    #[must_use]
+    pub fn sync_details(&self) -> SyncDetails {
+        let listed = self
             .graph()
             .devices()
             .iter()
-            .any(|d| d.id != self.inner.device);
+            .filter(|d| d.id != self.inner.device)
+            .count();
         let ours = self.graph().version();
-        let theirs: Vec<Version> = self.syncs().values().cloned().collect();
-        let held = !self.gate().pending.is_empty();
-        let watched = self.present().iter().any(|r| !r.focus.is_empty());
-        classify(others_listed, &theirs, &ours, held, watched)
+        let links: Vec<(String, Version)> = self.syncs().values().cloned().collect();
+        let theirs: Vec<Version> = links.iter().map(|(_, v)| v.clone()).collect();
+        let held = self.gate().pending.len();
+        let watching = self
+            .present()
+            .iter()
+            .filter(|r| !r.focus.is_empty())
+            .count();
+        let connected = connected_devices(&links, &ours);
+        SyncDetails {
+            state: classify(listed > 0, &theirs, &ours, held > 0, watching > 0),
+            listed,
+            connected,
+            held,
+            watching,
+        }
     }
 
     /// Watches for changes that may change [`Peer::sync_state`].
@@ -653,7 +673,7 @@ impl Peer {
         self.inner.status_changes.subscribe()
     }
 
-    fn syncs(&self) -> MutexGuard<'_, BTreeMap<u64, Version>> {
+    fn syncs(&self) -> MutexGuard<'_, BTreeMap<u64, (String, Version)>> {
         self.inner
             .syncs
             .lock()
@@ -661,9 +681,12 @@ impl Peer {
     }
 
     /// Records what a connection's peer is now known to have.
-    fn note_sync(&self, link: u64, session: &Session) {
-        self.syncs().insert(link, session.theirs().clone());
-        bump(&self.inner.status_changes);
+    fn note_sync(&self, link: &Link<'_>, session: &Session) {
+        if let Some(device) = &link.device {
+            self.syncs()
+                .insert(link.id, (device.clone(), session.theirs().clone()));
+            bump(&self.inner.status_changes);
+        }
     }
 
     /// Watches for changes to who is here and what they have open.
@@ -826,9 +849,7 @@ impl Peer {
                             self.connected(device);
                             link.device = Some(device.to_owned());
                         }
-                        if link.device.is_some() {
-                            self.note_sync(link.id, &session);
-                        }
+                        self.note_sync(&link, &session);
                         if carries_graph {
                             self.changed();
                         }
@@ -852,9 +873,7 @@ impl Peer {
                     if let Some(message) = session.flush(graph)? {
                         write(&mut send, &message).await?;
                     }
-                    if link.device.is_some() {
-                        self.note_sync(link.id, &session);
-                    }
+                    self.note_sync(&link, &session);
                 }
                 changed = gate_changes.changed() => {
                     // Only the deadline moved: loop to read it again.
@@ -882,6 +901,28 @@ pub enum SyncState {
     Synced,
     /// As `Synced`, and another device has a block open.
     Present,
+}
+
+/// What [`Peer::sync_state`] was worked out from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SyncDetails {
+    pub state: SyncState,
+    /// Other devices the graph lists, connected or not.
+    pub listed: usize,
+    /// The devices connected, by ID, in order.
+    pub connected: Vec<ConnectedDevice>,
+    /// Blocks with typing held back until someone can see it.
+    pub held: usize,
+    /// Connected devices, or devices they relay for, with a block open.
+    pub watching: usize,
+}
+
+/// A device this one is connected to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConnectedDevice {
+    pub device: String,
+    /// Whether it is known to have something this device lacks.
+    pub ahead: bool,
 }
 
 /// [`SyncState`] from what is known: whether the graph lists other devices,
@@ -912,6 +953,23 @@ fn classify(
     } else {
         SyncState::Synced
     }
+}
+
+/// The devices connected, in order of ID, from what each connection's peer is
+/// known to have. A device with two connections (both dialled at once) is one
+/// device, and ahead if either connection's peer is.
+fn connected_devices(links: &[(String, Version)], ours: &Version) -> Vec<ConnectedDevice> {
+    let mut ahead: BTreeMap<&str, bool> = BTreeMap::new();
+    for (device, version) in links {
+        *ahead.entry(device).or_default() |= !ours.includes(version);
+    }
+    ahead
+        .into_iter()
+        .map(|(device, ahead)| ConnectedDevice {
+            device: device.to_owned(),
+            ahead,
+        })
+        .collect()
 }
 
 fn bump(counter: &watch::Sender<u64>) {
@@ -1272,6 +1330,40 @@ mod tests {
         assert_eq!(
             state(true, std::slice::from_ref(&ours), true, true),
             SyncState::Behind
+        );
+    }
+
+    #[test]
+    fn a_device_with_two_connections_is_listed_once_and_ahead_if_either_is() {
+        let ours = version_of("ours");
+        let theirs = version_of("theirs");
+        let link = |device: &str, version: &Version| (device.to_owned(), version.clone());
+        let ahead = |links: &[(String, Version)]| -> Vec<(String, bool)> {
+            connected_devices(links, &ours)
+                .into_iter()
+                .map(|c| (c.device, c.ahead))
+                .collect()
+        };
+
+        assert_eq!(ahead(&[]), []);
+        // In order of ID, whichever order the connections are in.
+        assert_eq!(
+            ahead(&[link("b", &ours), link("a", &theirs)]),
+            [("a".to_owned(), true), ("b".to_owned(), false)]
+        );
+        // One of two connections to a device having more is enough, either way round.
+        assert_eq!(
+            ahead(&[link("a", &ours), link("a", &theirs)]),
+            [("a".to_owned(), true)]
+        );
+        assert_eq!(
+            ahead(&[link("a", &theirs), link("a", &ours)]),
+            [("a".to_owned(), true)]
+        );
+        // And neither is not.
+        assert_eq!(
+            ahead(&[link("a", &ours), link("a", &Version::default())]),
+            [("a".to_owned(), false)]
         );
     }
 

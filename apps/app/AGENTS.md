@@ -21,7 +21,8 @@ holds its own replica and answers its own queries (see `apps/ui` and
   `changed` otherwise. `set_focus` takes the block being edited. The UI sends
   the focus after flushing what it typed, so moving on ends the typing.
   `subscribe_status` takes a `Channel` and sends how this device stands with
-  the others (`Session::sync_state`) each time it changes.
+  the others (`Session::sync_details`: the state's word and what it rests on, as
+  an object) each time it changes.
   `subscribe_updates` is below. `device_id` and `allow_device` are for letting
   another device in (see `docs/App sync.md`); the Devices page calls them.
   `set_entity_open` says whether the UI has an entity open, for the macOS

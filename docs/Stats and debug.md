@@ -4,7 +4,7 @@
 	- An orphan is an entity that nothing links to and that links to nothing, apart from journal pages, which would swamp the count. A link to nowhere counts as a link out, so a page whose only link is to a name nobody has made is not an orphan.
 	- A link is counted once each, so a block that links to the same page twice counts twice. An ambiguous link, one that matches several entities, is counted once for its block. [[Disambiguation]]
 - Sync
-	- How this device stands with the others, in words: the state ([[Sync status]]), what it means, and how many devices the graph lists. The published site can't sync, so it says so instead.
+	- How this device stands with the others, in words: the state ([[Sync status]]), what it means, and what it rests on: the devices connected, how many the graph lists, typing held back, and devices with a block open. The published site can't sync, so it says so instead.
 - Virtual entities
 	- Every name that is linked to, or is a property's key, and that no entity has, as a table: its name (a link to its page), its ID, its incoming links, the entities those links are in, and how many entities use it as a property key. [[Links to nowhere]]
 	- The ID is `~` and the name as names are compared (`~fresh` for `[[Fresh]]` and `[[fresh]]`), which is how a page, a row of [[All entities]] and a node of the [[Graph view]] address something nothing is stored for.

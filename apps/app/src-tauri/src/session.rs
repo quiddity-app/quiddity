@@ -17,6 +17,30 @@ use quiddity_node::store::Store;
 use quiddity_node::{Allowed, Peer, SyncState};
 use serde::{Deserialize, Serialize};
 
+/// How this device stands with the others, for the UI. `state` is `alone` (no
+/// other device), `offline` (others, none connected), `behind` (connected, and
+/// either side is missing something), `synced`, or `present` (synced, and
+/// another device has a block open); the rest is what it was worked out from.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct SyncDetails {
+    pub state: &'static str,
+    /// Other devices the graph lists, connected or not.
+    pub listed: usize,
+    pub connected: Vec<Connected>,
+    /// Blocks with typing held back until someone can see it.
+    pub held: usize,
+    /// Devices with a block open.
+    pub watching: usize,
+}
+
+/// A device this one is connected to.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Connected {
+    pub device: String,
+    /// Whether it is known to have something this device lacks.
+    pub ahead: bool,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("{0}")]
@@ -210,17 +234,29 @@ impl Session {
         self.peer.set_focus(blocks.iter().map(String::as_str));
     }
 
-    /// How this device stands with the others, as the UI names it: `alone`
-    /// (no other device), `offline` (others, none connected), `behind`
-    /// (connected, and either side is missing something), `synced`, or `present`
-    /// (synced, and another device has a block open).
-    pub fn sync_state(&self) -> &'static str {
-        match self.peer.sync_state() {
-            SyncState::Alone => "alone",
-            SyncState::Offline => "offline",
-            SyncState::Behind => "behind",
-            SyncState::Synced => "synced",
-            SyncState::Present => "present",
+    /// How this device stands with the others, as the UI names it, and what
+    /// that was worked out from.
+    pub fn sync_details(&self) -> SyncDetails {
+        let details = self.peer.sync_details();
+        SyncDetails {
+            state: match details.state {
+                SyncState::Alone => "alone",
+                SyncState::Offline => "offline",
+                SyncState::Behind => "behind",
+                SyncState::Synced => "synced",
+                SyncState::Present => "present",
+            },
+            listed: details.listed,
+            connected: details
+                .connected
+                .into_iter()
+                .map(|c| Connected {
+                    device: c.device,
+                    ahead: c.ahead,
+                })
+                .collect(),
+            held: details.held,
+            watching: details.watching,
         }
     }
 
@@ -648,17 +684,26 @@ mod tests {
     async fn the_sync_state_is_named_for_the_ui() {
         let dir = tempfile::tempdir().unwrap();
         let session = open(dir.path()).unwrap();
-        assert_eq!(session.sync_state(), "alone");
+        assert_eq!(session.sync_details().state, "alone");
 
         let (server, guest, connection) = joined(&session).await;
-        wait_for("them to be up to date", || session.sync_state() == "synced").await;
+        wait_for("them to be up to date", || {
+            session.sync_details().state == "synced"
+        })
+        .await;
 
         guest.set_focus(["a"]);
-        wait_for("the guest to be seen", || session.sync_state() == "present").await;
+        wait_for("the guest to be seen", || {
+            session.sync_details().state == "present"
+        })
+        .await;
 
         connection.abort();
         server.shutdown().await.unwrap();
-        wait_for("the connection to go", || session.sync_state() == "offline").await;
+        wait_for("the connection to go", || {
+            session.sync_details().state == "offline"
+        })
+        .await;
     }
 
     /// A file put in comes back out under the hash of its bytes, and what

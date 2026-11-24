@@ -1,6 +1,6 @@
 import { Replica } from './wasm/quiddity_wasm';
 
-import type { SyncState } from './model';
+import type { SyncDetails, SyncState } from './model';
 import type { Recovery } from './recovery';
 import type { Backend } from './graph';
 
@@ -124,7 +124,7 @@ interface Remote {
   /** How the page asked to go on from a graph that wouldn't open. */
   recovered: Recovery[];
   /** Plays the shell telling the page how this device stands. */
-  setStatus(status: SyncState): void;
+  setStatus(status: SyncState, details?: Partial<SyncDetails>): void;
 }
 
 /** Files kept for the life of the page, by hash. The hash is SHA-256, not the
@@ -196,8 +196,19 @@ export const memoryBackend: Backend = {
   // Nothing is shared outside the app: this device is alone, until a test
   // says otherwise.
   async subscribeStatus(onStatus) {
-    remote().setStatus = onStatus;
-    onStatus('alone');
+    // What a test says about the rest defaults to nothing: no devices, no
+    // typing held, nobody here.
+    remote().setStatus = (state, details = {}) => {
+      onStatus({
+        state,
+        listed: 0,
+        connected: [],
+        held: 0,
+        watching: 0,
+        ...details,
+      });
+    };
+    remote().setStatus('alone');
   },
   async putBlob(bytes) {
     const hash = await hashOf(bytes);

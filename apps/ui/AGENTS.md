@@ -96,13 +96,18 @@ graph records no devices.
 ## Sync indicator
 
 A cloud with a coloured dot, left of the search button
-(`components/sync-indicator.tsx`), links to the Devices page, which is in the More menu rather than the sidebar. **A backend may
-have `subscribeStatus`**, which tells the page how this device stands (`alone`,
-`offline`, `behind`, `synced` or `present`; `docs/Sync status.md`); the graph
+(`components/sync-indicator.tsx`), a button that opens a non-modal pop-up of
+details (Escape or a press elsewhere closes it) with a link to the Devices
+page, which is in the More menu rather than the sidebar. **A backend may
+have `subscribeStatus`**, which tells the page how this device stands as a
+`SyncDetails`: the `state` (`alone`,
+`offline`, `behind`, `synced` or `present`; `docs/Sync status.md`) and what it
+rests on (connected devices, listed devices, blocks held back, devices here).
+`SyncFacts` draws those, in the pop-up and on Stats and debug. The graph
 keeps the latest, and the indicator draws nothing until a backend has said, so
 the published site, which can't say, shows none. The memory backend says
 `alone` and lets a test say any other through
-`window.__quiddityRemote.setStatus`, for `e2e/sync-status.spec.ts`. **Each
+`window.__quiddityRemote.setStatus(state, details?)`, the rest defaulting to nothing, for `e2e/sync-status.spec.ts`. **Each
 state has a label, which is its accessible name, and a colour**; the tests
 check both, and that the colours differ.
 

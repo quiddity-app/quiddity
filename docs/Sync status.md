@@ -1,4 +1,4 @@
-- How a device stands with the others, in five words: alone, offline, behind, synced and present. The app shows it as a cloud with a coloured dot. [[App sync]]
+- How a device stands with the others, in five words: alone, offline, behind, synced and present. The app shows it as a cloud with a coloured dot, which opens the details when pressed. [[App sync]]
 - The states, in the order they are decided.
 	- **Alone**: no other device is listed in the graph, and none is connected. There is nobody to sync with. (grey)
 	- **Offline**: others are listed and none is connected. (red)
@@ -11,4 +11,8 @@
 	- Each connection remembers what its peer is known to have: what it said at the start, plus what has been sent or received since. Sending is counted as delivered, so a change in flight is not behind.
 	- The connected devices are those this device has a connection to, which may be relaying for others. It says nothing of devices further away.
 - `Peer::sync_state` works it out when asked, and `Peer::subscribe_status` says when to ask again: a connection comes or goes, a peer's version moves, presence changes, or typing is held back or sent. [[quiddity-node]]
-- Not yet: it cannot say which device, or how far behind. Behind can show for a moment whenever typing is held back, before the [[Publish gate]] lets it go.
+- Details: pressing the cloud opens a pop-up with the state and what it rests on, and a link to the Devices page. [[Stats and debug]] shows the same.
+	- Connected: each device by ID (shortened, with the whole ID as its tooltip), and whether it is known to have something this device lacks. A device with two connections, because both dialled at once, is listed once.
+	- Listed: the other devices the graph lists, connected or not. Typing held back: how many blocks. Here now: how many devices have a block open.
+	- `Peer::sync_details` gathers them, and `sync_state` is its `state`, so the two can't disagree.
+- Not yet: it cannot say how far behind. Behind can show for a moment whenever typing is held back, before the [[Publish gate]] lets it go.
