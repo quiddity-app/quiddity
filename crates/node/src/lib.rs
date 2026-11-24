@@ -14,6 +14,7 @@
 
 pub mod blob_store;
 pub mod blobs;
+pub mod debug_http;
 pub mod gc;
 pub mod keyring;
 pub mod legacy_blobs;
@@ -923,6 +924,20 @@ pub struct ConnectedDevice {
     pub device: String,
     /// Whether it is known to have something this device lacks.
     pub ahead: bool,
+}
+
+impl SyncState {
+    /// The state as one lower-case word, for output that a program reads.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Alone => "alone",
+            Self::Offline => "offline",
+            Self::Behind => "behind",
+            Self::Synced => "synced",
+            Self::Present => "present",
+        }
+    }
 }
 
 /// [`SyncState`] from what is known: whether the graph lists other devices,

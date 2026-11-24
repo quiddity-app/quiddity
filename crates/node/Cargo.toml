@@ -23,7 +23,7 @@ quiddity-core.workspace = true
 quiddity-identity.workspace = true
 quiddity-sync = { path = "../sync" }
 thiserror.workspace = true
-tokio = { version = "1", features = ["fs", "macros", "rt-multi-thread", "signal", "sync", "time"] }
+tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 tracing.workspace = true
 tracing-subscriber.workspace = true
 rusqlite = { version = "0.43.0", features = ["bundled", "blob"] }

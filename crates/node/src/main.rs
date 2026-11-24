@@ -13,6 +13,7 @@ use iroh::{Endpoint, EndpointAddr, EndpointId};
 use quiddity_core::files::{decode_page_names, discard_export, export_dir, import_dir};
 use quiddity_core::{Graph, Index, merge_duplicates};
 use quiddity_node::blobs::{Blobs, Exported};
+use quiddity_node::debug_http;
 use quiddity_node::gc;
 use quiddity_node::keyring::Keyring;
 use quiddity_node::store::Store;
@@ -106,6 +107,12 @@ enum Command {
         /// while the node runs.
         #[arg(long, value_name = "DIR")]
         export: Option<PathBuf>,
+        /// Answer `GET /status` on this address with JSON: this node's sync
+        /// state, who is connected and the devices the graph lists. It has no
+        /// authentication, so bind it to loopback or somewhere only a trusted
+        /// proxy reaches.
+        #[arg(long, value_name = "ADDR")]
+        debug_http: Option<SocketAddr>,
         #[command(flatten)]
         net: Net,
     },
@@ -368,6 +375,7 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
             allow,
             allow_any,
             export,
+            debug_http,
             net,
         } => {
             let me = store.key()?.public().to_string();
@@ -395,7 +403,18 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
                 None => println!("serving {}", endpoint.id()),
             }
             quiddity_node::save_on_change(peer.clone(), store.clone());
+            let debug = match debug_http {
+                Some(addr) => {
+                    let listener = tokio::net::TcpListener::bind(addr).await?;
+                    println!("debug http at {}", listener.local_addr()?);
+                    Some(debug_http::spawn(listener, peer.clone(), me))
+                }
+                None => None,
+            };
             wait_for_stop(&peer, export.as_deref()).await?;
+            if let Some(debug) = debug {
+                debug.abort();
+            }
             self::net(server.shutdown().await)?;
             store.save(peer.graph())?;
         }
