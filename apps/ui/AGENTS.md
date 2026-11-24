@@ -137,6 +137,10 @@ app's Go menu share) and Delete Entity for the main pane's entity
 `graph.stats()` (counts, and a table of the virtual entities with their incoming
 links) and the result of `graph.check()` (`docs/Stats and debug.md`).
 
+- **The Sync section** spells out the sync indicator's state (`states` is
+  exported from `sync-indicator.tsx`, with what each means) and counts the
+  devices the graph lists. Without a status (the published site) it says the
+  build can't sync.
 - **The check runs when asked, not on render**, because it reads the whole graph
   again. The page keeps the result with the revision it was run at, and says
   when the graph has since changed; it doesn't rerun by itself. A failure of

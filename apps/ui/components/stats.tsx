@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 
 import { Region, Skeleton } from './boundary';
 import { EntityLink } from './entity-link';
+import { states } from './sync-indicator';
 import {
   Button,
   ErrorLine,
@@ -270,6 +271,53 @@ function Consistency() {
   );
 }
 
+/**
+ * How this device stands with the others, spelt out: the indicator's state and
+ * what it means, and the devices the graph lists. The published site's
+ * backend can't say, and the page says so.
+ */
+function Sync() {
+  const graph = useGraph();
+  const status = useSyncExternalStore(
+    graph.subscribeToStatus,
+    graph.getStatus,
+    graph.getStatus,
+  );
+  const devices = useRead((g) => g.devices());
+  return (
+    <section aria-labelledby="sync" className="mb-8">
+      <h2 id="sync" className={sectionTitle}>
+        Sync
+      </h2>
+      {status === undefined ? (
+        <p className="text-ink-secondary">
+          This build can’t sync, so it has no state to show.
+        </p>
+      ) : (
+        <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1">
+          <dt>State</dt>
+          <dd data-state={status} className="flex items-center gap-2">
+            <span
+              aria-hidden="true"
+              className={`h-2.5 w-2.5 rounded-full ${states[status].dot}`}
+            />
+            <span>
+              <span className="capitalize">{status}</span>:{' '}
+              {states[status].label}
+            </span>
+          </dd>
+          <dt>Meaning</dt>
+          <dd>{states[status].about}</dd>
+          <dt title="Devices that have saved this graph, this one included.">
+            Devices listed
+          </dt>
+          <dd className="tabular-nums">{devices.length}</dd>
+        </dl>
+      )}
+    </section>
+  );
+}
+
 function Counted() {
   const stats = useRead((g) => g.stats());
   return (
@@ -289,6 +337,7 @@ export function StatsAndDebug() {
         failed={(error) => <ErrorLine>{error.message}</ErrorLine>}
       >
         <Counted />
+        <Sync />
         <Consistency />
       </Region>
     </article>

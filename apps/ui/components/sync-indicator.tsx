@@ -8,16 +8,40 @@ import type { SyncState } from '@/lib/model';
 
 import { useGraph } from '@/lib/use-graph';
 
-/** What each state is called, and the colour of its dot. */
-const states: Record<SyncState, { label: string; dot: string }> = {
-  alone: { label: 'No other devices to sync with', dot: 'bg-sync-alone' },
+/**
+ * What each state is called, the colour of its dot, and what it means (for
+ * the Stats and debug page, which spells it out).
+ */
+export const states: Record<
+  SyncState,
+  { label: string; dot: string; about: string }
+> = {
+  alone: {
+    label: 'No other devices to sync with',
+    dot: 'bg-sync-alone',
+    about: 'No other device is listed in the graph, and none is connected.',
+  },
   offline: {
     label: 'Not connected to any other device',
     dot: 'bg-sync-offline',
+    about: 'Other devices are listed in the graph, and none is connected.',
   },
-  behind: { label: 'Connected, but out of date', dot: 'bg-sync-behind' },
-  synced: { label: 'Connected and up to date', dot: 'bg-sync-synced' },
-  present: { label: 'Another device is here', dot: 'bg-sync-present' },
+  behind: {
+    label: 'Connected, but out of date',
+    dot: 'bg-sync-behind',
+    about:
+      'Connected, but a device is known to have something this one lacks, or typing is being held back until someone can see it.',
+  },
+  synced: {
+    label: 'Connected and up to date',
+    dot: 'bg-sync-synced',
+    about: 'Connected, and nothing is outstanding either way.',
+  },
+  present: {
+    label: 'Another device is here',
+    dot: 'bg-sync-present',
+    about: 'Up to date, and another device has a block open.',
+  },
 };
 
 /**
