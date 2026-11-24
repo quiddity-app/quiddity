@@ -1135,11 +1135,31 @@ impl ProtocolHandler for Peer {
         let (send, recv) = connection.accept_bi().await?;
         let result = self.sync(send, recv, None).await;
         close(&connection, &result);
-        if let Err(e) = &result {
-            warn!(error = %e, "sync ended");
+        match result {
+            // A phone that sleeps or leaves the network never says goodbye, and
+            // iroh would warn a second time if we returned the error.
+            Err(e) if peer_went_away(&e) => {
+                info!(error = %e, "sync ended: the peer went away");
+                Ok(())
+            }
+            Err(e) => {
+                warn!(error = %e, "sync ended");
+                Err(AcceptError::from_err(e))
+            }
+            Ok(()) => Ok(()),
         }
-        result.map_err(AcceptError::from_err)
     }
+}
+
+/// Whether a sync ended because the connection did, which is the peer's doing
+/// and nothing to act on, rather than because of something said on it.
+fn peer_went_away(e: &Error) -> bool {
+    matches!(
+        e,
+        Error::Connection(_)
+            | Error::Read(ReadError::ConnectionLost(_))
+            | Error::Write(WriteError::ConnectionLost(_))
+    )
 }
 
 #[cfg(test)]
@@ -1174,6 +1194,25 @@ mod tests {
                 .unwrap_err()
                 .contains("address")
         );
+    }
+
+    #[test]
+    fn a_lost_connection_is_the_peer_going_away_and_nothing_else_is() {
+        let gone = ConnectionError::TimedOut;
+        assert!(peer_went_away(&Error::Connection(gone.clone())));
+        assert!(peer_went_away(&Error::Read(ReadError::ConnectionLost(
+            gone.clone()
+        ))));
+        assert!(peer_went_away(&Error::Write(WriteError::ConnectionLost(
+            gone
+        ))));
+
+        // What was said on a connection that held is for someone to look at.
+        assert!(!peer_went_away(&Error::TimedOut));
+        assert!(!peer_went_away(&Error::Incompatible(None)));
+        assert!(!peer_went_away(&Error::OtherGraph));
+        assert!(!peer_went_away(&Error::PeerBehind));
+        assert!(!peer_went_away(&Error::Read(ReadError::ClosedStream)));
     }
 
     /// A version `graph` has, and the other doesn't.
