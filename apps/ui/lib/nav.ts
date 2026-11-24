@@ -126,3 +126,8 @@ export function appPage(href: string | undefined): string | null {
   const page = APP_PAGES.find((p) => href === p || href === p.slice(0, -1));
   return page ?? null;
 }
+
+/** What an app page is called, as the sidebar and the Go menu call it. */
+export function appPageTitle(page: string): string | undefined {
+  return entrypoints.find((e) => e.href === page)?.title;
+}

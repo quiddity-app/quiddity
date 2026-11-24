@@ -527,7 +527,8 @@ in `lib/link-hint.ts` (`docs/Link hints.md`).
 - **`EntityLink` reads the entity's title when entered** (`graph.entity`, which
   can fail for a link to a deleted entity, so it is guarded), so whoever draws the
   link gets the name without passing it. A link to the web shows its URL;
-  `ExternalLink` in `rendered-block.tsx`.
+  `ExternalLink` in `rendered-block.tsx`. A link to an app page shows its
+  entrypoint title (`appPageTitle`), as `AppLink` there.
 - **The preview is a sibling of the link, not a child**, or its links would be
   nested anchors. It is `inert`, `pointer-events-none` and `role="tooltip"`, appears
   after `PREVIEW_DELAY_MS` and only if there is a properties block, and Escape
