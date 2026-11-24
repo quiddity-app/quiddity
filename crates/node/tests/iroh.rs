@@ -12,7 +12,7 @@ use iroh::protocol::Router;
 use iroh::protocol::{AcceptError, ProtocolHandler};
 use iroh::{Endpoint, EndpointAddr, RelayMode};
 use quiddity_core::{BlockId, Graph, Index, ensure_journal};
-use quiddity_node::{ALPN, Allowed, Peer, SyncState};
+use quiddity_node::{ALPN, Allowed, ConnectedDevice, Peer, SyncState};
 
 /// A peer listening on localhost only: no relays, no address lookup.
 async fn listen(peer: &Peer) -> (Router, EndpointAddr) {
@@ -912,28 +912,48 @@ async fn the_sync_state_follows_connections_typing_and_presence() {
     let (laptop, phone, routers, task) = connected_pair(Duration::from_mins(1)).await;
     let mut changes = phone.subscribe_status();
     laptop.allow("somebody").unwrap();
-    eventually("the list to arrive", || phone.graph().devices().len() == 1).await;
+    eventually("the list to arrive", || {
+        phone.graph().devices().iter().any(|d| d.id == "somebody")
+    })
+    .await;
     becomes(&phone, SyncState::Synced).await;
     becomes(&laptop, SyncState::Synced).await;
+
+    // The details say who, and what has been listed and held.
+    let details = phone.sync_details();
+    assert_eq!(details.listed, 1, "the device that was allowed, not us");
+    assert_eq!(
+        details.connected,
+        [ConnectedDevice {
+            device: "laptop".into(),
+            ahead: false
+        }]
+    );
+    assert_eq!((details.held, details.watching), (0, 0));
 
     // Another device opens a block.
     changes.mark_unchanged();
     laptop.set_focus(["x"]);
     becomes(&phone, SyncState::Present).await;
+    assert_eq!(phone.sync_details().watching, 1);
     assert!(changes.has_changed().unwrap(), "the change is announced");
 
     // Typing the other can't see is held, so the typist is behind until it
     // goes.
     type_into(&phone, "elsewhere", "private");
     becomes(&phone, SyncState::Behind).await;
+    assert_eq!(phone.sync_details().held, 1);
     phone.end_edit();
     becomes(&phone, SyncState::Present).await;
+    assert_eq!(phone.sync_details().held, 0);
     laptop.set_focus(Vec::<String>::new());
     becomes(&phone, SyncState::Synced).await;
 
     // The other goes away, and the listed device is still there to dial.
     routers[0].shutdown().await.unwrap();
     becomes(&phone, SyncState::Offline).await;
+    assert!(phone.sync_details().connected.is_empty());
+    assert_eq!(phone.sync_details().listed, 1);
 
     shut_down(routers, task).await;
 }

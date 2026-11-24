@@ -4,7 +4,7 @@ import { useState, useSyncExternalStore } from 'react';
 
 import { Region, Skeleton } from './boundary';
 import { EntityLink } from './entity-link';
-import { states } from './sync-indicator';
+import { states, SyncFacts } from './sync-indicator';
 import {
   Button,
   ErrorLine,
@@ -278,41 +278,37 @@ function Consistency() {
  */
 function Sync() {
   const graph = useGraph();
-  const status = useSyncExternalStore(
+  const details = useSyncExternalStore(
     graph.subscribeToStatus,
     graph.getStatus,
     graph.getStatus,
   );
-  const devices = useRead((g) => g.devices());
   return (
     <section aria-labelledby="sync" className="mb-8">
       <h2 id="sync" className={sectionTitle}>
         Sync
       </h2>
-      {status === undefined ? (
+      {details === undefined ? (
         <p className="text-ink-secondary">
           This build can’t sync, so it has no state to show.
         </p>
       ) : (
-        <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1">
-          <dt>State</dt>
-          <dd data-state={status} className="flex items-center gap-2">
+        <>
+          <p className="mb-2 flex items-center gap-2">
             <span
               aria-hidden="true"
-              className={`h-2.5 w-2.5 rounded-full ${states[status].dot}`}
+              className={`h-2.5 w-2.5 rounded-full ${states[details.state].dot}`}
             />
-            <span>
-              <span className="capitalize">{status}</span>:{' '}
-              {states[status].label}
+            <span data-state={details.state}>
+              <span className="capitalize">{details.state}</span>:{' '}
+              {states[details.state].label}
             </span>
-          </dd>
-          <dt>Meaning</dt>
-          <dd>{states[status].about}</dd>
-          <dt title="Devices that have saved this graph, this one included.">
-            Devices listed
-          </dt>
-          <dd className="tabular-nums">{devices.length}</dd>
-        </dl>
+          </p>
+          <p className="mb-3 text-ink-secondary">
+            {states[details.state].about}
+          </p>
+          <SyncFacts details={details} />
+        </>
       )}
     </section>
   );

@@ -166,9 +166,9 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
   it joins through; that device lists it on connecting. `Peer::admit` is the
   pairing action: it lists a device, or trusts it if this replica has not joined
   a graph yet.
-- **`Peer::sync_state` is what the app's cloud shows** (`docs/Sync status.md`).
+- **`Peer::sync_details` is what the app's cloud shows** (`sync_state` is its `state`) (`docs/Sync status.md`).
   Each connection records what its peer is known to have (`Session::theirs`)
-  in `Peer::syncs`, and the state is worked out when asked (`classify`, pure
+  in `Peer::syncs` with the device it is to, and the details are worked out when asked (`classify`, pure
   and tested on its own). **Behind is not "the versions differ"**: saving
   records this device in the graph without sending it, so they would differ
   for ever. It is *this device lacks something a peer has*, or *typing is held

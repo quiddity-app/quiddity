@@ -55,7 +55,7 @@ declare global {
       /** How the page asked to go on from a graph that wouldn't open. */
       recovered: string[];
       /** Plays the shell telling the page how this device stands. */
-      setStatus(status: string): void;
+      setStatus(status: string, details?: object): void;
     };
   }
 }

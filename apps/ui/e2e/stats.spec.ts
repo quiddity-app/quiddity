@@ -117,4 +117,12 @@ test('the Sync section says how this device stands with the others', async ({
   await expect(
     sync.getByText(/lacks, or typing is being held back/),
   ).toBeVisible();
+
+  await page.evaluate(() => {
+    window.__quiddityRemote!.setStatus('synced', {
+      listed: 2,
+      connected: [{ device: 'b'.repeat(64), ahead: false }],
+    });
+  });
+  await expect(sync.getByText('bbbbbbbb…')).toBeVisible();
 });

@@ -8,7 +8,7 @@ import type {
   Check,
   Connections,
   Device,
-  SyncState,
+  SyncDetails,
   Entity,
   EntityId,
   EntityRef,
@@ -38,7 +38,7 @@ export interface Backend {
   subscribe?(onUpdates: (updates: Uint8Array) => void): Promise<void>;
   /** Calls `onStatus` with how this device stands with the others, now and
    * each time that changes. Backends with nothing to sync with don't have it. */
-  subscribeStatus?(onStatus: (status: SyncState) => void): Promise<void>;
+  subscribeStatus?(onStatus: (details: SyncDetails) => void): Promise<void>;
   /** This device's ID, for letting it in from another device. Only the app
    * is a device that others can reach. */
   deviceId?(): Promise<string>;
@@ -216,7 +216,7 @@ export class Graph {
     this.replica.searchText(query, limit) as BlockHit[];
 
   private readonly statusListeners = new Set<() => void>();
-  private status: SyncState | undefined;
+  private status: SyncDetails | undefined;
 
   /** For `useSyncExternalStore`: how this device stands with the others. */
   subscribeToStatus = (listener: () => void) => {
@@ -229,8 +229,8 @@ export class Graph {
   /** How this device stands with the others, once the backend has said. */
   getStatus = () => this.status;
 
-  setStatus(status: SyncState) {
-    if (this.status === status) {
+  setStatus(status: SyncDetails) {
+    if (JSON.stringify(this.status) === JSON.stringify(status)) {
       return;
     }
     this.status = status;
