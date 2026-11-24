@@ -11,6 +11,7 @@ import { linkClass } from './ui';
 
 import type { Property, PropertyValue, ResolvedLink } from '@/lib/model';
 
+import { useLinkHint } from '@/lib/link-hint';
 import { useGraph } from '@/lib/use-graph';
 
 const unresolved = 'cursor-help underline decoration-dashed underline-offset-2';
@@ -31,10 +32,10 @@ export function LinkOrNot({
   /** What to show instead of the link's name, as in `[label]([[Name]])`. */
   label?: ReactNode;
 }>) {
-  const view = useView();
   const resolved = links[linkKey];
   const target = resolved ?? { kind: 'missing' };
   const name = label ?? resolved?.name ?? fallback;
+  const destination = resolved?.name ?? fallback;
   const qualifiers = resolved?.qualifiers ?? '';
   if (target.kind === 'entity') {
     return (
@@ -49,11 +50,41 @@ export function LinkOrNot({
   }
   if (target.kind === 'missing') {
     return (
-      <NewEntityLink name={name} linkKey={linkKey} qualifiers={qualifiers} />
+      <NewEntityLink
+        name={name}
+        destination={destination}
+        linkKey={linkKey}
+        qualifiers={qualifiers}
+      />
     );
   }
   return (
+    <AmbiguousLink
+      name={name}
+      destination={destination}
+      linkKey={linkKey}
+      qualifiers={qualifiers}
+    />
+  );
+}
+
+/** A link that several entities match, which goes to a page that lists them. */
+function AmbiguousLink({
+  name,
+  destination,
+  linkKey,
+  qualifiers,
+}: Readonly<{
+  name: ReactNode;
+  destination: string;
+  linkKey: string;
+  qualifiers: string;
+}>) {
+  const view = useView();
+  const hint = useLinkHint(() => destination);
+  return (
     <Link
+      {...hint}
       href={view.href({
         path: '/disambiguate/',
         main: null,
@@ -75,21 +106,25 @@ export function LinkOrNot({
 /** A link to an entity that doesn't exist yet. Following it makes the entity. */
 function NewEntityLink({
   name,
+  destination,
   linkKey,
   qualifiers,
 }: Readonly<{
   name: ReactNode;
+  destination: string;
   linkKey: string;
   qualifiers: string;
 }>) {
   const graph = useGraph();
   const view = useView();
   const router = useRouter();
+  const hint = useLinkHint(() => destination);
   return (
     <a
       href="#"
       className={linkClass}
       title={qualifiers || undefined}
+      {...hint}
       onClick={(e) => {
         e.preventDefault();
         const id = graph.followLink(linkKey);
