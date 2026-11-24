@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/boundary';
 import { ClientOnly } from '@/components/client-only';
 import { HistoryKeys } from '@/components/history-keys';
 import { Recovery } from '@/components/recovery';
+import { LinkStatus } from '@/components/link-status';
 import { LeftSidebar } from '@/components/left-sidebar';
 import { MoreMenu } from '@/components/more-menu';
 import { RightPane } from '@/components/right-pane';
@@ -95,6 +96,7 @@ export default function RootLayout({
               are drawn from its graph when it is exported. */}
           {children}
         </Shell>
+        <LinkStatus />
       </body>
     </html>
   );

@@ -18,6 +18,7 @@ import { linkClass } from './ui';
 import type { Block, Property, ResolvedLink } from '@/lib/model';
 
 import { appPage } from '@/lib/nav';
+import { useLinkHint } from '@/lib/link-hint';
 import { isExternal, openExternal } from '@/lib/open-external';
 import { PROP_CLOSE, PROP_OPEN, remarkQuiddity } from '@/lib/remark-quiddity';
 
@@ -41,6 +42,28 @@ export function splitBlock(block: Pick<Block, 'text' | 'properties'>) {
     }
   }
   return { prose, lineProps, inlineProps };
+}
+
+/** A link out of the app: its URL shows in the corner toast, as in a browser. */
+function ExternalLink({
+  href,
+  children,
+}: Readonly<{ href: string; children?: ReactNode }>) {
+  const hint = useLinkHint(() => href);
+  return (
+    <a
+      href={href}
+      rel="noopener noreferrer"
+      className={linkClass}
+      {...hint}
+      onClick={(e) => {
+        e.preventDefault();
+        void openExternal(href);
+      }}
+    >
+      {children}
+    </a>
+  );
 }
 
 const code = 'rounded bg-surface-hover px-1 py-0.5 font-mono text-[0.9em]';
@@ -108,19 +131,7 @@ function components(
       children,
     }: Readonly<{ href?: string; children?: ReactNode }>) => {
       if (isExternal(href)) {
-        return (
-          <a
-            href={href}
-            rel="noopener noreferrer"
-            className={linkClass}
-            onClick={(e) => {
-              e.preventDefault();
-              void openExternal(href);
-            }}
-          >
-            {children}
-          </a>
-        );
+        return <ExternalLink href={href}>{children}</ExternalLink>;
       }
       const page = appPage(href);
       if (page) {
