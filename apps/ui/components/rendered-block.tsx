@@ -17,7 +17,7 @@ import { linkClass } from './ui';
 
 import type { Block, Property, ResolvedLink } from '@/lib/model';
 
-import { appPage } from '@/lib/nav';
+import { appPage, appPageTitle } from '@/lib/nav';
 import { useLinkHint } from '@/lib/link-hint';
 import { isExternal, openExternal } from '@/lib/open-external';
 import { PROP_CLOSE, PROP_OPEN, remarkQuiddity } from '@/lib/remark-quiddity';
@@ -63,6 +63,19 @@ function ExternalLink({
     >
       {children}
     </a>
+  );
+}
+
+/** A link to a page of the app, which the corner toast names as the sidebar does. */
+function AppLink({
+  page,
+  children,
+}: Readonly<{ page: string; children?: ReactNode }>) {
+  const hint = useLinkHint(() => appPageTitle(page) ?? page);
+  return (
+    <Link href={page} className={linkClass} {...hint}>
+      {children}
+    </Link>
   );
 }
 
@@ -135,11 +148,7 @@ function components(
       }
       const page = appPage(href);
       if (page) {
-        return (
-          <Link href={page} className={linkClass}>
-            {children}
-          </Link>
-        );
+        return <AppLink page={page}>{children}</AppLink>;
       }
       return <span className={muted}>{children}</span>;
     },

@@ -70,3 +70,15 @@ test('an external link shows its URL, and none is fetched', async ({
     .hover();
   await expect(status(page)).toHaveText('https://example.com/a?b=c');
 });
+
+test("a link to an app page shows the page's name", async ({ page }) => {
+  await page.locator('main article > ul').getByText('Local-first').click();
+  await page.keyboard.press('End');
+  await page.keyboard.type(' [stats](/stats/)');
+  await page.keyboard.press('Escape');
+  await page
+    .locator('main article')
+    .getByRole('link', { name: 'stats' })
+    .hover();
+  await expect(status(page)).toHaveText('Stats and debug');
+});
