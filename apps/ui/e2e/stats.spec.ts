@@ -97,3 +97,24 @@ test('the consistency check runs when asked, and says when it is out of date', a
     page.getByText('The graph has changed since this ran.'),
   ).toHaveCount(0);
 });
+
+test('the Sync section says how this device stands with the others', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await openStats(page);
+  const sync = page.getByRole('region', { name: 'Sync' });
+  await expect(
+    sync.getByText('Alone: No other devices to sync with'),
+  ).toBeVisible();
+
+  await page.evaluate(() => {
+    window.__quiddityRemote!.setStatus('behind');
+  });
+  await expect(
+    sync.getByText('Behind: Connected, but out of date'),
+  ).toBeVisible();
+  await expect(
+    sync.getByText(/lacks, or typing is being held back/),
+  ).toBeVisible();
+});
