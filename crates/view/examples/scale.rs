@@ -54,9 +54,30 @@ fn graph(pages: usize, per_page: usize) -> Graph {
                 .unwrap();
         }
     }
+    // A transitive property over a long chain, which is the worst case for
+    // working out what each entity effectively has.
+    let broader = graph.create_block(None, None, "broader").unwrap();
+    graph
+        .create_block(Some(broader), None, "type:: property\n##transitive")
+        .unwrap();
+    let mut previous = None;
+    for link in 0..CHAIN {
+        let root = graph
+            .create_block(None, None, &format!("Chain {link}"))
+            .unwrap();
+        let props = previous.map_or_else(
+            || "type:: note".to_owned(),
+            |p| format!("type:: note\nbroader:: [[Chain {p}]]"),
+        );
+        graph.create_block(Some(root), None, &props).unwrap();
+        previous = Some(link);
+    }
     graph.commit();
     graph
 }
+
+/// How long the chain of entities each broader than the last is.
+const CHAIN: usize = 300;
 
 fn main() {
     let (pages, per_page) = (argument(1, 3150), argument(2, 5));

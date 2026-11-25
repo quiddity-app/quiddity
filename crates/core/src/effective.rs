@@ -111,87 +111,128 @@ impl Index {
             }
         }
 
-        let mut changed = true;
-        while changed {
+        // Each round derives only from what the last one added: a value
+        // reaches a row (an entity's property) either because the row has a
+        // new value to follow, or because something it follows has one. Any
+        // other derivation was made, and found to be there already, in an
+        // earlier round. So a chain costs what it holds, not what it holds
+        // for each link of it.
+        let mut referrers: HashMap<BlockId, BTreeSet<(BlockId, String)>> = HashMap::new();
+        for (&id, eff) in &effective {
+            for (key, items) in eff {
+                for t in items.iter().filter_map(|i| i.target) {
+                    referrers.entry(t).or_default().insert((id, key.clone()));
+                }
+            }
+        }
+        let mut delta: HashMap<BlockId, Effective> = effective.clone();
+        while !delta.is_empty() {
+            // What to derive from: a value to follow and the entity it goes
+            // to, and whether that value is itself new. In the order of the
+            // entity, then the property, then what it goes to.
+            let mut follows: BTreeMap<(BlockId, String, BlockId), bool> = BTreeMap::new();
+            for (&id, eff) in &delta {
+                for (key, items) in eff {
+                    for t in items.iter().filter_map(|i| i.target) {
+                        follows.insert((id, key.clone(), t), true);
+                    }
+                }
+                for (row, key) in referrers.get(&id).into_iter().flatten() {
+                    follows.entry((*row, key.clone(), id)).or_insert(false);
+                }
+            }
             let mut additions: Vec<(BlockId, String, Item)> = Vec::new();
-            for &id in &ids {
-                for (key, items) in &effective[&id] {
-                    let schema = self.schema(key);
-                    let targets: BTreeSet<BlockId> =
-                        items.iter().filter_map(|i| i.target).collect();
-                    for &t in &targets {
-                        let Some(theirs) = effective.get(&t) else {
+            for ((id, key, t), new_link) in follows {
+                let schema = self.schema(&key);
+                let key = &key;
+                let Some(full) = effective.get(&t) else {
+                    continue;
+                };
+                // A value newly followed brings all of what is there; one
+                // followed before brings what is new there.
+                let theirs = if new_link {
+                    full
+                } else if let Some(new) = delta.get(&t) {
+                    new
+                } else {
+                    continue;
+                };
+                if schema.transitive {
+                    for item in theirs.get(key).into_iter().flatten() {
+                        additions.push((
+                            id,
+                            key.clone(),
+                            Item {
+                                from: item.from.or(Some(t)),
+                                ..item.clone()
+                            },
+                        ));
+                    }
+                }
+                if let Some(through) = &schema.through {
+                    for item in theirs.get(&normalise_name(through)).into_iter().flatten() {
+                        additions.push((
+                            id,
+                            key.clone(),
+                            Item {
+                                from: item.from.or(Some(t)),
+                                ..item.clone()
+                            },
+                        ));
+                    }
+                }
+                if schema.inherits {
+                    for (k, their_items) in theirs {
+                        if k == key
+                            || NOT_INHERITED.contains(&k.as_str())
+                            || own_keys[&id].contains(k)
+                        {
                             continue;
-                        };
-                        if schema.transitive {
-                            for item in theirs.get(key).into_iter().flatten() {
-                                additions.push((
-                                    id,
-                                    key.clone(),
-                                    Item {
-                                        from: item.from.or(Some(t)),
-                                        ..item.clone()
-                                    },
-                                ));
-                            }
                         }
-                        if let Some(through) = &schema.through {
-                            for item in theirs.get(&normalise_name(through)).into_iter().flatten() {
-                                additions.push((
-                                    id,
-                                    key.clone(),
-                                    Item {
-                                        from: item.from.or(Some(t)),
-                                        ..item.clone()
-                                    },
-                                ));
-                            }
-                        }
-                        if schema.inherits {
-                            for (k, their_items) in theirs {
-                                if k == key
-                                    || NOT_INHERITED.contains(&k.as_str())
-                                    || own_keys[&id].contains(k)
-                                {
-                                    continue;
-                                }
-                                for item in their_items {
-                                    additions.push((
-                                        id,
-                                        k.clone(),
-                                        Item {
-                                            from: item.from.or(Some(t)),
-                                            ..item.clone()
-                                        },
-                                    ));
-                                }
-                            }
-                        }
-                        if schema.symmetric {
-                            let name = self.entity(id).map(|e| e.name.clone()).unwrap_or_default();
+                        for item in their_items {
                             additions.push((
-                                t,
-                                key.clone(),
+                                id,
+                                k.clone(),
                                 Item {
-                                    value: Some(Value::Link(Link {
-                                        name,
-                                        qualifiers: Vec::new(),
-                                    })),
-                                    target: Some(id),
-                                    from: Some(id),
+                                    from: item.from.or(Some(t)),
+                                    ..item.clone()
                                 },
                             ));
                         }
                     }
                 }
+                if schema.symmetric && new_link {
+                    let name = self.entity(id).map(|e| e.name.clone()).unwrap_or_default();
+                    additions.push((
+                        t,
+                        key.clone(),
+                        Item {
+                            value: Some(Value::Link(Link {
+                                name,
+                                qualifiers: Vec::new(),
+                            })),
+                            target: Some(id),
+                            from: Some(id),
+                        },
+                    ));
+                }
             }
-            changed = false;
+            delta.clear();
             for (id, key, item) in additions {
                 let new = seen
                     .entry((id, key.clone()))
                     .or_default()
                     .insert(item.identity());
                 if new {
+                    if let Some(t) = item.target {
+                        referrers.entry(t).or_default().insert((id, key.clone()));
+                    }
+                    delta
+                        .entry(id)
+                        .or_default()
+                        .entry(key.clone())
+                        .or_default()
+                        .push(item.clone());
                     effective
                         .entry(id)
                         .or_default()
@@ -199,7 +240,6 @@ impl Index {
                         .or_default()
                         .push(item);
                 }
-                changed |= new;
             }
         }
 
@@ -237,7 +277,9 @@ impl Index {
                     .filter_map(|i| i.target)
                 {
                     let list = through.entry((key.clone(), t)).or_default();
-                    if !list.contains(&id) {
+                    // An entity's values are read together, so its repeats are
+                    // side by side.
+                    if list.last() != Some(&id) {
                         list.push(id);
                     }
                 }
