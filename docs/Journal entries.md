@@ -1,4 +1,4 @@
-- Journal entries are written in the commit message, not in `docs/journals/`, and a scheduled job saves them into the repository once the day is over. Almost every change wanted the same day's file, so almost every change conflicted. [[Journal]]
+- The documentation's [[Journal]] has an entry for each day's work. They are written in the commit message, not in `docs/journals/`, and a scheduled job saves them into the repository once the day is over. Almost every change wanted the same day's file, so almost every change conflicted.
 - Writing one
 	- Put a `Journal:` block in the commit message, after the prose and before the trailers, with a blank line either side.
 	- ```

@@ -1,3 +1,2 @@
-- A Rust package: Quiddity's Rust code is a Cargo workspace of them, under `crates/`. [[Architecture]]
-- [[quiddity-syntax]], [[quiddity-core]], [[quiddity-sync]], [[quiddity-node]], [[quiddity-view]] and [[quiddity-wasm]].
+- A Rust package: Quiddity's Rust code is a Cargo workspace of them, under `crates/`, and the entities with `type:: crate` are listed in the references below, along with the few external ones that need a page of their own. [[Architecture]] says what each of Quiddity's does.
 - Each is tested on its own, since mutation testing runs each crate's mutants against that crate's tests only. [[Testing]]
