@@ -795,13 +795,14 @@ export function draw(
 const OPTIONS: [keyof GraphShow, string][] = [
   ['propertyLinks', 'Property links'],
   ['journals', 'Journal pages'],
+  ['emptyLeaves', 'Empty leaf pages'],
   ['orphans', 'Orphan pages'],
 ];
 
 function Canvas() {
   const all = useRead((g) => g.connections());
   const [show, setShow] = useState<GraphShow>(HIDE_ALL);
-  const [panel, setPanel] = useState(true);
+  const [panel, setPanel] = useState(false);
   const panelId = useId();
   const data = useMemo(() => filterConnections(all, show), [all, show]);
   const view = useView();

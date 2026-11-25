@@ -2118,6 +2118,36 @@ mod connections {
     }
 
     #[test]
+    fn a_node_is_empty_unless_it_has_words_outside_its_properties_block() {
+        let v = view_with(|g| {
+            let a = g.create_entity("A", &[]).unwrap();
+            g.create_entity("Bare", &[]).unwrap();
+            let props = g.create_entity("Props", &[]).unwrap();
+            let words = g.create_entity("Words", &[]).unwrap();
+            let blank = g.create_entity("Blank", &[]).unwrap();
+            note(g, props, "owner:: [[A]]");
+            let top = note(g, words, "   ");
+            note(g, top, "something to say");
+            note(g, blank, "  ");
+            note(
+                g,
+                a,
+                "see [[Bare]], [[Props]], [[Words]], [[Blank]], [[Nowhere]]",
+            );
+        });
+        let empty = |title: &str| {
+            let nodes = v.connections().unwrap().nodes;
+            nodes.into_iter().find(|n| n.title == title).unwrap().empty
+        };
+        assert!(!empty("A"));
+        assert!(empty("Bare"), "no blocks");
+        assert!(empty("Props"), "a properties block is not content");
+        assert!(!empty("Words"), "at any depth");
+        assert!(empty("Blank"), "whitespace is not content");
+        assert!(empty("Nowhere"), "a name nobody has made");
+    }
+
+    #[test]
     fn an_edge_is_one_entity_linking_to_another_however_often() {
         let v = view_with(|g| {
             let a = g.create_entity("A", &[]).unwrap();

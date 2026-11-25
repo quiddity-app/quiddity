@@ -209,9 +209,12 @@ test('the pan and zoom are kept too, and a new entity joins without moving the r
   await page.keyboard.press('Escape');
   await expect(today.getByRole('link', { name: 'Brand new' })).toBeVisible();
   await openGraph(page);
-  // The new entity is linked only from a journal, so it is an orphan unless
-  // journals are shown. They weren't before, so none of them is compared.
+  await showOptions(page);
+  // The new entity is empty and linked only from a journal, so it is an orphan
+  // unless journals are shown, and then an empty leaf unless those are too.
+  // They weren't before, so none of them is compared.
   await option(page, 'Journal pages').check();
+  await option(page, 'Empty leaf pages').check();
   await settled(page);
 
   expect(await view(page)).toEqual(zoomed);
@@ -346,18 +349,28 @@ const options = (page: Page) =>
   graph(page).getByRole('group', { name: 'Graph options' });
 const option = (page: Page, name: string) =>
   options(page).getByRole('checkbox', { name });
+/** The panel is closed when the page opens. */
+const showOptions = (page: Page) =>
+  graph(page).getByRole('button', { name: 'Options' }).click();
 const today = () => {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 };
 
-test('property links, journal pages and orphan pages are left out to begin with', async ({
+test('the options panel starts closed, with property links, journal pages, empty leaves and orphans left out', async ({
   page,
 }) => {
   await page.goto('/');
   await openGraph(page);
-  for (const name of ['Property links', 'Journal pages', 'Orphan pages']) {
+  await expect(options(page)).toBeHidden();
+  await showOptions(page);
+  for (const name of [
+    'Property links',
+    'Journal pages',
+    'Empty leaf pages',
+    'Orphan pages',
+  ]) {
     await expect(option(page, name)).not.toBeChecked();
   }
   await expect(canvas(page)).toHaveAttribute('data-weak', '0');
@@ -372,6 +385,7 @@ test('each option brings back what it names, and only that', async ({
 }) => {
   await page.goto('/');
   await openGraph(page);
+  await showOptions(page);
   const links = async () =>
     Number(await canvas(page).getAttribute('data-links'));
   const before = await links();
@@ -400,6 +414,7 @@ test('each option brings back what it names, and only that', async ({
 test('orphans are judged after journals are hidden', async ({ page }) => {
   await page.goto('/');
   await openGraph(page);
+  await showOptions(page);
   // Pages only journals link to are orphans once the journals are hidden.
   await option(page, 'Journal pages').check();
   const withJournals = await graph(page).locator('a').count();
@@ -415,6 +430,7 @@ test('hiding what an option showed leaves the other links drawn', async ({
 }) => {
   await page.goto('/');
   await openGraph(page);
+  await showOptions(page);
   const links = async () =>
     Number(await canvas(page).getAttribute('data-links'));
   const before = await links();
@@ -431,6 +447,7 @@ test('the options panel can be hidden and shown, and keeps its choices', async (
 }) => {
   await page.goto('/');
   await openGraph(page);
+  await showOptions(page);
   await option(page, 'Orphan pages').check();
   const toggle = graph(page).getByRole('button', { name: 'Hide options' });
   await expect(toggle).toHaveAttribute('aria-expanded', 'true');
