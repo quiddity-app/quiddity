@@ -6,6 +6,8 @@ import type { Connections, EntityId } from './model';
  * second-degree entity is one more hanging off a neighbour, and the page would
  * drown in them; one that touches two neighbours is a link between them that
  * would otherwise be missing. Other second-degree entities don't count.
+ * Links a neighbour makes from its properties block don't count towards the
+ * two, though once an entity is kept every link between those drawn is.
  *
  * Like the graph view's defaults, **property links and journals are left out**,
  * so a date's page doesn't make every page that mentions it a neighbour. The
@@ -46,15 +48,27 @@ export function pageGraph(all: Connections, current: EntityId): Connections {
     }
   }
 
-  const kept = new Set<EntityId>([current, ...first]);
-  for (const m of second) {
-    let ties = 0;
-    for (const x of adjacent.get(m) ?? []) {
-      if (first.has(x)) {
-        ties++;
+  // The neighbours each second-degree entity is tied to. A neighbour's link
+  // from its properties block doesn't tie: a property says what the page has,
+  // not what it is about, and `author:: [[Jane]]` on every book would bring
+  // Jane in. Links the other way, from the far entity, always do.
+  const ties = new Map<EntityId, Set<EntityId>>();
+  for (const { source, target, written } of edges) {
+    for (const [near, far] of [
+      [source, target],
+      [target, source],
+    ] as const) {
+      if (first.has(near) && second.has(far) && (written || near !== source)) {
+        const set = ties.get(far) ?? new Set<EntityId>();
+        set.add(near);
+        ties.set(far, set);
       }
     }
-    if (ties >= 2) {
+  }
+
+  const kept = new Set<EntityId>([current, ...first]);
+  for (const [m, near] of ties) {
+    if (near.size >= 2) {
       kept.add(m);
     }
   }

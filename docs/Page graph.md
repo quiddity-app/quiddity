@@ -3,6 +3,7 @@
 		- The entity itself, picked out in amber.
 		- Every entity it is linked to or from: its neighbours.
 		- Entities two links away, but only those that touch **two or more neighbours**. Other two-links-away entities don't count. One that hangs off a single neighbour is left out, so the page is not drowned; one that ties two neighbours together is kept, since it explains how they relate.
+			- Only links written in a neighbour's text count towards the two. A link in a neighbour's [[Properties]] block doesn't: `author:: [[Jane]]` on every book would otherwise bring Jane in as a link between all of them. A link from the far entity to a neighbour counts wherever it is written. Once an entity is kept, every link to it is drawn, properties blocks included.
 		- The links between everything drawn, whichever way they point.
 	- What is left out
 		- As in the [[Graph view]]'s defaults, journal pages and property links are hidden. Otherwise a date's page would make every page that mentions it a neighbour. A journal page being looked at is still drawn.

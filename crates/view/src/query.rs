@@ -98,6 +98,11 @@ pub struct Edge {
     /// property to the entity that defines it. Drawn lighter, and not a
     /// reference. A pair that is also linked outright is one strong edge.
     pub weak: bool,
+    /// Whether at least one of the links is written outside a properties
+    /// block, in the page's own text. A property's value links too, but says
+    /// less about what a page is near, so a view choosing what to show can
+    /// leave those out. Always false for a weak edge.
+    pub written: bool,
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
@@ -691,16 +696,16 @@ impl View {
     /// Every entity, and the links between them, those to a name nobody has
     /// made included. An entity's links to itself are left out.
     pub fn connections(&self) -> Result<Connections> {
-        let mut edges = BTreeSet::new();
+        // Each pair, and whether any of its links is written outside a
+        // properties block.
+        let mut strong: BTreeMap<(String, String), bool> = BTreeMap::new();
         for v in self.virtuals()? {
             let index = self.index()?;
             for &block in &v.sources {
                 if let Some(source) = index.entity_of(block).map(|e| index.canonical(e)) {
-                    edges.insert(Edge {
-                        source: source.to_string(),
-                        target: v.id.clone(),
-                        weak: false,
-                    });
+                    *strong
+                        .entry((source.to_string(), v.id.clone()))
+                        .or_default() |= !index.is_properties_block(block);
                 }
             }
         }
@@ -713,16 +718,23 @@ impl View {
                         continue;
                     };
                     if source != target.id {
-                        edges.insert(Edge {
-                            source: source.to_string(),
-                            target: target.id.to_string(),
-                            weak: false,
-                        });
+                        *strong
+                            .entry((source.to_string(), target.id.to_string()))
+                            .or_default() |= !index.is_properties_block(backlink.source);
                     }
                 }
             }
         }
-        self.add_weak_edges(&mut edges)?;
+        let mut edges: BTreeSet<Edge> = strong
+            .iter()
+            .map(|((source, target), &written)| Edge {
+                source: source.clone(),
+                target: target.clone(),
+                weak: false,
+                written,
+            })
+            .collect();
+        self.add_weak_edges(&strong, &mut edges)?;
         let journals: BTreeSet<String> = {
             let index = self.index()?;
             index
@@ -800,7 +812,11 @@ impl View {
     /// entity that has it, and one from each entity it links to, to the entity
     /// that defines the property, or its virtual one if nobody does. A pair already joined by
     /// a strong edge, in either direction, gets none.
-    fn add_weak_edges(&self, edges: &mut BTreeSet<Edge>) -> Result<()> {
+    fn add_weak_edges(
+        &self,
+        strong: &BTreeMap<(String, String), bool>,
+        edges: &mut BTreeSet<Edge>,
+    ) -> Result<()> {
         let index = self.index()?;
         let mut weak = BTreeSet::new();
         for entity in index.entities() {
@@ -833,18 +849,13 @@ impl View {
             }
         }
         for (source, target) in weak {
-            let joined = |a: &str, b: &str| {
-                edges.contains(&Edge {
-                    source: a.to_owned(),
-                    target: b.to_owned(),
-                    weak: false,
-                })
-            };
+            let joined = |a: &str, b: &str| strong.contains_key(&(a.to_owned(), b.to_owned()));
             if !joined(&source, &target) && !joined(&target, &source) {
                 edges.insert(Edge {
                     source,
                     target,
                     weak: true,
+                    written: false,
                 });
             }
         }

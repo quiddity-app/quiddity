@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use jiff::civil::Date;
 use quiddity_syntax::{
@@ -21,12 +21,15 @@ struct Read {
     links: Vec<Link>,
     /// The lines of a properties block that it doesn't read.
     stray: Vec<String>,
+    /// Whether it was read as an entity's properties block.
+    properties_block: bool,
 }
 
 /// Reads a block's text, as a properties block if it is an entity's first
 /// child and starts like one.
 fn read_block(text: &str, first_child: bool) -> Read {
     let found = first_child.then(|| parse_properties_block(text)).flatten();
+    let properties_block = found.is_some();
     let (mut block, stray) = match found {
         Some(found) => {
             let stray = found
@@ -51,6 +54,7 @@ fn read_block(text: &str, first_child: bool) -> Read {
         block,
         links,
         stray,
+        properties_block,
     }
 }
 
@@ -183,6 +187,9 @@ pub struct Index {
     /// whether or not it can be read.
     blob_lines: Vec<String>,
     backlinks: HashMap<BlockId, Vec<Backlink>>,
+    /// The blocks that are an entity's properties block. `update_text` declines
+    /// them either side of an edit, so this never needs maintaining.
+    properties_blocks: HashSet<BlockId>,
     /// The entity (root block) each block is in, itself for a root.
     root_of: HashMap<BlockId, BlockId>,
     /// Where each block is in document order, which is the order of every
@@ -283,6 +290,9 @@ impl Index {
                 .map(|before| before.id);
             let first_child = owner.is_some();
             let read = read_block(&scanned.text, first_child);
+            if read.properties_block {
+                index.properties_blocks.insert(block);
+            }
             if let Some(line) = crate::Asset::line_of(&scanned.text) {
                 index.blob_lines.push(line.unwrap_or_default());
                 if let Some(Ok(asset)) = crate::Asset::in_block(&scanned.text) {
@@ -640,6 +650,13 @@ impl Index {
     /// Blocks linking to `target`.
     pub fn backlinks(&self, target: BlockId) -> &[Backlink] {
         self.backlinks.get(&target).map_or(&[], Vec::as_slice)
+    }
+
+    /// Whether `block` is an entity's properties block, whose links are its
+    /// properties' rather than something written in the page.
+    #[must_use]
+    pub fn is_properties_block(&self, block: BlockId) -> bool {
+        self.properties_blocks.contains(&block)
     }
 
     /// The entity with this identity.

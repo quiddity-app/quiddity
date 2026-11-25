@@ -101,6 +101,12 @@ entity's links to itself and links to nowhere make no edge. It walks every
 backlink, so like the other queries it is a whole-graph cost the UI pays once
 per revision.
 
+Each edge says whether it is `written`: whether any of its links is outside the
+source's properties block (`Index::is_properties_block`), so the page graph can
+leave a neighbour's property values out of what it counts. A pair is one edge in
+each direction however many links there are, so it is written if any of them is.
+A weak edge never is.
+
 Each node (`Node`) is an `EntityRef` that says whether it is a `journal`, so
 the graph can leave journals out. A virtual entity never is.
 
