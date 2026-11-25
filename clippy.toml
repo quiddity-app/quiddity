@@ -1,3 +1,7 @@
 allow-unwrap-in-tests = true
 allow-expect-in-tests = true
 allow-dbg-in-tests = true
+
+# Name what a path refers to with a `use` rather than qualifying each reference
+# site; three segments (`std::process::id()`) read fine inline.
+absolute-paths-max-segments = 3

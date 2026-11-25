@@ -31,7 +31,9 @@ use std::io;
 use std::num::NonZeroU64;
 use std::sync::{Arc, Mutex, PoisonError};
 
-use bao_tree::io::mixed::{EncodedItem, ReadBytesAt, traverse_ranges_validated};
+use bao_tree::io::mixed::{
+    EncodedItem, ReadBytesAt, Sender as BaoSender, traverse_ranges_validated,
+};
 use bao_tree::io::outboard::PreOrderMemOutboard;
 use bao_tree::io::sync::Outboard;
 use bao_tree::io::{BaoContentItem, EncodeError, Leaf};
@@ -53,6 +55,7 @@ use iroh_blobs::{BlobFormat, Hash, HashAndFormat};
 use irpc::channel::{mpsc, oneshot};
 use range_collections::range_set::RangeSetRange;
 use rusqlite::{Connection, OptionalExtension, params};
+use tokio::sync::mpsc as tokio_mpsc;
 use tokio::sync::watch;
 use tokio::task::JoinSet;
 use tracing::{debug, error, trace};
@@ -106,7 +109,7 @@ pub fn open_limited(
 /// client handle on the channel the actor serves:
 /// it keeps nothing itself.
 pub fn spawn(connection: Connection, max_blob: u64) -> SqliteBlobs {
-    let (sender, commands) = tokio::sync::mpsc::channel(32);
+    let (sender, commands) = tokio_mpsc::channel(32);
     let shared = Arc::new(Shared {
         db: Db(Arc::new(Mutex::new(connection))),
         partials: Mutex::default(),
@@ -369,7 +372,7 @@ impl Outboard for OutboardReader {
 /// Lets `bao-tree` send what it encodes down the protocol's channel.
 struct EncodedSender<'a>(&'a mut mpsc::Sender<EncodedItem>);
 
-impl bao_tree::io::mixed::Sender for EncodedSender<'_> {
+impl BaoSender for EncodedSender<'_> {
     type Error = irpc::channel::SendError;
     async fn send(&mut self, item: EncodedItem) -> Result<(), Self::Error> {
         self.0.send(item).await
@@ -386,7 +389,7 @@ enum Finished {
 }
 
 struct Actor {
-    commands: tokio::sync::mpsc::Receiver<Command>,
+    commands: tokio_mpsc::Receiver<Command>,
     shared: Arc<Shared>,
     tasks: JoinSet<Finished>,
     idle: Vec<oneshot::Sender<()>>,

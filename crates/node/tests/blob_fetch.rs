@@ -7,7 +7,7 @@ mod support;
 use bao_tree::{ChunkNum, ChunkRanges};
 use iroh_blobs::Hash;
 use iroh_blobs::api::Store as BlobStore;
-use iroh_blobs::api::blobs::BlobStatus;
+use iroh_blobs::api::blobs::{Bitfield, BlobStatus};
 use iroh_blobs::store::mem::MemStore;
 use proptest::prelude::*;
 use quiddity_node::blob_store::{self, SqliteBlobs};
@@ -134,7 +134,7 @@ fn observing_reports_what_is_held() {
     runtime().block_on(async {
         let (source, target, hash, _dirs) = pair().await;
         let oracle: BlobStore = MemStore::new().into();
-        let report = |b: iroh_blobs::api::blobs::Bitfield| format!("{b:?}");
+        let report = |b: Bitfield| format!("{b:?}");
 
         let absent = report(target.observe(hash).await.unwrap());
         assert_eq!(absent, report(oracle.observe(hash).await.unwrap()));

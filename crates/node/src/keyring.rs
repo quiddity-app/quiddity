@@ -10,6 +10,8 @@
 use std::ffi::OsString;
 use std::fs;
 use std::io::{self, Write};
+#[cfg(unix)]
+use std::os::unix::fs::{OpenOptionsExt as _, PermissionsExt as _};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -78,7 +80,7 @@ impl Keyring {
         };
         #[cfg(unix)]
         if let Ok(meta) = fs::metadata(self.path())
-            && readable_by_others(std::os::unix::fs::PermissionsExt::mode(&meta.permissions()))
+            && readable_by_others(meta.permissions().mode())
         {
             warn!(path = %self.path().display(), "this device's key can be read by others: restrict it to its owner");
         }
@@ -107,10 +109,7 @@ impl Keyring {
         fs::create_dir_all(&self.dir)?;
         #[cfg(unix)]
         if made {
-            fs::set_permissions(
-                &self.dir,
-                std::os::unix::fs::PermissionsExt::from_mode(0o700),
-            )?;
+            fs::set_permissions(&self.dir, fs::Permissions::from_mode(0o700))?;
         }
         #[cfg(not(unix))]
         let _ = made;
@@ -126,7 +125,7 @@ impl Keyring {
         let mut options = fs::OpenOptions::new();
         options.write(true).create_new(true);
         #[cfg(unix)]
-        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        options.mode(0o600);
         let mut file = options.open(&staged)?;
         let written = writeln!(file, "{}", &**key.to_token()).and_then(|()| file.sync_all());
         let linked = written.and_then(|()| link(&staged, &self.path()));
@@ -276,10 +275,7 @@ mod tests {
         assert!(text.starts_with("qdk_"));
         #[cfg(unix)]
         {
-            let mode = |p: &Path| {
-                std::os::unix::fs::PermissionsExt::mode(&fs::metadata(p).unwrap().permissions())
-                    & 0o777
-            };
+            let mode = |p: &Path| fs::metadata(p).unwrap().permissions().mode() & 0o777;
             assert_eq!(mode(&tmp.path().join("device.key")), 0o600);
         }
         // Nothing is left beside it.
@@ -296,8 +292,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dir = tmp.path().join("a/b");
         Keyring::new(&dir).key().unwrap();
-        let mode =
-            std::os::unix::fs::PermissionsExt::mode(&fs::metadata(&dir).unwrap().permissions());
+        let mode = fs::metadata(&dir).unwrap().permissions().mode();
         assert_eq!(mode & 0o777, 0o700);
     }
 
@@ -386,10 +381,9 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dir = tmp.path().join("shared");
         fs::create_dir(&dir).unwrap();
-        fs::set_permissions(&dir, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+        fs::set_permissions(&dir, fs::Permissions::from_mode(0o755)).unwrap();
         Keyring::new(&dir).key().unwrap();
-        let mode =
-            std::os::unix::fs::PermissionsExt::mode(&fs::metadata(&dir).unwrap().permissions());
+        let mode = fs::metadata(&dir).unwrap().permissions().mode();
         assert_eq!(mode & 0o777, 0o755);
     }
 
