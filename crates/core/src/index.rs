@@ -485,10 +485,16 @@ impl Index {
                 }
             }
         }
-        self.mentions.retain(|_, list| {
-            list.retain(|m| m.source != block);
-            !list.is_empty()
-        });
+        // A block is only ever in the mentions of the names its links write.
+        for link in &old.links {
+            let name = normalise_name(&link.name);
+            if let Some(list) = self.mentions.get_mut(&name) {
+                list.retain(|m| m.source != block);
+                if list.is_empty() {
+                    self.mentions.remove(&name);
+                }
+            }
+        }
         for link in &new.links {
             self.add_mention(block, link, Some(at));
             let Some((targets, ambiguous)) = self.targets(link) else {

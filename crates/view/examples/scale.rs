@@ -27,7 +27,8 @@ fn argument(n: usize, default: usize) -> usize {
 }
 
 /// Seven pages in ten are journals; each has a properties block and
-/// `per_page` blocks with a child, linking to other pages.
+/// `per_page` blocks with a child, linking to other pages and to a name nobody
+/// has made (so the index keeps a mention of each).
 fn graph(pages: usize, per_page: usize) -> Graph {
     let graph = Graph::new();
     for page in 0..pages {
@@ -41,9 +42,10 @@ fn graph(pages: usize, per_page: usize) -> Graph {
         graph.create_block(Some(root), None, &props).unwrap();
         for b in 0..per_page {
             let text = format!(
-                "Block {b} of page {page} mentioning [[Topic {}]] and [[Alias {}]] with some ordinary words to search for #tag{}",
+                "Block {b} of page {page} mentioning [[Topic {}]] and [[Alias {}]] and [[Missing {}]] with some ordinary words to search for #tag{}",
                 (page * 7 + b) % pages,
                 (page * 13 + b) % pages,
+                page * per_page + b,
                 b % 5
             );
             let parent = graph.create_block(Some(root), None, &text).unwrap();
@@ -93,6 +95,9 @@ fn main() {
     timed("splice_text()", || {
         view.splice_text(&typed_in, 0, 0, "x").unwrap();
     });
+    // A query that does next to nothing itself, so this is the index being
+    // brought up to date for the edit.
+    timed("index update", || view.link_matches("Topic 1").unwrap());
     timed("first query (updated index)", || {
         view.search_titles("a", 5).unwrap()
     });
