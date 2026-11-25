@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Region, Skeleton } from './boundary';
 import { EntityLink } from './entity-link';
 import { EntityBody } from './entity-view';
-import { ErrorLine, pageTitle, sectionTitle } from './ui';
+import { ErrorLine, Page, pageTitle, sectionTitle } from './ui';
 
 import type { EntityRef } from '@/lib/model';
 
@@ -16,7 +16,7 @@ const PAGE = 5;
 function Day({ day }: Readonly<{ day: EntityRef }>) {
   return (
     <section className="py-4">
-      <h2 className={`${sectionTitle} text-[1.125em]!`}>
+      <h2 className={sectionTitle}>
         <EntityLink id={day.id} className="hover:underline">
           {day.title}
         </EntityLink>
@@ -74,18 +74,14 @@ function Days() {
 /** The home page: today's journal, then scroll-back. */
 export function JournalFeed() {
   return (
-    // The same text size as an entity (`MainEntity`): `cqw` needs a container
-    // to measure, and an element can't be its own, so the wrapper is it.
-    <div className="@container">
-      <article className="mx-auto max-w-measure-text px-6 py-8 [font-size:calc(1.25rem_+_max(0.325cqw,0.325lvh))]">
-        <h1 className={`${pageTitle} text-[1.5em]!`}>Journals</h1>
-        <Region
-          pending={<Skeleton className="h-8 w-1/3" />}
-          failed={(error) => <ErrorLine>{error.message}</ErrorLine>}
-        >
-          <Days />
-        </Region>
-      </article>
-    </div>
+    <Page width="text">
+      <h1 className={pageTitle}>Journals</h1>
+      <Region
+        pending={<Skeleton className="h-8 w-1/3" />}
+        failed={(error) => <ErrorLine>{error.message}</ErrorLine>}
+      >
+        <Days />
+      </Region>
+    </Page>
   );
 }

@@ -4,7 +4,7 @@ import { Region, Skeleton } from './boundary';
 import { EntityLink } from './entity-link';
 import { Outline } from './entity-view';
 import { useView } from './use-view';
-import { linkClass, pageTitle } from './ui';
+import { linkClass, Page, pageTitle } from './ui';
 
 import type { EntityId } from '@/lib/model';
 
@@ -55,7 +55,7 @@ export function Disambiguation() {
     );
   }
   return (
-    <div className="mx-auto max-w-measure-text px-6 py-8">
+    <Page width="text">
       <h1 className={pageTitle}>
         Which <span className="font-mono">[[{link}]]</span>?
       </h1>
@@ -74,6 +74,6 @@ export function Disambiguation() {
       >
         <Matches link={link} />
       </Region>
-    </div>
+    </Page>
   );
 }

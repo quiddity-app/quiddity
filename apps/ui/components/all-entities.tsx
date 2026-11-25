@@ -11,7 +11,7 @@ import {
 
 import { Region, Skeleton } from './boundary';
 import { EntityLink } from './entity-link';
-import { Button, ErrorLine, Input, linkClass, pageTitle } from './ui';
+import { Button, ErrorLine, Input, linkClass, Page, pageTitle } from './ui';
 
 import type { Summary } from '@/lib/model';
 
@@ -291,7 +291,7 @@ export function AllEntities() {
   // Journals are a day each, so they swamp the list unless asked for.
   const [journals, setJournals] = useState(false);
   return (
-    <article className="mx-auto max-w-measure-table px-6 py-8">
+    <Page width="table">
       <h1 className={pageTitle}>All entities</h1>
       <Region
         pending={<Skeleton className="h-4 w-1/2" />}
@@ -320,6 +320,6 @@ export function AllEntities() {
         </form>
         <List filter={filter} journals={journals} />
       </Region>
-    </article>
+    </Page>
   );
 }

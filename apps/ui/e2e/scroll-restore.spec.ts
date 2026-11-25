@@ -46,7 +46,14 @@ async function leaveScrolled(page: Page) {
   await page.goto('/all/');
   const links = page.locator('main').getByRole('link');
   await expect(links.first()).toBeVisible();
-  await page.evaluate(() => (document.querySelector('main')!.scrollTop = 60));
+  // Scroll the first link near the top rather than by a fixed amount: how far
+  // down the list starts depends on the size of the page's text.
+  await page.evaluate(() => {
+    const pane = document.querySelector('main')!;
+    const link = pane.querySelector('a')!.getBoundingClientRect().top;
+    const top = pane.getBoundingClientRect().top;
+    pane.scrollTop += link - top - 40;
+  });
   await settle(page);
   const scrolled = await scrollTop(page);
   expect(scrolled, 'the list needs to be taller than the pane').toBeGreaterThan(
