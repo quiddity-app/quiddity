@@ -1,4 +1,5 @@
 import { Replica } from './wasm/quiddity_wasm';
+import { wasmReady } from './wasm-ready';
 
 import type { SyncDetails, SyncState } from './model';
 import type { Recovery } from './recovery';
@@ -144,6 +145,8 @@ let damaged: string | false | undefined;
 
 export const memoryBackend: Backend = {
   async load() {
+    // Making a replica needs the WASM, which starts up beside this.
+    await wasmReady();
     // `?blank` is a device that has joined nothing yet.
     started = new URLSearchParams(window.location.search).has('blank')
       ? Replica.blank().snapshot()
