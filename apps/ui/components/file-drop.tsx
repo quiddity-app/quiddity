@@ -6,6 +6,9 @@ import type { EntityId } from '@/lib/model';
 
 import { bootGraph } from '@/lib/graph';
 
+/** How many files have their bytes being kept at once. */
+const KEEP_AHEAD = 4;
+
 const hasFiles = (data: DataTransfer | null) =>
   data?.types.includes('Files') === true;
 
@@ -33,9 +36,23 @@ export function useFileDrop(id: EntityId) {
       setProblem('This build can’t keep files.');
       return;
     }
-    for (const file of files) {
+    // The shell keeps the bytes of a few files at a time, while the blocks
+    // are added in the order the files came, stopping at the first that
+    // couldn't be kept. Not all at once: a big drop would be in memory whole.
+    const kept: Promise<string>[] = [];
+    const keep = (upTo: number) => {
+      while (kept.length <= Math.min(upTo, files.length - 1)) {
+        const keeping = graph.keepFile(files[kept.length]!);
+        // Its failure is reported when its turn comes, or not at all if an
+        // earlier file's came first.
+        keeping.catch(() => {});
+        kept.push(keeping);
+      }
+    };
+    for (const [i, file] of files.entries()) {
+      keep(i + KEEP_AHEAD - 1);
       try {
-        await graph.addFile(id, file);
+        graph.attachFile(id, file, await kept[i]!);
       } catch (error) {
         setProblem(
           `Couldn’t add ${file.name || 'the file'}: ${(error as Error).message}`,

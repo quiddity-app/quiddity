@@ -267,25 +267,28 @@ export class Graph {
   canKeepFiles = () =>
     this.backend.putBlob !== undefined && this.backend.getBlob !== undefined;
 
-  /** Adds a file to a page: the shell keeps its bytes, and the page gets a
-   * block at its end that is the file, as one edit. Returns the block. It
-   * makes no entity: the file shows inline, on the page it was added to.
+  /** Hands a file's bytes to the shell to keep, and returns their hash. Files
+   * can be kept at the same time: the page is only edited by `attachFile`.
    * Rejects with a message the user can read. */
-  async addFile(page: EntityId, file: File): Promise<string> {
-    let hash: string;
+  async keepFile(file: File): Promise<string> {
     try {
-      hash = await this.backend.putBlob!(
+      return await this.backend.putBlob!(
         new Uint8Array(await file.arrayBuffer()),
       );
     } catch (error) {
       throw new Error(error instanceof Error ? error.message : String(error));
     }
-    const mime = file.type || 'application/octet-stream';
+  }
+
+  /** Adds a kept file to a page: a block at its end that is the file, as one
+   * edit. Returns the block. It makes no entity: the file shows inline, on the
+   * page it was added to. */
+  attachFile(page: EntityId, file: File, hash: string): string {
     return this.edited(
       this.replica.attachBlob(
         page,
         hash,
-        mime,
+        file.type || 'application/octet-stream',
         BigInt(file.size),
         file.name || undefined,
       ),

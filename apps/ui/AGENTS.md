@@ -179,8 +179,9 @@ refuses it. The memory backend plays such a device with `?blank`.
 Dropping or pasting a file on the main pane keeps it and adds it to the page as
 a blob block, with no page of its own.
 **A backend may have `putBlob` and `getBlob`**, which only the app does
-(`Graph.canKeepFiles()`): `Graph.addFile` hands the bytes to the shell, gets
-their hash back, and then `attachBlob` adds the block as one edit. The UI
+(`Graph.canKeepFiles()`): `Graph.keepFile` hands the bytes to the shell and
+gets their hash back, and then `Graph.attachFile` adds the block as one edit.
+`useFileDrop` keeps a few files at once but attaches them in order. The UI
 never writes the `##blob` line: Rust does.
 
 - **`useFileDrop` puts its handlers on the `<article>` itself**, not a wrapper:
