@@ -12,6 +12,11 @@ import { iconButtonClass } from './ui';
  * Below `md` the left pane is a drawer; below `lg` the right pane overlays the
  * main one. The right `aside` is `empty:hidden`, so it takes no room until
  * something is open.
+ *
+ * The page is drawn edge to edge (`viewportFit` in layout.tsx), so under a
+ * status bar or a gesture bar the shell pads itself by the safe-area insets.
+ * The two fixed panes sit outside that padding, so they pad themselves while
+ * they are fixed.
  */
 export function Shell({
   left,
@@ -28,9 +33,9 @@ export function Shell({
   const [drawer, setDrawer] = useState(false);
   const pane = 'bg-surface-pane';
   return (
-    <div className="relative flex h-dvh overflow-hidden">
+    <div className="relative flex h-dvh overflow-hidden pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]">
       <aside
-        className={`${pane} fixed inset-y-0 left-0 z-(--z-drawer) flex w-64 shrink-0 flex-col border-r border-border motion-safe:transition-transform md:static md:translate-x-0 ${
+        className={`${pane} fixed inset-y-0 left-0 z-(--z-drawer) flex w-64 shrink-0 flex-col border-r border-border motion-safe:transition-transform md:static md:translate-x-0 max-md:pt-[env(safe-area-inset-top)] max-md:pb-[env(safe-area-inset-bottom)] max-md:pl-[env(safe-area-inset-left)] ${
           drawer ? 'translate-x-0' : '-translate-x-full'
         }`}
         onClick={() => {
@@ -74,7 +79,7 @@ export function Shell({
         <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
       </div>
       <aside
-        className={`${pane} fixed inset-y-0 right-0 z-(--z-pane) flex w-[min(100%,24rem)] shrink-0 flex-col border-l border-border shadow-overlay empty:hidden lg:static lg:w-96 lg:shadow-none`}
+        className={`${pane} fixed inset-y-0 right-0 z-(--z-pane) flex w-[min(100%,24rem)] shrink-0 flex-col border-l border-border shadow-overlay empty:hidden lg:static lg:w-96 lg:shadow-none max-lg:pt-[env(safe-area-inset-top)] max-lg:pr-[env(safe-area-inset-right)] max-lg:pb-[env(safe-area-inset-bottom)]`}
       >
         {right}
       </aside>

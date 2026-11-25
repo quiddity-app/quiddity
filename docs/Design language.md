@@ -32,5 +32,6 @@
 - The icon is a Q whose ring is centred. [[App icon]]
 - Layers that float
 	- The search panel, the link list in the editor and the right pane when it overlays all look the same: the page's ground, a hairline border, a rounded corner and one shadow (`shadow-overlay`). Where something blocks the page there is a dim layer under it. What covers what is four named levels: the overlaid pane, the dim layer, the drawer and whatever floats over everything (`--z-pane`, `--z-scrim`, `--z-drawer`, `--z-overlay`).
+	- The page is drawn edge to edge (`viewportFit: 'cover'`), so under a status bar, a notch or a gesture bar the shell pads itself by the safe-area insets (`env(safe-area-inset-*)`), and so do the drawer, the overlaid pane, the link list and the recovery screen, which sit outside it. Not tried on a device yet: the Android WebView only reports insets from a recent Chromium.
 - Colours that Tailwind can't reach follow the theme too
 	- The graph's canvas reads its colours from the stylesheet (`--graph-link`, `--graph-node` and so on) and asks again when the scheme changes, and the editor's selection is `--selection`. Nothing outside `globals.css` writes a colour.
