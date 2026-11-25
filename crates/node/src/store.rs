@@ -21,6 +21,8 @@
 
 use std::fs;
 use std::io;
+#[cfg(unix)]
+use std::os::unix::fs::OpenOptionsExt as _;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -714,7 +716,7 @@ impl Store {
         let mut options = fs::OpenOptions::new();
         options.write(true).create_new(true);
         #[cfg(unix)]
-        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        options.mode(0o600);
         options.open(&staged)?;
         let made = (|| {
             let db = Self::connect_at(&staged)?;
@@ -984,6 +986,8 @@ fn new_salt() -> Result<[u8; 16], StoreError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
+    use std::os::unix::fs::symlink;
 
     /// The store of the graph in `dir`, for a device whose key is in `dir/keys`
     /// (so that two stores of one directory are one device).
@@ -2298,7 +2302,7 @@ mod tests {
         original.init(false).unwrap();
         let node = original.node_id().unwrap();
         let link = device.tmp.path().join("link");
-        std::os::unix::fs::symlink(original.dir(), &link).unwrap();
+        symlink(original.dir(), &link).unwrap();
         assert_eq!(device.graph("link").node_id().unwrap(), node);
         assert_eq!(original.node_id().unwrap(), node);
     }
