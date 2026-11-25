@@ -37,13 +37,17 @@ function BlockRow({
         aria-hidden
         data-bullet
         // The row aligns on baselines, and an empty box's baseline is its bottom
-        // edge, so the margin lifts the dot to half the x-height (0.26em) less
-        // its own radius: level with the middle of the first line's lowercase
-        // letters, whatever the size of the text. A file is drawn above its
-        // caption, so its first baseline is the foot of the image: that dot
-        // stays beside the top instead.
+        // edge (margins don't move it), so the dot starts with its foot on the
+        // baseline. Shifting it up by half the font's x-height (`ex`, so it
+        // follows the font) less its own radius puts it level with the middle
+        // of the first line's lowercase letters. A relative offset, not a
+        // margin, since only that leaves the alignment alone. A file is drawn
+        // above its caption, so its first baseline is the foot of the image:
+        // that dot stays beside the top instead.
         className={`size-1.5 shrink-0 rounded-full bg-bullet ${
-          block.blob ? 'mt-3.25 self-start' : 'mb-[calc(0.26em-3px)]'
+          block.blob
+            ? 'mt-3.25 self-start'
+            : 'relative bottom-[calc(0.5ex-3px)]'
         } ${propsOnly ? 'invisible' : ''}`}
       />
       <div className="min-w-0 flex-1 py-0.5">
