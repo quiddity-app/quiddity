@@ -6,7 +6,6 @@ import { expect, test } from './fixtures';
 for (const [path, name] of [
   ['/all/', 'All entities'],
   ['/devices/', 'Devices'],
-  ['/journals/', 'Journals'],
 ] as const) {
   test(`${name} has a page title of the common size and spacing`, async ({
     page,
@@ -17,6 +16,23 @@ for (const [path, name] of [
     await expect(title).toHaveCSS('margin-bottom', '16px');
   });
 }
+
+// The feed's text scales with the pane as an entity's does, and its titles
+// with it, so it is the one page whose title isn't a fixed size.
+test('Journals titles scale with the text, as an entity page does', async ({
+  page,
+}) => {
+  await page.goto('/journals/');
+  const article = page.locator('main article').first();
+  const size = async (el: typeof article) =>
+    Number.parseFloat(await el.evaluate((e) => getComputedStyle(e).fontSize));
+  const body = await size(article);
+  const title = page.getByRole('heading', { name: 'Journals', level: 1 });
+  expect(await size(title)).toBeCloseTo(body * 1.5, 1);
+  await expect(title).toHaveCSS('margin-bottom', '16px');
+  const day = article.getByRole('heading', { level: 2 }).first();
+  expect(await size(day)).toBeCloseTo(body * 1.125, 1);
+});
 
 test('a reading page is the reading width, and the table page the wide one', async ({
   page,
