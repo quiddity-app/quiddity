@@ -74,14 +74,18 @@ function Days() {
 /** The home page: today's journal, then scroll-back. */
 export function JournalFeed() {
   return (
-    <article className="mx-auto max-w-measure-text px-6 py-8">
-      <h1 className={pageTitle}>Journals</h1>
-      <Region
-        pending={<Skeleton className="h-8 w-1/3" />}
-        failed={(error) => <ErrorLine>{error.message}</ErrorLine>}
-      >
-        <Days />
-      </Region>
-    </article>
+    // The same text size as an entity (`MainEntity`): `cqw` needs a container
+    // to measure, and an element can't be its own, so the wrapper is it.
+    <div className="@container">
+      <article className="mx-auto max-w-measure-text px-6 py-8 [font-size:calc(1.25rem_+_max(0.325cqw,0.325lvh))]">
+        <h1 className={pageTitle}>Journals</h1>
+        <Region
+          pending={<Skeleton className="h-8 w-1/3" />}
+          failed={(error) => <ErrorLine>{error.message}</ErrorLine>}
+        >
+          <Days />
+        </Region>
+      </article>
+    </div>
   );
 }
