@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use quiddity_core::syntax::{
     Link, Qualifier, Value, fold, format_qualifier, is_mark, is_word_char, nfc,
 };
-use quiddity_core::{BlockId, EntityInfo, Index};
+use quiddity_core::{BlockId, Index};
 use serde::Serialize;
 
 use crate::query::{EntityRef, link_key, link_qualifiers};
@@ -405,19 +405,12 @@ impl View {
     /// once, by whichever of its names matches best, the title if it ties.
     /// Equal scores are in title order.
     pub fn search_titles(&self, query: &str, limit: usize) -> Result<Vec<TitleHit>> {
-        let mut hits: Vec<(EntityRef, Match, Option<String>)> = Vec::new();
         let index = self.index()?;
-        for entity in self.entities()? {
-            // A name nobody has made has no aliases.
-            let aliases = if crate::virtual_entity::name_of(&entity.id).is_some() {
-                Vec::new()
-            } else {
-                let id = self.entity_id(&entity.id)?;
-                index
-                    .entity(id)
-                    .map(EntityInfo::aliases)
-                    .unwrap_or_default()
-            };
+        // Real entities come with the ID the index holds them by, so nothing
+        // is asked of the graph for each one; a name nobody has made has no
+        // ID, no aliases, no properties and no rivals to tell apart.
+        let mut hits: Vec<(EntityRef, Option<BlockId>, Match, Option<String>)> = Vec::new();
+        let mut consider = |entity: EntityRef, id: Option<BlockId>, aliases: Vec<&Value>| {
             let mut best = fuzzy_match(query, &entity.title).map(|m| (m, None));
             for alias in aliases {
                 let alias = plain(alias);
@@ -429,28 +422,39 @@ impl View {
                 }
             }
             if let Some((m, alias)) = best {
-                hits.push((entity, m, alias));
+                hits.push((entity, id, m, alias));
             }
+        };
+        for entity in index.entities() {
+            let entity_ref = EntityRef {
+                id: entity.id.to_string(),
+                title: entity.name.clone(),
+            };
+            consider(entity_ref, Some(entity.id), entity.aliases());
         }
-        // Stable, and `entities` is in title order.
-        hits.sort_by_key(|(_, m, _)| Reverse(m.score));
+        for v in self.virtuals()? {
+            let entity_ref = EntityRef {
+                id: v.id,
+                title: v.title,
+            };
+            consider(entity_ref, None, Vec::new());
+        }
+        // Best first, then in title order, as `entities` lists them. Only the
+        // `limit` best are wanted, so the rest are set aside before anything
+        // is sorted: the score of the last one wanted says which can be.
+        if let Some(last) = limit.checked_sub(1).filter(|&last| last < hits.len()) {
+            let (_, nth, _) =
+                hits.select_nth_unstable_by_key(last, |(_, _, m, _)| Reverse(m.score));
+            let cutoff = nth.2.score;
+            hits.retain(|(_, _, m, _)| m.score >= cutoff);
+        }
+        hits.sort_by_cached_key(|(e, _, m, _)| {
+            (Reverse(m.score), e.title.to_lowercase(), e.id.clone())
+        });
         hits.truncate(limit);
-        // A name nobody has made has no properties and no rivals to tell apart.
-        let ids = hits
-            .iter()
-            .map(|(e, ..)| {
-                if crate::virtual_entity::name_of(&e.id).is_some() {
-                    Ok(None)
-                } else {
-                    self.entity_id(&e.id).map(Some)
-                }
-            })
-            .collect::<Result<Vec<_>>>()?;
-        let index = self.index()?;
         Ok(hits
             .into_iter()
-            .zip(ids)
-            .map(|((entity, m, alias), id)| {
+            .map(|(entity, id, m, alias)| {
                 let link = Link {
                     name: entity.title.clone(),
                     qualifiers: id
