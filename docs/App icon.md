@@ -7,5 +7,7 @@
 - The ring is centred, not the whole Q
 	- The tail makes the glyph heavier towards a corner, so centring the glyph's box puts the ring off to one side, which shows on a circular base. The ring is at the exact middle of the square, in the master and in the Android foreground, which is scaled down about the ring's centre to keep the tail inside the part of an adaptive icon every launcher shows.
 	- Tauri composes the older Android launcher icons, square and round, from the layers itself, and moves the ring. So the script takes those from the master alone. Tests measure the sources and every generated launcher icon.
+- Android gets the icons after the project is generated
+	- `tauri android init` makes the project with Tauri's placeholder launcher icons and doesn't read ours, and `tauri icon` writes into the project only if it already exists. So `mise run android` and the release run `tauri icon` on the layered manifest after the init, which writes the icons into the generated project. The older launcher icons it makes there have the ring off to one side (`scripts/icons.sh` fixes only the committed ones), which shows on Android 7 alone.
 - What is not set
 	- A mobile project's status bar or splash is part of the generated Android and iOS projects, which aren't committed.

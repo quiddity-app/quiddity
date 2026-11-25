@@ -7,7 +7,7 @@
 	- `mise run docs` builds this site. [[Publishing]]
 	- The tasks are defined in `mise.toml`, and are kept in step with CI when either changes.
 - Android
-	- `mise run android` generates the project (`apps/app/src-tauri/gen/android`, which isn't committed, because it holds nothing of ours) and runs the app on a connected device or an emulator.
+	- `mise run android` generates the project (`apps/app/src-tauri/gen/android`, which isn't committed, because it holds nothing of ours but the launcher icons `tauri icon` writes into it) and runs the app on a connected device or an emulator.
 	- It needs the Android SDK and NDK (`NDK_HOME`), Java 17 or later and the four Android Rust targets: `aarch64-linux-android`, `armv7-linux-androideabi`, `i686-linux-android` and `x86_64-linux-android`. `scripts/doctor.sh` doesn't check them.
 	- iOS is planned, not built. An IPA needs `tauri ios init` and `tauri ios build` on macOS with an Apple developer team and certificates, which the repository has none of.
 - Browser tests need Playwright's Chromium. [[Testing]]
