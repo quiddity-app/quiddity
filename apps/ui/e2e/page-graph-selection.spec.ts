@@ -21,6 +21,7 @@ function graph(...toFar: Connections['edges']): Connections {
       id,
       title: id,
       journal: false,
+      empty: false,
     })),
     edges: [edge('P', 'A'), edge('P', 'B'), ...toFar],
   };

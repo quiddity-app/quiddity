@@ -215,6 +215,8 @@ export interface Problem {
 export interface Connections {
   nodes: (EntityRef & {
     /** Whether it is a journal page. */ journal: boolean;
+    /** Whether it has no words outside its title and properties block. */
+    empty: boolean;
   })[];
   /** `weak` ones are made by a property, between each end of it and the
    * entity that defines it, and are drawn lighter. `written` ones have at

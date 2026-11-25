@@ -108,7 +108,11 @@ each direction however many links there are, so it is written if any of them is.
 A weak edge never is.
 
 Each node (`Node`) is an `EntityRef` that says whether it is a `journal`, so
-the graph can leave journals out. A virtual entity never is.
+the graph can leave journals out, and whether it is `empty`, so it can leave
+out pages that are only there to be linked to. Empty is as `summaries` counts
+words (none outside properties blocks, at any depth) but read straight from the
+corpus, since the rest of `summaries` is costly. A virtual entity is never a
+journal and always empty.
 
 A reference property's value links whether or not it is bracketed, so
 `parent:: Places` makes the same edges as `parent:: [[Places]]`: the strong one

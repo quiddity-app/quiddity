@@ -7,9 +7,10 @@
 	- They are not references. A pair already joined by a link, in either direction, has only the strong edge. A tag makes none, and neither does a property with no value. A key nobody has made an entity for is joined to its virtual entity.
 	- A `ref` property's value links to what it names with or without brackets, so `parent:: Places` and `parent:: [[Places]]` draw the same two edges: a strong one to `Places` and a weak one from `Places` to `parent`. [[Properties]]
 - Options
-	- A panel at the top left, which its button hides and shows, has a checkbox each for property links, journal pages and orphan pages. **All three start unticked**, so the graph is the written links between pages that have some. The choices are not remembered.
+	- A panel at the top left, which its button hides and shows, has a checkbox each for property links, journal pages, empty leaf pages and orphan pages. **The panel starts closed, and all four start unticked**, so the graph is the written links between pages that have some, without the pages that were only made to be linked to. The choices are not remembered.
 	- Property links are the weak links above: with them off, every `weak` edge is left out.
 	- Journal pages are the nodes `View::connections()` says are `journal`, and their links go with them.
+	- An empty leaf is a page with no content and exactly one link, which comes in from another page. No content means no words outside its title and its properties block, which is what `View::connections()` says is `empty`; a name nobody has made is empty. **A leaf is judged after journals and property links are hidden**, once: hiding one can leave the page that linked to it an orphan, but leaves aren't looked for again.
 	- An orphan is a page with no links in or out, **judged after journals and property links are hidden**. So hiding journals also hides the pages only they link to, and with property links off a page that only has a property is an orphan and goes too.
 	- Hidden entities lose their remembered position when the layout is next saved, and are placed afresh when shown. [[Properties]]
 - The drawing is d3 on a canvas, with React owning only the elements.

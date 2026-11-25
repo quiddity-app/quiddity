@@ -438,11 +438,16 @@ calls `draw()` once on mount and `update(data)` when the graph changes.**
   Alt-click frames a node and its neighbours instead of opening it. The animation is
   `d3-transition`, imported for its effect on selections (it works on a canvas
   selection as on any other); a pan or zoom by the person interrupts it.
-- **Options** (`lib/graph-filter.ts`): a panel with a checkbox each for property links
-  (the `weak` edges), journal pages (`Connections.nodes[].journal`, from Rust) and
-  orphan pages, all off to begin with, which `Canvas` applies to the data before
-  `update`. **An orphan is judged after journals and property links are
-  hidden**, so hiding either also hides what only they linked. The canvas carries `data-links` and
+- **Options** (`lib/graph-filter.ts`): a panel, closed when the page opens, with a checkbox each for property links
+  (the `weak` edges), journal pages (`Connections.nodes[].journal`, from Rust),
+  empty leaf pages (`nodes[].empty`: no words outside the title and properties
+  block, one link, which comes in) and orphan pages, all off to begin with,
+  which `Canvas` applies to the data before `update`. **Leaves and orphans are
+  judged after journals and property links are hidden**, so hiding either also
+  hides what only they linked. Leaves go before orphans and aren't looked for
+  again, so a hidden leaf can leave its neighbour an orphan. A test opens the
+  panel first (`showOptions`); `e2e/graph-filter.spec.ts` tests the filter in
+  Node. The canvas carries `data-links` and
   `data-weak`, how many links there are and how many are weak, and `data-drawn`,
   how many the last paint stroked (fewer if the simulation was never given the
   links, which `update` must always do), for tests.

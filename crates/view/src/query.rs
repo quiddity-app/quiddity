@@ -53,6 +53,9 @@ pub struct Node {
     pub title: String,
     /// Whether it is a journal page, which the graph can leave out.
     pub journal: bool,
+    /// Whether it has no content: no words outside its title and its
+    /// properties block. A name nobody has made is empty.
+    pub empty: bool,
 }
 
 /// One row of the list of every entity.
@@ -743,12 +746,32 @@ impl View {
                 .map(|e| e.id.to_string())
                 .collect()
         };
-        // A name nobody has made isn't in the index, and isn't a journal.
+        // The entities with a block of words that isn't a properties block.
+        let written: BTreeSet<String> = {
+            let index = self.index()?;
+            let corpus = self.corpus()?;
+            let mut current = None;
+            let mut written = BTreeSet::new();
+            for scanned in corpus.iter() {
+                if scanned.parent.is_none() {
+                    current = Some(index.canonical(scanned.id));
+                } else if let Some(entity) = current
+                    && !is_properties_block(&scanned.text)
+                    && scanned.text.split_whitespace().next().is_some()
+                {
+                    written.insert(entity.to_string());
+                }
+            }
+            written
+        };
+        // A name nobody has made isn't in the index: it isn't a journal, and
+        // it is empty.
         let nodes = self
             .entities()?
             .into_iter()
             .map(|EntityRef { id, title }| Node {
                 journal: journals.contains(&id),
+                empty: !written.contains(&id),
                 id,
                 title,
             })
