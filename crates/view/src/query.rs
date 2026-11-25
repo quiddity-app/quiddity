@@ -1146,18 +1146,22 @@ impl View {
         target: Option<BlockId>,
     ) -> Result<Vec<Reference>> {
         let mut found = BTreeSet::new();
-        for block in self.graph.blocks() {
-            // Entity names aren't prose, and property values are structured.
-            if self.graph.parent(block).is_none() || linked.contains(&block) {
-                continue;
-            }
-            let text = self.graph.text(block)?;
-            if is_properties_block(&text) {
-                continue;
-            }
-            let prose = without_links(&text).to_lowercase();
-            if names.iter().any(|n| contains_word(&prose, n)) {
-                found.insert(block);
+        {
+            // The corpus has every block's text already: asking Loro for
+            // each of them costs several times what reading them does.
+            let corpus = self.corpus()?;
+            for scanned in corpus.iter() {
+                // Entity names aren't prose, and property values are structured.
+                if scanned.parent.is_none()
+                    || linked.contains(&scanned.id)
+                    || is_properties_block(&scanned.text)
+                {
+                    continue;
+                }
+                let prose = without_links(&scanned.text).to_lowercase();
+                if names.iter().any(|n| contains_word(&prose, n)) {
+                    found.insert(scanned.id);
+                }
             }
         }
         self.grouped(target, found)

@@ -110,6 +110,13 @@ fn main() {
     timed("search_text()", || {
         view.search_text("ordinary words", 20).unwrap()
     });
+    let topic = view.search_titles("topic 12", 1).unwrap()[0]
+        .entity
+        .id
+        .clone();
+    timed("unlinked_references()", || {
+        view.unlinked_references(&topic).unwrap()
+    });
 
     println!("-- after typing one character");
     let before = view.work();
