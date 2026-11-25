@@ -231,8 +231,10 @@ jobs:
       working-directory: apps/app
       run: |
         export NDK_HOME="$ANDROID_NDK_LATEST_HOME"
-        pnpm tauri icon src-tauri/icons/icon.png
         pnpm tauri android init --ci
+        # After init: `tauri icon` writes into the generated project only once
+        # it exists, and init writes Tauri's placeholder icons.
+        pnpm tauri icon src-tauri/icons/source/app-icon.json
     - name: Build the APK
       working-directory: apps/app
       run: |

@@ -20,7 +20,7 @@
 - How it is built
 	- The UI is built once, in the first job, and every app embeds it; the platform jobs skip `beforeBuildCommand`.
 	- Each desktop platform is a matrix entry that builds the node and then the app. The Linux and Windows arm64 builds run natively on GitHub's arm64 runners (free for public repositories only). Both macOS builds run on one Apple silicon runner, and x64 is cross-compiled.
-	- The Android job runs `tauri android init`, which generates a project that holds nothing of ours, and builds an unsigned release APK.
+	- The Android job runs `tauri android init`, then `tauri icon` to give the generated project our launcher icons ([[App icon]]), and builds an unsigned release APK.
 	- The jobs use the plain setup actions that [[GitHub Pages]] does, not mise and [[mbx]], so they don't depend on either supporting every runner.
 - Updates
 	- The release also makes what the apps' updater needs: a signed update bundle per platform and `latest.json`, which names them. The release fails without the update signing key. [[Updates]]
