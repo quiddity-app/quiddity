@@ -270,14 +270,22 @@ function blockAtHeight(scope: string, y: number): string | null {
   const rows = document.querySelectorAll<HTMLElement>(
     `[data-block-id][data-outline="${scope}"]`,
   );
-  let found: HTMLElement | undefined = rows[0];
-  for (const row of rows) {
-    if (row.getBoundingClientRect().top > y) {
-      break;
+  // Rows are in reading order, so their tops only increase: a binary search
+  // reads the layout of a few rows rather than of every one above the pointer,
+  // which this does on every move of a drag.
+  let low = 0;
+  let high = rows.length - 1;
+  let found = 0;
+  while (low <= high) {
+    const mid = (low + high) >> 1;
+    if (rows[mid]!.getBoundingClientRect().top > y) {
+      high = mid - 1;
+    } else {
+      found = mid;
+      low = mid + 1;
     }
-    found = row;
   }
-  return found?.dataset.blockId ?? null;
+  return rows[found]?.dataset.blockId ?? null;
 }
 
 type BlockSelection = { anchor: string; ids: ReadonlySet<string> } | null;
