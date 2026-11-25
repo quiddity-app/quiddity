@@ -36,7 +36,7 @@ test("the journal sits one level under its title", () => {
   assert.equal(text, "- A ([#1](u/1))\n\t- x\n\t\t- y\n- B ([#2](u/2))\n");
 });
 
-test("only days after the newest entry and before today are rolled up; roll-ups are skipped", () => {
+test("only days after the newest entry and before today are rolled up; roll-ups are skipped", async () => {
   const c = (sha, date, subject, journal = "") => ({
     sha: sha.padEnd(40, "0"), date, subject, message: `${subject}\n\n${journal}`,
   });
@@ -47,7 +47,7 @@ test("only days after the newest entry and before today are rolled up; roll-ups 
     c("d", "2026-11-03", `${ROLLUP_SUBJECT} up to 2026-11-02`),
     c("e", "2026-11-04", "Today (#4)"),
   ];
-  const pages = rollUp({ commits, after: "2026-11-01", before: "2026-11-04", repo: "o/r", resolve: () => null });
+  const pages = await rollUp({ commits, after: "2026-11-01", before: "2026-11-04", repo: "o/r", resolve: () => null });
   assert.deepEqual([...pages.keys()], ["2026-11-02"]);
   assert.equal(
     pages.get("2026-11-02"),
@@ -79,4 +79,25 @@ test("end to end, in a scratch repository", () => {
   assert.deepEqual(readdirSync(join(dir, "docs/journals")), ["2026-11-01.md", "2026-11-02.md", "2026-11-03.md"]);
   assert.equal(readFileSync(join(dir, "docs/journals/2026-11-02.md"), "utf8"), "- Landed ([#2](https://github.com/o/r/pull/2))\n\t- Did it\n");
   assert.equal(readFileSync(join(dir, "docs/journals/2026-11-01.md"), "utf8"), "- old\n");
+});
+
+test("pull requests are looked up concurrently, but entries stay in commit order", async () => {
+  const commits = Array.from({ length: 20 }, (_, i) => ({
+    sha: String(i).padStart(40, "0"), date: "2026-11-02", subject: `Commit ${i}`, message: `Commit ${i}\n`,
+  }));
+  let running = 0;
+  let peak = 0;
+  const resolve = async (_repo, sha) => {
+    running++;
+    peak = Math.max(peak, running);
+    // Earlier commits answer last, so order comes from the commits and not the answers.
+    await new Promise((done) => setTimeout(done, 20 - Number(sha)));
+    running--;
+    return { number: Number(sha) + 100, title: `Pull ${Number(sha)}` };
+  };
+  const pages = await rollUp({ commits, after: null, before: null, repo: "o/r", resolve });
+  const titles = pages.get("2026-11-02").split("\n").filter((l) => l.startsWith("- "));
+  assert.deepEqual(titles, commits.map((_, i) => `- Pull ${i} ([#${i + 100}](https://github.com/o/r/pull/${i + 100}))`));
+  assert.ok(peak > 1, "lookups overlap");
+  assert.ok(peak <= 8, "but not without limit");
 });

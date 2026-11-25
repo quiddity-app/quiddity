@@ -21,10 +21,13 @@
 //     node scripts/journals.mjs [--dir docs/journals] [--ref HEAD]
 //                               [--repo owner/name] [--exclude-today]
 
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { promisify } from "node:util";
+
+const run = promisify(execFile);
 
 // The subject of the commit that saves the journals back. It is left out of
 // the entries, or each roll-up would be listed in the next day's.
@@ -83,15 +86,16 @@ function repoFromRemote() {
 
 // The pull request a commit came from, when the subject doesn't say. Needs
 // `gh` and a token; without them the entry links to the commit instead.
-function lookUpPull(repo, sha) {
+async function lookUpPull(repo, sha) {
   if (!process.env.GH_TOKEN) return null;
   try {
-    const out = execFileSync(
-      "gh",
-      ["api", `repos/${repo}/commits/${sha}/pulls`, "--jq", ".[0] | [.number, .title] | @tsv"],
-      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
-    ).trim();
-    const [number, title] = out.split("\t");
+    const { stdout } = await run("gh", [
+      "api",
+      `repos/${repo}/commits/${sha}/pulls`,
+      "--jq",
+      ".[0] | [.number, .title] | @tsv",
+    ]);
+    const [number, title] = stdout.trim().split("\t");
     return number ? { number: Number(number), title } : null;
   } catch {
     return null;
@@ -123,10 +127,10 @@ function wanted(c, after, before) {
 }
 
 /** A commit's entry: its title and journal, linked to its pull request or, with none, itself. */
-function entryFor(c, repo, resolve) {
+async function entryFor(c, repo, resolve) {
   let { title, number } = splitSubject(c.subject);
   if (number === null) {
-    const pull = resolve(repo, c.sha);
+    const pull = await resolve(repo, c.sha);
     if (pull) ({ title, number } = { title: pull.title, number: pull.number });
   }
   const link =
@@ -136,17 +140,37 @@ function entryFor(c, repo, resolve) {
   return { title, journal: parseJournal(c.message), ...link };
 }
 
-/** Maps each date to be written to its page's text. */
-export function rollUp({ commits, after, before, repo, resolve = lookUpPull }) {
+/** How many pull request lookups run at once: enough to hide the round trip to GitHub, few enough to stay clear of its rate limits. */
+const LOOKUPS = 8;
+
+/** `fn` of each item, in order, with at most `limit` running at a time. */
+async function mapLimit(items, limit, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  // Each worker takes the next item when its last one is done.
+  const worker = async () => {
+    if (next >= items.length) return;
+    const i = next++;
+    out[i] = await fn(items[i]);
+    await worker();
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
+}
+
+/** Maps each date to be written to its page's text. `resolve` may be async. */
+export async function rollUp({ commits, after, before, repo, resolve = lookUpPull }) {
+  const wantedCommits = commits.filter((commit) => wanted(commit, after, before));
+  const entries = await mapLimit(wantedCommits, LOOKUPS, (c) => entryFor(c, repo, resolve));
   const days = new Map();
-  for (const c of commits.filter((commit) => wanted(commit, after, before))) {
+  for (const [i, c] of wantedCommits.entries()) {
     if (!days.has(c.date)) days.set(c.date, []);
-    days.get(c.date).push(entryFor(c, repo, resolve));
+    days.get(c.date).push(entries[i]);
   }
   return new Map([...days].map(([d, es]) => [d, renderDay(es)]));
 }
 
-function main(argv) {
+async function main(argv) {
   const opts = { dir: "docs/journals", ref: "HEAD", repo: null, excludeToday: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -163,7 +187,7 @@ function main(argv) {
     .sort();
   const after = existing.at(-1) ?? null;
   const before = opts.excludeToday ? new Date().toISOString().slice(0, 10) : null;
-  const pages = rollUp({
+  const pages = await rollUp({
     commits: readCommits(opts.ref),
     after,
     before,
@@ -177,4 +201,4 @@ function main(argv) {
   }
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) main(process.argv.slice(2));
+if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) await main(process.argv.slice(2));
