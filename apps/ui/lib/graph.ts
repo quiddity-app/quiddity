@@ -1,6 +1,7 @@
 import init, { Replica, mergeVersions } from './wasm/quiddity_wasm';
 import { debounce } from './debounce';
 import { share } from './share';
+import { wasmReady } from './wasm-ready';
 
 import type { Problem, Recovery } from './recovery';
 import type {
@@ -608,9 +609,14 @@ export function bootGraph(): Promise<Graph> {
     return booted;
   }
   booted ??= (async () => {
-    await init();
-    const backend = await chooseBackend();
-    const graph = new Graph(new Replica(await backend.load()), backend);
+    // Only making the replica needs the WASM, so it compiles while the
+    // backend is chosen and the snapshot is on its way.
+    const loading = chooseBackend().then(async (chosen) => ({
+      backend: chosen,
+      snapshot: await chosen.load(),
+    }));
+    const [, { backend, snapshot }] = await Promise.all([wasmReady(), loading]);
+    const graph = new Graph(new Replica(snapshot), backend);
     // Before today's page is made, so nothing that arrives is missed.
     backend
       .subscribe?.((updates) => graph.receive(updates))
