@@ -8,7 +8,7 @@ favourite:: true
 	- [[Performance]]: what costs time in a large graph, and what is still to do.
 	- [[Stats and debug]]: numbers about a graph, and a check that what is derived from it agrees with it.
 - The parts
-	- Crates: [[quiddity-syntax]], [[quiddity-identity]], [[quiddity-core]], [[quiddity-sync]], [[quiddity-node]], [[quiddity-view]] and [[quiddity-wasm]].
+	- Crates: what each does is in [[Architecture]], and they are listed under [[Crate]].
 	- Apps: [[The UI]] and [[The shell]]. How they look: the [[Design language]].
 	- What they are built on is listed under [[Library]], and what they are built with under [[Tool]].
 - Between devices

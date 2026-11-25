@@ -1,5 +1,5 @@
 - What Quiddity is for, and the choices that shape it. How each part works is on its own page, listed in the [[Developer guide]].
-- Quiddity is a local-first second brain in the vein of [[Logseq]], [[Obsidian]] and [[Roam]]. It should feel familiar to people who have used those tools, run as a desktop and mobile app, sync between a person's devices without a central service, export to and import from a sensible text format, and store typed binaries.
+- Quiddity is a local-first second brain in the vein of the tools in [[Prior art]]. It should feel familiar to people who have used those tools, run as a desktop and mobile app, sync between a person's devices without a central service, export to and import from a sensible text format, and store typed binaries.
 - Goals
 	- **Local first.** Every device holds the whole [[Graph]] and works fully offline.
 	- **Familiar.** Outliner editing, pages, journals, `[[links]]`, `#tags` and backlinks. [[Prior art]]

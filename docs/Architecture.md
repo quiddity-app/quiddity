@@ -6,7 +6,7 @@
 		- The UI sends the shell the [[Loro]] updates it made, a moment after the last edit, and the shell imports them, saves, and sends them on to other devices. [[App sync]]
 		- Using the core compiled to WASM, rather than Loro's JavaScript bindings, means there is one implementation of the graph model, the index and the outliner's edits, tested natively.
 - The headless node
-	- [[quiddity-node]] is the core run as a command line tool and daemon, without the UI. It is a full peer owned by the user, not a relay, and follows the same rules as every other device. Being always on, it is what lets devices that are never online together sync.
+	- [[quiddity-node]] is the core run as a command line tool and daemon, without the UI. It is a full peer owned by the user, not a relay.
 - The crates
 	- [[quiddity-syntax]]: block text, parsed and formatted.
 	- [[quiddity-identity]]: device keys and the other identifiers, and how they are written down.
