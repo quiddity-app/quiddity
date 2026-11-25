@@ -2252,6 +2252,44 @@ mod connections {
         );
     }
 
+    /// An edge says whether any link that makes it is written outside the
+    /// properties block, to a name nobody has made as much as to an entity.
+    #[test]
+    fn an_edge_says_whether_it_is_written_outside_the_properties_block() {
+        let v = view_with(|g| {
+            g.create_entity("author", &[]).unwrap();
+            let book = g.create_entity("Book", &[]).unwrap();
+            for name in ["Both", "Property", "Body"] {
+                g.create_entity(name, &[]).unwrap();
+            }
+            note(
+                g,
+                book,
+                "author:: [ [[Both]], [[Property]], [[Only property nowhere]] ]",
+            );
+            note(g, book, "see [[Both]], [[Body]] and [[Body nowhere]]");
+        });
+        let connections = v.connections().unwrap();
+        let written = |target: &str| {
+            let (source, target) = (id_of(&v, "Book"), id_of(&v, target));
+            connections
+                .edges
+                .iter()
+                .find(|e| e.source == source && e.target == target)
+                .map(|e| (e.weak, e.written))
+        };
+        assert_eq!(written("Both"), Some((false, true)));
+        assert_eq!(written("Property"), Some((false, false)));
+        assert_eq!(written("Body"), Some((false, true)));
+        assert_eq!(written("Body nowhere"), Some((false, true)));
+        assert_eq!(written("Only property nowhere"), Some((false, false)));
+        assert_eq!(
+            written("author"),
+            Some((true, false)),
+            "never for a weak one"
+        );
+    }
+
     #[test]
     fn a_property_with_no_value_or_that_is_a_tag_makes_no_weak_edge() {
         let v = view_with(|g| {

@@ -217,8 +217,15 @@ export interface Connections {
     /** Whether it is a journal page. */ journal: boolean;
   })[];
   /** `weak` ones are made by a property, between each end of it and the
-   * entity that defines it, and are drawn lighter. */
-  edges: { source: EntityId; target: EntityId; weak: boolean }[];
+   * entity that defines it, and are drawn lighter. `written` ones have at
+   * least one link outside the source's properties block, in its own text;
+   * a weak edge is never written. */
+  edges: {
+    source: EntityId;
+    target: EntityId;
+    weak: boolean;
+    written: boolean;
+  }[];
 }
 
 /** An entity that has a property, and the values it has it with. */
