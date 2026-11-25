@@ -9,6 +9,7 @@ import {
   Button,
   ErrorLine,
   linkClass,
+  Page,
   pageTitle,
   sectionTitle,
   subsectionTitle,
@@ -326,7 +327,7 @@ function Counted() {
 
 export function StatsAndDebug() {
   return (
-    <article className="mx-auto max-w-measure-table px-6 py-8">
+    <Page width="table">
       <h1 className={pageTitle}>Stats and debug</h1>
       <Region
         pending={<Skeleton className="h-4 w-1/2" />}
@@ -336,6 +337,6 @@ export function StatsAndDebug() {
         <Sync />
         <Consistency />
       </Region>
-    </article>
+    </Page>
   );
 }

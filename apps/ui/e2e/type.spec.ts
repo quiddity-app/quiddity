@@ -3,35 +3,54 @@ import { expect, test } from './fixtures';
 // The type and the page widths: one size and spacing for a page's title, one
 // reading width for text, and the monospace face that is bundled with the app.
 
-for (const [path, name] of [
-  ['/all/', 'All entities'],
-  ['/devices/', 'Devices'],
+// Every page is drawn in `Page`: its text scales with the pane as an entity's
+// does, a title is one and a half times that text and a section's heading one
+// and an eighth times, with the same space under a title everywhere.
+for (const [path, name, sections] of [
+  ['/all/', 'All entities', false],
+  ['/devices/', 'Devices', true],
+  ['/journals/', 'Journals', true],
+  ['/stats/', 'Stats and debug', true],
 ] as const) {
-  test(`${name} has a page title of the common size and spacing`, async ({
+  test(`${name} has a title scaled with its text, with the common spacing`, async ({
     page,
   }) => {
     await page.goto(path);
+    const article = page.locator('main article').first();
+    const size = async (el: typeof article) =>
+      Number.parseFloat(await el.evaluate((e) => getComputedStyle(e).fontSize));
+    const body = await size(article);
     const title = page.getByRole('heading', { name, level: 1 });
-    await expect(title).toHaveCSS('font-size', '24px');
+    expect(await size(title)).toBeCloseTo(body * 1.5, 1);
     await expect(title).toHaveCSS('margin-bottom', '16px');
+    if (sections) {
+      const section = article.getByRole('heading', { level: 2 }).first();
+      expect(await size(section)).toBeCloseTo(body * 1.125, 1);
+    }
   });
 }
 
-// The feed's text scales with the pane as an entity's does, and its titles
-// with it, so it is the one page whose title isn't a fixed size.
-test('Journals titles scale with the text, as an entity page does', async ({
-  page,
-}) => {
+test('every page has the text size of an entity', async ({ page }) => {
+  const sizes = new Set<string>();
+  for (const path of ['/journals/', '/all/', '/devices/', '/stats/']) {
+    await page.goto(path);
+    sizes.add(
+      await page
+        .locator('main article')
+        .first()
+        .evaluate((e) => getComputedStyle(e).fontSize),
+    );
+  }
   await page.goto('/journals/');
-  const article = page.locator('main article').first();
-  const size = async (el: typeof article) =>
-    Number.parseFloat(await el.evaluate((e) => getComputedStyle(e).fontSize));
-  const body = await size(article);
-  const title = page.getByRole('heading', { name: 'Journals', level: 1 });
-  expect(await size(title)).toBeCloseTo(body * 1.5, 1);
-  await expect(title).toHaveCSS('margin-bottom', '16px');
-  const day = article.getByRole('heading', { level: 2 }).first();
-  expect(await size(day)).toBeCloseTo(body * 1.125, 1);
+  await page.locator('main article a').first().click();
+  await page.waitForURL(/entity/);
+  sizes.add(
+    await page
+      .locator('main article')
+      .first()
+      .evaluate((e) => getComputedStyle(e).fontSize),
+  );
+  expect([...sizes]).toHaveLength(1);
 });
 
 test('a reading page is the reading width, and the table page the wide one', async ({

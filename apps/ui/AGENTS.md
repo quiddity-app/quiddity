@@ -172,7 +172,7 @@ refuses it. The memory backend plays such a device with `?blank`.
 - **The repeated pieces are in `components/ui.tsx`**: `Button`, `Input`, `ErrorLine`, `Kbd`, and the class strings for links, section headings and small header buttons. Use them rather than retyping the classes. `docs/Design language.md` has the reasoning.
 - **Focus, touch and motion.** A base rule draws the focus ring, so don't remove an outline without drawing one. Use the `coarse:` variant to make a target 44px on a touch screen and `no-hover:` for anything that would otherwise be revealed only by hovering. Use `motion-safe:` for any animation.
 - **Floating layers** (the search panel, the link list, an overlaid pane) share `shadow-overlay`, the page's ground and a hairline border, and sit at `z-(--z-overlay)` and its siblings rather than a bare number. Colours go in `globals.css` and nowhere else, which includes what a canvas or CodeMirror draws (`var(--selection)`).
-- **Type and widths.** A page's title, a section and a subsection are `pageTitle`, `sectionTitle` and `subsectionTitle` in `ui.tsx`; a page's text is `max-w-measure-text`, `-form` or `-table`. Monospace text is `font-mono`, which is JetBrains Mono NL (bundled in `app/fonts`, with its licence).
+- **Type and widths.** A page's title, a section and a subsection are `pageTitle`, `sectionTitle` and `subsectionTitle` in `ui.tsx`; a page is drawn in `Page` (`width="text"`, `"form"` or `"table"`), which sets the text size that grows with the pane, the same as an entity's, and the titles are in `em` so they follow it. Don't set a font size on a page's article. Monospace text is `font-mono`, which is JetBrains Mono NL (bundled in `app/fonts`, with its licence).
 
 ## Files
 

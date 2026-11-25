@@ -3,7 +3,7 @@
 import { use, useState } from 'react';
 
 import { Region, Skeleton } from './boundary';
-import { Button, ErrorLine, Input, pageTitle, sectionTitle } from './ui';
+import { Button, ErrorLine, Input, Page, pageTitle, sectionTitle } from './ui';
 
 import { useGraph, useRead } from '@/lib/use-graph';
 
@@ -182,7 +182,7 @@ function Pairing() {
 
 export function Devices() {
   return (
-    <article className="mx-auto max-w-measure-form px-6 py-8">
+    <Page width="form">
       <h1 className={pageTitle}>Devices</h1>
       <Region
         pending={<Skeleton className="h-4 w-1/2" />}
@@ -191,6 +191,6 @@ export function Devices() {
         <Pairing />
         <Listed />
       </Region>
-    </article>
+    </Page>
   );
 }

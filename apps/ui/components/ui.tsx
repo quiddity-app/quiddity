@@ -1,5 +1,6 @@
 import type {
   ButtonHTMLAttributes,
+  HTMLAttributes,
   InputHTMLAttributes,
   ReactNode,
 } from 'react';
@@ -14,14 +15,56 @@ import type {
 /** A link: the link colour, underlined on hover. */
 export const linkClass = 'text-link underline-offset-2 hover:underline';
 
+/*
+ * Titles are in `em`, so they follow the text size `Page` sets: a title is
+ * always one and a half times the text under it, and a section's heading one
+ * and an eighth times, whatever the width of the pane.
+ */
+
 /** A page's title: the largest type outside an entity, with one space under it. */
-export const pageTitle = 'mb-4 text-2xl font-semibold';
+export const pageTitle = 'mb-4 text-[1.5em] font-semibold';
 
 /** A section within a page. */
-export const sectionTitle = 'mb-2 text-lg font-semibold';
+export const sectionTitle = 'mb-2 text-[1.125em] font-semibold';
 
 /** A heading inside a section, such as the title of one reference. */
 export const subsectionTitle = 'mb-1 font-semibold';
+
+const pageWidths = {
+  text: 'max-w-measure-text',
+  form: 'max-w-measure-form',
+  table: 'max-w-measure-table',
+} as const;
+
+/**
+ * A page's column, which every page is drawn in: the reading width it asks
+ * for, and text that grows with the pane (and with its height, on a tall
+ * narrow one), so the pages all read at the same size. `cqw` needs a container
+ * to measure, and an element can't be its own, so a wrapper is it. The
+ * remaining props go to the `<article>`, which the file drop and the
+ * specs both find by its tag.
+ */
+export function Page({
+  width,
+  className = '',
+  children,
+  ...rest
+}: Readonly<
+  {
+    width: keyof typeof pageWidths;
+  } & HTMLAttributes<HTMLElement>
+>) {
+  return (
+    <div className="@container">
+      <article
+        {...rest}
+        className={`mx-auto ${pageWidths[width]} px-6 py-8 [font-size:calc(1.25rem_+_max(0.325cqw,0.325lvh))] ${className}`}
+      >
+        {children}
+      </article>
+    </div>
+  );
+}
 
 /** A section's small-capitals caption, on the page or in a card. */
 export const sectionHeading =

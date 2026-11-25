@@ -1,5 +1,5 @@
 - The UI is a Next.js static export that runs in the Tauri webview, or in any browser for development and tests. It has three panes. [[Architecture]]
-	- The main pane's text size and width adapt: the size is `calc(1.25rem + max(0.325cqw, 0.325lvh))` and the column is at most 50rem wide. Titles and headings scale with it.
+	- Every page's text size and width adapt, whether an entity, the journals, [[All entities]] or Devices: the size is `calc(1.25rem + max(0.325cqw, 0.325lvh))` and the column is at most 50rem wide for reading (more for forms and tables). Titles and headings scale with it, a title at one and a half times the text and a section's heading at one and an eighth.
 	- Above the main pane is an action strip, with the Search button (Cmd/Ctrl-K) and, to its right, the More menu. [[Search]] [[Menus]]
 - What shows where
 	- Entrypoints, favourites and recents on the left. Entrypoints are fixed: the journals, [[All entities]], and the [[Graph view]]. Devices, where another device is added, is in the More menu instead. [[Add a device]] [[Menus]] The action strip also holds a cloud with a coloured dot, which says how this device stands with the others. [[Sync status]]
