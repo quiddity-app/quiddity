@@ -16,7 +16,7 @@ const PAGE = 5;
 function Day({ day }: Readonly<{ day: EntityRef }>) {
   return (
     <section className="py-4">
-      <h2 className={sectionTitle}>
+      <h2 className={`${sectionTitle} text-[1.125em]!`}>
         <EntityLink id={day.id} className="hover:underline">
           {day.title}
         </EntityLink>
@@ -78,7 +78,7 @@ export function JournalFeed() {
     // to measure, and an element can't be its own, so the wrapper is it.
     <div className="@container">
       <article className="mx-auto max-w-measure-text px-6 py-8 [font-size:calc(1.25rem_+_max(0.325cqw,0.325lvh))]">
-        <h1 className={pageTitle}>Journals</h1>
+        <h1 className={`${pageTitle} text-[1.5em]!`}>Journals</h1>
         <Region
           pending={<Skeleton className="h-8 w-1/3" />}
           failed={(error) => <ErrorLine>{error.message}</ErrorLine>}
