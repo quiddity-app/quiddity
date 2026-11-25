@@ -172,6 +172,16 @@ fn titles_are_limited_and_ties_keep_title_order() {
         ["Ba", "Bb", "Bc"]
     );
     assert_eq!(titles(&v.search_titles("b", 2).unwrap()), ["Ba", "Bb"]);
+    // Around the number there are: the best are set aside for the limit
+    // only when there are more than it asks for.
+    for limit in [3, 4] {
+        assert_eq!(
+            titles(&v.search_titles("b", limit).unwrap()),
+            ["Ba", "Bb", "Bc"],
+            "limit {limit}"
+        );
+    }
+    assert!(v.search_titles("b", 0).unwrap().is_empty());
     assert!(v.search_titles("zzz", 10).unwrap().is_empty());
 }
 
