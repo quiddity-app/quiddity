@@ -23,7 +23,7 @@ export function LinkStatus() {
     <div
       aria-hidden="true"
       data-link-status
-      className="pointer-events-none fixed bottom-0 left-0 z-(--z-overlay) max-w-[min(100%,40rem)] truncate rounded-tr border-t border-r border-border bg-surface px-2 py-0.5 text-xs text-ink-secondary"
+      className="pointer-events-none fixed bottom-[env(safe-area-inset-bottom)] left-[env(safe-area-inset-left)] z-(--z-overlay) max-w-[min(100%,40rem)] truncate rounded-tr border-t border-r border-border bg-surface px-2 py-0.5 text-xs text-ink-secondary"
     >
       {text}
     </div>

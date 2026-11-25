@@ -74,7 +74,7 @@ export function Recovery() {
       aria-modal="true"
       aria-labelledby="recovery-title"
       aria-describedby="recovery-what"
-      className="fixed inset-0 z-50 overflow-auto bg-surface p-8 text-ink"
+      className="fixed inset-0 z-50 overflow-auto bg-surface p-8 pt-[max(2rem,env(safe-area-inset-top))] pb-[max(2rem,env(safe-area-inset-bottom))] text-ink"
     >
       <div className="mx-auto max-w-2xl">
         <h1 id="recovery-title" className={pageTitle}>
