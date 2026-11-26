@@ -19,7 +19,7 @@ function Id({ id }: Readonly<{ id: string }>) {
   return <code className="break-all font-mono text-sm">{id}</code>;
 }
 
-function ThisDevice() {
+export function ThisDevice() {
   const graph = useGraph();
   const id = use(graph.deviceId());
   const [copied, setCopied] = useState(false);
@@ -194,7 +194,7 @@ function Listed() {
 type Outcome =
   { kind: 'added'; id: string } | { kind: 'failed'; message: string } | null;
 
-function Add() {
+export function Add() {
   const graph = useGraph();
   const [id, setId] = useState('');
   const [busy, setBusy] = useState(false);

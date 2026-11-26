@@ -1,4 +1,5 @@
 - Share your graph with another device: a second computer running the app, or a [[quiddity-node]] that keeps a copy always on. Each device ends up with all of it. [[Graph]]
+- On a second device, choose **Join a graph** the first time it starts, so that it waits for your graph instead of starting one of its own. A graph started on each device never merges. [[First run]]
 - Do it from the Devices page, in the More menu (the three dots, to the right of search), or the cloud beside search.
 	- **This device** shows an ID, a long string of letters and digits. It is what another device needs to let this one in. Copy puts it on the clipboard.
 	- **Add a device** takes the other device's ID. Paste it and press Add device.

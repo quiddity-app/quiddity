@@ -178,7 +178,20 @@ links) and the result of `graph.check()` (`docs/Stats and debug.md`).
 - `e2e/stats.spec.ts` leans on the made-up graph: `merges::` is a key no entity
   defines, so `~merges` is virtual, and a test makes `Fresh` by linking to it.
 
-## Joining
+## First run and joining
+
+`components/welcome.tsx` covers the page on a device with no graph and asks
+whether to start one or join another's (`docs/First run.md`); `Joining`
+(`components/joining.tsx`) covers it while a device that chose to join has no
+history, with its ID, the add-a-device form and the network log (it reuses
+`ThisDevice` and `Add` from the Devices page and `NetworkLog`). Both are
+mounted in the layout beside `Recovery`, ask the backend (`firstRun`, `start`,
+`joining`: only the app has them) before the graph boots, and draw nothing
+otherwise. **Joining is the first button, and the focused one**: it is the
+choice that can't make a graph that won't merge. The memory backend plays them
+with `?firstrun` (`=stubborn` fails to go on) and `?joining`; choosing Join
+there reloads into `?blank&joining`, as the shell's blank graph would be.
+`e2e/welcome.spec.ts`.
 
 **A replica with no history is left alone** (`Replica.isBlank`): `Graph.begin()`
 makes today's page, and forgets that edit for undo, only once there is a graph,

@@ -3,7 +3,7 @@ import { debounce } from './debounce';
 import { share } from './share';
 import { wasmReady } from './wasm-ready';
 
-import type { GraphList, Problem, Recovery } from './recovery';
+import type { Begin, GraphList, Problem, Recovery } from './recovery';
 import type {
   BlockHit,
   Check,
@@ -68,6 +68,15 @@ export interface Backend {
    * be filled from another device that has the graph. Rejects with the reason
    * if the name won't do. */
   createGraph?(name: string, sync: boolean): Promise<void>;
+  /** Whether this device has no graph yet, and is waiting to be told to start
+   * one or to join another device's. Only the app has a graph to lack. */
+  firstRun?(): Promise<boolean>;
+  /** Begins the graph on a device that has none, as the user chose. Rejects
+   * with the reason if it couldn't. */
+  beginGraph?(how: Begin): Promise<void>;
+  /** Whether this device is waiting for a graph from another device: it
+   * chose to join, and none has arrived. */
+  joining?(): Promise<boolean>;
 }
 
 /** Views catch up this long after typing stops; structure changes at once.
@@ -249,6 +258,10 @@ export class Graph {
       l();
     }
   }
+
+  /** Whether this replica has joined no graph yet: it has no history and
+   * makes nothing until one arrives. */
+  isBlank = () => this.replica.isBlank();
 
   /** The devices the graph records, most recently seen first. */
   devices = () => this.read<Device[]>('devices', () => this.replica.devices());

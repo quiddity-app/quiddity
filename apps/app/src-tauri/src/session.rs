@@ -75,6 +75,8 @@ pub enum Error {
     NoBlobs,
     #[error("the graph opened, so there is nothing to recover from")]
     NothingToRecover,
+    #[error("this device already has a graph, so there is nothing to start")]
+    NotFirstRun,
     /// There is nowhere to keep this device's key.
     #[error("this device has nowhere to keep its key: {0}")]
     Keys(String),
@@ -111,6 +113,17 @@ pub enum Recovery {
     Fresh,
 }
 
+/// How to begin on a device that has no graph yet.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Start {
+    /// A graph of its own: the first device's choice.
+    New,
+    /// Nothing, to be filled by another device that has the graph. Starting
+    /// a graph of its own instead would never merge with it.
+    Join,
+}
+
 /// The open graph. Cloning shares it.
 #[derive(Debug, Clone)]
 pub struct Session {
@@ -135,6 +148,11 @@ impl Session {
             Err(quiddity_node::StoreError::Missing(_)) => store.init(false)?,
             Err(e) => return Err(e.into()),
         };
+        Self::from_graph(store, graph)
+    }
+
+    /// The session for `graph`, which `store` holds.
+    fn from_graph(store: Store, graph: Graph) -> Result<Self, Error> {
         let device = store.key()?.public().to_string();
         let peer = Peer::new(graph, Allowed::Only(HashSet::new()), device);
         Ok(Self {
@@ -155,6 +173,25 @@ impl Session {
     /// Writes the graph out now, rather than a moment after it last changed.
     pub fn save(&self) -> Result<(), Error> {
         Ok(self.store.save(self.peer.graph())?)
+    }
+
+    /// Opens the graph in `dir`, or says there is none (`None`) without making
+    /// one: a device with no graph has to be told whether to start one or join
+    /// another's, and starting one by default is how two devices end up with
+    /// graphs that will never merge.
+    pub fn find(dir: &Path, keys: Keyring) -> Result<Option<Self>, Error> {
+        let store = Store::new(dir, keys);
+        match store.load() {
+            Ok(graph) => Self::from_graph(store, graph).map(Some),
+            Err(quiddity_node::StoreError::Missing(_)) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    /// Whether this device is waiting for a graph: it has joined none yet, and
+    /// has nothing of its own.
+    pub fn joining(&self) -> bool {
+        self.peer.graph().version() == Version::default()
     }
 
     /// Opens the graph in `dir` after it couldn't be opened, as `how` says.
@@ -343,6 +380,40 @@ mod tests {
 
     fn recover(dir: &Path, how: Recovery) -> Result<Session, Error> {
         Session::recover(dir, keys(dir), how)
+    }
+
+    /// A device with no graph isn't given one: it has to be told whether to
+    /// start its own or join another's, since a graph of its own never merges
+    /// with the one it should have joined.
+    #[test]
+    fn a_device_with_no_graph_is_told_so_and_not_given_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("graph");
+        assert!(Session::find(&path, keys(&path)).unwrap().is_none());
+        assert!(!path.join("graph.quiddity").exists());
+    }
+
+    #[test]
+    fn starting_makes_a_graph_of_its_own_or_one_to_join() {
+        let dir = tempfile::tempdir().unwrap();
+        let (own, joined) = (dir.path().join("own"), dir.path().join("joined"));
+        let new = Session::create(&own, keys(&own), false).unwrap();
+        let join = Session::create(&joined, keys(&joined), true).unwrap();
+        assert!(!new.joining(), "its own graph has history");
+        assert!(join.joining(), "a joined one has none until one arrives");
+        // Either is found afterwards, and starting never replaces it.
+        assert!(Session::find(&own, keys(&own)).unwrap().is_some());
+        assert!(Session::find(&joined, keys(&joined)).unwrap().is_some());
+        assert!(matches!(
+            Session::create(&own, keys(&own), false),
+            Err(Error::Store(quiddity_node::StoreError::Exists(_)))
+        ));
+        assert!(
+            Session::find(&joined, keys(&joined))
+                .unwrap()
+                .unwrap()
+                .joining()
+        );
     }
 
     #[test]

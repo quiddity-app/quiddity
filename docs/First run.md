@@ -1,0 +1,17 @@
+- The first time Quiddity starts on a device with no graph, it asks how to begin, and doesn't choose for you. [[Add a device]] [[Graph]]
+	- **Join a graph from another device**: starts empty and waits to be given your graph. This is the choice for a second device: a phone, or a second computer.
+	- **Start a new graph**: a graph of its own. This is the choice for your first device.
+	- The choice matters because two graphs that were each started fresh are different graphs, and never merge: each refuses the other when they meet, and says so in the [[Network log]]. A second device that started its own can't be given the first's, so Join is the one the screen puts first.
+- Joining
+	- The device shows **Waiting for a graph**, with this device's ID (Copy puts it on the clipboard), a box to add the other device's ID, and what the device is doing: its sync state and the [[Network log]], so a problem shows here and not only on [[Stats and debug]]. It goes when the graph arrives.
+	- On the device that has the graph, open Devices and add this device's ID. Here, add that device's ID. Both ways, as for any pairing. [[Add a device]]
+	- This device dials the one it was told to trust as well as waiting for it to dial, so it doesn't matter which is asleep, or which can reach which: one reaching the other is enough, as long as each has the other's ID.
+	- **Not saved**: the other device's ID is trusted until the app closes, and is not recorded, since a device that has joined nothing has no graph to record it in. If the app closes before the graph arrives, the waiting screen comes back on the next start, and the ID is added again. The graph's own list of devices makes it last, once the graph is here. [[Device list]]
+- Not built
+	- Joining by scanning a QR code or typing a short code, which would replace pasting two long IDs. [[Design]]
+	- Starting a new graph on a device that already has one, or moving a device from one graph to another. Today the way off a graph is to start again from [[Recovery]].
+- How it works
+	- A device with no graph on disk is not given one. The shell's `setup` leaves it unopened and remembers where the graph will go (`FirstRun`), and the UI asks (`first_run`) before anything else, as it does for a problem opening the graph. [[The shell]]
+	- `start_graph` takes `new` or `join`, and refuses where a graph exists, so nothing is ever replaced. `new` is `Session::create` with `blank` false; `join` is the same with `blank` true, a blank replica with no history. [[Recovery]] and the graph picker's *sync* option ([[Several graphs]]) use the same blank start, so a graph made from the picker to sync shows the same waiting screen. [[quiddity-node]]
+	- A blank replica is `joining` (`is_joining`): the UI covers the page with the waiting screen until the replica has history. Opening the app again finds the blank graph on disk and shows it again.
+	- `Peer::trust` lets a device connect and now also has it dialled (`Peer::dial_listed`), since a blank replica lists no one for the dialler to find. [[App sync]]

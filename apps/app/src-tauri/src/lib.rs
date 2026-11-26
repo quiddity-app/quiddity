@@ -21,7 +21,7 @@ use quiddity_node::keyring::Keyring;
 use serde::Serialize;
 
 use library::{Graphs, Library};
-use session::{Error, Recovery, Session};
+use session::{Error, Recovery, Session, Start};
 use tauri::async_runtime::JoinHandle;
 use tauri::ipc::{Channel, InvokeBody, InvokeResponseBody, Request, Response};
 use tauri::{Manager, State};
@@ -76,6 +76,52 @@ impl Running {
             drop(network.await);
         }
     }
+}
+
+/// Where this device's graph will go, while it has none and has not been told
+/// how to begin. Always managed, so the UI can ask. A device that has a graph
+/// never has this set.
+#[derive(Default)]
+struct FirstRun(Mutex<Option<PathBuf>>);
+
+/// Whether this device has no graph yet and is waiting to be told to start
+/// one or join another's. The UI asks before anything else, as it does for
+/// `startup_problem`.
+#[tauri::command]
+async fn first_run(first: State<'_, FirstRun>) -> Result<bool, Error> {
+    Ok(first.0.lock().expect("first run lock poisoned").is_some())
+}
+
+/// Begins the graph on a device that has none, as the user chose. It does
+/// nothing where there is a graph already: only a device that was waiting may
+/// start one.
+#[tauri::command]
+async fn start_graph(
+    app: tauri::AppHandle,
+    first: State<'_, FirstRun>,
+    running: State<'_, Running>,
+    how: Start,
+) -> Result<(), Error> {
+    let dir = first
+        .0
+        .lock()
+        .expect("first run lock poisoned")
+        .clone()
+        .ok_or(Error::NotFirstRun)?;
+    let keys = match keyring(&app) {
+        Ok(keys) => keys,
+        Err(e) => return Err(Error::Keys(e.to_string())),
+    };
+    let session = begin(Session::create(&dir, keys, how == Start::Join)?, &running).await;
+    app.manage(Mutex::new(session));
+    *first.0.lock().expect("first run lock poisoned") = None;
+    Ok(())
+}
+
+/// Whether this device is waiting for a graph from another device.
+#[tauri::command]
+async fn is_joining(state: Shared<'_>) -> Result<bool, Error> {
+    Ok(state.lock().expect("session lock poisoned").joining())
 }
 
 /// What stopped the graph opening, if anything did. The UI asks first, and
@@ -464,12 +510,18 @@ pub fn run() {
             let keys = keyring(app.handle())?;
             // A graph that can't be opened is the UI's to deal with, with a
             // window to do it in: exiting here would leave nothing on screen.
-            let problem = match Session::open(&dir, keys) {
-                Ok(session) => {
+            let mut waiting = None;
+            let problem = match Session::find(&dir, keys) {
+                Ok(Some(session)) => {
                     let running = app.state::<Running>();
                     app.manage(Mutex::new(tauri::async_runtime::block_on(begin(
                         session, &running,
                     ))));
+                    None
+                }
+                // No graph yet: the UI asks how to begin (`first_run`).
+                Ok(None) => {
+                    waiting = Some(dir);
                     None
                 }
                 Err(e) => {
@@ -481,6 +533,7 @@ pub fn run() {
                 }
             };
             app.manage(Startup(Mutex::new(problem)));
+            app.manage(FirstRun(Mutex::new(waiting)));
             if let Some(window) = app.get_webview_window("main") {
                 appearance::follow_theme(&window);
             }
@@ -494,6 +547,9 @@ pub fn run() {
             list_graphs,
             switch_graph,
             create_graph,
+            first_run,
+            start_graph,
+            is_joining,
             load_graph,
             push_updates,
             set_focus,

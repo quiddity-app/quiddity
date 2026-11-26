@@ -12,7 +12,7 @@ holds its own replica and answers its own queries (see `apps/ui` and
   resolves against the lowest `rust-version` in the workspace, which is why
   there is one, in the root `Cargo.toml`, and the app and `quiddity-node`
   inherit it.
-- **Fifteen commands.** `load_graph` returns a snapshot and `push_updates`
+- **Eighteen commands.** `load_graph` returns a snapshot and `push_updates`
   takes Loro updates as the request body, imports them, saves and sends them
   to other devices, both as raw bytes rather than JSON arrays. Updates that
   arrive out of order are held by Loro until their causes do.
@@ -31,6 +31,17 @@ holds its own replica and answers its own queries (see `apps/ui` and
   `get_blob` returns the bytes for a hash: the shell only keeps bytes, and the
   UI says in the graph what a file is, with a block that starts with a `##blob`
   line, as an ordinary edit pushed with `push_updates`.
+- **A device with no graph is not given one** (`docs/First run.md`).
+  `setup` uses `Session::find`, which says there is none instead of making one,
+  and manages `FirstRun` (always managed, like `Startup`) holding where it will
+  go. The UI asks `first_run` before anything else and shows the choice;
+  `start_graph` takes `new` or `join` (`Start`), refuses unless `FirstRun` is
+  set, and then does what `setup` would have. `join` is `Session::create(…, blank = true)`, a
+  blank replica, and `is_joining` says whether it still has no history, which is
+  what the UI's waiting screen asks. **Starting a graph of its own by default is
+  the bug this replaced**: two devices that each did it hold graphs that never
+  merge. `Session::open` still makes one if there is none, for `recover` and the
+  tests; `setup` must not use it.
 - **A graph that won't open doesn't stop the app.** `setup` records the
   problem in `Startup` (always managed) and manages no `Session`; the UI asks
   `startup_problem` first and shows the recovery screen instead of calling

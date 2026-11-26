@@ -8,6 +8,9 @@ export interface Problem {
   message: string;
 }
 
+/** How to begin on a device that has no graph: a graph of its own, or none yet, to be given one by another device. */
+export type Begin = 'new' | 'join';
+
 /** How to go on: look again, start empty to sync from another device, or start a graph of its own. */
 export type Recovery = 'retry' | 'blank' | 'fresh';
 

@@ -56,6 +56,8 @@ declare global {
       recovered: string[];
       /** What the page asked of the shell about graphs. */
       graphRequests: string[];
+      /** How the page asked to begin, on a device with no graph. */
+      started: string[];
       /** Plays the shell telling the page how this device stands. */
       setStatus(status: string, details?: object): void;
     };

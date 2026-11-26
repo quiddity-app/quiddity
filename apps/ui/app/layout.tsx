@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/boundary';
 import { ClientOnly } from '@/components/client-only';
 import { GraphSwitcher } from '@/components/graph-switcher';
 import { HistoryKeys } from '@/components/history-keys';
+import { Joining } from '@/components/joining';
 import { Recovery } from '@/components/recovery';
 import { LinkStatus } from '@/components/link-status';
 import { LeftSidebar } from '@/components/left-sidebar';
@@ -22,6 +23,7 @@ import { SyncIndicator } from '@/components/sync-indicator';
 import { Shell } from '@/components/shell';
 import { UndoKeys } from '@/components/undo-keys';
 import { UpdateNotice } from '@/components/update-notice';
+import { Welcome } from '@/components/welcome';
 
 export const metadata: Metadata = { title: 'Quiddity' };
 
@@ -56,6 +58,8 @@ export default function RootLayout({
       <body>
         <ClientOnly>
           <Recovery />
+          <Welcome />
+          <Joining />
           <Suspense fallback={null}>
             <UndoKeys />
             <HistoryKeys />

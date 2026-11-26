@@ -11,7 +11,7 @@
 	- `serve --allow <id>` admits a device that nothing lists yet. A device that connects is listed, so one flag is enough to start.
 	- `serve` needs no `--allow` once the graph lists a device other than this one.
 - A device nothing lists yet can still be let in for now. `Peer::trust` lets one connect until the peer stops, without recording it in the graph.
-	- It is how a blank replica lets in the device it will join through: a blank replica has no history to list anyone in.
+	- It is how a blank replica lets in the device it will join through: a blank replica has no history to list anyone in. The dialler keeps a connection up to a trusted device as well as to the listed ones, so a blank replica doesn't have to wait to be dialled. [[First run]]
 	- The device it joins through lists it when it connects, and that does last.
 - Listed devices are dialled, not just waited for. `Peer::dial_listed` keeps a connection up to each one, and `serve` runs it.
 	- A device listed later is picked up as soon as the entry arrives. A name that is not an endpoint ID, such as a test name, is skipped.

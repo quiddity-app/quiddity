@@ -8,7 +8,7 @@
 	- It holds device IDs and the reasons connections ended, and nothing from the graph. The oldest events are dropped after two hundred, and it is gone when the app closes.
 	- Reading it
 		- Two devices that never connect, with a *refused* on one side: the refusing device does not list the other. Both must add each other's ID. [[Add a device]]
-		- *Another graph* on either side: one device made its own graph when it first ran, instead of joining the other's. They will not merge. [[Recovery]]
+		- *Another graph* on either side: one device made its own graph when it first ran, instead of joining the other's. They will not merge. The second device should have chosen Join when it first started. [[First run]]
 		- Only *couldn't connect*: neither can reach the other, so check that both are online and the app is open on the phone.
 - How it works
 	- `Peer::record` adds an event, which also tells whoever watches the status, so the page updates; `Peer::events` reads them. They are in the app's `SyncDetails` as `log`, beside `device`, this device's ID. [[quiddity-node]] [[App sync]]

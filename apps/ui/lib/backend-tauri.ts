@@ -1,6 +1,6 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
 
-import type { GraphList, Problem } from './recovery';
+import type { Begin, GraphList, Problem } from './recovery';
 import type { Backend } from './graph';
 import type { SyncDetails } from './model';
 
@@ -23,6 +23,15 @@ export const tauriBackend: Backend = {
   },
   async createGraph(name, sync) {
     await invoke('create_graph', { name, sync });
+  },
+  async firstRun() {
+    return await invoke<boolean>('first_run');
+  },
+  async beginGraph(how: Begin) {
+    await invoke('start_graph', { how });
+  },
+  async joining() {
+    return await invoke<boolean>('is_joining');
   },
   async push(updates, typed) {
     // Block IDs are digits and an `@`, so a comma can separate them.
