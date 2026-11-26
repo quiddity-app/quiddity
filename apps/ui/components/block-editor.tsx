@@ -61,6 +61,41 @@ function diff(from: string, to: string) {
 }
 
 /**
+ * What can be done to a block from its editor, by key or by the toolbar on a
+ * touch screen. Each says where editing continues before it changes the
+ * structure, since the block is remounted by it.
+ */
+export function blockCommands(id: string, editing: () => Editing) {
+  const head = (view: EditorView) => view.state.selection.main.head;
+  const restructure =
+    (
+      act: (graph: Editing['graph']) => boolean,
+      done: string,
+      refused: string,
+    ) =>
+    (view: EditorView) => {
+      const { graph, edit, announce } = editing();
+      edit(id, head(view));
+      announce(act(graph) ? done : refused);
+      return true;
+    };
+  return {
+    indent: restructure((g) => g.indent(id), 'Indented', "Can't indent"),
+    outdent: restructure((g) => g.outdent(id), 'Outdented', "Can't outdent"),
+    moveUp: restructure(
+      (g) => g.moveSibling(id, -1),
+      'Moved up',
+      "Can't move up",
+    ),
+    moveDown: restructure(
+      (g) => g.moveSibling(id, 1),
+      'Moved down',
+      "Can't move down",
+    ),
+  };
+}
+
+/**
  * The outliner's keys. Each acts on the graph, then says where editing
  * continues; the blocks it moved are remounted by React, so the caret travels
  * as part of the state rather than in the editor.
@@ -83,6 +118,7 @@ function outlinerKeys(
     latest.current.edit(to, caret);
     return true;
   };
+  const commands = blockCommands(id, () => latest.current);
   return [
     {
       key: 'Enter',
@@ -125,24 +161,8 @@ function outlinerKeys(
       },
     },
     { key: 'Shift-Enter', run: insertNewline },
-    {
-      key: 'Tab',
-      run: (view) => {
-        const { graph, edit, announce } = latest.current;
-        edit(id, head(view));
-        announce(graph.indent(id) ? 'Indented' : "Can't indent");
-        return true;
-      },
-    },
-    {
-      key: 'Shift-Tab',
-      run: (view) => {
-        const { graph, edit, announce } = latest.current;
-        edit(id, head(view));
-        announce(graph.outdent(id) ? 'Outdented' : "Can't outdent");
-        return true;
-      },
-    },
+    { key: 'Tab', run: commands.indent },
+    { key: 'Shift-Tab', run: commands.outdent },
     {
       key: 'Backspace',
       run: (view) => {
@@ -184,18 +204,8 @@ function outlinerKeys(
           ? go(neighbour(1), 'start')
           : false,
     },
-    ...([-1, 1] as const).map((delta) => ({
-      key: moveKeyName(delta < 0 ? 'ArrowUp' : 'ArrowDown'),
-      run: (view: EditorView) => {
-        const { graph, edit, announce } = latest.current;
-        edit(id, head(view));
-        const way = delta < 0 ? 'up' : 'down';
-        announce(
-          graph.moveSibling(id, delta) ? `Moved ${way}` : `Can't move ${way}`,
-        );
-        return true;
-      },
-    })),
+    { key: moveKeyName('ArrowUp'), run: commands.moveUp },
+    { key: moveKeyName('ArrowDown'), run: commands.moveDown },
     {
       key: 'Escape',
       run: () => {

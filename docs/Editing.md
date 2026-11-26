@@ -14,6 +14,12 @@
 	- The arrows move between blocks at the edges, and Escape leaves the editor.
 	- A key that moves the block being edited says where editing continues before it moves it, because moving makes React remount the block.
 	- A block opened by a key, Enter above all, takes focus without the browser scrolling and has CodeMirror bring the caret into view in the pane that scrolls, with room to spare. Left to itself, a new editor's focus either did not scroll at all, so the caret ran off the bottom of the pane, or scrolled by the engine's own rules.
+- Block toolbar
+	- While a block is being edited and an on-screen keyboard is up, a toolbar sits fixed above the keyboard with what is hard to do on a touch screen: outdent, indent, move up, move down, insert a `[[link]]`, undo and redo. With a physical keyboard it isn't drawn, since the keys are there. Buttons never take the focus, or the editor would blur and the block would be left.
+	- Insert link makes an empty `[[]]` with the caret inside, which offers pages as typing the brackets does, or wraps the selection in one. The other buttons do what Tab, Shift-Tab and the move keys do, including saying so to a screen reader.
+	- A keyboard is judged from the visual viewport: the part of the layout viewport it doesn't cover is more than 100px shorter than the window. The page asks for `interactive-widget=resizes-visual`, so the keyboard covers the page rather than resizing it, and the toolbar is lifted by whatever is covered.
+	- The pane that scrolls pads itself, and its scroll padding, by the toolbar and keyboard together, so the last block can be scrolled clear of them and the caret is kept in view above them.
+	- Code: `components/edit-toolbar.tsx`, `lib/keyboard-inset.ts`, `lib/insert-link.ts`, and `blockCommands` in `components/block-editor.tsx`, which the keys share.
 - Selecting blocks
 	- Select All (Ctrl or Cmd-A) in an editor selects the block's text, as it always did. Pressed again, with the text all selected (or an empty block), it selects the block as a block, and the editor closes. In a block that is not being edited it selects the block at once.
 	- Each press after that takes in more, working upwards, and skips a step that would add nothing:

@@ -76,7 +76,9 @@ export function Shell({
             {actions}
           </div>
         </div>
-        <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
+        <main className="min-h-0 flex-1 overflow-y-auto pb-[var(--edit-toolbar-space,0px)] scroll-pb-[var(--edit-toolbar-space,0px)]">
+          {children}
+        </main>
       </div>
       <aside
         className={`${pane} fixed inset-y-0 right-0 z-(--z-pane) flex w-[min(100%,24rem)] shrink-0 flex-col border-l border-border shadow-overlay empty:hidden lg:static lg:w-96 lg:shadow-none max-lg:pt-[env(safe-area-inset-top)] max-lg:pr-[env(safe-area-inset-right)] max-lg:pb-[env(safe-area-inset-bottom)]`}

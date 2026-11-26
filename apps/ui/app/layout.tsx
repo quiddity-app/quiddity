@@ -32,6 +32,9 @@ export const metadata: Metadata = { title: 'Quiddity' };
 export const viewport: Viewport = {
   colorScheme: 'light dark',
   viewportFit: 'cover',
+  // The keyboard covers the page rather than resizing it, so the toolbar's
+  // place above it is the same in every browser (`lib/keyboard-inset.ts`).
+  interactiveWidget: 'resizes-visual',
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#f8fafc' },
     { media: '(prefers-color-scheme: dark)', color: '#0f172a' },
