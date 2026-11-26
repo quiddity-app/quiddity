@@ -36,6 +36,21 @@ export interface SyncDetails {
   held: number;
   /** Devices with a block open. */
   watching: number;
+  /** This device's own ID, which the others must list. */
+  device: string;
+  /** What the network has lately done, oldest first. */
+  log: SyncEvent[];
+}
+
+/** One thing the network did: a connection made, refused or ended. */
+export interface SyncEvent {
+  /** Milliseconds since the Unix epoch. */
+  at: number;
+  /** `problem` is what stops devices syncing. */
+  level: 'info' | 'problem';
+  /** The device it was about, by its whole ID. */
+  device: string | null;
+  message: string;
 }
 
 /** A device this one is connected to. */

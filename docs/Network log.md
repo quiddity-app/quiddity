@@ -1,0 +1,14 @@
+- The network log is what a device has lately done on the network, kept in memory so that [[Stats and debug]] can show it. A phone has nowhere to read the app's log, and what stops two devices syncing is mostly not an error, so it is not logged at the default level either. [[Sync]]
+	- What it records, each with the device it was about
+		- Dialling a device, and a connection that could not be made, with the reason (timed out, unreachable).
+		- A connection accepted, and one **refused** because the device is neither listed in the graph nor let in for now. [[Device list]]
+		- **Another graph**: the two devices hold graphs that were never one, so nothing is exchanged. The side that reads the other's hello first says both graphs' IDs; the other is told by the close and says only that.
+		- A connection that ended, and why: the other device closed it on purpose (with its reason), the connection was lost (a phone that slept or left the network), or something went wrong in what was said.
+		- A device starting and stopping syncing, and, from the app, whether it joined the network and as which ID.
+	- It holds device IDs and the reasons connections ended, and nothing from the graph. The oldest events are dropped after two hundred, and it is gone when the app closes.
+	- Reading it
+		- Two devices that never connect, with a *refused* on one side: the refusing device does not list the other. Both must add each other's ID. [[Add a device]]
+		- *Another graph* on either side: one device made its own graph when it first ran, instead of joining the other's. They will not merge. [[Recovery]]
+		- Only *couldn't connect*: neither can reach the other, so check that both are online and the app is open on the phone.
+- How it works
+	- `Peer::record` adds an event, which also tells whoever watches the status, so the page updates; `Peer::events` reads them. They are in the app's `SyncDetails` as `log`, beside `device`, this device's ID. [[quiddity-node]] [[App sync]]

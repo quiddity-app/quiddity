@@ -267,6 +267,8 @@ export const memoryBackend: Backend = {
         connected: [],
         held: 0,
         watching: 0,
+        device: 'this-device',
+        log: [],
         ...details,
       });
     };

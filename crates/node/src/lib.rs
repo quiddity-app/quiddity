@@ -15,6 +15,7 @@
 pub mod blob_store;
 pub mod blobs;
 pub mod debug_http;
+pub mod events;
 pub mod gc;
 pub mod keyring;
 pub mod legacy_blobs;
@@ -29,6 +30,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
+use events::{Events, Level};
 use iroh::endpoint::{
     Connection, ConnectionError, ReadError, RecvStream, SendStream, WriteError, presets,
 };
@@ -191,6 +193,8 @@ struct Inner {
     status_changes: watch::Sender<u64>,
     /// The bytes of the graph's binaries, if this device keeps them.
     blobs: Mutex<Option<blobs::Blobs>>,
+    /// What has lately happened on the network: see [`Peer::events`].
+    events: Mutex<Events>,
 }
 
 /// Edits held back because nobody else has their block open.
@@ -258,6 +262,7 @@ impl Peer {
                 next_link: AtomicU64::new(0),
                 status_changes: watch::Sender::new(0),
                 blobs: Mutex::new(None),
+                events: Mutex::new(Events::default()),
                 gate: Mutex::new(Gate {
                     pending: BTreeSet::new(),
                     deadline: None,
@@ -284,12 +289,67 @@ impl Peer {
         &self.inner.graph
     }
 
+    /// This device's ID in the graph's device list: the endpoint ID, for a
+    /// real device.
+    #[must_use]
+    pub fn device(&self) -> &str {
+        &self.inner.device
+    }
+
     /// Authorises `device` (an endpoint ID) to connect to every device that
     /// shares this graph, by listing it in the graph.
     pub fn allow(&self, device: &str) -> Result<(), AllowError> {
         allow_device(self.graph(), device, Timestamp::now())?;
         self.changed();
         Ok(())
+    }
+
+    /// What this peer has lately done on the network, oldest first: who it
+    /// dialled, who dialled it, who it refused and why connections ended. It is
+    /// for working out why devices don't sync, and says nothing of the graph's
+    /// content.
+    #[must_use]
+    pub fn events(&self) -> Vec<events::Event> {
+        self.inner
+            .events
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .all()
+    }
+
+    /// Keeps `message` in [`Peer::events`], and tells whoever is watching the
+    /// status, since the log is part of it. The network's owner uses it for
+    /// what the peer can't see itself, such as whether the endpoint started.
+    pub fn record(&self, level: Level, device: Option<&str>, message: String) {
+        self.inner
+            .events
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(level, device, message);
+        bump(&self.inner.status_changes);
+    }
+
+    /// Records how a connection to `device` ended: a peer going away is
+    /// routine, and anything else is why devices may not be syncing.
+    fn record_end(&self, device: &str, how: &str, result: &Result<(), Error>) {
+        match result {
+            Ok(()) => self.record(Level::Info, Some(device), format!("{how} ended")),
+            // The other device shut the door on purpose, and said why.
+            Err(e) if refused_by_peer(e).is_some() => self.record(
+                Level::Problem,
+                Some(device),
+                format!(
+                    "{how} ended: the other device closed it ({})",
+                    refused_by_peer(e).unwrap_or_default()
+                ),
+            ),
+            Err(e) if peer_went_away(e) => self.record(
+                Level::Info,
+                Some(device),
+                format!("{how} ended: the connection was lost ({e})"),
+            ),
+            Err(e) => self.record(Level::Problem, Some(device), format!("{how} ended: {e}")),
+        }
     }
 
     /// How long to wait before dialling a device again, at first and at
@@ -372,6 +432,7 @@ impl Peer {
             } else {
                 let started = tokio::time::Instant::now();
                 debug!(device, "dialling");
+                self.record(Level::Info, Some(device), "dialling".to_owned());
                 // Failing to reach a device is routine, such as when it is
                 // off: say so for someone looking, and try again.
                 if let Err(e) = self.connect(endpoint, address(id), None).await {
@@ -715,6 +776,7 @@ impl Peer {
 
     fn connected(&self, device: &str) {
         info!(device, "connected");
+        self.record(Level::Info, Some(device), "syncing".to_owned());
         let mut state = self.presence();
         *state.links.entry(device.to_owned()).or_default() += 1;
         state.presence.connect(device);
@@ -724,6 +786,7 @@ impl Peer {
 
     fn disconnected(&self, device: &str) {
         info!(device, "disconnected");
+        self.record(Level::Info, Some(device), "no longer syncing".to_owned());
         let mut state = self.presence();
         let remaining = state.links.get_mut(device).map_or(0, |n| {
             *n -= 1;
@@ -769,12 +832,30 @@ impl Peer {
         idle: Option<Duration>,
     ) -> Result<(), Error> {
         let handshake = self.dialling().handshake;
-        let connection = tokio::time::timeout(handshake, endpoint.connect(addr, ALPN))
+        let addr = addr.into();
+        let device = addr.id.to_string();
+        let made = tokio::time::timeout(handshake, endpoint.connect(addr, ALPN))
             .await
-            .map_err(|_| Error::TimedOut)??;
-        let (send, recv) = connection.open_bi().await?;
-        let result = self.sync(send, recv, idle).await;
+            .map_err(|_| Error::TimedOut)
+            .and_then(|made| made.map_err(Error::from));
+        let connection = match made {
+            Ok(connection) => connection,
+            Err(e) => {
+                self.record(
+                    Level::Problem,
+                    Some(&device),
+                    format!("couldn't connect: {e}"),
+                );
+                return Err(e);
+            }
+        };
+        let result = async {
+            let (send, recv) = connection.open_bi().await?;
+            self.sync(send, recv, idle).await
+        }
+        .await;
         close(&connection, &result);
+        self.record_end(&device, "dialled connection", &result);
         result
     }
 
@@ -838,7 +919,17 @@ impl Peer {
                         }
                         match session.state() {
                             State::Incompatible { theirs } => return Err(Error::Incompatible(*theirs)),
-                            State::OtherGraph { .. } => return Err(Error::OtherGraph),
+                            State::OtherGraph { theirs } => {
+                                let ours = graph
+                                    .graph_id()
+                                    .map_or_else(|| "none".to_owned(), |id| id.to_string());
+                                self.record(
+                                    Level::Problem,
+                                    session.peer(),
+                                    format!("the peer's graph is {theirs}, this device's is {ours}"),
+                                );
+                                return Err(Error::OtherGraph);
+                            }
                             State::Behind => return Err(Error::Behind),
                             State::PeerBehind => return Err(Error::PeerBehind),
                             State::Starting | State::Syncing => {}
@@ -1206,14 +1297,29 @@ pub fn save_on_change(peer: Peer, store: store::Store) -> tokio::task::AbortHand
 impl ProtocolHandler for Peer {
     #[instrument(level = "debug", skip_all, fields(remote = %connection.remote_id().fmt_short()))]
     async fn accept(&self, connection: Connection) -> Result<(), AcceptError> {
+        let device = connection.remote_id().to_string();
         if !self.permits(&connection.remote_id()) {
             warn!("refusing a device that isn't allowed: see `allow`");
+            self.record(
+                Level::Problem,
+                Some(&device),
+                "refused a connection: the device isn't listed in the graph or let in".to_owned(),
+            );
             connection.close(1u32.into(), b"not allowed");
             return Ok(());
         }
-        let (send, recv) = connection.accept_bi().await?;
-        let result = self.sync(send, recv, None).await;
+        self.record(
+            Level::Info,
+            Some(&device),
+            "accepted a connection".to_owned(),
+        );
+        let result = async {
+            let (send, recv) = connection.accept_bi().await?;
+            self.sync(send, recv, None).await
+        }
+        .await;
         close(&connection, &result);
+        self.record_end(&device, "accepted connection", &result);
         match result {
             // A phone that sleeps or leaves the network never says goodbye, and
             // iroh would warn a second time if we returned the error.
@@ -1228,6 +1334,18 @@ impl ProtocolHandler for Peer {
             Ok(()) => Ok(()),
         }
     }
+}
+
+/// Why the other device closed the connection, if it did so deliberately and
+/// not as a goodbye: a refusal, or one of the reasons in [`close`].
+fn refused_by_peer(e: &Error) -> Option<String> {
+    let (Error::Connection(ConnectionError::ApplicationClosed(closed))
+    | Error::Read(ReadError::ConnectionLost(ConnectionError::ApplicationClosed(closed)))
+    | Error::Write(WriteError::ConnectionLost(ConnectionError::ApplicationClosed(closed)))) = e
+    else {
+        return None;
+    };
+    (closed.error_code != 0u32.into()).then(|| String::from_utf8_lossy(&closed.reason).into_owned())
 }
 
 /// Whether a sync ended because the connection did, which is the peer's doing
@@ -1292,6 +1410,51 @@ mod tests {
         assert!(!peer_went_away(&Error::OtherGraph));
         assert!(!peer_went_away(&Error::PeerBehind));
         assert!(!peer_went_away(&Error::Read(ReadError::ClosedStream)));
+    }
+
+    /// How a connection ended is put in the log by what it was: a peer going
+    /// away is routine, what was said on a connection that held is not.
+    #[test]
+    fn how_a_connection_ended_is_logged_by_what_it_was() {
+        let peer = Peer::new(Graph::new(), Allowed::Any, "me");
+        peer.record_end("a", "dialled connection", &Ok(()));
+        peer.record_end(
+            "b",
+            "dialled connection",
+            &Err(Error::Connection(ConnectionError::TimedOut)),
+        );
+        peer.record_end("c", "accepted connection", &Err(Error::OtherGraph));
+        let log: Vec<_> = peer
+            .events()
+            .into_iter()
+            .map(|e| (e.level, e.device.unwrap(), e.message))
+            .collect();
+        assert_eq!(
+            log,
+            [
+                (
+                    Level::Info,
+                    "a".to_owned(),
+                    "dialled connection ended".to_owned()
+                ),
+                (
+                    Level::Info,
+                    "b".to_owned(),
+                    "dialled connection ended: the connection was lost (timed out)".to_owned()
+                ),
+                (
+                    Level::Problem,
+                    "c".to_owned(),
+                    "accepted connection ended: the peer holds another graph, and this device won't merge two"
+                        .to_owned()
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_peer_knows_its_own_device() {
+        assert_eq!(Peer::new(Graph::new(), Allowed::Any, "me").device(), "me");
     }
 
     /// A version `graph` has, and the other doesn't.

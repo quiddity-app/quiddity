@@ -16,6 +16,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+use quiddity_node::events::Level;
 use quiddity_node::keyring::Keyring;
 use serde::Serialize;
 
@@ -335,6 +336,11 @@ async fn create_graph(
 /// `ID=ADDRESS`, comma separated.
 fn start_network(session: &Session, running: &Running) {
     if std::env::var_os("QUIDDITY_NO_SYNC").is_some() {
+        session.peer().record(
+            Level::Problem,
+            None,
+            "the network is off: QUIDDITY_NO_SYNC is set".to_owned(),
+        );
         return;
     }
     let local = std::env::var("QUIDDITY_LOCAL")
@@ -359,6 +365,15 @@ fn start_network(session: &Session, running: &Running) {
         };
         match started {
             Ok(server) => {
+                peer.record(
+                    Level::Info,
+                    None,
+                    format!(
+                        "on the network as {}{}",
+                        server.endpoint().id(),
+                        if local.is_some() { " (local only)" } else { "" }
+                    ),
+                );
                 let saver = quiddity_node::save_on_change(peer, store);
                 // The endpoint lives until the graph is switched away from
                 // (or the app ends, which drops the sender).
@@ -368,7 +383,14 @@ fn start_network(session: &Session, running: &Running) {
                     warn!(error = %e, "couldn't close the endpoint");
                 }
             }
-            Err(e) => error!(error = %e, "not syncing"),
+            Err(e) => {
+                error!(error = %e, "not syncing");
+                peer.record(
+                    Level::Problem,
+                    None,
+                    format!("couldn't join the network: {e}"),
+                );
+            }
         }
     });
     let mut tasks = running.tasks();

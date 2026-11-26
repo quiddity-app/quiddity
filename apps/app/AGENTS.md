@@ -22,7 +22,7 @@ holds its own replica and answers its own queries (see `apps/ui` and
   the focus after flushing what it typed, so moving on ends the typing.
   `subscribe_status` takes a `Channel` and sends how this device stands with
   the others (`Session::sync_details`: the state's word and what it rests on, as
-  an object) each time it changes.
+  an object, including this device's ID and the network log) each time it changes.
   `subscribe_updates` is below. `device_id` and `allow_device` are for letting
   another device in (see `docs/App sync.md`); the Devices page calls them.
   `list_graphs`, `switch_graph` and `create_graph` are for the UI's graph picker

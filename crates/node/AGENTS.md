@@ -183,6 +183,14 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
   it joins through; that device lists it on connecting. `Peer::admit` is the
   pairing action: it lists a device, or trusts it if this replica has not joined
   a graph yet.
+- **`Peer::events` is the network log** (`events.rs`, `docs/Network log.md`): a
+  ring of the last 200 things the peer did, kept so the debug page can say why
+  two devices don't sync (refused, another graph, couldn't connect, closed by
+  the peer and why). `record` adds one and bumps the status watch, so the UI
+  hears it; `connect` and `accept` log how a connection began and ended, `sync`
+  logs both graph IDs when it finds another graph (only the side that reads the
+  hello first has them: the other is told by the close code). **Keep it free of
+  graph content**, as `debug_http` is: devices and reasons only.
 - **`Peer::sync_details` is what the app's cloud shows** (`sync_state` is its `state`) (`docs/Sync status.md`).
   Each connection records what its peer is known to have (`Session::theirs`)
   in `Peer::syncs` with the device it is to, and the details are worked out when asked (`classify`, pure
