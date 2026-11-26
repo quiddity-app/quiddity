@@ -876,10 +876,12 @@ impl Store {
         db.set_db_config(DbConfig::SQLITE_DBCONFIG_ENABLE_TRIGGER, false)?;
         db.set_db_config(DbConfig::SQLITE_DBCONFIG_ENABLE_VIEW, false)?;
         db.busy_timeout(BUSY)?;
-        // One file at rest: a rollback journal, deleted at each commit, and
-        // not write-ahead logging's `-wal` and `-shm` beside it. Overwriting
-        // what is deleted matters for a file with a key in it.
-        db.pragma_update(None, "journal_mode", "DELETE")?;
+        // Write-ahead logging, so that a reader doesn't hold up a save and a
+        // save doesn't hold up a reader. It is a property of the file, so it
+        // sticks once set. The last connection to close checkpoints and
+        // removes `-wal` and `-shm`, which are made with the file's own mode.
+        // Overwriting what is deleted matters for a file with a key in it.
+        db.pragma_update(None, "journal_mode", "WAL")?;
         db.pragma_update(None, "synchronous", "FULL")?;
         db.pragma_update(None, "secure_delete", "ON")?;
         Ok(db)
@@ -1119,11 +1121,11 @@ mod tests {
         };
         let on_disk = store.load().unwrap().version();
 
-        // Make the commit fail: another connection is in the middle of reading,
-        // which a rollback journal can't commit past.
+        // Make the commit fail: another connection holds the write lock, which
+        // readers don't, with write-ahead logging.
         let reader = Connection::open(store.file()).unwrap();
         reader
-            .execute_batch("BEGIN; SELECT * FROM snapshot;")
+            .execute_batch("BEGIN IMMEDIATE; SELECT * FROM snapshot;")
             .unwrap();
         graph.create_block(None, None, "unsaved").unwrap();
         graph.commit();
@@ -1296,7 +1298,8 @@ mod tests {
         assert_eq!(mode & 0o777, 0o600);
     }
 
-    /// Saving leaves one file and nothing else beside it.
+    /// Once nothing has the graph open, saving leaves one file and nothing
+    /// else beside it: the write-ahead log is checkpointed away on close.
     #[test]
     fn a_saved_graph_is_one_file() {
         let tmp = tempfile::tempdir().unwrap();
