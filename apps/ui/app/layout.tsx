@@ -9,6 +9,7 @@ import '@fontsource/ibm-plex-sans/latin-600.css';
 import './globals.css';
 import { Skeleton } from '@/components/boundary';
 import { ClientOnly } from '@/components/client-only';
+import { GraphSwitcher } from '@/components/graph-switcher';
 import { HistoryKeys } from '@/components/history-keys';
 import { Recovery } from '@/components/recovery';
 import { LinkStatus } from '@/components/link-status';
@@ -62,6 +63,13 @@ export default function RootLayout({
           </Suspense>
         </ClientOnly>
         <Shell
+          title={
+            <ClientOnly fallback="Quiddity">
+              <Suspense fallback="Quiddity">
+                <GraphSwitcher />
+              </Suspense>
+            </ClientOnly>
+          }
           actions={
             <ClientOnly>
               {/* Each waits alone: search takes Ctrl-K before the graph has loaded. */}

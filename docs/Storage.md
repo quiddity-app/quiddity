@@ -18,7 +18,7 @@
 	- The file is treated as untrusted, because a graph may be copied from somewhere else. [[SQLite]]
 		- It must carry Quiddity's `application_id` and a layout version this build knows, and its schema must be exactly ours: a trigger, view or table we didn't make refuses it.
 		- Connections run in SQLite's defensive mode, with triggers, views and schema-defined functions turned off. Loading also runs `quick_check`.
-	- [[The shell]] keeps its graph the same way, in the app's data directory, or wherever `QUIDDITY_GRAPH` says. It saves after each batch of updates from the UI.
+	- [[The shell]] keeps its graph the same way, in the app's data directory (a directory for each of its [[Several graphs]]), or wherever `QUIDDITY_GRAPH` says. It saves after each batch of updates from the UI.
 - Blobs, the bytes of [[Binaries]], are kept by hash in the graph's file, served to [[iroh-blobs]] from SQLite. They are not derived and not in the document. The node's record of when it first saw each file that nothing refers to, for deleting them, is in the file too.
 - Everything else is derived.
 	- The index, of names and aliases, properties, links and how each resolved, is rebuilt from the document in memory and never synced or stored. [[quiddity-core]]

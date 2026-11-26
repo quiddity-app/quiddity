@@ -12,7 +12,7 @@ holds its own replica and answers its own queries (see `apps/ui` and
   resolves against the lowest `rust-version` in the workspace, which is why
   there is one, in the root `Cargo.toml`, and the app and `quiddity-node`
   inherit it.
-- **Twelve commands.** `load_graph` returns a snapshot and `push_updates`
+- **Fifteen commands.** `load_graph` returns a snapshot and `push_updates`
   takes Loro updates as the request body, imports them, saves and sends them
   to other devices, both as raw bytes rather than JSON arrays. Updates that
   arrive out of order are held by Loro until their causes do.
@@ -25,7 +25,8 @@ holds its own replica and answers its own queries (see `apps/ui` and
   an object) each time it changes.
   `subscribe_updates` is below. `device_id` and `allow_device` are for letting
   another device in (see `docs/App sync.md`); the Devices page calls them.
-  `set_entity_open` says whether the UI has an entity open, for the macOS
+  `list_graphs`, `switch_graph` and `create_graph` are for the UI's graph picker
+  (below). `set_entity_open` says whether the UI has an entity open, for the macOS
   menu (below). `put_blob` takes a file as the request body and returns its hash, and
   `get_blob` returns the bytes for a hash: the shell only keeps bytes, and the
   UI says in the graph what a file is, with a block that starts with a `##blob`
@@ -61,9 +62,19 @@ holds its own replica and answers its own queries (see `apps/ui` and
   would pass half its size (see `crates/node/AGENTS.md`). The UI pushes a few hundred
   milliseconds after typing stops, and on the window being hidden.
 - `session.rs` knows nothing about Tauri, so it is tested on its own.
+- **Graphs are directories under `graphs/` in the app's data directory**
+  (`library.rs`, which knows nothing of Tauri), and `current-graph` names the
+  one to open at startup. The graph from before there could be several
+  (`graph/`) is renamed to `graphs/Quiddity`. **Switching opens the new graph
+  first**, so one that won't open changes nothing, then saves the old one and
+  stops what ran for it (`Running`: the UI's subscriptions, and the network,
+  whose endpoint is shut down and awaited), and puts the new `Session` in the
+  same managed state. **Everything per-session must be registered in
+  `Running`**, or the old session stays alive holding its graph's binaries and
+  switching back fails. The UI reloads afterwards.
 - **`QUIDDITY_GRAPH`** names a graph made by `quiddity-node` (a directory, or its
-  `.quiddity` file) to work on
-  instead of the one graph in the app's data directory.
+  `.quiddity` file) to work on instead of the graphs in the data directory. It
+  is then the only graph: the commands that make or open another refuse.
 - **The device's key is in the app's config directory**, not the graph's
   (`QUIDDITY_CONFIG_DIR` overrides it). Two instances on one machine that
   should be two devices need their graphs apart, which gives each its own

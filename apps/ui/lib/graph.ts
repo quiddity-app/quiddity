@@ -3,7 +3,7 @@ import { debounce } from './debounce';
 import { share } from './share';
 import { wasmReady } from './wasm-ready';
 
-import type { Problem, Recovery } from './recovery';
+import type { GraphList, Problem, Recovery } from './recovery';
 import type {
   BlockHit,
   Check,
@@ -58,6 +58,16 @@ export interface Backend {
   /** Goes on after `startupProblem`, as the user chose. Rejects with the
    * reason if that didn't work either. */
   recover?(how: Recovery): Promise<void>;
+  /** The graphs on this device and which is open, or null where there is
+   * only the one (a browser, a published build). Only the app keeps several. */
+  graphs?(): Promise<GraphList | null>;
+  /** Opens another graph in the shell, which saves the one being left. The
+   * page must start over afterwards: what it holds is the old graph. */
+  switchGraph?(name: string): Promise<void>;
+  /** Makes a graph and opens it: empty and of its own, or (`sync`) blank, to
+   * be filled from another device that has the graph. Rejects with the reason
+   * if the name won't do. */
+  createGraph?(name: string, sync: boolean): Promise<void>;
 }
 
 /** Views catch up this long after typing stops; structure changes at once.

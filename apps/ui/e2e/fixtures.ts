@@ -54,6 +54,8 @@ declare global {
       allowed: string[];
       /** How the page asked to go on from a graph that wouldn't open. */
       recovered: string[];
+      /** What the page asked of the shell about graphs. */
+      graphRequests: string[];
       /** Plays the shell telling the page how this device stands. */
       setStatus(status: string, details?: object): void;
     };

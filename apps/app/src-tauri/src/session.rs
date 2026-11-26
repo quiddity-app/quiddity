@@ -64,6 +64,14 @@ pub enum Error {
     Keys(String),
     #[error("{0:?} is not a hash")]
     NotAHash(String),
+    #[error("{0:?} can't be the name of a graph")]
+    BadGraphName(String),
+    #[error("there is already a graph called {0:?}")]
+    GraphExists(String),
+    #[error("there is no graph called {0:?}")]
+    NoSuchGraph(String),
+    #[error("this app was told which graph to open, so it has only that one")]
+    OneGraph,
 }
 
 impl Serialize for Error {
@@ -118,6 +126,19 @@ impl Session {
             peer,
             ui: Arc::default(),
         })
+    }
+
+    /// Makes a graph in `dir`, which must not hold one, and opens it. With
+    /// `blank` it is empty and waits to be filled by syncing with another
+    /// device that has the graph; otherwise it is a graph of its own.
+    pub fn create(dir: &Path, keys: Keyring, blank: bool) -> Result<Self, Error> {
+        Store::new(dir, keys.clone()).init(blank)?;
+        Self::open(dir, keys)
+    }
+
+    /// Writes the graph out now, rather than a moment after it last changed.
+    pub fn save(&self) -> Result<(), Error> {
+        Ok(self.store.save(self.peer.graph())?)
     }
 
     /// Opens the graph in `dir` after it couldn't be opened, as `how` says.

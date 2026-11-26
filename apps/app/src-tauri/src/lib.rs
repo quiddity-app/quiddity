@@ -7,6 +7,7 @@
 //! the one on the network.
 
 mod appearance;
+mod library;
 mod menu;
 mod session;
 mod updates;
@@ -18,9 +19,12 @@ use std::sync::Mutex;
 use quiddity_node::keyring::Keyring;
 use serde::Serialize;
 
+use library::{Graphs, Library};
 use session::{Error, Recovery, Session};
+use tauri::async_runtime::JoinHandle;
 use tauri::ipc::{Channel, InvokeBody, InvokeResponseBody, Request, Response};
 use tauri::{Manager, State};
+use tokio::sync::oneshot;
 use tracing::{error, warn};
 
 type Shared<'a> = State<'a, Mutex<Session>>;
@@ -38,6 +42,41 @@ struct Problem {
 #[derive(Default)]
 struct Startup(Mutex<Option<Problem>>);
 
+/// What a session has running, so that switching graphs can stop it all: the
+/// UI's subscriptions hold the session, and the network holds the graph's
+/// files and its endpoint, so a graph opened again later would find them taken.
+#[derive(Default)]
+struct Running(Mutex<Tasks>);
+
+#[derive(Default)]
+struct Tasks {
+    /// Tells the network task to close its endpoint.
+    stop: Option<oneshot::Sender<()>>,
+    network: Option<JoinHandle<()>>,
+    others: Vec<JoinHandle<()>>,
+}
+
+impl Running {
+    fn tasks(&self) -> std::sync::MutexGuard<'_, Tasks> {
+        self.0.lock().expect("running lock poisoned")
+    }
+
+    /// Stops the session's tasks, and waits for the network to close.
+    async fn stop(&self) {
+        let tasks = std::mem::take(&mut *self.tasks());
+        for task in &tasks.others {
+            task.abort();
+        }
+        if let Some(stop) = tasks.stop {
+            // A network that has already ended has nothing to stop.
+            let _ = stop.send(());
+        }
+        if let Some(network) = tasks.network {
+            drop(network.await);
+        }
+    }
+}
+
 /// What stopped the graph opening, if anything did. The UI asks first, and
 /// shows it in place of the graph.
 #[tauri::command]
@@ -52,6 +91,7 @@ async fn startup_problem(startup: State<'_, Startup>) -> Result<Option<Problem>,
 async fn recover(
     app: tauri::AppHandle,
     startup: State<'_, Startup>,
+    running: State<'_, Running>,
     how: Recovery,
 ) -> Result<(), Error> {
     let dir = {
@@ -64,7 +104,7 @@ async fn recover(
     };
     match Session::recover(&dir, keys, how) {
         Ok(session) => {
-            let session = begin(session).await;
+            let session = begin(session, &running).await;
             app.manage(Mutex::new(session));
             *startup.0.lock().expect("startup lock poisoned") = None;
             Ok(())
@@ -126,10 +166,11 @@ async fn set_focus(state: Shared<'_>, blocks: Vec<String>) -> Result<(), Error> 
 #[tauri::command]
 async fn subscribe_updates(
     state: Shared<'_>,
+    running: State<'_, Running>,
     channel: Channel<InvokeResponseBody>,
 ) -> Result<(), Error> {
     let session = state.lock().expect("session lock poisoned").clone();
-    tauri::async_runtime::spawn(async move {
+    let task = tauri::async_runtime::spawn(async move {
         let mut changes = session.peer().subscribe();
         loop {
             match session.ui_updates() {
@@ -147,6 +188,7 @@ async fn subscribe_updates(
             }
         }
     });
+    running.tasks().others.push(task);
     Ok(())
 }
 
@@ -155,10 +197,11 @@ async fn subscribe_updates(
 #[tauri::command]
 async fn subscribe_status(
     state: Shared<'_>,
+    running: State<'_, Running>,
     channel: Channel<session::SyncDetails>,
 ) -> Result<(), Error> {
     let session = state.lock().expect("session lock poisoned").clone();
-    tauri::async_runtime::spawn(async move {
+    let task = tauri::async_runtime::spawn(async move {
         let mut changes = session.peer().subscribe_status();
         let mut told = None;
         loop {
@@ -173,6 +216,7 @@ async fn subscribe_status(
             }
         }
     });
+    running.tasks().others.push(task);
     Ok(())
 }
 
@@ -215,13 +259,81 @@ async fn get_blob(state: Shared<'_>, hash: String) -> Result<Response, Error> {
     Ok(Response::new(session.blob(&hash).await?))
 }
 
+/// Which graphs there are and which is open, for the UI's picker.
+#[tauri::command]
+async fn list_graphs(state: Shared<'_>, library: State<'_, Library>) -> Result<Graphs, Error> {
+    let dir = state
+        .lock()
+        .expect("session lock poisoned")
+        .store()
+        .dir()
+        .to_owned();
+    library.list(&dir)
+}
+
+/// Opens `session`'s graph in place of the open one, which is saved and
+/// stopped first. The UI starts over from the new graph, as it does after
+/// recovering. If the new graph can't be opened, nothing has changed.
+async fn replace_session(
+    state: &Shared<'_>,
+    running: &Running,
+    library: &Library,
+    name: &str,
+    session: Session,
+) -> Result<(), Error> {
+    let old = state.lock().expect("session lock poisoned").clone();
+    // A moment's typing may not be saved yet.
+    if let Err(e) = old.save() {
+        warn!(error = %e, "couldn't save the graph being left");
+    }
+    running.stop().await;
+    let session = begin(session, running).await;
+    *state.lock().expect("session lock poisoned") = session;
+    library.choose(name)
+}
+
+/// Opens another graph on this device.
+#[tauri::command]
+async fn switch_graph(
+    app: tauri::AppHandle,
+    state: Shared<'_>,
+    running: State<'_, Running>,
+    library: State<'_, Library>,
+    name: String,
+) -> Result<(), Error> {
+    let dir = library.existing(&name)?;
+    if dir == state.lock().expect("session lock poisoned").store().dir() {
+        return Ok(());
+    }
+    let keys = keyring(&app).map_err(|e| Error::Keys(e.to_string()))?;
+    let session = Session::open(&dir, keys)?;
+    replace_session(&state, &running, &library, &name, session).await
+}
+
+/// Makes a graph and opens it: empty and of its own, or (`sync`) blank, to be
+/// filled by syncing with another device that has the graph.
+#[tauri::command]
+async fn create_graph(
+    app: tauri::AppHandle,
+    state: Shared<'_>,
+    running: State<'_, Running>,
+    library: State<'_, Library>,
+    name: String,
+    sync: bool,
+) -> Result<(), Error> {
+    let (name, dir) = library.fresh(&name)?;
+    let keys = keyring(&app).map_err(|e| Error::Keys(e.to_string()))?;
+    let session = Session::create(&dir, keys, sync)?;
+    replace_session(&state, &running, &library, &name, session).await
+}
+
 /// Puts the session on the network, and keeps it saved as other devices
 /// change it. `QUIDDITY_NO_SYNC` leaves it off, and `QUIDDITY_LOCAL` (an
 /// address) keeps it to that address, with no relays or lookup: for trying
 /// it between two devices on a network, or on one machine. With no lookup a
 /// device can only be dialled where it is told to be: `QUIDDITY_PEERS` is
 /// `ID=ADDRESS`, comma separated.
-fn start_network(session: &Session) {
+fn start_network(session: &Session, running: &Running) {
     if std::env::var_os("QUIDDITY_NO_SYNC").is_some() {
         return;
     }
@@ -237,7 +349,8 @@ fn start_network(session: &Session) {
         Err(_) => HashMap::default(),
     };
     let (peer, store) = (session.peer().clone(), session.store().clone());
-    tauri::async_runtime::spawn(async move {
+    let (stop, stopped) = oneshot::channel();
+    let task = tauri::async_runtime::spawn(async move {
         let started = match store.key() {
             Ok(key) => quiddity_node::serve_at(&peer, key, local, known)
                 .await
@@ -246,24 +359,31 @@ fn start_network(session: &Session) {
         };
         match started {
             Ok(server) => {
-                quiddity_node::save_on_change(peer, store);
-                // The endpoint lives as long as the app.
-                let _server = server;
-                std::future::pending::<()>().await;
+                let saver = quiddity_node::save_on_change(peer, store);
+                // The endpoint lives until the graph is switched away from
+                // (or the app ends, which drops the sender).
+                let _ = stopped.await;
+                saver.abort();
+                if let Err(e) = server.shutdown().await {
+                    warn!(error = %e, "couldn't close the endpoint");
+                }
             }
             Err(e) => error!(error = %e, "not syncing"),
         }
     });
+    let mut tasks = running.tasks();
+    tasks.stop = Some(stop);
+    tasks.network = Some(task);
 }
 
 /// Gets an opened graph going: keeps its binaries, then puts it on the network.
-async fn begin(session: Session) -> Session {
+async fn begin(session: Session, running: &Running) -> Session {
     // Before the network, which gives and fetches what this keeps. A
     // store that won't open leaves the app without binaries, no more.
     if let Err(e) = session.keep_blobs().await {
         warn!(error = %e, "not keeping binaries");
     }
-    start_network(&session);
+    start_network(&session, running);
     session
 }
 
@@ -277,14 +397,14 @@ fn keyring(app: &tauri::AppHandle) -> Result<Keyring, Box<dyn std::error::Error>
     }
 }
 
-/// `QUIDDITY_GRAPH` names the graph's directory, for working on a graph made
-/// with `quiddity-node`; otherwise there is one graph in the app's data
-/// directory.
-fn graph_dir(app: &tauri::App) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    match std::env::var_os("QUIDDITY_GRAPH") {
-        Some(dir) => Ok(dir.into()),
-        None => Ok(app.path().app_data_dir()?.join("graph")),
-    }
+/// Where the graphs are: `QUIDDITY_GRAPH` names one graph's directory, for
+/// working on a graph made with `quiddity-node`, and then it is the only graph;
+/// otherwise they are in the app's data directory.
+fn library(app: &tauri::App) -> Result<Library, Box<dyn std::error::Error>> {
+    Ok(Library::new(
+        app.path().app_data_dir()?,
+        std::env::var_os("QUIDDITY_GRAPH").map(PathBuf::from),
+    ))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -315,13 +435,19 @@ pub fn run() {
     let builder = builder.on_menu_event(menu::on_event);
     builder
         .setup(|app| {
-            let dir = graph_dir(app)?;
+            let library = library(app)?;
+            let dir = library.start()?;
+            app.manage(library);
+            app.manage(Running::default());
             let keys = keyring(app.handle())?;
             // A graph that can't be opened is the UI's to deal with, with a
             // window to do it in: exiting here would leave nothing on screen.
             let problem = match Session::open(&dir, keys) {
                 Ok(session) => {
-                    app.manage(Mutex::new(tauri::async_runtime::block_on(begin(session))));
+                    let running = app.state::<Running>();
+                    app.manage(Mutex::new(tauri::async_runtime::block_on(begin(
+                        session, &running,
+                    ))));
                     None
                 }
                 Err(e) => {
@@ -343,6 +469,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             startup_problem,
             recover,
+            list_graphs,
+            switch_graph,
+            create_graph,
             load_graph,
             push_updates,
             set_focus,

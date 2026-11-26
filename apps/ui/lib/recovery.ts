@@ -10,3 +10,13 @@ export interface Problem {
 
 /** How to go on: look again, start empty to sync from another device, or start a graph of its own. */
 export type Recovery = 'retry' | 'blank' | 'fresh';
+
+/**
+ * The graphs on this device, for the picker in the corner. `switchable` is
+ * false when the app was told which graph to open, and has only that one.
+ */
+export interface GraphList {
+  current: string;
+  all: string[];
+  switchable: boolean;
+}
