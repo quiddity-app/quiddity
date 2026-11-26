@@ -87,11 +87,11 @@ have `deviceId` and `allowDevice`**, which only the Tauri backend does:
 `Graph.canPair()` says, and without it the page says it needs the app. The ID
 is asked for once (`Graph.deviceId()` hands back the same promise, to `use`).
 The list of devices is the graph's own, from `graph.devices()`, so it updates
-as the shell's does. `allowDevice` rejects with the shell's reason (not an ID,
+as the shell's does. **Naming and removing a device are edits in the UI's own replica** (`graph.nameDevice`, `removeDevice`), pushed like any other, so they need no backend and work outside the app; a device's own row has no Remove, since it would list itself again on its next save. `allowDevice` rejects with the shell's reason (not an ID,
 say), which the page shows. The memory backend makes up an ID and records
 what it was asked to allow in `window.__quiddityRemote.allowed`, for
-`e2e/devices.spec.ts`. The populated list has no browser test: the made-up
-graph records no devices.
+`e2e/devices.spec.ts`. The populated list, and so naming and removal, has no browser test: the made-up
+graph records no devices (`quiddity-view` tests them).
 
 ## Sync indicator
 

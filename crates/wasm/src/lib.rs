@@ -152,6 +152,19 @@ impl Replica {
         js(&self.view.devices())
     }
 
+    /// Names a listed device, or clears its name if `name` is blank. False if
+    /// the device isn't listed.
+    #[wasm_bindgen(js_name = nameDevice)]
+    pub fn name_device(&self, id: &str, name: &str) -> Result<bool, JsError> {
+        Ok(self.view.name_device(id, name)?)
+    }
+
+    /// Takes a device out of the list. False if it wasn't listed.
+    #[wasm_bindgen(js_name = removeDevice)]
+    pub fn remove_device(&self, id: &str) -> Result<bool, JsError> {
+        Ok(self.view.remove_device(id)?)
+    }
+
     pub fn favourites(&self) -> Result<JsValue, JsError> {
         js(&self.view.favourites()?)
     }

@@ -34,6 +34,8 @@ pub struct DeviceInfo {
     pub id: String,
     /// When it last recorded itself, as an RFC 3339 timestamp in UTC.
     pub seen: String,
+    /// What a person calls it, if anyone has said.
+    pub name: Option<String>,
 }
 
 /// The entities, and which of them link to which, for drawing as a graph.
@@ -895,8 +897,25 @@ impl View {
             .map(|d| DeviceInfo {
                 id: d.id,
                 seen: d.seen.to_string(),
+                name: d.name,
             })
             .collect()
+    }
+
+    /// Names the listed device `id`, or clears its name if `name` is blank.
+    /// False if no such device is listed. The index doesn't read devices, so
+    /// nothing is marked stale.
+    pub fn name_device(&self, id: &str, name: &str) -> Result<bool> {
+        self.structural();
+        Ok(self.graph.name_device(id, name)?)
+    }
+
+    /// Takes the device `id` out of the list, so that it no longer holds back
+    /// compaction or, once the others have the edit, connects. False if it
+    /// wasn't listed.
+    pub fn remove_device(&self, id: &str) -> Result<bool> {
+        self.structural();
+        Ok(self.graph.remove_device(id)?)
     }
 
     /// Entities whose `favourite` property is true.

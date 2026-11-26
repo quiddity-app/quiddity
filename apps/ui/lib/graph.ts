@@ -243,6 +243,18 @@ export class Graph {
   /** The devices the graph records, most recently seen first. */
   devices = () => this.read<Device[]>('devices', () => this.replica.devices());
 
+  /** Names a listed device, or clears its name if `name` is blank. An edit
+   * like any other, so it reaches other devices by syncing. */
+  nameDevice(id: string, name: string) {
+    return this.edited(this.replica.nameDevice(id, name));
+  }
+
+  /** Takes a device out of the list, so it can no longer connect once the
+   * others have the edit. */
+  removeDevice(id: string) {
+    return this.edited(this.replica.removeDevice(id));
+  }
+
   /** Whether this build is a device others can reach, and so can pair. */
   canPair = () =>
     this.backend.deviceId !== undefined &&

@@ -19,12 +19,16 @@
 	- Waiting out a dead address takes much longer than anyone wants, so making a connection is given 10 s.
 	- Devices that both dial may end up with two connections. That works, and sends everything twice. Choosing who dials is a job for later.
 	- `serve --local` does not dial: with no address lookup there is no way to find a device from its ID.
+- Devices can be named, and removed, from the Devices page.
+	- A name is what a person calls a device, so the list says which is which: the ID says only which device it is. Any device may name any other. It is kept in the device's entry beside what it stored, as an edit like any other, and the later of two names wins. A blank name clears it.
+	- Removing a device deletes its entry, which syncs like any edit. Devices that have the edit stop letting it connect, and it stops holding back [[Compaction]]. This device cannot be removed from its own list, since it would list itself again the next time it saved.
+	- A device that is still running, and saves, lists itself again, with the name it had. Removal is for devices that are gone, not a way to lock one out: a device that has not yet received the edit still lets it in.
 - Things worth knowing
 	- One member's say-so authorises a device for all of them, so any member can add one. That is the model: it is a personal graph first.
-	- Nothing revokes a device yet.
+	- Removing a device from the list stops devices that have the edit letting it connect, but does not take back what it already has. [[Identity]]
 	- Eviction after 30 days of silence affects compaction only. [[Compaction]] An evicted device is still listed, and may still connect.
 - Planned, not built: telling a device, a graph and a replica apart by identifiers of their own, with the key kept out of the graph's directory. [[Identity]]
-- Planned, not built: pairing with a QR code and a one-time token, where an existing device shows its endpoint ID and a token and the new one presents it, and revoking a device. [[Design]]
+- Planned, not built: pairing with a QR code and a one-time token, where an existing device shows its endpoint ID and a token and the new one presents it, and revoking a device for good. [[Design]]
 - Devices that connect also tell each other which blocks they have open. [[Presence]]
 - The desktop app does this too. [[App sync]]
 - The same list decides who may fetch [[Binaries]]: the blobs protocol asks it on each connection. [[Blob transfer]]
