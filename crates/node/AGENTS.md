@@ -35,8 +35,10 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
   set defensive mode and turn triggers, views and trusted schema off; don't
   loosen those to make something convenient work. The file is made 0600 before
   SQLite touches it (the key is in it, and SQLite gives its journal the file's
-  mode). Journal mode is `DELETE`, deliberately: WAL leaves `-wal`/`-shm`, which
-  breaks "one file" and copying it. The key is made inside a transaction, so two
+  mode). Journal mode is `WAL`, so readers and the writer don't block each
+  other. While a graph is open there are `-wal`/`-shm` beside it, so copy or
+  move it only when it is closed (the last connection to close checkpoints them
+  away). `set_aside` moves them with the file. The key is made inside a transaction, so two
   processes starting together agree on it.
 - **`blob_store` is an iroh-blobs store on SQLite, and `Blobs` is a thin wrapper of it.**
   iroh-blobs' `Store` is a client of a command channel, and `FsStore` and
