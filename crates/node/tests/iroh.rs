@@ -12,6 +12,7 @@ use iroh::protocol::Router;
 use iroh::protocol::{AcceptError, ProtocolHandler};
 use iroh::{Endpoint, EndpointAddr, RelayMode};
 use quiddity_core::{BlockId, Graph, Index, ensure_journal};
+use quiddity_node::events::Level;
 use quiddity_node::{ALPN, Allowed, ConnectedDevice, Peer, SyncState};
 
 /// A peer listening on localhost only: no relays, no address lookup.
@@ -233,6 +234,25 @@ async fn a_device_holding_another_graph_is_refused() {
     assert_eq!(two.graph().graph_id(), two_id);
     assert!(one.graph().devices().is_empty() && two.graph().devices().is_empty());
 
+    // Both say why. The side that reads the other's hello first has the two
+    // graphs' IDs, which is the one that was dialled; the other is told by the
+    // close, and says only that.
+    let (one_id, two_id) = (one_id.unwrap().to_string(), two_id.unwrap().to_string());
+    eventually("the other graph to be recorded", || {
+        one.events().iter().any(|e| {
+            e.level == Level::Problem
+                && e.device.as_deref() == Some("two")
+                && e.message.contains(&one_id)
+                && e.message.contains(&two_id)
+        })
+    })
+    .await;
+    assert!(
+        two.events()
+            .iter()
+            .any(|e| e.level == Level::Problem && e.message.contains("another graph"))
+    );
+
     one_router.shutdown().await.unwrap();
     two_router.shutdown().await.unwrap();
 }
@@ -258,6 +278,19 @@ async fn unlisted_devices_are_refused() {
         "and not told it's behind"
     );
     assert!(stranger.graph().roots().is_empty());
+
+    // The node says who it turned away, and the stranger that it couldn't
+    // connect or was cut off.
+    let stranger_id = stranger_router.endpoint().id().to_string();
+    eventually("the refusal to be recorded", || {
+        node.events().iter().any(|e| {
+            e.level == Level::Problem
+                && e.device.as_deref() == Some(stranger_id.as_str())
+                && e.message.starts_with("refused")
+        })
+    })
+    .await;
+    assert!(stranger.events().iter().any(|e| e.level == Level::Problem));
 
     node_router.shutdown().await.unwrap();
     stranger_router.shutdown().await.unwrap();

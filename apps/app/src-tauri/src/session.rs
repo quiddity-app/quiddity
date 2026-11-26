@@ -31,6 +31,22 @@ pub struct SyncDetails {
     pub held: usize,
     /// Devices with a block open.
     pub watching: usize,
+    /// This device's own ID, which the others must list.
+    pub device: String,
+    /// What the network has lately done, oldest first: for working out why
+    /// devices don't sync. It is about devices and connections only.
+    pub log: Vec<Event>,
+}
+
+/// One thing the network did, for the UI.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Event {
+    /// Milliseconds since the Unix epoch.
+    pub at: i64,
+    /// `info`, or `problem` for what stops devices syncing.
+    pub level: &'static str,
+    pub device: Option<String>,
+    pub message: String,
 }
 
 /// A device this one is connected to.
@@ -278,6 +294,18 @@ impl Session {
                 .collect(),
             held: details.held,
             watching: details.watching,
+            device: self.peer.device().to_owned(),
+            log: self
+                .peer
+                .events()
+                .into_iter()
+                .map(|e| Event {
+                    at: e.at,
+                    level: e.level.as_str(),
+                    device: e.device,
+                    message: e.message,
+                })
+                .collect(),
         }
     }
 
@@ -573,6 +601,27 @@ mod tests {
         assert_eq!(kept(dir.path()), 1);
         // And it opens as any graph does now.
         open(dir.path()).unwrap();
+    }
+
+    #[test]
+    fn the_sync_details_carry_this_devices_id_and_the_networks_log() {
+        let dir = tempfile::tempdir().unwrap();
+        let session = open(&dir.path().join("graph")).unwrap();
+        assert!(session.sync_details().log.is_empty());
+        session.peer().record(
+            quiddity_node::events::Level::Problem,
+            Some("them"),
+            "no".to_owned(),
+        );
+        let details = session.sync_details();
+        assert_eq!(details.device, session.device_id().unwrap());
+        let [event] = details.log.as_slice() else {
+            panic!("{:?}", details.log);
+        };
+        assert_eq!(
+            (event.level, event.device.as_deref(), event.message.as_str()),
+            ("problem", Some("them"), "no")
+        );
     }
 
     #[test]

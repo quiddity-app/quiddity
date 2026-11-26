@@ -126,3 +126,38 @@ test('the Sync section says how this device stands with the others', async ({
   });
   await expect(sync.getByText('bbbbbbbb…')).toBeVisible();
 });
+
+test('the Sync section shows this device and what the network has lately done', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await openStats(page);
+  const sync = page.getByRole('region', { name: 'Sync' });
+  await expect(sync.getByText('Nothing has happened yet.')).toBeVisible();
+
+  const refused = 'c'.repeat(64);
+  await page.evaluate((device) => {
+    window.__quiddityRemote!.setStatus('offline', {
+      device: 'd'.repeat(64),
+      log: [
+        { at: 1_700_000_000_000, level: 'info', device, message: 'dialling' },
+        {
+          at: 1_700_000_001_000,
+          level: 'problem',
+          device,
+          message: 'the peer holds another graph',
+        },
+      ],
+    });
+  }, refused);
+
+  await expect(sync.getByText('d'.repeat(64))).toBeVisible();
+  const entries = sync.getByRole('list', { name: 'Network log' }).locator('li');
+  // Newest first, and a problem is marked in words as well as colour.
+  await expect(entries).toHaveCount(2);
+  await expect(entries.first()).toHaveAttribute('data-level', 'problem');
+  await expect(entries.first()).toContainText(
+    'Problem: cccccccc… the peer holds another graph',
+  );
+  await expect(entries.last()).toContainText('cccccccc… dialling');
+});

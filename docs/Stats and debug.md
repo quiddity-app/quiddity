@@ -5,6 +5,7 @@
 	- A link is counted once each, so a block that links to the same page twice counts twice. An ambiguous link, one that matches several entities, is counted once for its block. [[Disambiguation]]
 - Sync
 	- How this device stands with the others, in words: the state ([[Sync status]]), what it means, and what it rests on: the devices connected, how many the graph lists, typing held back, and devices with a block open. The published site can't sync, so it says so instead.
+	- This device's own ID, and the network log: the latest two hundred things the network did, newest first, each with its time and the device it was about (shortened, the whole ID as its tooltip). A **Copy log** button puts it on the clipboard as text for a bug report. [[Network log]]
 - Virtual entities
 	- Every name that is linked to, or is a property's key, and that no entity has, as a table: its name (a link to its page), its ID, its incoming links, the entities those links are in, and how many entities use it as a property key. [[Links to nowhere]]
 	- The ID is `~` and the name as names are compared (`~fresh` for `[[Fresh]]` and `[[fresh]]`), which is how a page, a row of [[All entities]] and a node of the [[Graph view]] address something nothing is stored for.
@@ -21,6 +22,6 @@
 	- **Content** is what is written, against what it says: the flags on each entity's page, listed together, with a link to the entity. A problem here is in the text, and is what the page of the entity shows beside the line it is about. [[Built-in properties]]
 	- Each check says Passed, or how many problems it found and what each is. Only the first fifty are listed, followed by how many were left out.
 - How it works
-	- `View::stats()` and `View::check()` in [[quiddity-view]], carried to the page by [[quiddity-wasm]] as `stats()` and `check()`. `stats()` walks what the index already holds; `check()` builds a second index to compare with the one in use.
+	- `View::stats()` and `View::check()` in [[quiddity-view]], carried to the page by [[quiddity-wasm]] as `stats()` and `check()`. The log is `Peer::events()`, carried in the sync details. `stats()` walks what the index already holds; `check()` builds a second index to compare with the one in use.
 	- The comparisons are plain functions of two inputs (`diff_blocks`, `diff_indexes`, `dangling`, `malformed`), so the tests give them inputs that disagree and check what they say. A property test applies random edits, undo and redo, and edits made behind the view's back, and asserts that the integrity checks find nothing after each.
 	- Not built: references to a block that does not exist (`((id))`), and a way to copy the results to attach to a bug report.
