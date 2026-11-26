@@ -329,6 +329,18 @@ never writes the `##blob` line: Rust does.
   bullet is inserted as its text, and an outline goes to
   `graph.pasteIntoBlock` (after the block, or in place of it if it is empty),
   with editing continuing at the end of the last block made.
+- **`EditToolbar` is drawn only with an on-screen keyboard** (`useKeyboardInset`,
+  from the visual viewport: 100px or more of the window uncovered by it), in a
+  portal fixed `bottom: inset`. Its buttons stop `pointerdown` and `mousedown`
+  so the editor keeps focus, and find the editor from `document.activeElement`.
+  **Indent, outdent and move are `blockCommands`, shared with the keys**, not
+  copied. `e2e/keyboard-toolbar.spec.ts` plays a keyboard by shrinking
+  `visualViewport.height` and firing `resize`. **It reserves space under itself**:
+  it sets `--edit-toolbar-space` (keyboard plus bar) on the root, which
+  `main` takes as padding and scroll padding. The viewport asks for
+  `interactive-widget=resizes-visual` so the keyboard is a visual-viewport
+  matter in every browser; a webview that resizes the layout instead would
+  never show the bar.
 - Removing a focused editor fires a blur that isn't the user leaving, so
   `closing` is set in a layout effect (which runs before the DOM goes).
 - IDs held by editing state go dead across an undo of a deletion; that just

@@ -11,6 +11,7 @@ import {
 
 import { EditorView } from '@codemirror/view';
 
+import { EditToolbar } from './edit-toolbar';
 import { EditingContext, useEditing, type Editing } from './editing-context';
 import { Outline } from './entity-view';
 import { AddRow } from './ui';
@@ -235,6 +236,7 @@ export function EditableOutline({
   return (
     <EditingContext.Provider value={editing}>
       <Outline blocks={blocks} links={links} />
+      <EditToolbar />
       <AddBlock empty={blocks.length === 0} />
       {!blocks.some((b) => b.propertiesBlock) && blocks[0]?.text !== '' && (
         <AddProperties />
