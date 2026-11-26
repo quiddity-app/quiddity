@@ -12,6 +12,7 @@ use crate::{Graph, Result, Version};
 const DEVICES: &str = "devices";
 const STORED: &str = "stored";
 const SEEN: &str = "seen";
+const NAME: &str = "name";
 
 /// A device as it last recorded itself.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -21,6 +22,9 @@ pub struct Device {
     pub stored: Version,
     /// When it recorded that.
     pub seen: Timestamp,
+    /// What a person calls it, if anyone has said. The ID says which device
+    /// it is; this says which one that is to somebody reading the list.
+    pub name: Option<String>,
 }
 
 impl Graph {
@@ -60,6 +64,45 @@ impl Graph {
         Ok(())
     }
 
+    /// Names the listed device `id`, or clears its name if `name` is blank.
+    /// Any device may name any other, so unlike a record this can race with
+    /// another name: the later edit wins, as with any text. Returns false, and
+    /// writes nothing, if the device isn't listed, since an entry with no
+    /// record of what it stored would be read as no device at all.
+    pub fn name_device(&self, id: &str, name: &str) -> Result<bool> {
+        let Some(ValueOrContainer::Container(Container::Map(entry))) =
+            self.doc().get_map(DEVICES).get(id)
+        else {
+            return Ok(false);
+        };
+        let name = name.trim();
+        if name.is_empty() {
+            entry.delete(NAME)?;
+        } else {
+            entry.insert(NAME, name)?;
+        }
+        self.commit();
+        Ok(true)
+    }
+
+    /// Takes the device `id` out of the list, which also stops it holding
+    /// compaction back and, since the list says who may connect, stops it
+    /// connecting. Returns whether it was listed.
+    ///
+    /// A device that is still running records itself again the next time it
+    /// saves, so removing one that is still in use only lasts until then. It
+    /// comes back with the name it had, since Loro keeps a mergeable map's
+    /// contents under its key.
+    pub fn remove_device(&self, id: &str) -> Result<bool> {
+        let devices = self.doc().get_map(DEVICES);
+        if devices.get(id).is_none() {
+            return Ok(false);
+        }
+        devices.delete(id)?;
+        self.commit();
+        Ok(true)
+    }
+
     /// Every device that has recorded itself, in no particular order.
     /// Entries this build can't read are skipped.
     pub fn devices(&self) -> Vec<Device> {
@@ -78,11 +121,16 @@ impl Graph {
                 }
                 _ => None,
             };
+            let name = match entry.get(NAME) {
+                Some(ValueOrContainer::Value(LoroValue::String(n))) => Some(n.to_string()),
+                _ => None,
+            };
             if let (Some(stored), Some(seen)) = (stored, seen) {
                 devices.push(Device {
                     id: id.to_owned(),
                     stored,
                     seen,
+                    name,
                 });
             }
         });
@@ -119,6 +167,7 @@ impl Graph {
             id: id.to_owned(),
             stored: stored.clone(),
             seen: now,
+            name: None,
         });
         self.compaction_point_of(devices, now, active)
     }
@@ -172,11 +221,13 @@ mod tests {
                     id: "me".into(),
                     stored: vouched,
                     seen: at("2026-10-02T00:00Z"),
+                    name: None,
                 },
                 Device {
                     id: "new".into(),
                     stored: Version::default(),
                     seen: at("2026-10-01T00:00Z"),
+                    name: None,
                 },
             ]
         );
@@ -261,6 +312,53 @@ mod tests {
         let fresh = Graph::new();
         let v = fresh.version();
         assert_eq!(fresh.compaction_point_as(now, MONTH, "me", &v), Some(v));
+        Ok(())
+    }
+
+    /// A name is kept beside the record, survives the device recording itself
+    /// again, and goes when it is blanked. Only a listed device can be named.
+    #[test]
+    fn a_name_outlives_records_and_clears_when_blank() -> Result<()> {
+        let graph = Graph::new();
+        assert!(!graph.name_device("ghost", "Nobody")?);
+        assert!(graph.devices().is_empty(), "naming lists nothing");
+
+        graph.record_stored("me", at("2026-10-02T00:00Z"))?;
+        assert!(graph.name_device("me", "  Laptop ")?);
+        graph.record_stored("me", at("2026-10-03T00:00Z"))?;
+        assert_eq!(graph.devices()[0].name.as_deref(), Some("Laptop"));
+
+        assert!(graph.name_device("me", " ")?);
+        assert_eq!(graph.devices()[0].name, None);
+        Ok(())
+    }
+
+    /// Removing a device takes its record and name, no longer holds back
+    /// compaction, and reaches other replicas like any edit. A device that
+    /// saves again is listed again, with the name it had.
+    #[test]
+    fn removing_a_device_syncs_and_a_later_record_relists_it() -> Result<()> {
+        let now = at("2026-10-26T00:00Z");
+        let (a, b) = (Graph::new(), Graph::blank());
+        a.record_stored("a", now)?;
+        a.vouch_for("b", &Version::default(), now)?;
+        a.name_device("b", "Phone")?;
+        b.import(&a.snapshot()?)?;
+        assert_eq!(a.compaction_point(now, MONTH), Some(Version::default()));
+
+        assert!(a.remove_device("b")?);
+        assert!(!a.remove_device("b")?, "already gone");
+        assert!(
+            a.compaction_point(now, MONTH)
+                .is_some_and(|v| v != Version::default())
+        );
+        b.import(&a.updates_since(&b.version())?)?;
+        assert_eq!(b.devices().len(), 1);
+        assert_eq!(b.devices()[0].id, "a");
+
+        a.record_stored("b", now)?;
+        let again = a.devices().into_iter().find(|d| d.id == "b").unwrap();
+        assert_eq!(again.name.as_deref(), Some("Phone"));
         Ok(())
     }
 }

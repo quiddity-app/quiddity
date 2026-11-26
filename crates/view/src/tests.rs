@@ -3283,6 +3283,15 @@ fn devices_are_listed_most_recently_seen_first() {
         ],
         "newest first, ties by ID"
     );
+
+    assert!(v.name_device("old", " Laptop ").unwrap());
+    assert!(!v.name_device("nobody", "x").unwrap());
+    let names: Vec<Option<String>> = v.devices().into_iter().map(|d| d.name).collect();
+    assert_eq!(names, [None, None, Some("Laptop".to_owned())]);
+    assert!(v.remove_device("old").unwrap());
+    assert!(!v.remove_device("old").unwrap());
+    let left: Vec<String> = v.devices().into_iter().map(|d| d.id).collect();
+    assert_eq!(left, ["new", "also-old"]);
 }
 
 #[test]

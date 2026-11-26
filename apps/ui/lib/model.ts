@@ -51,6 +51,8 @@ export interface Device {
   id: string;
   /** When it last saved, as an RFC 3339 timestamp in UTC. */
   seen: string;
+  /** What a person calls it, if anyone has said. */
+  name: string | null;
 }
 
 export interface Block {

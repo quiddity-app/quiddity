@@ -5,6 +5,8 @@ import { use, useState } from 'react';
 import { Region, Skeleton } from './boundary';
 import { Button, ErrorLine, Input, Page, pageTitle, sectionTitle } from './ui';
 
+import type { Device } from '@/lib/model';
+
 import { useGraph, useRead } from '@/lib/use-graph';
 
 const when = new Intl.DateTimeFormat(undefined, {
@@ -51,6 +53,115 @@ function ThisDevice() {
   );
 }
 
+function DeviceRow({
+  device,
+  isThis,
+}: Readonly<{ device: Device; isThis: boolean }>) {
+  const graph = useGraph();
+  const [mode, setMode] = useState<'idle' | 'renaming' | 'removing'>('idle');
+  const [name, setName] = useState(device.name ?? '');
+  const date = new Date(device.seen);
+  const label = device.name ?? 'Unnamed device';
+  return (
+    <li className="space-y-1">
+      <div className="flex flex-wrap items-baseline gap-x-3">
+        <span
+          className={device.name === null ? 'text-ink-muted' : 'font-medium'}
+        >
+          {label}
+        </span>
+        {isThis ? <span className="font-medium">this device</span> : null}
+        <span className="text-ink-muted">
+          last saved{' '}
+          <time dateTime={date.toISOString()}>{when.format(date)}</time>
+        </span>
+      </div>
+      <div>
+        <Id id={device.id} />
+      </div>
+      {mode === 'renaming' ? (
+        <form
+          className="flex flex-wrap items-center gap-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            graph.nameDevice(device.id, name);
+            setMode('idle');
+          }}
+        >
+          <label className="flex flex-wrap items-center gap-3">
+            <span>Name for {label}</span>
+            <Input
+              type="text"
+              value={name}
+              onChange={(event) => {
+                setName(event.target.value);
+              }}
+              autoComplete="off"
+              autoFocus
+            />
+          </label>
+          <Button type="submit">Save name</Button>
+          <Button
+            onClick={() => {
+              setMode('idle');
+            }}
+          >
+            Cancel
+          </Button>
+        </form>
+      ) : mode === 'removing' ? (
+        <div
+          role="alertdialog"
+          aria-label={`Remove ${label}`}
+          className="flex flex-wrap items-center gap-3"
+        >
+          <span>
+            Remove {label}? It will no longer be let in, and comes back only if
+            it saves the graph again.
+          </span>
+          <Button
+            autoFocus
+            onClick={() => {
+              setMode('idle');
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              graph.removeDevice(device.id);
+            }}
+          >
+            Remove
+          </Button>
+        </div>
+      ) : (
+        <div className="flex gap-3">
+          <Button
+            aria-label={`Rename ${label}`}
+            onClick={() => {
+              setName(device.name ?? '');
+              setMode('renaming');
+            }}
+          >
+            Rename
+          </Button>
+          {isThis ? null : (
+            <Button
+              aria-label={`Remove ${label}`}
+              onClick={() => {
+                setMode('removing');
+              }}
+            >
+              Remove
+            </Button>
+          )}
+        </div>
+      )}
+    </li>
+  );
+}
+
 function Listed() {
   const devices = useRead((g) => g.devices());
   const graph = useGraph();
@@ -66,25 +177,14 @@ function Listed() {
           in.
         </p>
       ) : (
-        <ul className="space-y-2">
-          {devices.map((device) => {
-            const date = new Date(device.seen);
-            return (
-              <li
-                key={device.id}
-                className="flex flex-wrap items-baseline gap-x-3"
-              >
-                <Id id={device.id} />
-                {device.id === mine ? (
-                  <span className="font-medium">this device</span>
-                ) : null}
-                <span className="text-ink-muted">
-                  last saved{' '}
-                  <time dateTime={date.toISOString()}>{when.format(date)}</time>
-                </span>
-              </li>
-            );
-          })}
+        <ul className="space-y-4">
+          {devices.map((device) => (
+            <DeviceRow
+              key={device.id}
+              device={device}
+              isThis={device.id === mine}
+            />
+          ))}
         </ul>
       )}
     </section>
