@@ -85,8 +85,8 @@ version in `crates/wasm/Cargo.toml` (`mise install` gets both, the CLI by
 compiling it). `pnpm ui wasm`
 rebuilds it; `dev`, `build` and `typecheck` do so first.
 
-The shell opens the one graph in the app's data directory, creating it if
-need be. Set `QUIDDITY_GRAPH` to a graph made with `quiddity-node` (a directory, or
+The shell opens the graph last chosen from those in the app's data directory,
+creating one if need be. Set `QUIDDITY_GRAPH` to a graph made with `quiddity-node` (a directory, or
 its `.quiddity` file) to work on that graph instead. The device's key is kept in
 the app's configuration directory, not in a graph (`QUIDDITY_CONFIG_DIR` says
 where, for a second instance on one machine). Favourites are the entities with

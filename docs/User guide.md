@@ -27,6 +27,7 @@ favourite:: true
 	- [[Page graph]]: the part of the graph around the page you are on, in the right pane.
 	- [[Stats and debug]]: how big the graph is, which names are linked to that nobody has made and how often, and a check that nothing has gone wrong.
 - Your data
+	- [[Several graphs]]: keeping more than one graph on a device, and choosing between them.
 	- [[Export and import]]: the graph as Markdown, and importing from [[Logseq]].
 	- [[Graph settings]]: where the app opens, set by a `quiddity.toml`.
 	- [[Add a device]]: share the graph with another computer, or with a node that keeps a copy.

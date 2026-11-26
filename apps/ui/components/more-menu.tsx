@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import { noteFollowed } from './home';
+import { useMenu } from './use-menu';
 import { useView } from './use-view';
 import { Button, iconButtonClass } from './ui';
 
@@ -70,65 +71,10 @@ export function MoreMenu() {
     setLeaving(null);
   }, [graph, leaving, main]);
 
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    const items = () => [
-      ...(menu.current?.querySelectorAll<HTMLElement>(
-        '[role="menuitem"]:not(:disabled)',
-      ) ?? []),
-    ];
-    items()[0]?.focus();
-    const onPointerDown = (e: PointerEvent) => {
-      if (!(e.target instanceof Node)) {
-        return;
-      }
-      if (
-        !menu.current?.contains(e.target) &&
-        !button.current?.contains(e.target)
-      ) {
-        setOpen(false);
-      }
-    };
-    const onKey = (e: KeyboardEvent) => {
-      switch (e.key) {
-        case 'Escape': {
-          e.preventDefault();
-          setOpen(false);
-          button.current?.focus();
-
-          break;
-        }
-        case 'Tab': {
-          setOpen(false);
-
-          break;
-        }
-        case 'ArrowDown':
-        case 'ArrowUp': {
-          e.preventDefault();
-          const all = items();
-          if (all.length === 0) {
-            return;
-          }
-          const at = all.indexOf(document.activeElement as HTMLElement);
-          const step = e.key === 'ArrowDown' ? 1 : -1;
-          all[(at + step + all.length) % all.length]?.focus();
-
-          break;
-        }
-        // No default
-      }
-    };
-    document.addEventListener('pointerdown', onPointerDown);
-    menu.current?.addEventListener('keydown', onKey);
-    const current = menu.current;
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-      current?.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
+  const close = useCallback(() => {
+    setOpen(false);
+  }, []);
+  useMenu({ open, close, button, menu });
 
   const confirm = (entity: EntityId) => {
     setAsking(null);

@@ -80,6 +80,22 @@ redirects from `/` and loses the query; going on drops the parameter and reloads
 problem, as the shell's cleared one wouldn't. A failure to ask is logged at
 info and ignored: it is no reason to cover a working page.
 
+## Graph picker
+
+`components/graph-switcher.tsx` is the name at the head of the left pane (and in
+the strip where that is a drawer): the open graph's name, a menu of the graphs
+and *New empty graph…* / *New graph to sync…* (`sync` makes a blank replica).
+**A backend may have `graphs`, `switchGraph` and `createGraph`**; `graphs`
+returns null (or `switchable: false`) where there is one graph, and then the
+name is plain "Quiddity" (or the one graph's name). **It flushes the graph
+before asking the shell**, since a pending push would otherwise go to the new
+graph, then `location.replace('/')`: the replica is of the old graph. The name
+dialog is a portal into `body`, because the left pane is transformed and would
+otherwise contain `fixed`. `useMenu` (`components/use-menu.ts`) is the keyboard and pointer handling the
+More menu shares with it. The memory backend plays a library with `?graphs`,
+kept in `sessionStorage` over the reload, and records requests in
+`__quiddityRemote.graphRequests`, for `e2e/graphs.spec.ts`.
+
 ## Devices
 
 `/devices/` (an entrypoint) is where another device is added. **A backend may

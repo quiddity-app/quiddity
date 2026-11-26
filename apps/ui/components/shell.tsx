@@ -22,12 +22,16 @@ export function Shell({
   left,
   right,
   actions,
+  title,
   children,
 }: Readonly<{
   left: ReactNode;
   right: ReactNode;
   /** The strip's controls, at its right-hand end. */
   actions: ReactNode;
+  /** What names the graph, at the head of the left pane and, where that is a
+   * drawer, in the strip. */
+  title: ReactNode;
   children: ReactNode;
 }>) {
   const [drawer, setDrawer] = useState(false);
@@ -42,7 +46,7 @@ export function Shell({
           setDrawer(false);
         }}
       >
-        <div className="px-4 py-3 text-lg font-semibold">Quiddity</div>
+        <div className="px-2 py-2 text-lg font-semibold">{title}</div>
         {left}
       </aside>
       {drawer && (
@@ -67,7 +71,7 @@ export function Shell({
           >
             ☰
           </button>
-          <span className="font-semibold md:hidden">Quiddity</span>
+          <div className="min-w-0 font-semibold md:hidden">{title}</div>
           <div
             role="toolbar"
             aria-label="Actions"

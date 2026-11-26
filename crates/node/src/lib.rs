@@ -1178,10 +1178,15 @@ pub fn known_addresses(text: &str) -> Result<HashMap<EndpointId, SocketAddr>, St
 
 /// Saves the graph shortly after it changes, batching bursts of changes.
 /// Duplicate journals that arrived from different devices are merged first,
-/// and the merge is sent on to connected devices.
-pub fn save_on_change(peer: Peer, store: store::Store) {
+/// and the merge is sent on to connected devices. Aborting the handle
+/// it returns stops it, and lets the peer go.
+#[allow(
+    clippy::must_use_candidate,
+    reason = "the command line saves for as long as it runs, and never stops"
+)]
+pub fn save_on_change(peer: Peer, store: store::Store) -> tokio::task::AbortHandle {
     let mut changes = peer.subscribe();
-    tokio::spawn(async move {
+    let task = tokio::spawn(async move {
         while changes.changed().await.is_ok() {
             tokio::time::sleep(Duration::from_millis(500)).await;
             changes.mark_unchanged();
@@ -1195,6 +1200,7 @@ pub fn save_on_change(peer: Peer, store: store::Store) {
             }
         }
     });
+    task.abort_handle()
 }
 
 impl ProtocolHandler for Peer {

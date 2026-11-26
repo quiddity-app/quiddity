@@ -2,7 +2,7 @@ import { Replica } from './wasm/quiddity_wasm';
 import { wasmReady } from './wasm-ready';
 
 import type { SyncDetails, SyncState } from './model';
-import type { Recovery } from './recovery';
+import type { GraphList, Recovery } from './recovery';
 import type { Backend } from './graph';
 
 interface Seed {
@@ -124,6 +124,9 @@ interface Remote {
   allowed: string[];
   /** How the page asked to go on from a graph that wouldn't open. */
   recovered: Recovery[];
+  /** What the page asked of the shell about graphs: `switch:<name>`, `new:<name>`
+   * or `sync:<name>`. */
+  graphRequests: string[];
   /** Plays the shell telling the page how this device stands. */
   setStatus(status: SyncState, details?: Partial<SyncDetails>): void;
 }
@@ -138,6 +141,36 @@ async function hashOf(bytes: Uint8Array): Promise<string> {
   return [...new Uint8Array(digest)]
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
+}
+
+const LIBRARY_KEY = 'quiddity-test-graphs';
+
+/**
+ * A library of graphs, for trying the picker outside the app: `?graphs` starts
+ * one with a single graph. It lives in `sessionStorage` because choosing a
+ * graph reloads the page, as it does in the app; without `?graphs` there is
+ * one graph and no picker.
+ */
+function library(): GraphList | null {
+  try {
+    if (new URLSearchParams(window.location.search).has('graphs')) {
+      sessionStorage.setItem(
+        LIBRARY_KEY,
+        sessionStorage.getItem(LIBRARY_KEY) ??
+          JSON.stringify({ current: 'Quiddity', all: ['Quiddity'] }),
+      );
+    }
+    const kept = sessionStorage.getItem(LIBRARY_KEY);
+    return kept
+      ? { ...(JSON.parse(kept) as GraphList), switchable: true }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function keepLibrary(graphs: GraphList) {
+  sessionStorage.setItem(LIBRARY_KEY, JSON.stringify(graphs));
 }
 
 /** What `?damaged` said, once the page has been asked. */
@@ -176,6 +209,32 @@ export const memoryBackend: Backend = {
     const url = new URL(window.location.href);
     url.searchParams.delete('damaged');
     window.history.replaceState(null, '', url);
+  },
+  async graphs() {
+    return library();
+  },
+  async switchGraph(name) {
+    const graphs = library();
+    if (!graphs?.all.includes(name)) {
+      throw new Error(`there is no graph called “${name}”`);
+    }
+    remote().graphRequests.push(`switch:${name}`);
+    keepLibrary({ ...graphs, current: name });
+  },
+  async createGraph(name, sync) {
+    const graphs = library();
+    const made = name.trim();
+    if (!graphs) {
+      throw new Error('this page has no graphs to add to');
+    }
+    if (!made || /[/\\:]/.test(made)) {
+      throw new Error(`“${name}” can’t be the name of a graph`);
+    }
+    if (graphs.all.some((n) => n.toLowerCase() === made.toLowerCase())) {
+      throw new Error(`there is already a graph called “${made}”`);
+    }
+    remote().graphRequests.push(`${sync ? 'sync' : 'new'}:${made}`);
+    keepLibrary({ ...graphs, current: made, all: [...graphs.all, made] });
   },
   // Nothing outlives the page: this is for looking at the UI. What the
   // shell would be told is kept for tests to read.
@@ -264,6 +323,7 @@ function remote(): Remote {
     typed: [],
     allowed: [],
     recovered: [],
+    graphRequests: [],
     setStatus() {},
   };
   return w.__quiddityRemote;

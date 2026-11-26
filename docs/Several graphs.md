@@ -1,0 +1,13 @@
+- Keeping more than one [[Graph]] on a device, and choosing between them. [[The shell]] [[The UI]]
+	- **What you see.** The name at the top of the left pane (and in the action strip where the pane is a drawer) is the name of the open graph. It opens a menu of the graphs on this device, the open one ticked, and two ways to make another.
+		- *New empty graph…* asks for a name and makes a graph of its own, which won't merge with any other.
+		- *New graph to sync…* asks for a name and makes a graph with nothing in it, to be filled by [[Sync]] with another device that has the graph: let this device in from the Devices page. [[Add a device]]
+		- A name can't be empty, longer than 64 characters, start or end with a dot, hold a control character or any of `/ \ : * ? " < > |`, or match another graph's name apart from its case. The reason is shown in the dialog.
+		- Choosing a graph, or making one, saves what you were typing and starts the page over from the other graph, at the journals.
+	- **Where they are.** One directory each under `graphs/` in the app's data directory, named for the graph, and the name of the last one opened is kept beside them, in `current-graph`. A device that had one graph before there could be several finds it renamed into `graphs/Quiddity`; nothing is copied or deleted. [[Storage]]
+	- **With `QUIDDITY_GRAPH` set** the app has only that graph. Its name is shown, and the menu isn't offered. [[The shell]]
+- How it works
+	- `Library` (`apps/app/src-tauri/src/library.rs`) knows where graphs are and what they may be called, and nothing of Tauri or of what is in a graph. The commands are `list_graphs`, `switch_graph` and `create_graph`.
+	- Switching opens the new graph first, so one that won't open leaves the old one as it was. Then the old one is saved and everything running for it is stopped (the UI's subscriptions and the network, whose endpoint is closed), and the new one is started in the same managed `Session`. The UI reloads, since its replica is of the old graph. Stopping matters: the old session holds its graph's binaries open, and going back to it would find them taken.
+	- Each graph has its own salt, so its own device ID, though the device key is shared. [[Identity]]
+	- Not built: renaming or deleting a graph from the app (the directory can be removed by hand while the app is closed), and moving a graph to another place.

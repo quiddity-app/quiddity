@@ -1,3 +1,4 @@
+- The graph's name at the top of the left pane opens a menu to choose another graph or make one. [[Several graphs]]
 - The More menu is three dots to the right of the search button. [[The UI]]
 	- **Devices** is where another device is added. [[Add a device]]
 	- **Stats and debug** counts what the graph holds, lists its virtual entities with their incoming links, and checks the graph for consistency. [[Stats and debug]]
