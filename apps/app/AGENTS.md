@@ -56,8 +56,9 @@ holds its own replica and answers its own queries (see `apps/ui` and
   UI that asks for the snapshot again has started over, so it replaces the
   version. Saving records the device in the graph, so each push is followed by
   a small update of just that record.
-- **Each push saves a whole snapshot**, in one SQLite transaction. That is fine at this size;
-  an update log is the fix when it isn't. The UI pushes a few hundred
+- **Each push saves the updates since the last**, appended to the file's update
+  log in one SQLite transaction; the snapshot is only rewritten when the log
+  would pass half its size (see `crates/node/AGENTS.md`). The UI pushes a few hundred
   milliseconds after typing stops, and on the window being hidden.
 - `session.rs` knows nothing about Tauri, so it is tested on its own.
 - **`QUIDDITY_GRAPH`** names a graph made by `quiddity-node` (a directory, or its

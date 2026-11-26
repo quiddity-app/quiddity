@@ -1,5 +1,5 @@
-//! A graph on disk: one `SQLite` file holding the graph's snapshot and the
-//! device's endpoint key.
+//! A graph on disk: one `SQLite` file holding the graph's snapshot, the log of
+//! updates saved since it, and the device's endpoint key.
 //!
 //! The device's own key is not in it (see [`Keyring`]), so copying the file
 //! doesn't copy the device. A new graph's endpoint key is derived from that
@@ -76,8 +76,9 @@ const APPLICATION_ID: i32 = 0x5144_4459;
 ///
 /// 1: the snapshot, and the device's endpoint key. 2: and the blobs. 3: and the
 /// salt that a new graph's endpoint key is derived with. 4: and this replica's
-/// node ID. 5: and the record of which files nothing refers to.
-const LAYOUT: i32 = 5;
+/// node ID. 5: and the record of which files nothing refers to. 6: and the log
+/// of updates that follow the snapshot.
+const LAYOUT: i32 = 6;
 /// The first layout that has the `node` table.
 const NODE_SINCE: i32 = 4;
 
@@ -85,14 +86,16 @@ const NODE_SINCE: i32 = 4;
 /// as written), so that a file with anything else in it is refused. One row
 /// each, enforced by the key, so there is no question which is current.
 /// The snapshot has two: row 1 is the current one, and row 2 the one before
-/// it, which `load` falls back to if row 1 can't be decoded.
-const TABLES: [(&str, &str); 6] = [
+/// it, which `load` falls back to if row 1 can't be decoded. Each has its own
+/// run of the update log.
+const TABLES: [(&str, &str); 7] = [
     BLOB_TABLE,
     UNREFERENCED_TABLE,
     SNAPSHOT_TABLE,
     ENDPOINT_KEY_TABLE,
     SLOT_TABLE,
     NODE_TABLE,
+    LOG_TABLE,
 ];
 
 /// Complete blobs by BLAKE3 hash. `outboard` (the hashes iroh-blobs needs to
@@ -131,12 +134,30 @@ const NODE_TABLE: (&str, &str) = (
     "CREATE TABLE node (id INTEGER PRIMARY KEY CHECK (id = 1), sealed BLOB NOT NULL CHECK (length(sealed) = 12)) STRICT",
 );
 
+/// What a save has written since the snapshot of the same generation, one
+/// chunk of updates a row, in order. Loading is the snapshot and then each
+/// chunk, so a save that changed little writes little. A save that would make
+/// the log rival the snapshot writes a new snapshot instead (see
+/// [`Store::save`]), and the old generation's chunks go with its snapshot.
+const LOG_TABLE: (&str, &str) = (
+    "update_log",
+    "CREATE TABLE update_log (generation INTEGER NOT NULL CHECK (generation IN (1, 2)), seq INTEGER NOT NULL, data BLOB NOT NULL, PRIMARY KEY (generation, seq)) STRICT",
+);
+
 /// What earlier layouts held, which are converted when they are opened.
 const TABLES_V1: [(&str, &str); 2] = [SNAPSHOT_TABLE, ENDPOINT_KEY_TABLE];
 const TABLES_V2: [(&str, &str); 3] = [BLOB_TABLE, SNAPSHOT_TABLE, ENDPOINT_KEY_TABLE];
 const TABLES_V3: [(&str, &str); 4] = [BLOB_TABLE, SNAPSHOT_TABLE, ENDPOINT_KEY_TABLE, SLOT_TABLE];
 const TABLES_V4: [(&str, &str); 5] = [
     BLOB_TABLE,
+    SNAPSHOT_TABLE,
+    ENDPOINT_KEY_TABLE,
+    SLOT_TABLE,
+    NODE_TABLE,
+];
+const TABLES_V5: [(&str, &str); 6] = [
+    BLOB_TABLE,
+    UNREFERENCED_TABLE,
     SNAPSHOT_TABLE,
     ENDPOINT_KEY_TABLE,
     SLOT_TABLE,
@@ -294,21 +315,41 @@ impl Store {
         if verdict != "ok" {
             return Err(self.not_ours(format!("it is damaged: {verdict}")));
         }
-        let generation = |id: i64| -> Result<Option<Vec<u8>>, StoreError> {
-            Ok(db
+        // A generation is its snapshot and the chunks of updates saved since.
+        let generation = |id: i64| -> Result<Option<Generation>, StoreError> {
+            let Some(base) = db
                 .query_row("SELECT data FROM snapshot WHERE id = ?1", [id], |r| {
                     r.get(0)
                 })
-                .optional()?)
+                .optional()?
+            else {
+                return Ok(None);
+            };
+            let log = db
+                .prepare("SELECT data FROM update_log WHERE generation = ?1 ORDER BY seq")?
+                .query_map([id], |r| r.get(0))?
+                .collect::<Result<_, _>>()?;
+            Ok(Some(Generation { base, log }))
+        };
+        let assemble = |held: &Generation| {
+            let graph = Graph::from_snapshot(&held.base)?;
+            for chunk in &held.log {
+                graph.import(chunk)?;
+            }
+            Ok::<_, quiddity_core::Error>(graph)
         };
         // A file with a key and no graph is a device that has none yet.
-        let bytes = generation(CURRENT)?.ok_or_else(|| StoreError::Missing(self.dir.clone()))?;
-        debug!(bytes = bytes.len(), "loading the snapshot");
+        let current = generation(CURRENT)?.ok_or_else(|| StoreError::Missing(self.dir.clone()))?;
+        debug!(
+            bytes = current.base.len(),
+            updates = current.log.len(),
+            "loading the snapshot"
+        );
         let mut durable = self.durable();
         // The replica that is kept edits as the node it has always been, so that
         // opening a graph a hundred times doesn't add a hundred peers to it.
         let node = self.node_id()?;
-        match Graph::from_snapshot(&bytes) {
+        match assemble(&current) {
             Ok(graph) => {
                 graph.set_node_id(node)?;
                 *durable = graph.version();
@@ -322,7 +363,7 @@ impl Store {
                 let Some(previous) = generation(PREVIOUS)? else {
                     return Err(e.into());
                 };
-                let graph = Graph::from_snapshot(&previous).map_err(|_| e)?;
+                let graph = assemble(&previous).map_err(|_| e)?;
                 graph.set_node_id(node)?;
                 warn!("the snapshot couldn't be loaded: using the previous one");
                 *durable = graph.version();
@@ -348,43 +389,122 @@ impl Store {
     /// never have if the write fails. The record lags one save, then; the
     /// history kept doesn't. A blank replica records nothing: it has yet to
     /// join.
+    ///
+    /// **A save writes what changed, not the graph.** The file holds a
+    /// snapshot and a log of the updates saved since, so a save appends the
+    /// updates made since the last one and leaves the snapshot alone. Only when
+    /// the log would grow past half the snapshot's size (or there is no snapshot
+    /// to follow, or this replica can't say what the file holds) is the snapshot
+    /// written afresh, with the log folded into it, and it is only then that
+    /// history is compacted. The snapshot and the log it replaces are kept
+    /// together as the previous generation.
     #[instrument(level = "debug", skip_all, fields(dir = %self.dir.display()))]
     pub fn save(&self, graph: &Graph) -> Result<(), StoreError> {
+        self.write(graph, false)
+    }
+
+    /// [`Store::save`], or with `fold` the snapshot written afresh whatever the
+    /// log's size: for tests, which want to say which they are checking.
+    fn write(&self, graph: &Graph, fold: bool) -> Result<(), StoreError> {
         let mut durable = self.durable();
         let mut db = self.open()?;
         if !graph.retired_node_ids().is_empty() {
             self.keep_node_id(&mut db, graph.node_id())?;
         }
-        let (snapshot, saved) = if graph.version() == Version::default() {
-            (graph.snapshot()?, Version::default())
+        let blank = graph.version() == Version::default();
+        let now = Timestamp::now();
+        // A blank replica has joined nothing, and records nothing, so needs no key.
+        let id = if blank {
+            String::new()
         } else {
-            let now = Timestamp::now();
-            let id = self.key_in(&db)?.public().to_string();
-            graph.record_stored_at(&id, &durable, now)?;
-            // The version before the snapshot is taken: the snapshot holds
-            // at least that, and holds the record just made.
-            let saved = graph.version();
-            let snapshot = match graph.compaction_point_as(now, ACTIVE, &id, &saved) {
-                Some(at) => graph.shallow_snapshot(&at)?,
-                None => graph.snapshot()?,
-            };
-            (snapshot, saved)
+            self.key_in(&db)?.public().to_string()
         };
-        debug!(bytes = snapshot.len(), "saving the snapshot");
+        if !blank {
+            graph.record_stored_at(&id, &durable, now)?;
+        }
+        // The version before anything is exported: what is written holds at
+        // least that, and holds the record just made.
+        let saved = if blank {
+            Version::default()
+        } else {
+            graph.version()
+        };
+        let appended = if fold || blank {
+            None
+        } else {
+            Self::updates_to_append(&db, graph, &durable)?
+        };
         let tx = db.transaction()?;
-        tx.execute(
-            "INSERT INTO snapshot (id, data) SELECT ?1, data FROM snapshot WHERE id = ?2
-             ON CONFLICT (id) DO UPDATE SET data = excluded.data",
-            params![PREVIOUS, CURRENT],
-        )?;
-        tx.execute(
-            "INSERT INTO snapshot (id, data) VALUES (?1, ?2)
-             ON CONFLICT (id) DO UPDATE SET data = excluded.data",
-            params![CURRENT, snapshot],
-        )?;
+        if let Some(updates) = appended {
+            debug!(bytes = updates.len(), "appending to the log");
+            tx.execute(
+                "INSERT INTO update_log (generation, seq, data)
+                 SELECT ?1, COALESCE(MAX(seq), 0) + 1, ?2 FROM update_log WHERE generation = ?1",
+                params![CURRENT, updates],
+            )?;
+        } else {
+            let snapshot = if blank {
+                graph.snapshot()?
+            } else {
+                match graph.compaction_point_as(now, ACTIVE, &id, &saved) {
+                    Some(at) => graph.shallow_snapshot(&at)?,
+                    None => graph.snapshot()?,
+                }
+            };
+            debug!(bytes = snapshot.len(), "saving the snapshot");
+            // The generation before this one goes, and this one becomes it,
+            // with the chunks that followed its snapshot.
+            tx.execute("DELETE FROM update_log WHERE generation = ?1", [PREVIOUS])?;
+            tx.execute(
+                "UPDATE update_log SET generation = ?1 WHERE generation = ?2",
+                params![PREVIOUS, CURRENT],
+            )?;
+            tx.execute(
+                "INSERT INTO snapshot (id, data) SELECT ?1, data FROM snapshot WHERE id = ?2
+                 ON CONFLICT (id) DO UPDATE SET data = excluded.data",
+                params![PREVIOUS, CURRENT],
+            )?;
+            tx.execute(
+                "INSERT INTO snapshot (id, data) VALUES (?1, ?2)
+                 ON CONFLICT (id) DO UPDATE SET data = excluded.data",
+                params![CURRENT, snapshot],
+            )?;
+        }
         tx.commit()?;
         *durable = saved;
         Ok(())
+    }
+
+    /// The updates a save should append to the log, if it should: those made
+    /// since the file was known to hold the graph, as long as there is a
+    /// snapshot for them to follow, they apply to it, and the log stays small
+    /// beside it. `None` is for a save to write the snapshot afresh.
+    fn updates_to_append(
+        db: &Connection,
+        graph: &Graph,
+        durable: &Version,
+    ) -> Result<Option<Vec<u8>>, StoreError> {
+        let held: Option<i64> = db
+            .query_row(
+                "SELECT length(data) FROM snapshot WHERE id = ?1",
+                [CURRENT],
+                |r| r.get(0),
+            )
+            .optional()?;
+        let Some(base) = held else {
+            return Ok(None);
+        };
+        if !graph.can_update(durable) {
+            return Ok(None);
+        }
+        let updates = graph.updates_since(durable)?;
+        let log: i64 = db.query_row(
+            "SELECT COALESCE(SUM(length(data)), 0) FROM update_log WHERE generation = ?1",
+            [CURRENT],
+            |r| r.get(0),
+        )?;
+        let after = log.saturating_add(i64::try_from(updates.len()).unwrap_or(i64::MAX));
+        Ok((after.saturating_mul(2) <= base).then_some(updates))
     }
 
     /// The device's endpoint key for this graph, made on first use. Its public
@@ -778,7 +898,7 @@ impl Store {
         }
         match layout {
             LAYOUT => {}
-            1..=4 => self.upgrade(&mut db)?,
+            1..=5 => self.upgrade(&mut db)?,
             _ => {
                 return Err(self.not_ours(format!(
                     "its layout is version {layout}, and this build reads version {LAYOUT}"
@@ -824,12 +944,13 @@ impl Store {
         let layout: i32 = tx.pragma_query_value(None, "user_version", |r| r.get(0))?;
         match layout {
             LAYOUT => {}
-            1..=4 => {
+            1..=5 => {
                 let held: &[(&str, &str)] = match layout {
                     1 => &TABLES_V1,
                     2 => &TABLES_V2,
                     3 => &TABLES_V3,
-                    _ => &TABLES_V4,
+                    4 => &TABLES_V4,
+                    _ => &TABLES_V5,
                 };
                 self.check_schema(&tx, held)?;
                 info!(layout, "converting the graph's file to layout {LAYOUT}");
@@ -846,7 +967,12 @@ impl Store {
                 if layout < NODE_SINCE {
                     tx.execute_batch(NODE_TABLE.1)?;
                 }
-                tx.execute_batch(UNREFERENCED_TABLE.1)?;
+                if layout < 5 {
+                    tx.execute_batch(UNREFERENCED_TABLE.1)?;
+                }
+                // The snapshot already in the file is the snapshot the log
+                // follows, with nothing yet after it.
+                tx.execute_batch(LOG_TABLE.1)?;
                 tx.pragma_update(None, "user_version", LAYOUT)?;
             }
             _ => {
@@ -950,6 +1076,12 @@ impl Store {
     }
 }
 
+/// A snapshot and the chunks of updates saved after it, as read.
+struct Generation {
+    base: Vec<u8>,
+    log: Vec<Vec<u8>>,
+}
+
 /// What [`Store::peek_node_id`] found.
 #[derive(Debug, PartialEq, Eq)]
 enum Peek {
@@ -1006,14 +1138,19 @@ mod tests {
     }
 
     /// Makes the file what an earlier build made: layout 1 had no blobs, layouts
-    /// 1 and 2 had no salt, layouts 1 to 3 had no node ID, and none had the
-    /// record of unreferenced files.
+    /// 1 and 2 had no salt, layouts 1 to 3 had no node ID, layouts 1 to 4 had
+    /// no record of unreferenced files, and none had the update log.
     fn as_layout(store: &Store, layout: i32) {
         let tables = match layout {
-            1 => "DROP TABLE unreferenced; DROP TABLE node; DROP TABLE slot; DROP TABLE blob;",
-            2 => "DROP TABLE unreferenced; DROP TABLE node; DROP TABLE slot;",
-            3 => "DROP TABLE unreferenced; DROP TABLE node;",
-            4 => "DROP TABLE unreferenced;",
+            1 => {
+                "DROP TABLE update_log; DROP TABLE unreferenced; DROP TABLE node; DROP TABLE slot; DROP TABLE blob;"
+            }
+            2 => {
+                "DROP TABLE update_log; DROP TABLE unreferenced; DROP TABLE node; DROP TABLE slot;"
+            }
+            3 => "DROP TABLE update_log; DROP TABLE unreferenced; DROP TABLE node;",
+            4 => "DROP TABLE update_log; DROP TABLE unreferenced;",
+            5 => "DROP TABLE update_log;",
             _ => panic!("no such earlier layout"),
         };
         store
@@ -1066,7 +1203,7 @@ mod tests {
                 .unwrap();
             graph.commit();
         }
-        store.save(&graph).unwrap();
+        store.write(&graph, true).unwrap();
 
         let saved: Vec<u8> = store
             .open()
@@ -1096,7 +1233,7 @@ mod tests {
                 .unwrap();
             graph.create_block(None, None, "since").unwrap();
             graph.commit();
-            store.save(&graph).unwrap();
+            store.write(&graph, true).unwrap();
             let start = store.load().unwrap().history_start();
             assert_eq!(start != Version::default(), compacted, "after {days} days");
         }
@@ -1172,8 +1309,8 @@ mod tests {
         assert_eq!(claim(&graph), found);
     }
 
-    /// Each save leaves the one before it as the previous generation, and a
-    /// snapshot that can't be decoded falls back to it.
+    /// Each new snapshot leaves the one before it as the previous generation,
+    /// and a snapshot that can't be decoded falls back to it.
     #[test]
     fn a_save_keeps_the_previous_snapshot() {
         let tmp = tempfile::tempdir().unwrap();
@@ -1181,10 +1318,10 @@ mod tests {
         let graph = store.init(false).unwrap();
         let block = graph.create_block(None, None, "first").unwrap();
         graph.commit();
-        store.save(&graph).unwrap();
+        store.write(&graph, true).unwrap();
         graph.set_text(block, "second").unwrap();
         graph.commit();
-        store.save(&graph).unwrap();
+        store.write(&graph, true).unwrap();
 
         store
             .connect()
@@ -1193,6 +1330,180 @@ mod tests {
             .unwrap();
         let loaded = store.load().unwrap();
         assert_eq!(loaded.text(block).unwrap(), "first");
+    }
+
+    /// A graph with a lot in it, and a save of a small edit to it: the save
+    /// appends to the log and leaves the snapshot's bytes as they were, so that
+    /// what is unchanged is not written again. Loading gives the edit.
+    #[test]
+    fn a_small_edit_is_appended_and_the_snapshot_left_alone() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = store_at(tmp.path());
+        let graph = store.init(false).unwrap();
+        let first = graph.create_block(None, None, "first").unwrap();
+        for i in 0..200 {
+            graph
+                .create_block(None, None, &format!("block {i} ").repeat(20))
+                .unwrap();
+        }
+        graph.commit();
+        store.write(&graph, true).unwrap();
+        let rows = |sql: &str| -> i64 {
+            store
+                .connect()
+                .unwrap()
+                .query_row(sql, [], |r| r.get(0))
+                .unwrap()
+        };
+        let base = || -> Vec<u8> {
+            store
+                .connect()
+                .unwrap()
+                .query_row("SELECT data FROM snapshot WHERE id = 1", [], |r| r.get(0))
+                .unwrap()
+        };
+        let written = base();
+        assert_eq!(rows("SELECT count(*) FROM update_log"), 0);
+
+        for (i, text) in ["one", "two", "three"].into_iter().enumerate() {
+            graph.set_text(first, text).unwrap();
+            graph.commit();
+            store.save(&graph).unwrap();
+            assert_eq!(base(), written, "the snapshot is not rewritten");
+            assert_eq!(
+                rows("SELECT count(*) FROM update_log WHERE generation = 1"),
+                i64::try_from(i).unwrap() + 1
+            );
+        }
+        let loaded = store.load().unwrap();
+        assert_eq!(loaded.text(first).unwrap(), "three");
+        assert_eq!(loaded.version(), graph.version());
+    }
+
+    /// Once the log would rival the snapshot it is folded into a new one, and
+    /// the snapshot and log it replaces are the previous generation, which is
+    /// what loading falls back to if the new snapshot is bad.
+    #[test]
+    fn a_log_that_outgrows_the_snapshot_is_folded_into_a_new_one() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = store_at(tmp.path());
+        let graph = store.init(false).unwrap();
+        let block = graph.create_block(None, None, "first").unwrap();
+        graph.commit();
+        store.write(&graph, true).unwrap();
+        graph.set_text(block, "second").unwrap();
+        graph.commit();
+        store.write(&graph, true).unwrap();
+        // Appended to the log of the snapshot that holds "second".
+        graph.create_block(None, None, "grown").unwrap();
+        graph.set_text(block, "third").unwrap();
+        graph.commit();
+        let db = store.connect().unwrap();
+        db.execute(
+            "INSERT INTO update_log (generation, seq, data) VALUES (1, 1, ?1)",
+            [graph
+                .updates_since(&store.load().unwrap().version())
+                .unwrap()],
+        )
+        .unwrap();
+        assert_eq!(store.load().unwrap().text(block).unwrap(), "third");
+
+        // A save that is larger than half the (small) snapshot folds.
+        for i in 0..50 {
+            graph
+                .create_block(None, None, &format!("{i}").repeat(50))
+                .unwrap();
+        }
+        graph.commit();
+        store.save(&graph).unwrap();
+        let log: i64 = db
+            .query_row(
+                "SELECT count(*) FROM update_log WHERE generation = 1",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(log, 0, "folded");
+        let previous: i64 = db
+            .query_row(
+                "SELECT count(*) FROM update_log WHERE generation = 2",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(previous, 1, "the old log goes with the old snapshot");
+        assert_eq!(store.load().unwrap().version(), graph.version());
+
+        db.execute("UPDATE snapshot SET data = x'' WHERE id = 1", [])
+            .unwrap();
+        assert_eq!(store.load().unwrap().text(block).unwrap(), "third");
+    }
+
+    /// A chunk of the log that can't be applied is a bad generation, like a
+    /// bad snapshot: loading falls back to the previous one.
+    #[test]
+    fn a_bad_log_chunk_falls_back_to_the_previous_generation() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = store_at(tmp.path());
+        let graph = store.init(false).unwrap();
+        let block = graph.create_block(None, None, "first").unwrap();
+        for i in 0..200 {
+            graph
+                .create_block(None, None, &format!("block {i} ").repeat(20))
+                .unwrap();
+        }
+        graph.commit();
+        store.write(&graph, true).unwrap();
+        store.write(&graph, true).unwrap();
+        graph.set_text(block, "second").unwrap();
+        graph.commit();
+        store.save(&graph).unwrap();
+        assert_eq!(store.load().unwrap().text(block).unwrap(), "second");
+
+        store
+            .connect()
+            .unwrap()
+            .execute(
+                "UPDATE update_log SET data = x'00' WHERE generation = 1",
+                [],
+            )
+            .unwrap();
+        assert_eq!(store.load().unwrap().text(block).unwrap(), "first");
+    }
+
+    /// Several processes' saves each add to the log, none replacing another's.
+    #[test]
+    fn concurrent_saves_each_add_to_the_log() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = store_at(tmp.path());
+        let graph = store.init(false).unwrap();
+        for i in 0..200 {
+            graph
+                .create_block(None, None, &format!("block {i} ").repeat(20))
+                .unwrap();
+        }
+        graph.commit();
+        store.write(&graph, true).unwrap();
+        std::thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(|| {
+                    for _ in 0..5 {
+                        patiently(|| store.save(&graph));
+                    }
+                });
+            }
+        });
+        let seqs: Vec<i64> = store
+            .connect()
+            .unwrap()
+            .prepare("SELECT seq FROM update_log WHERE generation = 1 ORDER BY seq")
+            .unwrap()
+            .query_map([], |r| r.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(seqs, (1..=20).collect::<Vec<_>>());
+        assert_eq!(store.load().unwrap().version(), graph.version());
     }
 
     /// Without a previous generation a bad snapshot is an error, not an
@@ -1323,7 +1634,7 @@ mod tests {
     fn a_file_that_is_not_ours_is_refused() {
         let cases: [(&str, &str); 6] = [
             ("another application", "PRAGMA application_id = 7"),
-            ("a later layout", "PRAGMA user_version = 6"),
+            ("a later layout", "PRAGMA user_version = 7"),
             (
                 "a trigger",
                 "CREATE TRIGGER t AFTER UPDATE ON snapshot BEGIN SELECT 1; END",
@@ -1507,13 +1818,13 @@ mod tests {
     /// many layouts behind it was.
     #[test]
     fn an_older_layout_gains_the_tables_it_lacks() {
-        for layout in 1..=4 {
+        for layout in 1..=5 {
             let tmp = tempfile::tempdir().unwrap();
             let store = store_at(tmp.path());
             let graph = store.init(false).unwrap();
             let block = graph.create_block(None, None, "kept").unwrap();
             graph.commit();
-            store.save(&graph).unwrap();
+            store.write(&graph, true).unwrap();
             as_layout(&store, layout);
 
             assert_eq!(store.load().unwrap().text(block).unwrap(), "kept");
@@ -1762,7 +2073,7 @@ mod tests {
     /// replica edits as.)
     #[test]
     fn a_file_of_an_earlier_layout_keeps_its_key_and_gains_a_salt() {
-        for old in [1, 2, 3, 4] {
+        for old in [1, 2, 3, 4, 5] {
             let tmp = tempfile::tempdir().unwrap();
             let store = store_at(tmp.path());
             let graph = Graph::new();
@@ -1771,7 +2082,7 @@ mod tests {
             // Made by another device, so that this one's key is not made on the way.
             let maker = Store::new(tmp.path(), Keyring::new(tmp.path().join("maker's keys")));
             maker.init(false).unwrap();
-            maker.save(&graph).unwrap();
+            maker.write(&graph, true).unwrap();
             // Make the file what the last build made: no salt, and its own key.
             as_layout(&store, old);
             let own = SecretKey::generate();
@@ -1833,7 +2144,7 @@ mod tests {
     #[test]
     fn an_earlier_layout_is_converted_once_however_many_open_it() {
         for round in 0..20 {
-            for old in [1, 2, 3, 4] {
+            for old in [1, 2, 3, 4, 5] {
                 let tmp = tempfile::tempdir().unwrap();
                 let store = store_at(tmp.path());
                 store.init(false).unwrap();
@@ -1886,7 +2197,7 @@ mod tests {
     /// An earlier layout is only converted if it is exactly that layout.
     #[test]
     fn an_earlier_layout_with_more_in_it_is_refused_and_left_alone() {
-        for old in [1, 2, 3, 4] {
+        for old in [1, 2, 3, 4, 5] {
             let tmp = tempfile::tempdir().unwrap();
             let store = store_at(tmp.path());
             store.init(false).unwrap();
@@ -1971,8 +2282,8 @@ mod tests {
         let graph = store.init(false).unwrap();
         graph.create_block(None, None, "x").unwrap();
         graph.commit();
-        store.save(&graph).unwrap();
-        store.save(&graph).unwrap();
+        store.write(&graph, true).unwrap();
+        store.write(&graph, true).unwrap();
         store
             .connect()
             .unwrap()

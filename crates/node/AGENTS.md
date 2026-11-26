@@ -23,10 +23,18 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
   when they last saved, nothing a user wrote. The JSON is written by hand
   (`quote` escapes it); don't add a field that holds text from the graph.
 - **The graph is one SQLite file, `graph.quiddity`**, with a `snapshot` row,
-  a `slot` row (a random salt) and, only in a graph made before the device's key
+  an `update_log` of chunks that follow it, a `slot` row (a random salt) and, only in a graph made before the device's key
   was kept apart, an `endpoint_key` row (`store.rs`). `save` is one transaction in a rollback journal with `synchronous=FULL`, so it
-  is atomic and durable, and it keeps the snapshot it replaces as row 2 (the
-  previous generation), which `load` falls back to if row 1 can't be decoded.
+  is atomic and durable. **It appends `updates_since(durable)` to the log
+  and leaves the snapshot alone** (`Store::updates_to_append`), and writes a
+  new snapshot, folding the log in, only when the log would pass half the
+  snapshot's size, there is no snapshot, or `can_update(durable)` fails. A fold
+  keeps the snapshot and log it replaces as generation 2, which `load` falls
+  back to if generation 1 (snapshot or any chunk) can't be applied. **History is
+  compacted only at a fold**: a lone device is its own compaction point, so
+  compacting on every save would fold on every save. Tests that mean a fold call
+  `write(graph, true)`; `save` decides by size, which tiny test graphs make
+  unpredictable.
   Saves are serialised in-process by the `durable` mutex shared by clones, and
   across processes by the file's lock (`BUSY` bounds the wait). **The file
   is untrusted input**: `open` checks `application_id`, `user_version` and that
