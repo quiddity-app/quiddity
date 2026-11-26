@@ -1,4 +1,4 @@
-- What the app does when the graph on this device can't be opened, and how to go on from it.
+- What the app does when the graph on this device can't be opened, and how to go on from it. A device with no graph at all is a different case: [[First run]].
 	- **What you see.** Instead of the graph, a screen that says where the graph is and why it couldn't be read. The app doesn't exit: before, a bad file left no window at all. Nothing on the screen deletes anything.
 	- **The first fallback is automatic.** Each save keeps the one before it, in the same file, and opening uses it if the current one can't be decoded, with a warning in the log. This screen is for when that failed too, or the file couldn't be read at all. [[Storage]]
 	- **Three ways to go on**

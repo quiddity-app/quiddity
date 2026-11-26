@@ -2,7 +2,7 @@ import { Replica } from './wasm/quiddity_wasm';
 import { wasmReady } from './wasm-ready';
 
 import type { SyncDetails, SyncState } from './model';
-import type { GraphList, Recovery } from './recovery';
+import type { Begin, GraphList, Recovery } from './recovery';
 import type { Backend } from './graph';
 
 interface Seed {
@@ -127,6 +127,8 @@ interface Remote {
   /** What the page asked of the shell about graphs: `switch:<name>`, `new:<name>`
    * or `sync:<name>`. */
   graphRequests: string[];
+  /** How the page asked to begin, on a device with no graph. */
+  started: Begin[];
   /** Plays the shell telling the page how this device stands. */
   setStatus(status: SyncState, details?: Partial<SyncDetails>): void;
 }
@@ -172,6 +174,8 @@ function library(): GraphList | null {
 function keepLibrary(graphs: GraphList) {
   sessionStorage.setItem(LIBRARY_KEY, JSON.stringify(graphs));
 }
+/** What `?firstrun` said, once the page has been asked. */
+let firstRun: string | false | undefined;
 
 /** What `?damaged` said, once the page has been asked. */
 let damaged: string | false | undefined;
@@ -235,6 +239,31 @@ export const memoryBackend: Backend = {
     }
     remote().graphRequests.push(`${sync ? 'sync' : 'new'}:${made}`);
     keepLibrary({ ...graphs, current: made, all: [...graphs.all, made] });
+  },
+  // `?firstrun` is a device with no graph yet, and `?firstrun=stubborn` one
+  // that can't be started. Joining reloads into `?blank&joining`: a replica
+  // with nothing, which is waiting to be given a graph. Read once, like
+  // `?damaged`.
+  async firstRun() {
+    firstRun ??=
+      new URLSearchParams(window.location.search).get('firstrun') ?? false;
+    return firstRun !== false;
+  },
+  async beginGraph(how) {
+    remote().started.push(how);
+    if (firstRun === 'stubborn') {
+      throw new Error('permission denied');
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.delete('firstrun');
+    if (how === 'join') {
+      url.searchParams.set('blank', '');
+      url.searchParams.set('joining', '');
+    }
+    window.history.replaceState(null, '', url);
+  },
+  async joining() {
+    return new URLSearchParams(window.location.search).has('joining');
   },
   // Nothing outlives the page: this is for looking at the UI. What the
   // shell would be told is kept for tests to read.
@@ -326,6 +355,7 @@ function remote(): Remote {
     allowed: [],
     recovered: [],
     graphRequests: [],
+    started: [],
     setStatus() {},
   };
   return w.__quiddityRemote;

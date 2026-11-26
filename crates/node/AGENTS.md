@@ -182,7 +182,9 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
   device connect without listing it, for a blank replica to let in the device
   it joins through; that device lists it on connecting. `Peer::admit` is the
   pairing action: it lists a device, or trusts it if this replica has not joined
-  a graph yet.
+  a graph yet. **`dial_listed` also dials the trusted devices** (it wakes on
+  `trust`), because a blank replica lists no one: waiting to be dialled meant
+  both sides had to be reachable and awake at the right time.
 - **`Peer::events` is the network log** (`events.rs`, `docs/Network log.md`): a
   ring of the last 200 things the peer did, kept so the debug page can say why
   two devices don't sync (refused, another graph, couldn't connect, closed by

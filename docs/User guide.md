@@ -25,7 +25,7 @@ favourite:: true
 	- [[All entities]]: every entity as a table, to sort and tidy.
 	- [[Graph view]]: every entity and the links between them, drawn.
 	- [[Page graph]]: the part of the graph around the page you are on, in the right pane.
-	- [[Stats and debug]]: how big the graph is, which names are linked to that nobody has made and how often, and a check that nothing has gone wrong. If two devices won't sync, its [[Network log]] says why.
+	- [[Stats and debug]]: how big the graph is, which names are linked to that nobody has made and how often, and a check that nothing has gone wrong. If two devices won't sync, its [[Network log]] says why. A second device should join the first's graph: [[First run]].
 - Your data
 	- [[Several graphs]]: keeping more than one graph on a device, and choosing between them.
 	- [[Export and import]]: the graph as Markdown, and importing from [[Logseq]].

@@ -690,6 +690,39 @@ async fn listed_devices_are_dialled_and_dialled_again() {
     b_router.shutdown().await.unwrap();
 }
 
+/// A replica that has joined nothing lists no one, so it can't find a device
+/// from the graph. It dials the one it was told to trust, and so gets the graph
+/// from a device that is asleep when it starts, or that can't reach it.
+#[tokio::test]
+async fn a_blank_replica_dials_the_device_it_trusts() {
+    let b_key = iroh::SecretKey::generate();
+    let b_id = b_key.public();
+    let (home, home_router, home_addr) = member(Graph::new()).await;
+    edit(&home, "from home");
+    // The home device lists the blank one but never dials: only it can start.
+    home.allow(&b_id.to_string()).unwrap();
+
+    let b = Peer::new(
+        Graph::blank(),
+        Allowed::Only(HashSet::new()),
+        b_id.to_string(),
+    );
+    let (b_endpoint, _) = bind(&b_key).await;
+    let b_router = Router::builder(b_endpoint).accept(ALPN, b.clone()).spawn();
+    let dialler = dial_listed(&b, &b_router, Arc::new(Mutex::new(vec![home_addr])));
+
+    // Trusted after the dialler started, as when the person pastes the ID.
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert!(b.graph().roots().is_empty());
+    b.trust(home_router.endpoint().id());
+    converged(&[&home, &b]).await;
+    assert_eq!(b.graph().roots().len(), 1);
+
+    dialler.abort();
+    home_router.shutdown().await.unwrap();
+    b_router.shutdown().await.unwrap();
+}
+
 /// A device listed after the dialler started is picked up, and a name that
 /// isn't an endpoint ID is left alone.
 #[tokio::test]

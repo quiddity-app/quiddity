@@ -173,6 +173,8 @@ struct Inner {
     allowed: Allowed,
     /// Devices let in for now, not listed in the graph: see [`Peer::trust`].
     trusted: Mutex<HashSet<EndpointId>>,
+    /// Bumped when a device is trusted, so the dialler picks it up.
+    trust_changes: watch::Sender<u64>,
     /// Bumped whenever the graph changes, so that it is saved.
     changes: watch::Sender<u64>,
     /// Bumped when the changes so far are to be sent, so every connection
@@ -279,6 +281,7 @@ impl Peer {
                 graph,
                 allowed,
                 trusted: Mutex::new(HashSet::new()),
+                trust_changes: watch::Sender::new(0),
                 changes: watch::Sender::new(0),
             }),
         }
@@ -391,11 +394,18 @@ impl Peer {
     ) {
         let address = Arc::new(address);
         let mut changes = self.subscribe();
+        let mut trust_changes = self.inner.trust_changes.subscribe();
         let mut dialling = HashSet::new();
         let mut tasks = JoinSet::new();
         loop {
-            let listed = self.graph().devices();
-            for device in listed.into_iter().map(|d| d.id) {
+            // The devices to keep up: those the graph lists and those let in
+            // for now. A replica that has joined nothing lists no one, and
+            // would wait for ever to be dialled by a device that may be asleep
+            // or on a network that can't reach this one.
+            let mut wanted: Vec<String> =
+                self.graph().devices().into_iter().map(|d| d.id).collect();
+            wanted.extend(self.trusted_devices().iter().map(ToString::to_string));
+            for device in wanted {
                 // A name that isn't an endpoint ID can't be dialled.
                 let Ok(id) = device.parse::<EndpointId>() else {
                     continue;
@@ -409,8 +419,17 @@ impl Peer {
                     peer.keep_connected(&endpoint, &device, id, &*address).await;
                 });
             }
-            if changes.changed().await.is_err() {
-                return;
+            tokio::select! {
+                changed = changes.changed() => {
+                    if changed.is_err() {
+                        return;
+                    }
+                }
+                changed = trust_changes.changed() => {
+                    if changed.is_err() {
+                        return;
+                    }
+                }
             }
         }
     }
@@ -453,12 +472,28 @@ impl Peer {
     /// the graph: a replica that has joined nothing yet has no history to
     /// list anyone in, and needs to let in the device it will join through.
     /// That device lists it when it connects, which does last.
+    ///
+    /// A trusted device is dialled as well as waited for (see
+    /// [`Peer::dial_listed`]), so a replica waiting for a graph reaches the
+    /// device that has it without that device having to reach it.
     pub fn trust(&self, device: EndpointId) {
         self.inner
             .trusted
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .insert(device);
+        bump(&self.inner.trust_changes);
+    }
+
+    /// The devices let in for now: see [`Peer::trust`].
+    fn trusted_devices(&self) -> Vec<EndpointId> {
+        self.inner
+            .trusted
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .iter()
+            .copied()
+            .collect()
     }
 
     /// Whether `device` may connect: for sync, and for fetching blobs.

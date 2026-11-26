@@ -16,7 +16,7 @@
 - Letting two devices meet is done from the Devices page, which calls these.
 	- The page shows this device's ID with a copy button, lists the devices the graph records, and takes another device's ID to add. It lists them from the UI's own replica, so a device appears as soon as the shell's graph has it. [[Add a device]]
 	- Each device has an ID, which is its endpoint ID. The app gives it with `device_id`, and `quiddity-node id` prints a node's.
-	- A device that has the graph lists the other with `allow_device` (`quiddity-node allow` on a node). A blank app has no graph to list anyone in, so `allow_device` trusts the ID until the app closes, and the device it joins through lists it when it connects.
+	- A device that has the graph lists the other with `allow_device` (`quiddity-node allow` on a node). A blank app has no graph to list anyone in, so `allow_device` trusts the ID until the app closes, and the device it joins through lists it when it connects. A blank app also dials a device it trusts, so either side can start the connection. A device gets to be blank by choosing Join the first time it starts. [[First run]]
 	- A node that lists the app dials it, so only the node needs to be reachable by name. [[Device list]]
 - Settings, as environment variables
 	- `QUIDDITY_NO_SYNC` leaves the network off.
