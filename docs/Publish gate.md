@@ -6,6 +6,7 @@
 - An edit ends when any of these happens.
 	- 2 s pass without another edit (`Peer::set_edit_idle` changes this).
 	- This device moves to another block (`Peer::set_focus`).
+	- The page is hidden, as a phone's screen going off hides it: the UI says no block is open, which is a move away from every block. The 2 s timer lives in the connection tasks and stops with the app when the OS suspends it, so without this a held edit waits for the next time the app runs and connects. It is open again when the page is shown.
 	- `Peer::end_edit` is called, or anything else calls `Peer::changed`, which sends everything.
 	- Another device opens the block.
 - The history is untouched. Loro keeps every op however often it is published, so time travel is unaffected: only when peers hear about an edit changes.
