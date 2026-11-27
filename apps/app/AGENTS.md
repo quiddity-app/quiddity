@@ -71,6 +71,17 @@ holds its own replica and answers its own queries (see `apps/ui` and
   fetches blobs only if the peer already has a store, and nothing says so if
   it doesn't. A store that won't open is logged as a warning and the app
   runs without binaries.
+- **The live session is kept for the life of the process** (`process.rs`,
+  `Live`: the `Session` and its `Running`, which is a shared handle). `begin`
+  holds it each time a session starts, so switching graphs replaces it, and
+  `setup` takes it back with `held_for(dir)` instead of opening the graph again.
+  The reason is Android, where the activity can be destroyed and made again
+  while the process lives, and the entry point then runs again: a second `Session`
+  would find the file, the endpoint and the binaries taken by the first. **This
+  is a guard written from how Tauri and Android are documented, not seen
+  happening**: the Android build can't be run in the sandbox. The logger is
+  initialised with `try_init` for the same reason. The UI's subscriptions from
+  the old window stop when they next fail to send.
 - **Changes from other devices reach the UI on a channel.**
   `subscribe_updates` takes a `Channel` and sends raw bytes: the graph's
   updates since what the UI is known to have (`Session::ui_updates`). That

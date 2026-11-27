@@ -9,6 +9,8 @@
 mod appearance;
 mod library;
 mod menu;
+mod process;
+mod running;
 mod session;
 mod updates;
 
@@ -16,14 +18,13 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use iroh::Endpoint;
 use quiddity_node::events::Level;
 use quiddity_node::keyring::Keyring;
 use serde::Serialize;
 
 use library::{Graphs, Library};
+use running::Running;
 use session::{Error, Recovery, Session, Start};
-use tauri::async_runtime::JoinHandle;
 use tauri::ipc::{Channel, InvokeBody, InvokeResponseBody, Request, Response};
 use tauri::{Manager, State};
 use tokio::sync::oneshot;
@@ -43,45 +44,6 @@ struct Problem {
 /// the UI can ask.
 #[derive(Default)]
 struct Startup(Mutex<Option<Problem>>);
-
-/// What a session has running, so that switching graphs can stop it all: the
-/// UI's subscriptions hold the session, and the network holds the graph's
-/// files and its endpoint, so a graph opened again later would find them taken.
-#[derive(Default)]
-struct Running(Mutex<Tasks>);
-
-#[derive(Default)]
-struct Tasks {
-    /// Tells the network task to close its endpoint.
-    stop: Option<oneshot::Sender<()>>,
-    network: Option<JoinHandle<()>>,
-    others: Vec<JoinHandle<()>>,
-    /// The network's endpoint while it is up, for `network_changed`. Shared
-    /// with the network task, which fills it and empties it, so that a graph
-    /// switched away from leaves nothing behind to be told.
-    endpoint: Arc<Mutex<Option<Endpoint>>>,
-}
-
-impl Running {
-    fn tasks(&self) -> std::sync::MutexGuard<'_, Tasks> {
-        self.0.lock().expect("running lock poisoned")
-    }
-
-    /// Stops the session's tasks, and waits for the network to close.
-    async fn stop(&self) {
-        let tasks = std::mem::take(&mut *self.tasks());
-        for task in &tasks.others {
-            task.abort();
-        }
-        if let Some(stop) = tasks.stop {
-            // A network that has already ended has nothing to stop.
-            let _ = stop.send(());
-        }
-        if let Some(network) = tasks.network {
-            drop(network.await);
-        }
-    }
-}
 
 /// Where this device's graph will go, while it has none and has not been told
 /// how to begin. Always managed, so the UI can ask. A device that has a graph
@@ -491,6 +453,11 @@ async fn begin(session: Session, running: &Running) -> Session {
         warn!(error = %e, "not keeping binaries");
     }
     start_network(&session, running);
+    // So that a window made again in this process finds it (`process.rs`).
+    process::hold(process::Live {
+        session: session.clone(),
+        running: running.clone(),
+    });
     session
 }
 
@@ -525,10 +492,14 @@ pub fn run() {
         .ok()
         .and_then(|level| level.parse().ok())
         .unwrap_or(tracing::level_filters::LevelFilter::WARN);
-    tracing_subscriber::fmt()
-        .with_max_level(level)
-        .with_writer(std::io::stderr)
-        .init();
+    // The entry point can run again in a process that goes on (see
+    // `process.rs`), and a second logger would be refused: keep the first.
+    drop(
+        tracing_subscriber::fmt()
+            .with_max_level(level)
+            .with_writer(std::io::stderr)
+            .try_init(),
+    );
     let builder = tauri::Builder::default()
         // Opens links from the text of a block in the system's browser.
         .plugin(tauri_plugin_opener::init());
@@ -545,30 +516,39 @@ pub fn run() {
             let library = library(app)?;
             let dir = library.start()?;
             app.manage(library);
-            app.manage(Running::default());
             let keys = keyring(app.handle())?;
-            // A graph that can't be opened is the UI's to deal with, with a
-            // window to do it in: exiting here would leave nothing on screen.
             let mut waiting = None;
-            let problem = match Session::find(&dir, keys) {
-                Ok(Some(session)) => {
-                    let running = app.state::<Running>();
-                    app.manage(Mutex::new(tauri::async_runtime::block_on(begin(
-                        session, &running,
-                    ))));
-                    None
-                }
-                // No graph yet: the UI asks how to begin (`first_run`).
-                Ok(None) => {
-                    waiting = Some(dir);
-                    None
-                }
-                Err(e) => {
-                    error!(error = %e, dir = %dir.display(), "can't open the graph");
-                    Some(Problem {
-                        dir,
-                        message: e.to_string(),
-                    })
+            let problem = if let Some(live) = process::held_for(&dir) {
+                // The window is new but the process isn't: the graph is open
+                // and on the network already, and opening it again would take
+                // what the first holds.
+                app.manage(live.running);
+                app.manage(Mutex::new(live.session));
+                None
+            } else {
+                app.manage(Running::default());
+                // A graph that can't be opened is the UI's to deal with, with a
+                // window to do it in: exiting here would leave nothing on screen.
+                match Session::find(&dir, keys) {
+                    Ok(Some(session)) => {
+                        let running = app.state::<Running>();
+                        app.manage(Mutex::new(tauri::async_runtime::block_on(begin(
+                            session, &running,
+                        ))));
+                        None
+                    }
+                    // No graph yet: the UI asks how to begin (`first_run`).
+                    Ok(None) => {
+                        waiting = Some(dir);
+                        None
+                    }
+                    Err(e) => {
+                        error!(error = %e, dir = %dir.display(), "can't open the graph");
+                        Some(Problem {
+                            dir,
+                            message: e.to_string(),
+                        })
+                    }
                 }
             };
             app.manage(Startup(Mutex::new(problem)));
