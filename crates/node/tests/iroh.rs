@@ -794,6 +794,41 @@ async fn a_listed_device_that_refuses_is_retried_with_backoff() {
     router.shutdown().await.unwrap();
 }
 
+/// A device removed from the list is no longer dialled, though its task was
+/// already retrying; one listed again is dialled again.
+#[tokio::test]
+async fn a_removed_device_is_not_dialled_any_more() {
+    let (home, home_router, _) = member(Graph::new()).await;
+    let key = iroh::SecretKey::generate();
+    let id = key.public().to_string();
+    let (endpoint, addr) = bind(&key).await;
+    let attempts = Arc::new(AtomicUsize::new(0));
+    let router = Router::builder(endpoint)
+        .accept(ALPN, Counter(Arc::clone(&attempts)))
+        .spawn();
+    home.allow(&id).unwrap();
+
+    let dialler = dial_listed(&home, &home_router, Arc::new(Mutex::new(vec![addr])));
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    assert!(attempts.load(Ordering::SeqCst) > 0, "it was dialled");
+
+    assert!(home.graph().remove_device(&id).unwrap());
+    home.changed();
+    // Let the dialler notice, and any attempt already under way finish.
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    let before = attempts.load(Ordering::SeqCst);
+    tokio::time::sleep(Duration::from_millis(800)).await;
+    assert_eq!(attempts.load(Ordering::SeqCst), before, "still dialled");
+
+    home.allow(&id).unwrap();
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    assert!(attempts.load(Ordering::SeqCst) > before, "dialled again");
+
+    dialler.abort();
+    home_router.shutdown().await.unwrap();
+    router.shutdown().await.unwrap();
+}
+
 /// An address nobody answers at is given up on, not waited on for as long
 /// as QUIC would.
 #[tokio::test]
