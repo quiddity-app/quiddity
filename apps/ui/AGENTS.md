@@ -139,8 +139,11 @@ check both, and that the colours differ.
 
 `components/more-menu.tsx`, right of search in the action strip: Devices (the
 entrypoints with `in: "menu"` in `lib/nav.ts`, the one list the sidebar and the
-app's Go menu share) and Delete Entity for the main pane's entity
-(`docs/Menus.md`).
+app's Go menu share), Delete Entity for the main pane's entity
+(`docs/Menus.md`) and, last, About, a plain link to `/about/`
+(`components/about.tsx`). That page fetches `licenses.json`, which
+`scripts/licenses.mjs` writes into `public/` (`dev` and `build` run it through
+`pnpm ui notices`) and which is not committed (`docs/Licences.md`).
 
 - **Delete asks first**, inline as in All entities, with Cancel focused.
   **Confirming navigates away first and deletes once `main` has left the

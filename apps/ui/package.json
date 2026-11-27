@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "wasm": "sh scripts/build-wasm.sh",
-    "predev": "pnpm wasm",
+    "notices": "node ../../scripts/licenses.mjs",
+    "predev": "pnpm wasm && pnpm notices",
     "dev": "next dev",
-    "prebuild": "pnpm wasm",
+    "prebuild": "pnpm wasm && pnpm notices",
     "build": "next build",
     "pretypecheck": "pnpm wasm",
     "typecheck": "tsc --noEmit",

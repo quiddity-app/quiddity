@@ -22,6 +22,7 @@ favourite:: true
 - Finding things
 	- [[Search]]: Cmd/Ctrl-K, by [[Title matching]] and [[Text search]].
 	- [[Menus]]: the More menu, deleting an entity, and the Mac's File and Go menus.
+	- [[About page]]: what Quiddity is built from, and each part's licence.
 	- [[All entities]]: every entity as a table, to sort and tidy.
 	- [[Graph view]]: every entity and the links between them, drawn.
 	- [[Page graph]]: the part of the graph around the page you are on, in the right pane.

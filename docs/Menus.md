@@ -5,6 +5,7 @@
 	- **Show Page Graph** opens a [[Page graph]] in the right pane, and becomes **Hide Page Graph** while it is open. It is greyed out where there is no entity in the main pane.
 	- **Delete Entity** deletes the entity in the main pane, and is greyed out where there is none (the journals, the graph). It asks first, naming the entity, and the answer that keeps it has the focus. Links to a deleted entity stay in the text, as links to nothing, and Undo brings it back. [[Links to nowhere]] [[Undo]]
 	- **Check for Updates** is there in the desktop app only, and asks for a new version. [[Updates]]
+	- **About** is last, below a rule. It opens the [[About page]], which names what Quiddity is built from and shows each licence. It is the same on every platform, which is how a phone, with no menu bar, reaches it. [[Licences]]
 	- Escape closes it, and the arrow keys move through it.
 - On macOS the menu bar has the same things. [[The shell]]
 	- **File ▸ Delete Entity** does what the More menu's does. It is greyed out while no entity is open.
