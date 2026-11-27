@@ -1,4 +1,4 @@
-use crate::parse::{Link, Value, is_bare_key, parse_block, parse_line_value};
+use crate::parse::{Link, Value, is_bare_key, is_line_key, parse_block, parse_line_value};
 
 /// Where a value is being written; each context has different delimiters.
 #[derive(Debug, Clone, Copy)]
@@ -43,9 +43,15 @@ pub fn format_qualifier(key: &str, value: Option<&Value>) -> String {
 }
 
 /// Formats a `key:: value` line, or `key::` for a property without a value.
-/// The key must be valid as a line key.
+/// A key a bare line can't hold, such as `x:y`, is bracketed, `[[x:y]]:: 1`. One
+/// with a bracket in it, or that is blank, can't be written.
 #[must_use]
 pub fn format_property_line(key: &str, value: Option<&Value>) -> String {
+    let key = if is_line_key(key) {
+        key.to_owned()
+    } else {
+        format!("[[{key}]]")
+    };
     match value {
         Some(v) => format!("{key}:: {}", format_in(v, Context::Line)),
         None => format!("{key}::"),

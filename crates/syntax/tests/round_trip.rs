@@ -24,9 +24,14 @@ fn inline_key() -> impl Strategy<Value = String> {
     r"[^\[\]\n\r]{1,10}".prop_filter("trimmed", |k| !k.is_empty() && k.trim() == k)
 }
 
-/// A key usable in a `key:: value` line.
+/// A key usable in a `key:: value` line: bare, or bracketed because it holds
+/// what a bare one can't (`x:y`, `-z`, `a(b)`), which is any key a tag can have.
 fn line_key() -> impl Strategy<Value = String> {
-    r"[\p{L}\p{N}_][^:#`\[\]()\n\r]{0,10}".prop_filter("no trailing space", |k| k.trim_end() == k)
+    prop_oneof![
+        r"[\p{L}\p{N}_][^:#`\[\]()\n\r]{0,10}"
+            .prop_filter("no trailing space", |k| k.trim_end() == k),
+        inline_key(),
+    ]
 }
 
 /// A link name, weighted towards the characters that need escaping. Names

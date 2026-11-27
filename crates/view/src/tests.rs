@@ -1673,6 +1673,26 @@ mod nowhere {
         );
     }
 
+    /// A qualifier's key may hold what a bare property key can't, and the
+    /// entity made by following the link must have the property all the same,
+    /// or the link would still go nowhere and following it again would make
+    /// another.
+    #[test]
+    fn following_a_link_makes_an_entity_it_then_finds() {
+        let (v, _page, _) = page(&[]);
+        let key = "Mercury#[[x:y]](1)#[[-z]]#[[a(b)]](2)#[[two words]](3)";
+        let made = v.follow_link(key).unwrap();
+        assert!(!made.starts_with('~'), "a real entity was made");
+        assert_eq!(v.follow_link(key).unwrap(), made, "found, not made again");
+        assert_eq!(v.link_matches(key).unwrap().len(), 1);
+        let keys: Vec<_> = v.entity(&made).unwrap().blocks[0]
+            .properties
+            .iter()
+            .map(|p| p.key.clone())
+            .collect();
+        assert_eq!(keys, ["x:y", "-z", "a(b)", "two words"]);
+    }
+
     /// Plain mentions of the name, not links, are unlinked references.
     #[test]
     fn plain_mentions_of_it_are_unlinked_references() {
