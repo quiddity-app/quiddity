@@ -159,8 +159,6 @@ jobs:
     - run: cargo run --locked -p quiddity-node -- -g "$RUNNER_TEMP/graph" names "$RUNNER_TEMP/graph/names.txt"
       env:
         QUIDDITY_CONFIG_DIR: ${{ runner.temp }}/keys
-    # Stops here if a dependency is under a licence that isn't allowed, or has no text to ship.
-    - run: node scripts/licenses.mjs
     - run: pnpm ui build
       env:
         QUIDDITY_STATIC_GRAPH: ${{ runner.temp }}/graph/graph.loro

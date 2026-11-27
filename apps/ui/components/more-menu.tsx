@@ -24,7 +24,8 @@ const itemClass =
 
 /**
  * The three-dot menu to the right of search: the entrypoints that aren't in
- * the sidebar, and what can be done to the entity in the main pane. Deleting
+ * the sidebar, what can be done to the entity in the main pane, and About,
+ * last, which is where the licences are. Deleting
  * asks first, and is also what Delete Entity in the app's File menu does, so
  * the native menu's commands are heard here too.
  */
@@ -178,6 +179,16 @@ export function MoreMenu() {
           >
             Delete Entity
           </button>
+          <Link
+            href="/about/"
+            role="menuitem"
+            className={`${itemClass} mt-1 border-t border-border`}
+            onClick={() => {
+              setOpen(false);
+            }}
+          >
+            About
+          </Link>
         </div>
       )}
       {asking !== null && (
