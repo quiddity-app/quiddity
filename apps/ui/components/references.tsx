@@ -11,20 +11,46 @@ import type { EntityId, Reference } from '@/lib/model';
 
 import { useDeferredRead } from '@/lib/use-graph';
 
-function Groups({ references }: Readonly<{ references: Reference[] }>) {
+function Group({ source, date, blocks, links }: Readonly<Reference>) {
   return (
-    <ul className="space-y-4">
-      {references.map(({ source, blocks, links }) => (
-        <li key={source.id}>
-          <h3 className={subsectionTitle}>
-            <EntityLink id={source.id} className={linkClass}>
-              {source.title}
-            </EntityLink>
-          </h3>
-          <Outline blocks={blocks} links={links} />
-        </li>
-      ))}
-    </ul>
+    <li>
+      <h3 className={subsectionTitle}>
+        <EntityLink id={source.id} className={linkClass}>
+          {source.title}
+        </EntityLink>
+        {date !== null && (
+          <time dateTime={date} className="ml-2 font-normal text-ink-muted">
+            {date}
+          </time>
+        )}
+      </h3>
+      <Outline blocks={blocks} links={links} />
+    </li>
+  );
+}
+
+/** Those with a day, which come first in the order they are given (latest
+ * first), then those without, apart from them. */
+function Groups({ references }: Readonly<{ references: Reference[] }>) {
+  const dated = references.filter((r) => r.date !== null);
+  const undated = references.filter((r) => r.date === null);
+  return (
+    <div className="space-y-6">
+      {(
+        [
+          ['dated', dated],
+          ['undated', undated],
+        ] as const
+      )
+        .filter(([, list]) => list.length > 0)
+        .map(([kind, list]) => (
+          <ul key={kind} className="space-y-4">
+            {list.map((r) => (
+              <Group key={r.source.id} {...r} />
+            ))}
+          </ul>
+        ))}
+    </div>
   );
 }
 

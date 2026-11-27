@@ -15,7 +15,7 @@ alias:: [link, qualifier, backlinks, references]
 	- Several matches: the link is ambiguous. Following it opens a [[Disambiguation]] page listing the entities it matches, each with its properties block, and its tooltip says which qualifiers several entities match.
 	- A renamed entity keeps its old name as an [[alias]], so links to the old name still resolve. [[Renaming]]
 - References
-	- The foot of every page lists the blocks that link to it, grouped by the entity they are in, journals first and newest first.
+	- The foot of every page lists the blocks that link to it, grouped by the entity they are in. Entities with a day, a journal or one a `##date-for` gives a day to, come first and newest first, with their day beside them, then the rest by name. [[Built-in properties]]
 	- Unlinked references, found on request, are mentions of the entity's name or an alias as a whole word in prose: not inside a link, not in a properties block, and not in a journal's own date. Finding them means reading every block.
 - A link with words of its own is Markdown, `[text](destination)`, and the destination says where it goes. [[Rendering]]
 	- `[the library]([[Loro]])` is a link to an entity, with the same name matching and qualifiers as `[[Loro]]`. It counts as a link to that entity, so backlinks and the graph see it, and it shows "the library".

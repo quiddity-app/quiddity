@@ -4,6 +4,8 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
+use jiff::Timestamp;
+use jiff::civil::Date;
 use quiddity_syntax::{Link, Value, normalise_name, ref_items};
 
 use crate::schema::ValueType;
@@ -324,6 +326,37 @@ impl Index {
         items
     }
 
+    /// The day an entity is of: a journal's own, or else the one day its
+    /// properties give it through a `##date-for` that finds it. `None` if
+    /// there is no such day, or more than one, since there is then no saying
+    /// which is meant. A date-time counts as the day it is written with.
+    #[must_use]
+    pub fn effective_date(&self, id: BlockId) -> Option<Date> {
+        let id = self.canonical(id);
+        if let Some(crate::Identity::Journal(day)) = self.entity(id)?.identity() {
+            return Some(day);
+        }
+        let mut days = BTreeSet::new();
+        for (key, schema) in &self.schemas {
+            let Some(query) = &schema.date_for else {
+                continue;
+            };
+            if !self.matches_query(id, query) {
+                continue;
+            }
+            for item in self.effective_values(id, key) {
+                let value = item.value.map(|v| self.read_days(&v));
+                if let Some(Value::Text(text)) = value
+                    && let Some(day) = written_day(&text)
+                {
+                    days.insert(day);
+                }
+            }
+        }
+        let mut days = days.into_iter();
+        days.next().filter(|_| days.next().is_none())
+    }
+
     /// Every property an entity effectively has, by normalised key, not
     /// counting inverse labels.
     #[must_use]
@@ -370,4 +403,13 @@ impl Index {
             .filter_map(|(key, s)| Some((normalise_name(s.inverse.as_deref()?), key.clone())))
             .collect()
     }
+}
+
+/// The day a date or date-time is written with.
+fn written_day(text: &str) -> Option<Date> {
+    let text = text.trim();
+    text.parse().ok().or_else(|| {
+        text.parse::<Timestamp>().ok()?;
+        text.get(..10)?.parse().ok()
+    })
 }

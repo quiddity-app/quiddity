@@ -460,6 +460,10 @@ pub struct BlobInfo {
 #[serde(rename_all = "camelCase")]
 pub struct Reference {
     pub source: EntityRef,
+    /// The day the source is of, as `YYYY-MM-DD`: a journal's own, or the one
+    /// day a `##date-for` property gives it. References with a day come
+    /// first, latest first.
+    pub date: Option<String>,
     /// Each with its children, for context.
     pub blocks: Vec<Block>,
     /// As [`Entity::links`], for the links in these blocks.
@@ -1244,25 +1248,19 @@ impl View {
                 .into_iter()
                 .map(|b| self.block(b, &mut links))
                 .collect::<Result<_>>()?;
-            let date = match self
-                .index()?
-                .entity(entity)
-                .and_then(quiddity_core::EntityInfo::identity)
-            {
-                Some(Identity::Journal(date)) => Some(date),
-                _ => None,
-            };
+            let date = self.index()?.effective_date(entity);
             let source = self.entity_ref(entity)?;
             groups.push((
                 date,
                 Reference {
                     source,
+                    date: date.map(|d| d.to_string()),
                     blocks,
                     links,
                 },
             ));
         }
-        // Recent days first, then everything else by name.
+        // Those with a day first, latest first, then the rest by name.
         groups.sort_by_cached_key(|(date, g)| {
             (
                 date.is_none(),

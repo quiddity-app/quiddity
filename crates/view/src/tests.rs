@@ -3137,6 +3137,44 @@ mod meta {
             .collect()
     }
 
+    /// Entities with a day come first, latest first, whether a journal or
+    /// given theirs by a `##date-for`; the rest follow by name.
+    #[test]
+    fn references_are_dated_by_date_for() {
+        let v = view_with(|g| {
+            entity(g, "on-date", "type:: property\n##date-for(#class(Sermon))");
+            entity(g, "Topic", "");
+            let journal = quiddity_core::create_journal(g, "2026-11-20".parse().unwrap()).unwrap();
+            note(g, journal, "Thought about [[Topic]]");
+            for (name, props) in [
+                ("Zed", ""),
+                ("Old", "class:: Sermon\non-date:: 2026-01-04"),
+                ("New", "class:: Sermon\non-date:: 2026-12-04"),
+                ("Two", "class:: Sermon\non-date:: [2026-01-01, 2026-02-02]"),
+                ("Other", "on-date:: 2027-01-01"),
+            ] {
+                let e = entity(g, name, props);
+                note(g, e, "About [[Topic]]");
+            }
+        });
+        let refs = v.references(&id_of(&v, "Topic")).unwrap();
+        let shown: Vec<_> = refs
+            .iter()
+            .map(|r| (r.source.title.as_str(), r.date.as_deref()))
+            .collect();
+        assert_eq!(
+            shown,
+            [
+                ("New", Some("2026-12-04")),
+                ("2026-11-20", Some("2026-11-20")),
+                ("Old", Some("2026-01-04")),
+                ("Other", None),
+                ("Two", None),
+                ("Zed", None),
+            ]
+        );
+    }
+
     #[test]
     fn inverses_are_trees() {
         let v = view_with(|g| {
