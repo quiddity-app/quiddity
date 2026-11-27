@@ -4,7 +4,7 @@
 - The plan, in the order it is built, each step a pull request of its own
 	- 1. Waiting for a sync to be done: `Peer::settled(timeout)`. Built. [[Sync status]]
 	- 2. The shell's live session kept for the life of the process, so that a background run and the app share one graph and one endpoint instead of opening it twice. Built. [[The shell]]
-	- 3. A call that starts the node, waits for `settled` and shuts it down gracefully, for a background job to make.
+	- 3. A call that starts the node, waits for `settled` and shuts it down gracefully (`background::sync_once`), for a background job to make. Built, and tested without the network. If a window has the graph it is used as it is and left running; if a window opens during a run, the run leaves the network to it.
 	- 4. On Android, a WorkManager periodic job that makes that call, on any network for the graph and an unmetered one for [[Blob transfer]], and a short-lived foreground service held while a sync is unfinished after the app is left. [[Running the app]]
 - Limits that are the platform's
 	- Doze and App Standby batch background work, so "infrequent" means unpredictable, and a desktop is only reached if it is awake at the same time. The graph is complete on every device, so being late costs freshness and nothing else.
