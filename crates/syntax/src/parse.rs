@@ -88,11 +88,8 @@ pub fn parse_block(text: &str) -> Block {
     for line in text.split_inclusive('\n') {
         let content = line.strip_suffix('\n').unwrap_or(line);
         let content = content.strip_suffix('\r').unwrap_or(content);
-        match (fence_marker(content), fence) {
-            (Some((c, n, _)), None) => fence = Some((c, n)),
-            (Some((c, n, true)), Some((open, len))) if c == open && n >= len => fence = None,
-            (_, Some(_)) => {}
-            (None, None) => parse_line(content, offset, &mut block),
+        if !advance_fence(&mut fence, content) {
+            parse_line(content, offset, &mut block);
         }
         offset += line.len();
     }
@@ -122,14 +119,18 @@ pub fn parse_properties_block(text: &str) -> Option<PropertiesBlock> {
     let mut found = PropertiesBlock::default();
     let mut offset = 0;
     let mut started = false;
+    let mut fence: Option<(char, usize)> = None;
     for line in text.split_inclusive('\n') {
         let content = line.strip_suffix('\n').unwrap_or(line);
         let content = content.strip_suffix('\r').unwrap_or(content);
+        // Fenced code is prose, whatever its lines look like, so a fence can't
+        // be where a block starts and what is inside it is stray.
+        let in_fence = advance_fence(&mut fence, content);
         if !content.trim().is_empty() {
             if !started && starts_a_blob(content) {
                 return None;
             }
-            if is_properties_line(content) {
+            if !in_fence && is_properties_line(content) {
                 parse_line(content, offset, &mut found.block);
             } else if started {
                 found.stray.push(offset..offset + content.len());
@@ -464,6 +465,18 @@ fn follows_property(block: &Block, pos: usize) -> bool {
         .properties
         .last()
         .is_some_and(|p| p.style == PropertyStyle::Inline && p.span.end == pos)
+}
+
+/// Moves the fence state past `line`, and says whether the line is part of a
+/// fence: its opening line, what is inside, or its closing line.
+fn advance_fence(fence: &mut Option<(char, usize)>, line: &str) -> bool {
+    match (fence_marker(line), *fence) {
+        (Some((c, n, _)), None) => *fence = Some((c, n)),
+        (Some((c, n, true)), Some((open, len))) if c == open && n >= len => *fence = None,
+        (None, None) => return false,
+        _ => {}
+    }
+    true
 }
 
 /// Returns the fence character, its run length, and whether the rest of the
@@ -1416,6 +1429,21 @@ mod tests {
         assert!(yes("kind:: a\n##blob(abc, image/png, 1)"));
         assert!(yes("##blobs(x)"));
         assert!(yes("##block(x)"));
+    }
+
+    #[test]
+    fn fenced_code_in_a_properties_block_is_stray() {
+        let text = "a:: 1\n```\nb:: 2\n#c\n```\nd:: 3\n~~~x~~~";
+        let found = parse_properties_block(text).unwrap();
+        let keys: Vec<_> = found.block.properties.iter().map(|p| &*p.key).collect();
+        assert_eq!(keys, ["a", "d"]);
+        let stray: Vec<_> = found.stray.iter().map(|r| &text[r.clone()]).collect();
+        assert_eq!(stray, ["```", "b:: 2", "#c", "```", "~~~x~~~"]);
+        // An unclosed fence runs to the end.
+        let found = parse_properties_block("a:: 1\n```\nb:: 2").unwrap();
+        assert_eq!(found.block.properties.len(), 1);
+        // A block can't start with a fence, whatever follows.
+        assert!(parse_properties_block("```\na:: 1\n```").is_none());
     }
 
     #[test]
