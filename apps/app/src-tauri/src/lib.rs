@@ -7,6 +7,7 @@
 //! the one on the network.
 
 mod appearance;
+pub mod background;
 mod library;
 mod menu;
 mod process;
@@ -446,14 +447,19 @@ fn start_network(session: &Session, running: &Running) {
 }
 
 /// Gets an opened graph going: keeps its binaries, then puts it on the network.
-async fn begin(session: Session, running: &Running) -> Session {
+async fn start(session: &Session, running: &Running) {
     // Before the network, which gives and fetches what this keeps. A
     // store that won't open leaves the app without binaries, no more.
     if let Err(e) = session.keep_blobs().await {
         warn!(error = %e, "not keeping binaries");
     }
-    start_network(&session, running);
-    // So that a window made again in this process finds it (`process.rs`).
+    start_network(session, running);
+}
+
+/// [`start`], for a window: the session is then held, so that a window made
+/// again in this process finds it (`process.rs`).
+async fn begin(session: Session, running: &Running) -> Session {
+    start(&session, running).await;
     process::hold(process::Live {
         session: session.clone(),
         running: running.clone(),
@@ -518,7 +524,7 @@ pub fn run() {
             app.manage(library);
             let keys = keyring(app.handle())?;
             let mut waiting = None;
-            let problem = if let Some(live) = process::held_for(&dir) {
+            let problem = if let Some(live) = process::take_for(&dir) {
                 // The window is new but the process isn't: the graph is open
                 // and on the network already, and opening it again would take
                 // what the first holds.

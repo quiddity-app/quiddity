@@ -82,6 +82,18 @@ holds its own replica and answers its own queries (see `apps/ui` and
   happening**: the Android build can't be run in the sandbox. The logger is
   initialised with `try_init` for the same reason. The UI's subscriptions from
   the old window stop when they next fail to send.
+- **`background::sync_once(dir, keys, timeout)` is a run that syncs and goes**
+  (`background.rs`, public so that the Android glue can call it): it uses the
+  live session if a window has one (`process::look_for`, only retrying the
+  devices that were waiting), and otherwise opens the graph, `start`s it, waits
+  for `Peer::settled`, saves, and stops the network gracefully. **It never makes
+  a graph** (`NoGraph`), for the reason `first_run` exists. **A session a run
+  started is `lend`ed, not `hold`ed**: if a window takes it while the run is
+  going (`take_for`), `release` leaves it to the window, so the run never closes
+  a network the window is using. `start` is `begin` without holding; tests give
+  `sync_with` a start that does nothing, so none of them uses the network, and
+  the real network path is the app's own, run by `begin`. They share the
+  process's held session, so they take `process::TESTING` first.
 - **Changes from other devices reach the UI on a channel.**
   `subscribe_updates` takes a `Channel` and sends raw bytes: the graph's
   updates since what the UI is known to have (`Session::ui_updates`). That

@@ -22,25 +22,68 @@ pub struct Live {
     pub running: Running,
 }
 
-static LIVE: Mutex<Option<Live>> = Mutex::new(None);
+/// The live session, and whether a window has taken it. One a background run
+/// started and no window has taken is the run's to stop when it is done; once
+/// a window has it, it is the window's, and stopping it would leave the window
+/// without a network.
+struct Held {
+    live: Live,
+    taken: bool,
+}
 
-fn live() -> MutexGuard<'static, Option<Live>> {
+static LIVE: Mutex<Option<Held>> = Mutex::new(None);
+
+fn held() -> MutexGuard<'static, Option<Held>> {
     LIVE.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
-/// Keeps `live` as the one that is running, in place of any before it: it is
-/// called each time a session begins, so switching graphs changes it too.
-pub fn hold(live_now: Live) {
-    *live() = Some(live_now);
+/// Keeps `live` as the one that is running, for a window: it is called each
+/// time a session begins there, so switching graphs changes it too.
+pub fn hold(live: Live) {
+    *held() = Some(Held { live, taken: true });
 }
 
-/// The live session, if it is the graph in `dir`. A different graph is none:
-/// whatever is asking will open its own, as it would have without this.
-pub fn held_for(dir: &Path) -> Option<Live> {
-    live()
-        .clone()
-        .filter(|held| held.session.store().dir() == dir)
+/// Keeps `live` as the one that is running, for a background run, which stops
+/// it when it is done unless a window has taken it by then (`release`).
+pub fn lend(live: Live) {
+    *held() = Some(Held { live, taken: false });
 }
+
+/// The live session, if it is the graph in `dir`, for a window to take. A
+/// different graph is none: whatever is asking will open its own, as it would
+/// have without this.
+pub fn take_for(dir: &Path) -> Option<Live> {
+    let mut held = held();
+    let held = held
+        .as_mut()
+        .filter(|h| h.live.session.store().dir() == dir)?;
+    held.taken = true;
+    Some(held.live.clone())
+}
+
+/// The live session, if it is the graph in `dir`, for a background run to
+/// sync with. It is not taken: whoever started it still owns it.
+pub fn look_for(dir: &Path) -> Option<Live> {
+    held()
+        .as_ref()
+        .filter(|h| h.live.session.store().dir() == dir)
+        .map(|h| h.live.clone())
+}
+
+/// Lets go of what a background run lent, once it is done, and returns it to
+/// be stopped. A window that took it meanwhile keeps it, and this returns none.
+pub fn release() -> Option<Live> {
+    let mut held = held();
+    if held.as_ref()?.taken {
+        return None;
+    }
+    held.take().map(|h| h.live)
+}
+
+/// Tests that use what is held take this first: it is the process's, and
+/// they run side by side. Async, so that a test can hold it across an await.
+#[cfg(test)]
+pub static TESTING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 #[cfg(test)]
 mod tests {
@@ -48,39 +91,50 @@ mod tests {
 
     use super::*;
 
-    fn session(dir: &Path) -> Session {
-        Session::open(dir, Keyring::new(dir.join("keys"))).unwrap()
+    fn live(dir: &Path) -> Live {
+        let session = Session::open(dir, Keyring::new(dir.join("keys"))).unwrap();
+        Live {
+            session,
+            running: Running::default(),
+        }
     }
 
     /// One test, since what it holds is the process's.
     #[test]
-    fn a_session_is_found_again_for_its_graph_and_replaced_when_another_begins() {
+    fn what_is_held_is_found_for_its_graph_and_lent_only_until_a_window_takes_it() {
+        let _alone = TESTING.blocking_lock();
         let (first, second) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
         let (a, b) = (first.path().join("a"), second.path().join("b"));
-        assert!(held_for(&a).is_none(), "nothing is held to begin with");
+        assert!(take_for(&a).is_none() && look_for(&a).is_none() && release().is_none());
 
-        let running = Running::default();
-        let original = session(&a);
-        hold(Live {
-            session: original.clone(),
-            running: running.clone(),
-        });
-        let found = held_for(&a).expect("the graph that is open");
-        // The same graph, not another opened from the file.
+        // A window's session is found again, and is the same graph, not
+        // another opened from the file.
+        let original = live(&a);
+        hold(original.clone());
+        let found = take_for(&a).expect("the graph that is open");
         found
             .session
             .peer()
             .graph()
             .create_block(None, None, "typed")
             .unwrap();
-        assert_eq!(original.peer().graph().blocks().len(), 1);
-        assert!(held_for(&b).is_none(), "another graph is not it");
+        assert_eq!(original.session.peer().graph().blocks().len(), 1);
+        assert!(take_for(&b).is_none(), "another graph is not it");
+        assert!(look_for(&b).is_none());
+        assert!(release().is_none(), "a window's is not the run's to stop");
+        assert!(look_for(&a).is_some(), "and it is still held");
 
-        hold(Live {
-            session: session(&b),
-            running,
-        });
-        assert!(held_for(&a).is_none(), "the one before was replaced");
-        assert!(held_for(&b).is_some());
+        // A later one replaces it, and a run's is let go when it is done...
+        lend(live(&b));
+        assert!(take_for(&a).is_none(), "the one before was replaced");
+        assert!(look_for(&b).is_some(), "looking doesn't take it");
+        assert!(release().is_some());
+        assert!(look_for(&b).is_none(), "and nothing is held after");
+
+        // ...unless a window took it while the run was going.
+        lend(live(&b));
+        assert!(take_for(&b).is_some());
+        assert!(release().is_none());
+        assert!(look_for(&b).is_some());
     }
 }
