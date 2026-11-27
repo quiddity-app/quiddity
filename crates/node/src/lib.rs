@@ -384,7 +384,8 @@ impl Peer {
     /// somewhere else is found.
     ///
     /// Each device is dialled on its own: a failure, or a connection that
-    /// ends, is retried after a delay that doubles to a minute. Two devices
+    /// ends, is retried after a delay that doubles to a minute, until the
+    /// device is no longer listed or trusted. Two devices
     /// that both dial may end up with two connections between them, which
     /// works but sends everything twice.
     pub async fn dial_listed(
@@ -395,7 +396,7 @@ impl Peer {
         let address = Arc::new(address);
         let mut changes = self.subscribe();
         let mut trust_changes = self.inner.trust_changes.subscribe();
-        let mut dialling = HashSet::new();
+        let mut dialling: HashMap<String, tokio::task::AbortHandle> = HashMap::new();
         let mut tasks = JoinSet::new();
         loop {
             // The devices to keep up: those the graph lists and those let in
@@ -405,19 +406,31 @@ impl Peer {
             let mut wanted: Vec<String> =
                 self.graph().devices().into_iter().map(|d| d.id).collect();
             wanted.extend(self.trusted_devices().iter().map(ToString::to_string));
+            // Stop dialling a device that is no longer wanted, such as one
+            // that has been removed from the list. A device that comes back is
+            // started afresh below.
+            dialling.retain(|device, task| {
+                let keep = wanted.contains(device);
+                if !keep {
+                    task.abort();
+                }
+                keep
+            });
             for device in wanted {
                 // A name that isn't an endpoint ID can't be dialled.
                 let Ok(id) = device.parse::<EndpointId>() else {
                     continue;
                 };
-                if device == self.inner.device || !dialling.insert(device.clone()) {
+                if device == self.inner.device || dialling.contains_key(&device) {
                     continue;
                 }
                 let (peer, endpoint, address) =
                     (self.clone(), endpoint.clone(), Arc::clone(&address));
-                tasks.spawn(async move {
+                let name = device.clone();
+                let task = tasks.spawn(async move {
                     peer.keep_connected(&endpoint, &device, id, &*address).await;
                 });
+                dialling.insert(name, task);
             }
             tokio::select! {
                 changed = changes.changed() => {

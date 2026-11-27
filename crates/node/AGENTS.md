@@ -170,7 +170,9 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
   any member can add one. Nothing revokes yet.
 - **`Peer::dial_listed` dials the listed devices** (`serve` runs it, except
   with `--local`). One task per device, spawned in a `JoinSet` so aborting
-  the dialler stops them. `address` is called for every attempt: a device
+  the dialler stops them, and aborted individually (by the handle kept in
+  `dialling`) when the device stops being listed or trusted: a removed device
+  must not go on being dialled. `address` is called for every attempt: a device
   that came back elsewhere would otherwise be dialled at its old address.
   **Connecting has its own timeout** (10 s): QUIC waits far longer for a dead
   address, and that wait is the redial. Devices that both dial may hold two

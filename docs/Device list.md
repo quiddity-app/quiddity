@@ -15,7 +15,7 @@
 	- The device it joins through lists it when it connects, and that does last.
 - Listed devices are dialled, not just waited for. `Peer::dial_listed` keeps a connection up to each one, and `serve` runs it.
 	- A device listed later is picked up as soon as the entry arrives. A name that is not an endpoint ID, such as a test name, is skipped.
-	- Each device is dialled on its own. A failure, or a connection that ends, is retried after a delay that doubles from 1 s to a minute, and starts again after a connection that lasted. Its address is looked up again for every attempt, so a device that comes back elsewhere is found.
+	- Each device is dialled on its own. A failure, or a connection that ends, is retried after a delay that doubles from 1 s to a minute, and starts again after a connection that lasted. It stops for good when the device is no longer listed or trusted, such as when it is removed, and starts again if it is listed again. Its address is looked up again for every attempt, so a device that comes back elsewhere is found.
 	- Waiting out a dead address takes much longer than anyone wants, so making a connection is given 10 s.
 	- Devices that both dial may end up with two connections. That works, and sends everything twice. Choosing who dials is a job for later.
 	- `serve --local` does not dial: with no address lookup there is no way to find a device from its ID.
