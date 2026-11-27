@@ -7,6 +7,6 @@ alias:: rename
 - Journals cannot be renamed.
 	- A journal is identified by its date, so a rename would make it a different entity. The index says which, and the view checks. [[Journal]]
 	- A property's entity can be renamed: the old name becomes an alias, and an alias finds the entity as a name does, so the property's key still goes to it. [[Properties]]
-- The name is one line, the first line of what is given, and cannot be empty.
+- The name is one line, the first line of what is given, and cannot be empty. Making an entity holds its name to the same rule, so an entity never has an empty name or text hidden after the first line of its root block.
 - A name nobody has made yet is renamed by making it first, so the old name is kept as an alias and links to it still work. [[Links to nowhere]]
 - Undoing a rename takes back the name and the alias together. [[Undo]]

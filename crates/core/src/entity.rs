@@ -17,11 +17,16 @@ fn one_line_name(name: &str) -> Result<&str> {
 impl Graph {
     /// Creates an entity: a root block named `name`, with an initial
     /// properties block if `properties` isn't empty.
+    ///
+    /// The name is held to what a rename allows: only its first line is used,
+    /// and an empty one is [`Error::EmptyName`], so that nothing is made that
+    /// a link can't name or whose name hides text in its root block.
     pub fn create_entity(
         &self,
         name: &str,
         properties: &[(&str, Option<Value>)],
     ) -> Result<BlockId> {
+        let name = one_line_name(name)?;
         let entity = self.create_block(None, None, name)?;
         if !properties.is_empty() {
             let lines: Vec<_> = properties
@@ -267,6 +272,24 @@ mod tests {
             ));
         }
         assert_eq!(graph.entity_name(page)?, "Page");
+        Ok(())
+    }
+
+    #[test]
+    fn an_entity_is_created_with_a_name_as_a_rename_would_allow() -> Result<()> {
+        let graph = Graph::new();
+        for empty in ["", "   ", "\nsecond"] {
+            assert!(matches!(
+                graph.create_entity(empty, &[]),
+                Err(Error::EmptyName)
+            ));
+        }
+        let page = graph.create_entity("  Foo \nbar", &[])?;
+        assert_eq!(
+            graph.text(page)?,
+            "Foo",
+            "the rest isn't hidden in the root"
+        );
         Ok(())
     }
 
