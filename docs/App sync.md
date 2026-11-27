@@ -9,6 +9,10 @@
 - The UI tells the shell which block is open, and which blocks a push was typed in.
 	- That is what drives the publish gate: typing in a block nobody else has open is held back, and goes when the user moves on. [[Publish gate]]
 	- It also makes this device visible to the others, who can know it is in a block. [[Presence]]
+- A phone that was asleep reconnects when it is woken.
+	- The screen going off suspends the app, and its sockets and relay connection with it. iroh can detect a network change by itself on many systems, but not on Android, so the UI says so when the page is shown again (`network_changed`) and the shell tells the endpoint, which rebinds and finds its relay again. Calling it when nothing changed does no harm.
+	- What the page does as it hides is the other half: it lets go of its block so held typing is sent first. [[Publish gate]]
+	- Not yet: the dialler still waits out its own delay, up to a minute, between attempts, so the first connection can take that long after waking.
 - Not yet
 	- Presence is not shown. Other devices' open blocks are known to the shell and not drawn. [[Presence]]
 - The cloud beside the search button shows how this device stands with the others. [[Sync status]]

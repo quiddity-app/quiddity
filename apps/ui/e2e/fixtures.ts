@@ -50,6 +50,8 @@ declare global {
       focus: string[];
       /** What each push said it was typing in. */
       typed: string[][];
+      /** How many times the page said the network may have changed. */
+      networkChanges: number;
       /** The devices the page asked to let in. */
       allowed: string[];
       /** How the page asked to go on from a graph that wouldn't open. */

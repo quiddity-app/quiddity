@@ -15,6 +15,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+iroh = "=1.5.0"
 quiddity-core = { path = "../../../crates/core" }
 quiddity-node = { path = "../../../crates/node" }
 serde = { version = "1", features = ["derive"] }
@@ -32,7 +33,6 @@ tracing-subscriber = "0.3"
 tauri-plugin-updater = "2"
 
 [dev-dependencies]
-iroh = "=1.5.0"
 tempfile = "=3.27.0"
 tokio = { version = "=1.54.1", features = ["macros", "rt", "time"] }
 
