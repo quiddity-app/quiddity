@@ -130,7 +130,10 @@ holds its own replica and answers its own queries (see `apps/ui` and
   `apps/ui/app/globals.css`, and a test reads the stylesheet and fails if they
   drift. The title bar is the system's and isn't set here.
 - **The macOS menu bar** (`menu.rs`) is Tauri's default with Delete Entity
-  added to File and a Go menu after it. It only emits the item's ID on the
+  added to File, a Go menu after it, and the app menu's About replaced by one
+  that emits `about`, which the UI turns into going to `/about/` (the system's
+  panel can't hold the licences). If the first item isn't an About, it is left
+  alone. It only emits the item's ID on the
   `menu` event; the UI does the work, since it knows what is open. Delete
   Entity has no shortcut on purpose: Cmd-Backspace is "delete to the start of
   the line" in a block. The File menu is found by its title, as Tauri gives it

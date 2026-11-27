@@ -118,6 +118,9 @@ export const entrypoints = [
   { title: 'Stats and debug', href: '/stats/', in: 'menu' },
 ] as const;
 
+/** The About page: not an entrypoint, but in the More menu, and the desktop menu's About opens it. */
+export const ABOUT_PATH = '/about/';
+
 /** The pages a link in a block's text may name by path, as `[text](/graph/)`. */
 const APP_PAGES: string[] = entrypoints.map((e) => e.href);
 

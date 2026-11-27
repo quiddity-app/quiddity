@@ -1,9 +1,9 @@
-import { entrypoints } from './nav';
+import { ABOUT_PATH, entrypoints } from './nav';
 
 /**
  * What the app's native menu asks of the page. The shell sends one string on
  * the `menu` event (`apps/app/src-tauri/src/menu.rs`): `delete-entity`,
- * `check-for-updates`, or `go:<path>` for one of the entrypoints. In a browser there is no menu.
+ * `check-for-updates`, `about`, or `go:<path>` for one of the entrypoints. In a browser there is no menu.
  */
 export type MenuCommand =
   | { kind: 'delete-entity' }
@@ -22,6 +22,9 @@ export function parseMenuCommand(payload: unknown): MenuCommand | null {
   }
   if (payload === 'check-for-updates') {
     return { kind: 'check-for-updates' };
+  }
+  if (payload === 'about') {
+    return { kind: 'go', path: ABOUT_PATH };
   }
   if (typeof payload !== 'string' || !payload.startsWith('go:')) {
     return null;
