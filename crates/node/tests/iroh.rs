@@ -690,6 +690,126 @@ async fn listed_devices_are_dialled_and_dialled_again() {
     b_router.shutdown().await.unwrap();
 }
 
+/// A device that couldn't be reached is left for a long time, but asking for
+/// a retry (as a change of network does) dials it at once.
+#[tokio::test]
+async fn retrying_dials_a_device_that_was_being_left_alone() {
+    let b_key = iroh::SecretKey::generate();
+    let b_id = b_key.public();
+    let (home, home_router, _) = member(Graph::new()).await;
+    edit(&home, "from home");
+    home.allow(&b_id.to_string()).unwrap();
+
+    // B is not there yet: the first attempt fails, and the next is an hour off.
+    let (b_endpoint, b_addr) = bind(&b_key).await;
+    drop(b_endpoint);
+    home.set_redial(Duration::from_hours(1), Duration::from_hours(1));
+    home.set_handshake_timeout(Duration::from_millis(50));
+    let dialler = dialler(
+        &home,
+        &home_router,
+        Arc::new(Mutex::new(vec![b_addr.clone()])),
+    );
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    let b = Peer::new(
+        Graph::blank(),
+        Allowed::Only(HashSet::from([home_router.endpoint().id()])),
+        b_id.to_string(),
+    );
+    let b_endpoint = Endpoint::builder(presets::Minimal)
+        .secret_key(b_key)
+        .relay_mode(RelayMode::Disabled)
+        .alpns(vec![ALPN.to_vec()])
+        .bind_addr(b_addr.ip_addrs().next().copied().unwrap())
+        .unwrap()
+        .bind()
+        .await
+        .unwrap();
+    let b_router = Router::builder(b_endpoint).accept(ALPN, b.clone()).spawn();
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert!(b.graph().roots().is_empty(), "not dialled before the retry");
+
+    home.retry_now();
+    converged(&[&home, &b]).await;
+
+    dialler.abort();
+    home_router.shutdown().await.unwrap();
+    b_router.shutdown().await.unwrap();
+}
+
+/// A dialler for `peer`, finding devices in `addresses`, with whatever delays
+/// the peer has been given.
+fn dialler(
+    peer: &Peer,
+    router: &Router,
+    addresses: Arc<Mutex<Vec<EndpointAddr>>>,
+) -> tokio::task::JoinHandle<()> {
+    let (peer, endpoint) = (peer.clone(), router.endpoint().clone());
+    tokio::spawn(async move {
+        peer.dial_listed(&endpoint, move |id| {
+            let known = addresses.lock().unwrap();
+            known
+                .iter()
+                .find(|a| a.id == id)
+                .cloned()
+                .unwrap_or_else(|| EndpointAddr::new(id))
+        })
+        .await;
+    })
+}
+
+/// A connection that ends starts the waits between attempts again, however it
+/// was made: a device that has been away long enough to be left alone for a
+/// while is dialled again soon after it drops, not after the long wait it had
+/// built up.
+#[tokio::test]
+async fn a_connection_ending_starts_the_waits_again() {
+    let b_key = iroh::SecretKey::generate();
+    let b_id = b_key.public();
+    let (home, home_router, _) = member(Graph::new()).await;
+    edit(&home, "first");
+    home.allow(&b_id.to_string()).unwrap();
+    let b = Peer::new(
+        Graph::blank(),
+        Allowed::Only(HashSet::from([home_router.endpoint().id()])),
+        b_id.to_string(),
+    );
+
+    // B isn't there, and the waits between attempts grow to a second and more.
+    let addresses = Arc::new(Mutex::new(vec![EndpointAddr::new(b_id)]));
+    home.set_redial(Duration::from_millis(50), Duration::from_hours(1));
+    home.set_handshake_timeout(Duration::from_millis(50));
+    let dialler = dialler(&home, &home_router, Arc::clone(&addresses));
+    tokio::time::sleep(Duration::from_millis(1200)).await;
+
+    // B comes up and is found at the next attempt, which is a while off.
+    let (b_endpoint, b_addr) = bind(&b_key).await;
+    *addresses.lock().unwrap() = vec![b_addr];
+    let b_router = Router::builder(b_endpoint).accept(ALPN, b.clone()).spawn();
+    converged(&[&home, &b]).await;
+
+    // It goes, and comes back elsewhere. Its connection ending has started the
+    // waits again, so it is found well within what they had grown to.
+    b_router.shutdown().await.unwrap();
+    edit(&home, "second");
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    let (b_endpoint, b_addr) = bind(&b_key).await;
+    *addresses.lock().unwrap() = vec![b_addr];
+    let b_router = Router::builder(b_endpoint).accept(ALPN, b.clone()).spawn();
+    tokio::time::timeout(Duration::from_secs(1), async {
+        while layout(b.graph()) != layout(home.graph()) {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .expect("found again soon after the connection ended");
+
+    dialler.abort();
+    home_router.shutdown().await.unwrap();
+    b_router.shutdown().await.unwrap();
+}
+
 /// A replica that has joined nothing lists no one, so it can't find a device
 /// from the graph. It dials the one it was told to trust, and so gets the graph
 /// from a device that is asleep when it starts, or that can't reach it.

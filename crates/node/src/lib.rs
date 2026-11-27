@@ -35,7 +35,7 @@ use iroh::endpoint::{
     Connection, ConnectionError, ReadError, RecvStream, SendStream, WriteError, presets,
 };
 use iroh::protocol::{AcceptError, ProtocolHandler, Router};
-use iroh::{Endpoint, EndpointAddr, EndpointId, RelayMode, SecretKey};
+use iroh::{Endpoint, EndpointAddr, EndpointId, RelayMode, SecretKey, Watcher};
 use jiff::Timestamp;
 use quiddity_core::{Graph, Index, Version, merge_duplicates};
 use quiddity_sync::{
@@ -50,8 +50,12 @@ pub const ALPN: &[u8] = b"quiddity/sync/3";
 
 /// How long to wait before dialling a listed device again, at first and at
 /// most (it doubles in between, so a device that is off isn't pestered).
-const REDIAL_MIN: Duration = Duration::from_secs(1);
-const REDIAL_MAX: Duration = Duration::from_mins(1);
+///
+/// The ceiling is long because the devices that are often away, a phone, will
+/// dial in when they are back; this is only the way to find one that can't.
+/// Starting the app and a change of network begin again at the minimum.
+const REDIAL_MIN: Duration = Duration::from_secs(10);
+const REDIAL_MAX: Duration = Duration::from_hours(24);
 
 /// How long to wait for a connection to be made, before giving up and, for a
 /// dialler, trying again. Waiting out a dead address takes much longer.
@@ -182,6 +186,11 @@ struct Inner {
     publish: watch::Sender<u64>,
     gate: Mutex<Gate>,
     dialling: Mutex<Dialling>,
+    /// Bumped when any device's connection ends, so dialling tasks look at
+    /// their own device's epoch.
+    link_changes: watch::Sender<u64>,
+    /// Bumped by [`Peer::retry_now`], so every dialler starts its waits again.
+    redial_resets: watch::Sender<u64>,
     /// Bumped when the gate's deadline moves, so connections re-read it.
     gate_changes: watch::Sender<u64>,
     presence: Mutex<PresenceState>,
@@ -224,6 +233,11 @@ struct PresenceState {
     /// How many connections each connected device has. Two devices that
     /// dial each other at once have two.
     links: BTreeMap<String, usize>,
+    /// How many connections to each device have ended, whichever side dialled
+    /// them, so the dialler can tell that one did while it was waiting or
+    /// dialling. A connection coming up needs no count: nothing is dialled
+    /// while it lasts, and its ending starts the waits again.
+    link_epochs: BTreeMap<String, u64>,
 }
 
 /// A connection that has been announced as a link in the presence network,
@@ -258,7 +272,9 @@ impl Peer {
                 presence: Mutex::new(PresenceState {
                     presence: Presence::new(device.clone(), epoch),
                     links: BTreeMap::new(),
+                    link_epochs: BTreeMap::new(),
                 }),
+                link_changes: watch::Sender::new(0),
                 presence_changes: watch::Sender::new(0),
                 syncs: Mutex::new(BTreeMap::new()),
                 next_link: AtomicU64::new(0),
@@ -275,6 +291,7 @@ impl Peer {
                     max: REDIAL_MAX,
                     handshake: HANDSHAKE,
                 }),
+                redial_resets: watch::Sender::new(0),
                 gate_changes: watch::Sender::new(0),
                 publish: watch::Sender::new(0),
                 device,
@@ -368,6 +385,16 @@ impl Peer {
         self.dialling().handshake = timeout;
     }
 
+    /// Starts the waits between dialling attempts again: every listed device
+    /// that isn't connected is dialled now, and then after the shortest wait.
+    /// For when something has changed that may make a device reachable, such
+    /// as the network. `dial_listed` calls it when the endpoint's addresses
+    /// change; a platform that can see the network change and iroh can't (as
+    /// on Android) should call it too.
+    pub fn retry_now(&self) {
+        bump(&self.inner.redial_resets);
+    }
+
     fn dialling(&self) -> MutexGuard<'_, Dialling> {
         self.inner
             .dialling
@@ -383,9 +410,12 @@ impl Peer {
     /// up. It is asked again for every attempt, so a device that comes back
     /// somewhere else is found.
     ///
-    /// Each device is dialled on its own: a failure, or a connection that
-    /// ends, is retried after a delay that doubles to a minute, until the
-    /// device is no longer listed or trusted. Two devices
+    /// Each device is dialled on its own: a failure is retried after a delay
+    /// that doubles to a day, so a device that is off, or only ever
+    /// dials in, isn't pestered. The delay starts again when this dialler
+    /// does, when the endpoint's addresses change (the network did), on
+    /// [`Peer::retry_now`], and when a connection to the device ends. A device
+    /// that is no longer listed or trusted is dropped. Two devices
     /// that both dial may end up with two connections between them, which
     /// works but sends everything twice.
     pub async fn dial_listed(
@@ -398,6 +428,14 @@ impl Peer {
         let mut trust_changes = self.inner.trust_changes.subscribe();
         let mut dialling: HashMap<String, tokio::task::AbortHandle> = HashMap::new();
         let mut tasks = JoinSet::new();
+        // A new address means the network changed, and a device that was out of
+        // reach may not be now.
+        let (peer, mut addresses) = (self.clone(), endpoint.watch_addr());
+        tasks.spawn(async move {
+            while addresses.updated().await.is_ok() {
+                peer.retry_now();
+            }
+        });
         loop {
             // The devices to keep up: those the graph lists and those let in
             // for now. A replica that has joined nothing lists no one, and
@@ -457,12 +495,18 @@ impl Peer {
     ) {
         let Dialling { min, max, .. } = *self.dialling();
         let mut delay = min;
+        let mut resets = self.inner.redial_resets.subscribe();
+        let mut link_changes = self.inner.link_changes.subscribe();
+        let epoch = || {
+            self.presence()
+                .link_epochs
+                .get(device)
+                .copied()
+                .unwrap_or(0)
+        };
+        let mut seen = epoch();
         loop {
-            if self.presence().links.contains_key(device) {
-                // It dialled us. Look again soon.
-                delay = min;
-            } else {
-                let started = tokio::time::Instant::now();
+            if !self.presence().links.contains_key(device) {
                 debug!(device, "dialling");
                 self.record(Level::Info, Some(device), "dialling".to_owned());
                 // Failing to reach a device is routine, such as when it is
@@ -470,14 +514,45 @@ impl Peer {
                 if let Err(e) = self.connect(endpoint, address(id), None).await {
                     debug!(device, error = %e, "connection ended");
                 }
-                // A connection that outlasted the longest wait was a good one:
-                // go back to retrying at once.
-                if started.elapsed() >= max {
+            }
+            // A connection to the device ending, whoever dialled it, starts the
+            // waits again, though one that ended during the dial counts too.
+            // Connected, there is nothing to wait out: the next thing to look
+            // for is the connection ending.
+            let mut wait_again = true;
+            while wait_again {
+                if epoch() != seen {
+                    seen = epoch();
                     delay = min;
                 }
+                let linked = self.presence().links.contains_key(device);
+                let deadline = (!linked).then(|| tokio::time::Instant::now() + delay);
+                wait_again = false;
+                loop {
+                    tokio::select! {
+                        () = async {
+                            match deadline {
+                                Some(at) => tokio::time::sleep_until(at).await,
+                                None => std::future::pending().await,
+                            }
+                        } => {
+                            delay = (delay * 2).min(max);
+                            break;
+                        }
+                        _ = resets.changed() => {
+                            delay = min;
+                            break;
+                        }
+                        _ = link_changes.changed() => {
+                            // Some other device's, perhaps: keep waiting.
+                            if epoch() != seen {
+                                wait_again = true;
+                                break;
+                            }
+                        }
+                    }
+                }
             }
-            tokio::time::sleep(delay).await;
-            delay = (delay * 2).min(max);
         }
     }
 
@@ -836,6 +911,7 @@ impl Peer {
         info!(device, "disconnected");
         self.record(Level::Info, Some(device), "no longer syncing".to_owned());
         let mut state = self.presence();
+        *state.link_epochs.entry(device.to_owned()).or_default() += 1;
         let remaining = state.links.get_mut(device).map_or(0, |n| {
             *n -= 1;
             *n
@@ -849,6 +925,7 @@ impl Peer {
             state.presence.connect(device);
         }
         drop(state);
+        bump(&self.inner.link_changes);
         self.presence_changed();
     }
 
