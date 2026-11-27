@@ -197,6 +197,60 @@ jobs:
         if-no-files-found: error
         retention-days: 1
 
+  node-musl:
+    # The node again, for Alpine, which is what Home Assistant's apps run on.
+    # Rust's musl targets link statically, so these also run on any other Linux.
+    # They are built natively on each architecture, so that musl-gcc is the right
+    # C compiler for the bundled SQLite and ring, with no cross toolchain.
+    needs: [version]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - {arch: x64, runner: ubuntu-latest, target: x86_64-unknown-linux-musl}
+        - {arch: arm64, runner: ubuntu-24.04-arm, target: aarch64-unknown-linux-musl}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    env:
+      SEMVER: ${{ needs.version.outputs.semver }}
+      TARGET: ${{ matrix.target }}
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+    - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends musl-tools
+    - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+      with:
+        toolchain: stable
+        targets: ${{ matrix.target }}
+    - name: Set the version
+      run: scripts/set-version.sh "$SEMVER"
+    - name: Build the node
+      run: |
+        # cc-rs looks for a cross compiler by the target's name, which a native
+        # build doesn't have; musl-gcc is the one musl-tools installs.
+        export CC=musl-gcc
+        cargo build --release --locked -p quiddity-node --target "$TARGET"
+    - name: Check it is static and runs
+      run: |
+        bin=target/$TARGET/release/quiddity-node
+        # A dynamic executable names an interpreter (the loader); a static one doesn't.
+        if readelf -lW "$bin" | grep -q INTERP; then
+          echo "::error::The musl node is dynamically linked"
+          exit 1
+        fi
+        test "$("$bin" --version)" = "quiddity-node $SEMVER"
+    - name: Archive the node
+      run: |
+        mkdir -p dist
+        tar -C "target/$TARGET/release" -czf "dist/quiddity-node-$SEMVER-$TARGET.tar.gz" quiddity-node
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: unsigned-node-musl-${{ matrix.arch }}
+        path: dist/*
+        if-no-files-found: error
+        retention-days: 1
+
   android:
     needs: [version, ui]
     runs-on: ubuntu-latest
@@ -259,7 +313,7 @@ jobs:
   # applied once to this job, however many builds there are. The builds are
   # unsigned, and this signs what they made.
   sign:
-    needs: [version, desktop, android]
+    needs: [version, desktop, node-musl, android]
     runs-on: ubuntu-latest
     environment: release
     timeout-minutes: 15
@@ -391,7 +445,10 @@ jobs:
       id: packslip
       with:
         # Only the node is an archive of a binary. The installers are not
-        # something packslip installs, and the APK is not a tool.
+        # something packslip installs, and the APK is not a tool. The musl builds
+        # are included, so that the Home Assistant app can verify them against the
+        # signed manifest; packslip records a Linux archive's libc, so a client
+        # choosing by platform can tell them from the glibc builds.
         download: quiddity-node-*.tar.gz quiddity-node-*.zip
         bin: quiddity-node
         upload: false
