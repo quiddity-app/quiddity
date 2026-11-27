@@ -176,7 +176,15 @@ Sync over iroh (`Peer`), the on-disk `Store`, and the `quiddity-node` CLI.
   that came back elsewhere would otherwise be dialled at its old address.
   **Connecting has its own timeout** (10 s): QUIC waits far longer for a dead
   address, and that wait is the redial. Devices that both dial may hold two
-  connections at once; it works but doubles the traffic.
+  connections at once; it works but doubles the traffic. **The wait between
+  attempts doubles from 10 s to 24 h** (`REDIAL_MAX`), so a phone that is off
+  isn't pestered by an always-on node: it dials in when it is back. It starts
+  again on `Peer::retry_now`, which `dial_listed` calls when the endpoint's
+  addresses change, and when the device's own `link_epochs` entry moves (a
+  connection to it ended, whichever side dialled; nothing is dialled while one
+  lasts, so a connection coming up needs no count). That is a presence link
+  ending, not the QUIC handshake, so a device that accepts and closes before
+  its hello still backs off.
 - **`serve` and `save_on_change` are the library's, shared by the CLI and
   the app shell.** `serve` binds the endpoint, runs the router and (unless
   `local`) the dialler; dropping the `Server` stops the dialler, and
