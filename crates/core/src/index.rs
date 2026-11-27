@@ -315,6 +315,8 @@ impl Index {
                 );
             }
         }
+        // Before the backlinks, which resolve links by what entities inherit.
+        index.compute_effective();
         let references_for_mentions = references.clone();
         for (source, link) in references {
             let Some((targets, ambiguous)) = index.targets(&link) else {
@@ -331,7 +333,6 @@ impl Index {
         for &(source, ref link) in &references_for_mentions {
             index.add_mention(source, link, None);
         }
-        index.compute_effective();
         index
     }
 
@@ -620,15 +621,28 @@ impl Index {
     }
 
     /// Follows a link: entities with the link's name or alias whose
-    /// properties match all of the link's qualifiers.
+    /// properties match all of the link's qualifiers. A qualifier is matched
+    /// by what an entity writes or what it inherits.
     #[must_use]
     pub fn resolve(&self, link: &Link) -> Resolution {
+        self.resolve_with(link, true)
+    }
+
+    /// Follows a link as [`Index::resolve`] does, but matching qualifiers
+    /// against written properties only. Effective properties are made from
+    /// the references that links resolve, so those links can't wait for them.
+    pub(crate) fn resolve_written(&self, link: &Link) -> Resolution {
+        self.resolve_with(link, false)
+    }
+
+    fn resolve_with(&self, link: &Link, inherited: bool) -> Resolution {
         let mut matches: Vec<_> = self
             .named(&link.name)
             .into_iter()
-            .filter(|id| {
-                let info = &self.entities[id];
-                link.qualifiers.iter().all(|q| info.matches(q))
+            .filter(|&id| {
+                link.qualifiers
+                    .iter()
+                    .all(|q| self.entities[&id].matches(q) || (inherited && self.inherits(id, q)))
             })
             .collect();
         match matches.len() {
@@ -639,6 +653,24 @@ impl Index {
                 Resolution::Ambiguous(matches)
             }
         }
+    }
+
+    /// Whether a value the entity has by inheritance, or another effective
+    /// route, satisfies the qualifier. Written values are
+    /// [`EntityInfo::matches`]'s, which compares a list as one value.
+    fn inherits(&self, id: BlockId, q: &Qualifier) -> bool {
+        let key = normalise_name(&q.key);
+        let Some(items) = self.effective.get(&id).and_then(|eff| eff.get(&key)) else {
+            return false;
+        };
+        items
+            .iter()
+            .filter(|item| item.from.is_some())
+            .any(|item| match (&q.value, &item.value) {
+                (None, _) => true,
+                (Some(want), Some(have)) => value_matches(have, want),
+                (Some(_), None) => false,
+            })
     }
 
     /// The block with this `id` property.
