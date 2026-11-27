@@ -14,6 +14,7 @@ import type { EntityId } from '@/lib/model';
 
 import { listenToMenu, setEntityOpen } from '@/lib/menu';
 import { entrypoints } from '@/lib/nav';
+import { checkForUpdateNow, useUpdates } from '@/lib/updates';
 import { useGraph, useRead } from '@/lib/use-graph';
 
 const menuEntrypoints = entrypoints.filter((e) => e.in === 'menu');
@@ -31,6 +32,7 @@ export function MoreMenu() {
   const router = useRouter();
   const graph = useGraph();
   const view = useView();
+  const { supported } = useUpdates();
   const [open, setOpen] = useState(false);
   const [asking, setAsking] = useState<EntityId | null>(null);
   // An entity that has been confirmed, and is deleted once the page has left it.
@@ -51,6 +53,8 @@ export function MoreMenu() {
         if (command.kind === 'go') {
           noteFollowed();
           router.push(command.path);
+        } else if (command.kind === 'check-for-updates') {
+          void checkForUpdateNow();
         } else if (latest.current.main) {
           setAsking(latest.current.main);
         }
@@ -147,6 +151,19 @@ export function MoreMenu() {
           >
             {view.pageGraph ? 'Hide Page Graph' : 'Show Page Graph'}
           </button>
+          {supported && (
+            <button
+              type="button"
+              role="menuitem"
+              className={itemClass}
+              onClick={() => {
+                setOpen(false);
+                void checkForUpdateNow();
+              }}
+            >
+              Check for Updates
+            </button>
+          )}
           <button
             type="button"
             role="menuitem"

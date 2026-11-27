@@ -580,6 +580,7 @@ pub fn run() {
             put_blob,
             get_blob,
             set_entity_open,
+            updates::updates_supported,
             updates::check_for_update,
             updates::install_update
         ])

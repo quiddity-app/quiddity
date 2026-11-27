@@ -154,10 +154,10 @@ app's Go menu share) and Delete Entity for the main pane's entity
   are `pageGraph` in `lib/page-graph.ts` (`docs/Page graph.md`). The sr-only links
   have no size, so a test focuses one and presses Enter.
 - **The same component hears the app's native menu** (`lib/menu.ts`): the shell
-  sends one string on the `menu` event (`delete-entity`, or `go:<path>` for an
+  sends one string on the `menu` event (`delete-entity`, `check-for-updates`, or `go:<path>` for an
   entrypoint; anything else is ignored), and the page tells the shell
   whether an entity is open (`set_entity_open`) so File ▸ Delete Entity is only
-  on then. A browser has no menu, and both do nothing there. Go navigates as
+  on then. `check-for-updates` (the app menu's Check for Updates…, macOS only) asks `lib/updates.ts` for a check, as the More menu's item does; the item is shown once the shell has said it `updates_supported`, and the notice in the header says what the check found. A browser has no menu, and both do nothing there. Go navigates as
   the sidebar's links do, so it drops the side pane.
 
 ## Stats and debug

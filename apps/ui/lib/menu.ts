@@ -2,11 +2,13 @@ import { entrypoints } from './nav';
 
 /**
  * What the app's native menu asks of the page. The shell sends one string on
- * the `menu` event (`apps/app/src-tauri/src/menu.rs`): `delete-entity`, or
- * `go:<path>` for one of the entrypoints. In a browser there is no menu.
+ * the `menu` event (`apps/app/src-tauri/src/menu.rs`): `delete-entity`,
+ * `check-for-updates`, or `go:<path>` for one of the entrypoints. In a browser there is no menu.
  */
 export type MenuCommand =
-  { kind: 'delete-entity' } | { kind: 'go'; path: string };
+  | { kind: 'delete-entity' }
+  | { kind: 'check-for-updates' }
+  | { kind: 'go'; path: string };
 
 /** Whether the page is running inside the app, which has the menu. */
 function inApp(): boolean {
@@ -17,6 +19,9 @@ function inApp(): boolean {
 export function parseMenuCommand(payload: unknown): MenuCommand | null {
   if (payload === 'delete-entity') {
     return { kind: 'delete-entity' };
+  }
+  if (payload === 'check-for-updates') {
+    return { kind: 'check-for-updates' };
   }
   if (typeof payload !== 'string' || !payload.startsWith('go:')) {
     return null;

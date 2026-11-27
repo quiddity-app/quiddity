@@ -4,9 +4,11 @@
 	- **Stats and debug** counts what the graph holds, lists its virtual entities with their incoming links, and checks the graph for consistency. [[Stats and debug]]
 	- **Show Page Graph** opens a [[Page graph]] in the right pane, and becomes **Hide Page Graph** while it is open. It is greyed out where there is no entity in the main pane.
 	- **Delete Entity** deletes the entity in the main pane, and is greyed out where there is none (the journals, the graph). It asks first, naming the entity, and the answer that keeps it has the focus. Links to a deleted entity stay in the text, as links to nothing, and Undo brings it back. [[Links to nowhere]] [[Undo]]
+	- **Check for Updates** is there in the desktop app only, and asks for a new version. [[Updates]]
 	- Escape closes it, and the arrow keys move through it.
 - On macOS the menu bar has the same things. [[The shell]]
 	- **File ▸ Delete Entity** does what the More menu's does. It is greyed out while no entity is open.
+	- **Quiddity ▸ Check for Updates…** is after About, and does what the More menu's does.
 	- **Go** is beside File, and goes to each entrypoint: the journals, [[All entities]], the [[Graph view]], Devices and Stats and debug. The sidebar's links and Go go to the same places.
 	- The shell only tells the UI what was chosen, since the UI knows what is open and does the asking, the deleting and the going. The names are in `apps/app/src-tauri/src/menu.rs`, and a test there holds its paths to the UI's list of entrypoints.
 	- Not built: keyboard shortcuts for them. Cmd-Backspace would be the natural one for Delete Entity, but it means "delete to the start of the line" in a block being edited, and a menu's shortcut would take it.
