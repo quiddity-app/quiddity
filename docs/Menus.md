@@ -9,6 +9,7 @@
 	- Escape closes it, and the arrow keys move through it.
 - On macOS the menu bar has the same things. [[The shell]]
 	- **File ▸ Delete Entity** does what the More menu's does. It is greyed out while no entity is open.
+	- **Quiddity ▸ About Quiddity** opens the [[About page]] rather than the system's own panel, which has room for a name and one licence but not for what Quiddity is built from. [[Licences]]
 	- **Quiddity ▸ Check for Updates…** is after About, and does what the More menu's does.
 	- **Go** is beside File, and goes to each entrypoint: the journals, [[All entities]], the [[Graph view]], Devices and Stats and debug. The sidebar's links and Go go to the same places.
 	- The shell only tells the UI what was chosen, since the UI knows what is open and does the asking, the deleting and the going. The names are in `apps/app/src-tauri/src/menu.rs`, and a test there holds its paths to the UI's list of entrypoints.

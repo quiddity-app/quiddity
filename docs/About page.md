@@ -4,5 +4,5 @@
 	- Each package is a line with its name, version and licence. Opening it shows its licence text and a link to where it came from.
 	- The filter narrows the list by name or licence, one word at a time.
 - The list is `licenses.json`, fetched when the page opens, so the page is the same in the desktop app, on a phone and on the published site. If it can't be loaded the page says so.
-- Planned, not built: the desktop app's own About menu item opening it, in place of the system's panel.
+- On macOS the app menu's About Quiddity opens it too, in place of the system's panel. Windows and Linux have no menu bar, so the More menu is the way there.
 - [[Developer guide]]

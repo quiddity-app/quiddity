@@ -100,6 +100,11 @@ test('where the app cannot update, nothing is offered', async () => {
   expect(browser.asked).toEqual([]);
 });
 
+test('the menu can ask for the About page', () => {
+  expect(parseMenuCommand('about')).toEqual({ kind: 'go', path: '/about/' });
+  expect(parseMenuCommand('go:/about/')).toBeNull();
+});
+
 test('the menu can ask for a check', () => {
   expect(parseMenuCommand('check-for-updates')).toEqual({
     kind: 'check-for-updates',

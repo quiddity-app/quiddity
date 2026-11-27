@@ -13,7 +13,7 @@ import { Button, iconButtonClass } from './ui';
 import type { EntityId } from '@/lib/model';
 
 import { listenToMenu, setEntityOpen } from '@/lib/menu';
-import { entrypoints } from '@/lib/nav';
+import { ABOUT_PATH, entrypoints } from '@/lib/nav';
 import { checkForUpdateNow, useUpdates } from '@/lib/updates';
 import { useGraph, useRead } from '@/lib/use-graph';
 
@@ -180,7 +180,7 @@ export function MoreMenu() {
             Delete Entity
           </button>
           <Link
-            href="/about/"
+            href={ABOUT_PATH}
             role="menuitem"
             className={`${itemClass} mt-1 border-t border-border`}
             onClick={() => {
