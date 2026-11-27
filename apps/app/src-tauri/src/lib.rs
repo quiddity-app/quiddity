@@ -248,10 +248,12 @@ async fn subscribe_updates(
 /// the screen was off or the app in the background. A phone's sockets and relay
 /// connection don't survive that, and iroh can't see it happen on every
 /// system (Android's network changes aren't visible to native code), so without
-/// this it dials on a dead socket until it gives up. It does no harm when
-/// nothing changed, and nothing when the network is off.
+/// this it dials on a dead socket until it gives up. It also starts the
+/// dialler's waits again (`Peer::retry_now`), so a device that was out of reach
+/// is tried now. It does no harm when nothing changed, and nothing when the
+/// network is off.
 #[tauri::command]
-async fn network_changed(running: State<'_, Running>) -> Result<(), Error> {
+async fn network_changed(app: tauri::AppHandle, running: State<'_, Running>) -> Result<(), Error> {
     let endpoint = running
         .tasks()
         .endpoint
@@ -260,6 +262,15 @@ async fn network_changed(running: State<'_, Running>) -> Result<(), Error> {
         .clone();
     if let Some(endpoint) = endpoint {
         endpoint.network_change().await;
+    }
+    // A device that was out of reach is dialled now, not when its delay (which
+    // grows to a day) is over. There is no session before a graph is chosen.
+    if let Some(session) = app.try_state::<Mutex<Session>>() {
+        session
+            .lock()
+            .expect("session lock poisoned")
+            .peer()
+            .retry_now();
     }
     Ok(())
 }
