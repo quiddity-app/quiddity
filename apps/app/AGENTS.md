@@ -29,7 +29,10 @@ holds its own replica and answers its own queries (see `apps/ui` and
   shown again, because a phone's sockets and relay connection don't survive the
   screen being off and iroh can't see that on Android. A woken phone was seen
   dialling for minutes without connecting; this is the remedy iroh documents for
-  it, and not yet confirmed on a phone. It does nothing with the network off.
+  it, and not yet confirmed on a phone. It then calls `Peer::retry_now`, so the
+  dialler tries what it was waiting out at once (there is no session until a
+  graph is chosen, so it asks with `try_state`). The endpoint is nothing with the
+  network off.
   `device_id` and `allow_device` are for letting
   another device in (see `docs/App sync.md`); the Devices page calls them.
   `list_graphs`, `switch_graph` and `create_graph` are for the UI's graph picker

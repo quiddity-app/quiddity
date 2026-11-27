@@ -10,6 +10,8 @@
 	- A place is gone back to for six hours, and then home is where a new start goes. A place whose entity has since gone (deleted on another device while the app was away) is not gone back to.
 	- Changing graph forgets the place and keeps none on the way out, since the new graph has none of the old one's entities. [[Several graphs]]
 	- Not kept: an entity being edited, the caret, an open menu or the search, and the back and forward history, which are in the page's memory and start again.
+- Looking for the other devices when it is back
+	- The page tells the shell when it is shown again (`network_changed`), and the shell tells the endpoint to look at its network again, since on Android nothing else tells it that the phone has moved from wifi to mobile data or been asleep, and then starts the dialler's waits again (`Peer::retry_now`). A device that was out of reach is dialled now and not when its delay, which grows to a day, is over. [[App sync]] [[Device list]]
+	- Not tried on a device. The [[Network log]] on the debug page shows the devices being dialled straight after the app comes back, which is how to find out whether it works.
 - Not built
-	- Telling the shell when the app is brought back, so that it looks for the other devices at once and not after a back-off.
 	- Syncing while the app is away. Android doesn't let an app hold a connection open in the background without a persistent notification, so the choices are a foreground service, which costs battery for a notes app, or a periodic job that wakes, syncs and stops, which needs code in Kotlin, and which finds another device only if it is also awake. Neither is built, so a device syncs only while the app is on screen.
