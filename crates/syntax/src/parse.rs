@@ -468,11 +468,21 @@ fn follows_property(block: &Block, pos: usize) -> bool {
 
 /// Returns the fence character, its run length, and whether the rest of the
 /// line is blank (so it could close a fence).
+///
+/// A line that closes its own run, such as ```` ```x``` then ````, isn't a
+/// fence: `CommonMark` reads the backtick form as an inline code span, and
+/// tildes are held to the same rule so that `~~~x~~~` can't hide what follows.
 fn fence_marker(line: &str) -> Option<(char, usize, bool)> {
     let t = line.trim_start();
     let c = t.chars().next().filter(|c| matches!(c, '`' | '~'))?;
     let n = t.len() - t.trim_start_matches(c).len();
-    (n >= 3).then(|| (c, n, t[n..].trim().is_empty()))
+    let rest = &t[n..];
+    let closes_itself = if c == '`' {
+        rest.contains('`')
+    } else {
+        rest.contains(&t[..n])
+    };
+    (n >= 3 && !closes_itself).then(|| (c, n, rest.trim().is_empty()))
 }
 
 fn skip_code_span(sc: &mut Scanner<'_>) {
@@ -1076,6 +1086,22 @@ mod tests {
         ] {
             assert_eq!(props(src), vec![], "{src}");
         }
+    }
+
+    #[test]
+    fn a_line_that_closes_its_own_fence_is_not_one() {
+        for src in [
+            "```x``` then\nsee [[Link]] #tag",
+            "~~~x~~~ then\nsee [[Link]] #tag",
+        ] {
+            let block = parse_block(src);
+            assert_eq!(block.links, vec![link("Link")], "{src}");
+            assert_eq!(block.properties.len(), 1, "{src}");
+        }
+        // A longer tilde run inside is not a closer for a shorter opener's
+        // line, but a real info string is still a fence.
+        assert_eq!(props("```rust\n#fenced\n```"), vec![]);
+        assert_eq!(props("~~~a ~~ b\n#fenced\n~~~"), vec![]);
     }
 
     #[test]
