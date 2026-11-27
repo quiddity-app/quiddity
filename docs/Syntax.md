@@ -39,5 +39,5 @@
 	- `##key:: value`, alone on a line, has a value written as a property line's: a link or a list needs no query syntax. `::` must be followed by a space or the end of the line, and a line with no value is `##key`. It has no parameter, and a line with a parameter has no value.
 	- `##key` or `##key(parameter)`, alone on a line. The parameter is kept as written and is usually a query ([[Queries]]); its parentheses balance, so it needs no escaping.
 	- A meta-property line is not prose: a `#key(value)` in its parameter is part of the query, not a tag of the block.
-- Code spans and fenced code are opaque: nothing in them is a property, a link or a reference. A line such as ` ```x``` then ` closes its own run, so it is a code span and not the start of a fence.
+- Code spans and fenced code are opaque: nothing in them is a property, a link or a reference. A line such as ` ```x``` then ` closes its own run, so it is a code span and not the start of a fence. A fence in an entity's properties block is prose too: it can't start the block, and its lines are stray, so a `b:: 2` inside it isn't a property.
 - Anything malformed is plain text. Reading never fails. The parser is [[quiddity-syntax]], and the UI gets its answers through [[quiddity-view]], so there is only one.
