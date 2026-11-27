@@ -5,6 +5,7 @@
 - What you get
 	- The desktop app ([[The shell]]) named for the version, for Linux, macOS and Windows on x64 and arm64: `.deb`, `.rpm` and `.AppImage`, `.dmg`, and an `.msi` and a `-setup.exe`. And an Android APK, for every Android ABI in one file.
 	- `quiddity-node-1.2.3-<target>.tar.gz` for Linux and macOS and `.zip` for Windows, with the executable at the root of each. These are what packslip publishes.
+	- The same for Alpine: `quiddity-node-1.2.3-x86_64-unknown-linux-musl.tar.gz` and `…-aarch64-unknown-linux-musl.tar.gz`, statically linked, for images such as the Home Assistant app that can't run the glibc build. They are attested like the rest and are in the [[packslip]] manifest, as `libc: musl`, so that the Home Assistant app can verify what it downloads against the signed bundle without a token.
 	- `packslip.sigstore.json`, the signed manifest.
 - Version numbers
 	- The tag without its `v` is the version everywhere. `scripts/set-version.sh` writes it into the workspace and the shell's `Cargo.toml` and runs `cargo update --workspace` in both, so the lock files change only in those versions and `--locked` still holds. `quiddity-node --version` therefore says what was released. The checked-in `0.1.0` is a placeholder.
@@ -14,11 +15,12 @@
 	- Every file is given SLSA build provenance with `actions/attest`, so `gh attestation verify <file> --repo quiddity-app/quiddity` works on any of them.
 	- The `packslip` job downloads the node's archives from the release, so what it signs is what was published, and signs a manifest of their digests with the workflow's identity through Sigstore. There is no key to keep. It runs with only `contents: read`; a later job, with `contents: write`, uploads `packslip.sigstore.json`.
 	- Consumers hold each release to the workflow that signed the first one they saw, so every release must come from `release.yml`. Renaming or moving it would look like a change of signer.
-	- Only the node is in the manifest: packslip installs archives of binaries, and never picks an installer such as `.deb`, `.dmg` or `.msi`.
+	- Only the node is in the manifest (its glibc and musl archives): packslip installs archives of binaries, and never picks an installer such as `.deb`, `.dmg` or `.msi`.
 - No caches
 	- Nothing in the workflow restores a cache, not Rust's, and not the one `setup-node` would make for pnpm: a release builds from clean, so that a poisoned cache entry can't reach the published files. The zizmor and jactionlint checks insist on it for any workflow triggered by a release. Releases are slower than CI for it.
 - How it is built
 	- The UI is built once, in the first job, and every app embeds it; the platform jobs skip `beforeBuildCommand`.
+	- The musl nodes are built on their own job, natively on an x64 and an arm64 runner with `musl-tools`, and checked to be static and to report the release's version.
 	- Each desktop platform is a matrix entry that builds the node and then the app. The Linux and Windows arm64 builds run natively on GitHub's arm64 runners (free for public repositories only). Both macOS builds run on one Apple silicon runner, and x64 is cross-compiled.
 	- The Android job runs `tauri android init`, then `tauri icon` to give the generated project our launcher icons ([[App icon]]), and builds an unsigned release APK.
 	- The jobs use the plain setup actions that [[GitHub Pages]] does, not mise and [[mbx]], so they don't depend on either supporting every runner.
