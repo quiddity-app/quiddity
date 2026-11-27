@@ -839,3 +839,59 @@ fn qualifiers_see_inheritance() -> Result<()> {
     );
     Ok(())
 }
+
+/// The day an entity is of, by name.
+fn date_of(index: &Index, name: &str) -> Option<String> {
+    let id = index.named(name)[0];
+    index.effective_date(id).map(|d| d.to_string())
+}
+
+#[test]
+fn date_for_gives_an_entity_its_day() -> Result<()> {
+    let graph = Graph::new();
+    entity(&graph, "class", "type:: property")?;
+    entity(
+        &graph,
+        "on-date",
+        "type:: property\n##date-for(#class(Sermon))",
+    )?;
+    entity(&graph, "Sermon", "")?;
+    entity(&graph, "Advent", "class:: Sermon\non-date:: 2026-11-27")?;
+    entity(
+        &graph,
+        "Timed",
+        "class:: Sermon\non-date:: 2026-11-28T09:30:00+01:00",
+    )?;
+    entity(
+        &graph,
+        "Both",
+        "class:: Sermon\non-date:: [2026-11-27, 2026-12-04]",
+    )?;
+    entity(
+        &graph,
+        "Same",
+        "class:: Sermon\non-date:: [2026-11-27, 2026-11-27]",
+    )?;
+    entity(&graph, "None", "class:: Sermon")?;
+    entity(&graph, "Garbled", "class:: Sermon\non-date:: soon")?;
+    entity(&graph, "Meeting", "on-date:: 2026-11-27")?;
+    let index = Index::build(&graph)?;
+    let day = |name| date_of(&index, name);
+    assert_eq!(day("Advent").as_deref(), Some("2026-11-27"));
+    assert_eq!(day("Timed").as_deref(), Some("2026-11-28"), "as written");
+    assert_eq!(day("Same").as_deref(), Some("2026-11-27"), "one day, twice");
+    assert_eq!(day("Both"), None, "two days is no day");
+    assert_eq!(day("None"), None);
+    assert_eq!(day("Garbled"), None);
+    assert_eq!(day("Meeting"), None, "the query doesn't find it");
+    Ok(())
+}
+
+#[test]
+fn a_journal_is_of_its_own_day() -> Result<()> {
+    let graph = Graph::new();
+    quiddity_core::create_journal(&graph, "2026-11-27".parse().unwrap())?;
+    let index = Index::build(&graph)?;
+    assert_eq!(date_of(&index, "2026-11-27").as_deref(), Some("2026-11-27"));
+    Ok(())
+}

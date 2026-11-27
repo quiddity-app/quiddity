@@ -29,8 +29,10 @@ alias:: [Meta-properties, meta-property, ## properties]
 	  | `##through(property)` | an entity has the values its values have of another property |
 	  | `##inverse(label)` | the name of the relation the other way round |
 	  | `##symmetric` | the relation holds both ways |
+	  | `##date-for(query)` | the property to read the day of the entities the query finds from |
 	- `##values` and `##applies-to` take a query. [[Queries]]
 	- `##cardinality` is written as UML writes multiplicity: `1`, `0..1`, `1..*`, `2..5`, or `*` for any number. It counts values, not lines: `#steps([a, b, c])` is three, and so are three `#step` lines. A list keeps its order; that is all that makes it different.
+	- `##date-for` takes a query too, and implies `date` for the property unless `##value-type` says otherwise.
 	- `##values`, `##transitive`, `##inherits`, `##through`, `##inverse` and `##symmetric` only make sense for references, so a property with any of them is a `ref` property unless `##value-type` says otherwise. As now, a bare name in a reference is a name: with `parent` a reference, `parent:: Scotland` means `parent:: [[Scotland]]`. [[Links]]
 - Defaults
 	- A property with no meta-properties is text, with any number of values, on anything.
@@ -57,6 +59,10 @@ alias:: [Meta-properties, meta-property, ## properties]
 	- If several properties have the same label, the list has what any of them relate. An entity counts as direct, on the page, if any of them refers to it as written.
 	- The label can't be written as a property (a `children:: Edinburgh` line is an ordinary `children` property, unrelated to `parent`), and a property entity named for a label is flagged.
 	- `##symmetric` is for relations like `sibling` or `spouse`: if Ann's sibling is Bob, Bob's sibling is Ann, whichever of them it is written on. A symmetric property is its own inverse.
+- Dating entities
+	- `##date-for(#class(Sermon))` on `on-date` says that `on-date` is where the day of a sermon is read from: an entity with `class:: Sermon` and `on-date:: 2026-11-27` is of that day, and nothing else needs writing. A [[Journal]] is of its own day without it.
+	- An entity has a day only if the properties that give it one agree on a single day: none, or two different ones, and it has no day, so nothing is guessed. The same day twice is one day. A date-time counts as the day it is written with, and a link to a journal as that journal's day. It is the effective properties that are read, so a day can be inherited like any other value, and a flag for the cardinality is left to `##cardinality`.
+	- Linked references split in two: the entities with a day, latest first, each with its day beside its name, and then those without, by name. The day is also what a [[Journal]] is sorted by there, so the two are sorted together. Inverse lists are not yet split this way. [[Links]]
 - Flags
 	- Like the rest of a schema, meta-properties never reject anything: the text is what it is, and what doesn't fit is flagged where it is written. A flagged line is ringed, and says why when hovered over. A flag with no line to go on, such as a property the entity should have and doesn't, is listed under the entity's title.
 	- A value that isn't of the `##value-type`.
@@ -71,5 +77,6 @@ alias:: [Meta-properties, meta-property, ## properties]
 	- [[quiddity-core]] reads each property's meta-properties into its schema, and, after building the index, works out each entity's effective properties (its own, inherited, transitive, through and symmetric) by repeating until nothing changes, which copes with cycles. [[Queries]] are answered against the effective properties; the checks look at what is written.
 	- A reference refers to an entity only if it resolves to exactly one. An ambiguous link, or one to nowhere, is followed nowhere and checked against nothing.
 	- The work grows with the graph and how far its relations reach, and is redone at every rebuild of the index. On a graph of 3,150 pages it is about 20 ms of an 80 ms rebuild. [[Performance]]
+	- `Index::effective_date` in [[quiddity-core]] finds an entity's day by asking each property with a `##date-for` whether it finds the entity, which is done when a list of references is made and not at every rebuild.
 	- [[quiddity-view]] puts each flag on its line, in words, and gives an entity's page its inherited values and inverse trees.
 	- They replace the `value-type::`, `form::` and `cardinality::` lines that a property entity is read for today. `form` goes: a list is always allowed.

@@ -101,6 +101,10 @@ pub struct PropertySchema {
     /// with `##through(parent)` on `type`, an entity of type Biblical
     /// figures, whose `parent` is Persons, is of type Persons too.
     pub through: Option<String>,
+    /// `##date-for`: the entities this property gives an effective date
+    /// to. With `##date-for(#class(Sermon))` on `on-date`, a sermon was
+    /// preached on the day its `on-date` says.
+    pub date_for: Option<Query>,
 }
 
 impl Default for PropertySchema {
@@ -126,6 +130,7 @@ impl PropertySchema {
             inverse: None,
             symmetric: false,
             through: None,
+            date_for: None,
         }
     }
 
@@ -178,12 +183,12 @@ impl PropertySchema {
                         Some("expected text, number, boolean, date, datetime or ref".to_owned())
                     }
                 },
-                (Meta::Values | Meta::AppliesTo, Some(p)) => match parse_query(p) {
+                (Meta::Values | Meta::AppliesTo | Meta::DateFor, Some(p)) => match parse_query(p) {
                     Ok(q) => {
-                        let slot = if which == Meta::Values {
-                            &mut self.values
-                        } else {
-                            &mut self.applies_to
+                        let slot = match which {
+                            Meta::Values => &mut self.values,
+                            Meta::AppliesTo => &mut self.applies_to,
+                            _ => &mut self.date_for,
                         };
                         *slot = Some(q);
                         None
@@ -217,8 +222,12 @@ impl PropertySchema {
             || self.inverse.is_some()
             || self.symmetric
             || self.through.is_some();
-        if relates && !typed {
-            self.value_type = ValueType::Ref;
+        if !typed {
+            if relates {
+                self.value_type = ValueType::Ref;
+            } else if self.date_for.is_some() {
+                self.value_type = ValueType::Date;
+            }
         }
         (self, flags)
     }
@@ -249,6 +258,7 @@ enum Meta {
     Inverse,
     Symmetric,
     Through,
+    DateFor,
 }
 
 const META: &[(&str, Meta)] = &[
@@ -261,6 +271,7 @@ const META: &[(&str, Meta)] = &[
     ("inverse", Meta::Inverse),
     ("symmetric", Meta::Symmetric),
     ("through", Meta::Through),
+    ("date-for", Meta::DateFor),
 ];
 
 /// How `##value-type` is spelt.
@@ -400,6 +411,13 @@ mod tests {
         assert_eq!(schema.inverse.as_deref(), Some("rated"));
         assert_eq!(schema.through, None);
 
+        let (schema, flags) = read("##date-for(#class(Sermon))");
+        assert_eq!(flags, []);
+        assert_eq!(schema.date_for, parse_query("#class(Sermon)").ok());
+        assert_eq!(schema.value_type, ValueType::Date, "a date is implied");
+        let (schema, _) = read("##date-for(x)\n##value-type(datetime)");
+        assert_eq!(schema.value_type, ValueType::DateTime, "unless it says");
+
         let (schema, flags) = read("##through(parent)");
         assert_eq!(flags, []);
         assert_eq!(schema.through.as_deref(), Some("parent"));
@@ -437,7 +455,7 @@ mod tests {
     #[test]
     fn unreadable_meta_properties_are_flagged() {
         let (schema, flags) = read(
-            "##nonsense\n##transitive(yes)\n##values\n##values(a &)\n##value-type(colour)\n##cardinality(5..2)\n##through",
+            "##nonsense\n##transitive(yes)\n##values\n##values(a &)\n##value-type(colour)\n##cardinality(5..2)\n##through\n##date-for",
         );
         assert_eq!(
             schema,
@@ -461,7 +479,8 @@ mod tests {
                 "bad values",
                 "bad value-type",
                 "bad cardinality",
-                "bad through"
+                "bad through",
+                "bad date-for"
             ]
         );
     }

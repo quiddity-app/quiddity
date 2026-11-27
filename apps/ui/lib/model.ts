@@ -297,6 +297,10 @@ export interface Merged {
 /** The blocks of one entity that mention another. */
 export interface Reference {
   source: EntityRef;
+  /** The day the source is of, `YYYY-MM-DD`: a journal's own, or the one day
+   * a `##date-for` property gives it. Those with one come first, latest
+   * first. */
+  date: string | null;
   /** Each with its children, for context. */
   blocks: Block[];
   links: Record<string, ResolvedLink>;
