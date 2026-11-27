@@ -1,0 +1,12 @@
+- Syncing while the app isn't open, which on a phone means being woken by the system for a few minutes at a time. **Planned, not built**, apart from the first step.
+- What it is for
+	- Finishing a sync that is under way when the user leaves the app, and an occasional sync of a phone that hasn't been opened, so that it isn't far behind when it is. The phone is not a peer that others can count on reaching: the always-on devices are the desktops. [[App sync]]
+- The plan, in the order it is built, each step a pull request of its own
+	- 1. Waiting for a sync to be done: `Peer::settled(timeout)`. Built. [[Sync status]]
+	- 2. The shell's session made a process-wide singleton, started without a window, so that a background run and the app share one graph and one endpoint instead of opening it twice. [[The shell]]
+	- 3. A call that starts the node, waits for `settled` and shuts it down gracefully, for a background job to make.
+	- 4. On Android, a WorkManager periodic job that makes that call, on any network for the graph and an unmetered one for [[Blob transfer]], and a short-lived foreground service held while a sync is unfinished after the app is left. [[Running the app]]
+- Limits that are the platform's
+	- Doze and App Standby batch background work, so "infrequent" means unpredictable, and a desktop is only reached if it is awake at the same time. The graph is complete on every device, so being late costs freshness and nothing else.
+	- A periodic job is at most every 15 minutes and runs for about ten.
+	- iOS is not planned yet.
