@@ -601,12 +601,20 @@ export class Graph {
     this.hidden = hidden;
     void this.report();
     if (!hidden) {
-      this.backend
-        .networkChanged?.()
-        .catch((error) =>
-          console.error("Couldn't tell the network it may have changed", error),
-        );
+      this.networkMayHaveChanged();
     }
+  }
+
+  /** Tells the shell the network may have changed: the page was shown again,
+   * or the browser says the device is online (a phone moving from Wi-Fi to
+   * mobile data, say, which iroh can't see on every system). The shell then
+   * rebinds and dials the devices it had given up on for a while. */
+  networkMayHaveChanged() {
+    this.backend
+      .networkChanged?.()
+      .catch((error) =>
+        console.error("Couldn't tell the network it may have changed", error),
+      );
   }
 
   /** Tells the shell which block is open, as it is by the time it hears:
@@ -700,6 +708,9 @@ export function bootGraph(): Promise<Graph> {
     const sync = () => graph.setHidden(document.hidden);
     document.addEventListener('visibilitychange', sync);
     window.addEventListener('pageshow', sync);
+    // The browser's word that connectivity came back or changed, which is
+    // when a device that couldn't be reached may be reachable.
+    window.addEventListener('online', () => graph.networkMayHaveChanged());
     return graph;
   })();
   return booted;

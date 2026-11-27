@@ -46,7 +46,9 @@ the current entity in the middle, open secondaries on the right.
   typing it holds back before the OS suspends it: a phone's screen going off
   stops the shell's timers with it. Shown again, it also says
   `networkChanged` (`__quiddityRemote.networkChanges` counts it), so the shell
-  refreshes its endpoint. `focus.spec.ts` fakes `document.hidden`.
+  refreshes its endpoint; so does the window's `online` event
+  (`Graph.networkMayHaveChanged`), for a phone that changes network with the
+  app open and so is never hidden. `focus.spec.ts` fakes `document.hidden`.
   Outside the app the graph is a made-up one in memory, built through the same
   replica, and reset on reload. **Its IDs differ on every load**, so tests
   can't keep an ID across a reload, and anything remembered by ID (Recents)
