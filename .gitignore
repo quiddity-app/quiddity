@@ -160,5 +160,8 @@ vite.config.ts.timestamp-*
 # Graph copied in for a published build (QUIDDITY_STATIC_GRAPH)
 apps/ui/public/graph.loro
 
+# Made by scripts/licenses.mjs
+apps/ui/public/licenses.json
+
 # macOS Finder metadata
 .DS_Store

@@ -128,6 +128,11 @@ run = [
   "pnpm ui test:e2e",
 ]
 
+[tasks.licenses]
+description = "Collect the licences of the Rust crates and npm packages the app is built from (apps/ui/public/licenses.json)"
+depends = ["setup"]
+run = "node scripts/licenses.mjs"
+
 [tasks."test:scripts"]
 description = "Test the scripts in scripts/ (the journal roll-up, the fuzz target filter)"
 run = "node --test scripts/*.test.mjs"

@@ -1,0 +1,11 @@
+- What Quiddity is built from, and the licence each part is under. Most open source licences (MIT, BSD, Apache-2.0) are granted on condition that their text and copyright notice travel with the software, so Quiddity ships the list rather than only thanking people.
+- What the user sees: planned, an About page listing every dependency with its licence text, reached from the three-dot menu on every platform and from the About item in the desktop menu. Not built yet.
+- `scripts/licenses.mjs` makes `licenses.json` from what is built in, run by `mise run licenses`. It is generated, never committed, and written to `apps/ui/public/`.
+	- Rust crates: the ones reachable by normal dependencies from `quiddity-app` and `quiddity-wasm`, found with `cargo metadata`. Build and dev dependencies are left out, as they are not shipped.
+	- npm packages: the UI's production dependencies, from `pnpm licenses list`. Packages that are installed but not shipped are named in the script with the reason: the sharp binaries that Next's image optimiser uses, which a static export doesn't include. [[Next.js]]
+	- Both lists are a little wider than what ships, since every target's crates are counted, which errs towards saying too much.
+- Each package's own licence files are used where it has them. Many crates publish none, as theirs sits at the root of a workspace outside the package, so the standard text of the licence (from `scripts/licence-templates/`) stands in, naming the authors from `Cargo.toml` or, with none, "the crate's authors". For `A OR B` the first licence with a template is shown, for `A AND B` all of them.
+	- The same text is stored once, however many packages share it.
+- A licence outside the allow list in the script, or a package with no text to show, fails the run and names every such package, so that someone decides: either the list or the dependency changes. CI runs it in the `site` job.
+	- Allowed: MIT, Apache-2.0, the BSD and ISC family, Zlib, Unlicense and CC0, MPL-2.0 (as long as its files are not modified), Unicode, and OFL-1.1 and CC-BY-4.0 for the font and the browser-support data.
+- [[Developer guide]]
