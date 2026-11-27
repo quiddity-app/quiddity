@@ -65,6 +65,38 @@ test('typing that never pauses is still pushed as it goes', async ({
   expect((await pushes()) - before).toBeGreaterThanOrEqual(2);
 });
 
+test('a hidden page has no block open, and has it again when shown', async ({
+  page,
+}) => {
+  await openEntity(page, 'Loro');
+  await editBlock(page, block);
+  await page.keyboard.press('End');
+  await page.keyboard.type(' Typed.');
+  const focus = () =>
+    page.evaluate(() => window.__quiddityRemote?.focus.length);
+  await expect.poll(focus).toBe(1);
+
+  // A phone's screen going off: the shell can't release typing it is holding
+  // back once it is suspended, so the page lets go of the block first.
+  const setHidden = (hidden: boolean) =>
+    page.evaluate((hidden) => {
+      Object.defineProperty(document, 'hidden', {
+        configurable: true,
+        value: hidden,
+      });
+      document.dispatchEvent(new Event('visibilitychange'));
+    }, hidden);
+  await setHidden(true);
+  await expect.poll(focus).toBe(0);
+  // What was typed reached the shell before it was told, as for any move.
+  const last = () =>
+    page.evaluate(() => window.__quiddityRemote?.typed.at(-1)?.length);
+  expect(await last()).toBe(1);
+
+  await setHidden(false);
+  await expect.poll(focus).toBe(1);
+});
+
 test('leaving a block that was only typed in is still told as typing', async ({
   page,
 }) => {

@@ -123,6 +123,8 @@ export class Graph {
   private structural = false;
   /** The block being edited, as other devices are told. */
   private focused: string | undefined;
+  /** Whether the page is hidden, as a phone's screen going off hides it. */
+  private hidden = false;
   /** What the shell was last told, to say nothing twice. */
   private reported = '';
   private pushing: Promise<void> = Promise.resolve();
@@ -583,12 +585,25 @@ export class Graph {
     void this.report();
   }
 
+  /** The page has been hidden or shown. A hidden page has no block open, so
+   * the shell ends the typing it was holding back, and sends it, while it can:
+   * a phone that is put to sleep stops the shell too, and its timers with it.
+   * Shown again, the block being edited is open once more. */
+  setHidden(hidden: boolean) {
+    if (this.hidden === hidden) {
+      return;
+    }
+    this.hidden = hidden;
+    void this.report();
+  }
+
   /** Tells the shell which block is open, as it is by the time it hears:
    * a move from one block to another is one report, not two. */
   private async report() {
     try {
       await this.flush();
-      const blocks = this.focused === undefined ? [] : [this.focused];
+      const open = this.hidden ? undefined : this.focused;
+      const blocks = open === undefined ? [] : [open];
       const key = blocks.join(',');
       if (key === this.reported) {
         return;
@@ -667,12 +682,12 @@ export function bootGraph(): Promise<Graph> {
         console.error("Couldn't listen for the sync status", error),
       );
     graph.begin();
-    const save = () => void graph.flush();
-    window.addEventListener('pagehide', save);
-    document.addEventListener(
-      'visibilitychange',
-      () => document.hidden && save(),
-    );
+    // Leaving the page saves what was typed and lets go of the block being
+    // edited, which sends it to other devices (`Graph.setHidden`).
+    window.addEventListener('pagehide', () => graph.setHidden(true));
+    const sync = () => graph.setHidden(document.hidden);
+    document.addEventListener('visibilitychange', sync);
+    window.addEventListener('pageshow', sync);
     return graph;
   })();
   return booted;

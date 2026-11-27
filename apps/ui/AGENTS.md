@@ -41,6 +41,10 @@ the current entity in the middle, open secondaries on the right.
   typed in) for `e2e/focus.spec.ts`. **`Graph.focus`/`blur` report the block
   being edited**, flushing first so the shell has the typing before the move;
   a push says which blocks it was typed in only if nothing but typing changed.
+  **A hidden page reports no block open** (`Graph.setHidden`, from
+  `visibilitychange` and `pagehide`; `pageshow` undoes it), so the shell ends the
+  typing it holds back before the OS suspends it: a phone's screen going off
+  stops the shell's timers with it. `focus.spec.ts` fakes `document.hidden`.
   Outside the app the graph is a made-up one in memory, built through the same
   replica, and reset on reload. **Its IDs differ on every load**, so tests
   can't keep an ID across a reload, and anything remembered by ID (Recents)
