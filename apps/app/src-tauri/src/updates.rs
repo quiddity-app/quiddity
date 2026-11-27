@@ -36,6 +36,13 @@ impl Serialize for Error {
     }
 }
 
+/// Whether this app can update itself, which the UI asks before offering to
+/// check: the desktop app can, and a phone is updated some other way.
+#[tauri::command]
+pub fn updates_supported() -> bool {
+    cfg!(desktop)
+}
+
 /// The update the last check found, for [`install_update`] to install.
 #[cfg(desktop)]
 #[derive(Default)]
@@ -115,6 +122,12 @@ mod tests {
             let url = endpoint.as_str().expect("an endpoint is a string");
             assert!(url.starts_with("https://"), "{url} is not https");
         }
+    }
+
+    #[cfg(desktop)]
+    #[test]
+    fn the_desktop_app_says_it_can_update() {
+        assert!(updates_supported());
     }
 
     #[test]

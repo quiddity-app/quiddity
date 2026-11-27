@@ -12,7 +12,7 @@ holds its own replica and answers its own queries (see `apps/ui` and
   resolves against the lowest `rust-version` in the workspace, which is why
   there is one, in the root `Cargo.toml`, and the app and `quiddity-node`
   inherit it.
-- **Nineteen commands.** `load_graph` returns a snapshot and `push_updates`
+- **Twenty-two commands.** `load_graph` returns a snapshot and `push_updates`
   takes Loro updates as the request body, imports them, saves and sends them
   to other devices, both as raw bytes rather than JSON arrays. Updates that
   arrive out of order are held by Loro until their causes do.

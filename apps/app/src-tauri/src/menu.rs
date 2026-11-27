@@ -5,7 +5,8 @@
 //! The menu is only a way of asking: it tells the page what was chosen, on the
 //! `menu` event, and the page does it (`apps/ui/lib/menu.ts`), since the page
 //! knows which entity is open and does the navigating and the deleting. The
-//! event's payload is the item's ID: `delete-entity`, or `go:` and a path.
+//! event's payload is the item's ID: `delete-entity`, `check-for-updates`, or
+//! `go:` and a path.
 
 use tauri::AppHandle;
 #[cfg(target_os = "macos")]
@@ -24,6 +25,9 @@ const GO: [(&str, &str); 5] = [
 
 #[cfg(target_os = "macos")]
 const DELETE_ENTITY: &str = "delete-entity";
+
+#[cfg(target_os = "macos")]
+const CHECK_FOR_UPDATES: &str = "check-for-updates";
 
 /// Says whether an entity is open, which is when Delete Entity can be chosen.
 /// There is no menu to change anywhere but macOS.
@@ -50,7 +54,7 @@ mod native {
     use tauri::{AppHandle, Emitter, Manager, Wry};
     use tracing::warn;
 
-    use super::{DELETE_ENTITY, GO};
+    use super::{CHECK_FOR_UPDATES, DELETE_ENTITY, GO};
 
     /// The File menu's Delete Entity, kept to enable and disable it.
     pub struct DeleteEntity(pub MenuItem<Wry>);
@@ -81,6 +85,19 @@ mod native {
             }
         };
 
+        // The first menu is the app's, whose first item is About: macOS puts
+        // Check for Updates straight after it.
+        if let Some(app_menu) = items.first().and_then(|item| item.as_submenu()) {
+            let check = MenuItem::with_id(
+                app,
+                CHECK_FOR_UPDATES,
+                "Check for Updates…",
+                true,
+                None::<&str>,
+            )?;
+            app_menu.insert(&check, 1)?;
+        }
+
         let entries = GO
             .iter()
             .map(|(title, path)| {
@@ -102,7 +119,7 @@ mod native {
     /// Passes what was chosen on to the page.
     pub fn on_event(app: &AppHandle, event: MenuEvent) {
         let id = event.id().as_ref();
-        if (id == DELETE_ENTITY || id.starts_with("go:"))
+        if (id == DELETE_ENTITY || id == CHECK_FOR_UPDATES || id.starts_with("go:"))
             && let Err(error) = app.emit_to("main", "menu", id)
         {
             warn!(%error, id, "couldn't tell the page what was chosen");
