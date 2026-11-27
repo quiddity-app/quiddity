@@ -266,6 +266,20 @@ never writes the `##blob` line: Rust does.
   `scrollTop` is undone. **A test must also not let Playwright scroll a link into
   view to click it**, or it moves the pane after its position was read: click
   from the page (`el.click()`), and give the scroll event two frames to be heard.
+- **The last place is kept for a page loaded again** (`lib/last-place.ts`,
+  `docs/Background.md`): Android destroys the webview of an app in the
+  background and loads it afresh at `/`. `pagehide` and a hidden
+  `visibilitychange` write the address (with the side cards) and the pane's
+  scroll to localStorage, only where there is a place (`/` only redirects, so
+  it keeps what it found), and `Home`'s first redirect goes there if it is under
+  six hours old and the entity still exists; `ScrollMemory.seed` gives the
+  scroll to `ScrollRestore`. **Only in the app** (`__TAURI_INTERNALS__`): the
+  memory graph's IDs differ on every load, so an address from before names
+  nothing, and a test plays the app by setting `__quiddityResume` before load
+  (`e2e/resume.spec.ts`). **Anything that starts the page over to a different
+  graph must call `forgetPlace()` first**, which also stops the page keeping
+  where it was on the way out (the switcher does). A stored address is
+  checked, not trusted (`decode`).
 - **What remembers places (`HistoryKeys`, `ScrollRestore`) starts at module
   load, not at mount.** Both sit in a `Suspense` that waits for the URL, so they
   can mount after a link has been followed; a history or scroll memory begun

@@ -16,6 +16,7 @@ import { Button, ErrorLine, Input } from './ui';
 import type { GraphList } from '@/lib/recovery';
 
 import { chooseBackend, type Backend } from '@/lib/graph';
+import { forgetPlace } from '@/lib/last-place';
 import { useGraph } from '@/lib/use-graph';
 
 const itemClass =
@@ -95,7 +96,8 @@ export function GraphSwitcher() {
       return String(error instanceof Error ? error.message : error);
     }
     // What this page holds is the old graph, and its address may name a page
-    // the new one lacks.
+    // the new one lacks, nor is where it was a place to return to.
+    forgetPlace();
     window.location.replace('/');
     return null;
   };

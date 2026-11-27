@@ -5,6 +5,7 @@ import { useLayoutEffect } from 'react';
 import { useView } from './use-view';
 
 import { placeOpened } from '@/lib/history';
+import { lastPlace, placeOf } from '@/lib/last-place';
 import { ScrollMemory } from '@/lib/scroll-memory';
 
 /**
@@ -19,6 +20,13 @@ const GIVE_UP_MS = 5000;
 const TAKEOVER = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const;
 
 const memory = new ScrollMemory();
+// A page loaded again at `/` goes back to where it was left (`Home`), and the
+// pane then finds it where it was scrolled to as for any place it returns to.
+const left = lastPlace();
+const leftAt = left && placeOf(left.href);
+if (left && leftAt) {
+  memory.seed(leftAt, left.top);
+}
 /** Where the pane is being put back to, while that is going on. */
 let restoring: number | null = null;
 

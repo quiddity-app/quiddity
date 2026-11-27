@@ -1,0 +1,15 @@
+- What happens to the app when it is put away, which matters most on Android, where the system takes back memory from an app that isn't on screen. [[The shell]] [[The UI]]
+- What Android does
+	- When the screen goes off or another app comes up, the app's activity is paused and stopped, and the page gets `visibilitychange` (hidden). The page flushes what it has typed to the shell then, so nothing is lost. [[Editing]]
+	- Later the system may destroy the activity, and the webview with it, to free memory, and may end the whole process. Coming back loads the page again at `/`, as a launch does: the whole replica is built again from the shell's snapshot, and the page starts at home.
+	- Which of the two happened is not known from the code: an app whose process survives keeps the shell's graph and its network, and one whose process was ended has lost both. Both are made to cost as little as can be.
+- Coming back to where you were
+	- When the page is hidden, or left, it keeps where the main pane is: its address, which holds the side cards and the page graph as well as the main entity, and how far the pane was scrolled, in the webview's local storage (`lib/last-place.ts`).
+	- A page that loads at `/` goes there instead of home, with the pane scrolled back the same way as for a page returned to (`lib/scroll-memory.ts`). That is the first arrival only: a later visit to `/` goes home.
+	- It does so only in the app, whose entities keep their IDs from one load to the next. A browser's in-memory graph is made afresh, so an address from before names nothing there.
+	- A place is gone back to for six hours, and then home is where a new start goes. A place whose entity has since gone (deleted on another device while the app was away) is not gone back to.
+	- Changing graph forgets the place and keeps none on the way out, since the new graph has none of the old one's entities. [[Several graphs]]
+	- Not kept: an entity being edited, the caret, an open menu or the search, and the back and forward history, which are in the page's memory and start again.
+- Not built
+	- Telling the shell when the app is brought back, so that it looks for the other devices at once and not after a back-off.
+	- Syncing while the app is away. Android doesn't let an app hold a connection open in the background without a persistent notification, so the choices are a foreground service, which costs battery for a notes app, or a periodic job that wakes, syncs and stops, which needs code in Kotlin, and which finds another device only if it is also awake. Neither is built, so a device syncs only while the app is on screen.

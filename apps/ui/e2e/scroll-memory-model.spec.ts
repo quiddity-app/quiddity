@@ -63,3 +63,14 @@ test('visiting a place again makes it the newest, not the next to go', () => {
   memory.arrive(at('d'));
   expect(memory.arrive(at('a'))).toBe(0);
 });
+
+test('a seeded place is found where it was left, as if it had been visited', () => {
+  const memory = new ScrollMemory();
+  memory.seed(at('a'), 220);
+  expect(memory.arrive(at('b'))).toBe(0);
+  expect(memory.arrive(at('a'))).toBe(220);
+  // Seeding is not arriving: the first place shown is still the top for one never seen.
+  const fresh = new ScrollMemory();
+  fresh.seed(at('a'), 220);
+  expect(fresh.arrive(at('c'))).toBe(0);
+});
