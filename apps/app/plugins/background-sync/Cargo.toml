@@ -1,0 +1,20 @@
+[package]
+name = "tauri-plugin-background-sync"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+repository = "https://github.com/quiddity-app/quiddity"
+rust-version.workspace = true
+publish = false
+description = "Syncs Quiddity's graph in the background on Android: a periodic WorkManager job, and a short foreground service while a sync is unfinished."
+# Tauri's build helpers find a plugin's Android project through this.
+links = "tauri-plugin-background-sync"
+
+[build-dependencies]
+tauri-plugin = { version = "2", features = ["build"] }
+
+[dependencies]
+tauri = "2"
+
+[lints]
+workspace = true

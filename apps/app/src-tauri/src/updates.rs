@@ -23,6 +23,9 @@ pub enum Error {
     #[cfg(desktop)]
     #[error("{0}")]
     Updater(#[from] tauri_plugin_updater::Error),
+    // Only `install_update` on the desktop makes it, so elsewhere it would be
+    // dead code, which the Android build (with `-D warnings`) refuses.
+    #[cfg(desktop)]
     #[error("no update has been found to install")]
     NothingFound,
     #[cfg(mobile)]
@@ -130,6 +133,7 @@ mod tests {
         assert!(updates_supported());
     }
 
+    #[cfg(desktop)]
     #[test]
     fn errors_reach_the_ui_as_words() {
         let json = serde_json::to_string(&Error::NothingFound).unwrap();

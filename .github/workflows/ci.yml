@@ -201,6 +201,76 @@ jobs:
         cargo clippy --all-targets --locked -- -D warnings
         cargo test --locked
 
+  android:
+    # Builds the app for Android, which nothing else does: the Kotlin plugin that
+    # syncs in the background (a WorkManager job and a foreground service), the
+    # JNI calls it makes into the library, and that the whole links for the
+    # target. It is the release's build (`release.yml`) without the signing and
+    # the UI, as a debug build for one ABI: the others add minutes and prove
+    # nothing more. The Android SDK and NDK are on the runner.
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+    # 21, not the release's 25: the plugin's tests run on Robolectric, which
+    # supports up to there. The build proves the same either way.
+    - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+      with:
+        distribution: temurin
+        java-version: 21
+    # Not cached by mbx: Tauri runs cargo from Gradle, and what it does with
+    # cross builds isn't something to find out here.
+    - uses: $/.github/actions/setup
+      with:
+        tools: cargo-binstall rust node pnpm
+        node: true
+        mbx: "false"
+    - run: rustup target add aarch64-linux-android
+    - run: pnpm install --frozen-lockfile --filter @quiddity/app...
+    # tauri's generate_context! embeds the UI's build and fails if its
+    # directory is missing. Empty is enough to compile.
+    - run: mkdir -p apps/ui/out
+    - name: Generate the Android project
+      working-directory: apps/app
+      run: |
+        export NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+        pnpm tauri android init --ci
+    - name: Build it
+      working-directory: apps/app
+      run: |
+        export NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+        pnpm tauri android build --debug --apk --target aarch64 --ci \
+          --config '{"build":{"beforeBuildCommand":null}}'
+    # The plugin's dependency versions are locked (`gradle.lockfile`), so that
+    # the build doesn't move under us. Writing the locks and finding a
+    # difference means the file is stale: refresh it as the plugin's
+    # build.gradle.kts says. The diff is the new file, to commit.
+    - name: Check the plugin's Gradle lock is current
+      working-directory: apps/app/src-tauri/gen/android
+      run: |
+        ./gradlew :tauri-plugin-background-sync:dependencies --write-locks > /dev/null
+        cd "$GITHUB_WORKSPACE"
+        git add --intent-to-add apps/app/plugins/background-sync/android/gradle.lockfile
+        git diff --exit-code -- apps/app/plugins/background-sync/android/gradle.lockfile
+    # The Kotlin plugin's tests, on Robolectric, in the generated project that
+    # includes it. The coverage report is what SonarCloud reads (`sonarcloud`),
+    # since it can't measure Kotlin any other way.
+    - name: Test the Kotlin plugin
+      working-directory: apps/app/src-tauri/gen/android
+      run: ./gradlew :tauri-plugin-background-sync:createDebugUnitTestCoverageReport
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: kotlin-coverage
+        path: apps/app/plugins/background-sync/android/build/reports/coverage/test/debug/report.xml
+        if-no-files-found: error
+    - if: failure()
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: kotlin-test-reports
+        path: apps/app/plugins/background-sync/android/build/reports/tests/
+
   changes:
     # Works out what the run needs to do: which fuzz targets, and whether
     # there is any Rust to mutate. The merge queue has nothing to decide.
@@ -324,10 +394,12 @@ jobs:
         path: fuzz/artifacts/
 
   sonarcloud:
-    # Static analysis and Rust coverage, reported to SonarCloud. GitHub doesn't
+    # Static analysis and coverage (Rust's, and the Kotlin plugin's from the
+    # `android` job), reported to SonarCloud. GitHub doesn't
     # give a PR from a fork an OIDC token, so it couldn't be analysed, and those
     # skip it (and the gate counts a skip as a pass). The merge queue has
     # already had the PR's result.
+    needs: android
     if: github.event_name != 'merge_group' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -348,6 +420,10 @@ jobs:
     - run: rustup component add llvm-tools
     # nextest, as the test job runs it; doctests aren't instrumented.
     - run: cargo llvm-cov nextest --locked --profile ci --lcov --output-path lcov.info
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      with:
+        name: kotlin-coverage
+        path: kotlin-coverage
     # Right before the scan, since its token is short-lived.
     - uses: SonarSource/sonarqube-auth-action@b372e2c2930aadfcc4f4399446da1e12772709ad # v1.2
     - uses: SonarSource/sonarqube-scan-action@59202af334b4ba7b5db01b701b8e79f8b3bef0f4 # v8.5.0
@@ -358,7 +434,11 @@ jobs:
         # path is the same from every module. Each module still logs the files
         # that belong to the others as "problems in LCOV report"; that is
         # expected, and not coverage lost.
-        args: -Dsonar.rust.lcov.reportPaths=${{ github.workspace }}/lcov.info
+        #
+        # The Kotlin plugin's JaCoCo report comes from the `android` job.
+        args: |
+          -Dsonar.rust.lcov.reportPaths=${{ github.workspace }}/lcov.info
+          -Dsonar.coverage.jacoco.xmlReportPaths=${{ github.workspace }}/kotlin-coverage/report.xml
 
   gate:
     # The one check to require, so that adding, splitting or renaming a job
@@ -372,7 +452,7 @@ jobs:
     # includes a cancelled run.
     name: lint, build, test
     if: always()
-    needs: [lint, test, scripts, ui, site, app, changes, mutants, fuzz, typecheck, sonarcloud]
+    needs: [lint, test, scripts, ui, site, app, android, changes, mutants, fuzz, typecheck, sonarcloud]
     runs-on: ubuntu-latest
     timeout-minutes: 1
     steps:

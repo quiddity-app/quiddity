@@ -1,9 +1,9 @@
 [workspace]
 resolver = "3"
-members = ["crates/*", "apps/app/src-tauri"]
-# Plain `cargo` from the root leaves the shell out, so the core's CI doesn't
-# need Tauri's system libraries. `--workspace`, or running from `src-tauri`,
-# includes it.
+members = ["crates/*", "apps/app/src-tauri", "apps/app/plugins/*"]
+# Plain `cargo` from the root leaves the shell and its plugins out, so the
+# core's CI doesn't need Tauri's system libraries. `--workspace`, or running
+# from `src-tauri`, includes them.
 default-members = ["crates/*"]
 # Nightly-only, and with its own lockfile.
 exclude = ["fuzz"]

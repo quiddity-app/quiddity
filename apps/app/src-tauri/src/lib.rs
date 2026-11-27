@@ -6,6 +6,8 @@
 //! and the edits back as updates, both as raw bytes. The shell's replica is
 //! the one on the network.
 
+#[cfg(any(target_os = "android", test))]
+mod android;
 mod appearance;
 pub mod background;
 mod library;
@@ -446,11 +448,13 @@ fn start_network(session: &Session, running: &Running) {
     tasks.network = Some(task);
 }
 
-/// Gets an opened graph going: keeps its binaries, then puts it on the network.
-async fn start(session: &Session, running: &Running) {
+/// Gets an opened graph going: keeps its binaries (unless `blobs` is off, for a
+/// background run on a metered network: the peer then neither offers nor
+/// fetches them), then puts it on the network.
+async fn start(session: &Session, running: &Running, blobs: bool) {
     // Before the network, which gives and fetches what this keeps. A
     // store that won't open leaves the app without binaries, no more.
-    if let Err(e) = session.keep_blobs().await {
+    if blobs && let Err(e) = session.keep_blobs().await {
         warn!(error = %e, "not keeping binaries");
     }
     start_network(session, running);
@@ -459,7 +463,7 @@ async fn start(session: &Session, running: &Running) {
 /// [`start`], for a window: the session is then held, so that a window made
 /// again in this process finds it (`process.rs`).
 async fn begin(session: Session, running: &Running) -> Session {
-    start(&session, running).await;
+    start(&session, running, true).await;
     process::hold(process::Live {
         session: session.clone(),
         running: running.clone(),
@@ -514,11 +518,16 @@ pub fn run() {
     let builder = builder
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(updates::Pending::default());
+    // Syncs in the background, and holds the process while a sync is unfinished.
+    #[cfg(target_os = "android")]
+    let builder = builder.plugin(tauri_plugin_background_sync::init());
     // The menu bar only tells the page what was chosen.
     #[cfg(target_os = "macos")]
     let builder = builder.on_menu_event(menu::on_event);
     builder
         .setup(|app| {
+            #[cfg(target_os = "android")]
+            android::check_dirs(app);
             let library = library(app)?;
             let dir = library.start()?;
             app.manage(library);
