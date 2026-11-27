@@ -4,6 +4,7 @@ alias:: [link, qualifier, backlinks, references]
 - Qualifiers
 	- Names are not unique, so a link can say which properties its target has: `[[Jane#type(person)#born(1970-01-01)]]`. [[Properties]]
 	- A qualifier `#key(value)` matches an entity with an instance of `key` whose value is equal to `value`, or contains it, for a list. A bare `#key` matches an entity with any instance of `key`, a tag included: `[[Mercury#planet]]` is the Mercury tagged `planet`. [[tags]]
+		- A qualifier is matched by what an entity inherits as well as what it writes, as a query is ([[Queries]]): with `class:: Persons` on Persons and `parent` inheriting, `[[Job#class(Persons)]]` finds the Job whose parent is a kind of person. The exception is a link that is itself a value in a reference property: effective properties are made from those links, so they are matched against written properties only. [[Built-in properties]]
 	- A link shows only its name. The qualifiers pick the target, and appear when you hover over it. [[Rendering]]
 	- Hovering a link names its destination in a toast in the corner, and an entity with a properties block also shows it in a tooltip. [[Link hints]]
 	- Inside a link, `#` followed by a key starts a qualifier. Write `\#` for a literal one; `[[C# notes]]` is fine as it is.

@@ -798,3 +798,44 @@ fn a_property_entity_is_found_by_an_alias() -> Result<()> {
     assert!(index.defines_property(score));
     Ok(())
 }
+
+/// A link's qualifier is satisfied by an inherited value as a query is, so
+/// `[[Job#class(Persons)]]` finds the Job that is a kind of person, and
+/// not the one that isn't.
+#[test]
+fn qualifiers_see_inheritance() -> Result<()> {
+    use quiddity_core::Resolution;
+    use quiddity_core::syntax::{Link, Qualifier};
+
+    let graph = Graph::new();
+    entity(&graph, "parent", "type:: property\n##inherits")?;
+    entity(&graph, "Persons", "class:: Persons")?;
+    entity(&graph, "Biblical Figures", "parent:: Persons")?;
+    let figure = entity(&graph, "Job", "parent:: Biblical Figures")?;
+    let work = entity(&graph, "Job", "class:: Employment")?;
+    let index = Index::build(&graph)?;
+
+    let job = |key: &str, value: &str| Link {
+        name: "Job".to_owned(),
+        qualifiers: vec![Qualifier {
+            key: key.to_owned(),
+            value: Some(Value::Text(value.to_owned())),
+        }],
+    };
+    assert_eq!(
+        index.resolve(&job("class", "Persons")),
+        Resolution::Unique(figure),
+        "inherited through two levels"
+    );
+    assert_eq!(
+        index.resolve(&job("class", "Employment")),
+        Resolution::Unique(work),
+        "written values still match"
+    );
+    assert_eq!(
+        index.resolve(&job("class", "Places")),
+        Resolution::Missing,
+        "and an inherited value that isn't wanted doesn't"
+    );
+    Ok(())
+}

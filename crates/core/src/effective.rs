@@ -85,7 +85,7 @@ impl Index {
             },
             _ => return None,
         };
-        match self.resolve(&link) {
+        match self.resolve_written(&link) {
             Resolution::Unique(id) => Some(self.canonical(id)),
             _ => None,
         }
