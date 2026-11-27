@@ -23,6 +23,14 @@ export class ScrollMemory {
   }
 
   /**
+   * Starts out knowing that `place` was left scrolled to `top`, for one that
+   * was left before this memory began: a page loaded again.
+   */
+  seed(place: Place, top: number): void {
+    this.remember(place, top);
+  }
+
+  /**
    * The pane now shows `place`. Returns where to scroll it to: where it was
    * last left, or the top. Moving to the place already shown changes nothing
    * and returns the current position, so it is safe to call on every render.

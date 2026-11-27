@@ -9,6 +9,7 @@ favourite:: true
 	- [[Stats and debug]]: numbers about a graph, and a check that what is derived from it agrees with it.
 	- [[Network log]]: what the network has lately done, for working out why devices don't sync.
 	- [[First run]]: how a device with no graph begins, and joins one.
+	- [[Background]]: what happens when the app is put away and comes back, and what is not built.
 - The parts
 	- Crates: what each does is in [[Architecture]], and they are listed under [[Crate]].
 	- Apps: [[The UI]] and [[The shell]]. How they look: the [[Design language]].

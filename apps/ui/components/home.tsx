@@ -1,15 +1,17 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 import { useRouter } from 'next/navigation';
 
 import { Skeleton } from './boundary';
 import { useView } from './use-view';
 
+import type { Graph } from '@/lib/graph';
 import type { Start } from '@/lib/model';
 
-import { useRead } from '@/lib/use-graph';
+import { lastPlace, placeOf } from '@/lib/last-place';
+import { useGraph, useRead } from '@/lib/use-graph';
 
 const paths: Record<Exclude<Start['kind'], 'entity'>, string> = {
   journals: '/journals/',
@@ -48,6 +50,30 @@ if (typeof document !== 'undefined') {
 }
 
 /**
+ * Where the page was left, if this is a page loaded again after that (Android
+ * loads the webview afresh when an app comes back from the background), unless
+ * its entity has gone since. Worked out once, so the same answer is given if
+ * the redirect is made twice.
+ */
+let resumed: { href: string | undefined } | undefined;
+
+function resumeAt(graph: Graph): string | undefined {
+  resumed ??= (() => {
+    const left = lastPlace();
+    const main = left && placeOf(left.href)?.main;
+    try {
+      if (main) {
+        graph.entity(main);
+      }
+    } catch {
+      return { href: undefined };
+    }
+    return { href: left?.href };
+  })();
+  return resumed.href;
+}
+
+/**
  * `/` goes wherever the graph's `home` setting says, keeping any entities
  * open at the side. It replaces itself in the history, so Back doesn't land
  * here only to be sent on again.
@@ -55,6 +81,11 @@ if (typeof document !== 'undefined') {
 export function Home() {
   const start = useRead((g) => g.start());
   const router = useRouter();
+  const graph = useGraph();
+  // Only the page's first arrival at `/` can be a page loaded again: a later
+  // visit (to Home, say) goes home. Read in the render, which is before the
+  // effect below says the first has been, so a repeated effect agrees.
+  const [loaded] = useState(first);
   // `/` has no view of its own to keep but the side pane, which is read the
   // same way as anywhere else.
   const { open, href: toHref } = useView();
@@ -67,8 +98,8 @@ export function Home() {
     const raced = first && followed;
     first = false;
     if (!raced) {
-      router.replace(href);
+      router.replace((loaded ? resumeAt(graph) : undefined) ?? href);
     }
-  }, [router, href]);
+  }, [router, href, graph, loaded]);
   return <Skeleton className="m-8 h-8 w-1/3" />;
 }
