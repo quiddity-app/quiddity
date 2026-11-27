@@ -13,7 +13,7 @@ favourite:: true
 - The parts
 	- Crates: what each does is in [[Architecture]], and they are listed under [[Crate]].
 	- Apps: [[The UI]] and [[The shell]]. How they look: the [[Design language]].
-	- What they are built on is listed under [[Library]], and what they are built with under [[Tool]].
+	- What they are built on is listed under [[Library]], and what they are built with under [[Tool]]. [[Licences]] says how the licences of all of it are collected and shipped.
 - Between devices
 	- [[Sync]]: the protocol, over [[iroh]].
 	- [[Device list]]: who may connect.

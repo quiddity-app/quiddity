@@ -23,3 +23,8 @@ indent_size = unset
 [LICENSE]
 indent_style = unset
 indent_size = unset
+
+# Standard licence texts, kept as published.
+[scripts/licence-templates/*.txt]
+indent_style = unset
+indent_size = unset
