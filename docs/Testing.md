@@ -31,6 +31,7 @@
 	- A loop whose exit test is flipped by a mutant runs forever. Written as a recursion it overflows the stack at once instead, which is a quick failure.
 - Check that a new test fails without the fix before trusting it.
 - CI builds the documentation site as Pages does (the `site` job) and runs `scripts/check-export.mjs` over it: every named page must have its own heading and title in its HTML, so a change that leaves the export a shell fails before it is merged. `mise run docs` and the Pages workflow run the same check. [[Publishing]]
+- CI builds the Android app in the `android` job, for one ABI as a debug build, which compiles the Kotlin plugin and links the JNI calls into the library, and then runs the plugin's tests (Robolectric, on the JVM, with a fake in place of the library) and writes their JaCoCo coverage report for SonarCloud. There is no emulator, so what the plugin does with the real library on a device is only found out on one. [[Background sync]]
 - The jobs that install system packages cache apt's downloads with [[actions-cache]].
 - `cargo nextest run` is the suite. It has profiles for CI and for mutants, where the first failing test ends the run.
 - CI has one check to require, `lint, build, test`, which passes when every other job succeeded or was skipped on purpose. Branch protection names only that, so adding, splitting or renaming a job means adding it to the gate's `needs` in `.github/workflows/ci.yml` and nothing else.

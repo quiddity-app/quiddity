@@ -70,6 +70,11 @@ pub fn look_for(dir: &Path) -> Option<Live> {
         .map(|h| h.live.clone())
 }
 
+/// The live session, whatever graph it is: for asking how it stands.
+pub fn any() -> Option<Live> {
+    held().as_ref().map(|h| h.live.clone())
+}
+
 /// Lets go of what a background run lent, once it is done, and returns it to
 /// be stopped. A window that took it meanwhile keeps it, and this returns none.
 pub fn release() -> Option<Live> {
@@ -78,6 +83,12 @@ pub fn release() -> Option<Live> {
         return None;
     }
     held.take().map(|h| h.live)
+}
+
+/// Forgets what is held, for a test that needs there to be nothing.
+#[cfg(test)]
+pub fn forget() {
+    *held() = None;
 }
 
 /// Tests that use what is held take this first: it is the process's, and

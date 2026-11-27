@@ -94,6 +94,31 @@ holds its own replica and answers its own queries (see `apps/ui` and
   `sync_with` a start that does nothing, so none of them uses the network, and
   the real network path is the app's own, run by `begin`. They share the
   process's held session, so they take `process::TESTING` first.
+- **Background sync on Android is `plugins/background-sync` (Kotlin) and
+  `android.rs` (the JNI calls it makes)**, with the logic in `background.rs`
+  (`docs/Background sync.md` has the whole). **The Kotlin and the Rust name each
+  other**: `Java_uk_co_aylett_quiddity_sync_Native_*` is the Kotlin package and
+  its `Native` object, and the outcome numbers are in both `Native.kt` and
+  `Outcome::code` (a test pins them). **`android.rs` is the only module that
+  allows `unsafe_code`**: this crate keeps its own copy of the workspace's lint
+  tables to say so, and **they must be kept in step** with the root
+  `Cargo.toml`'s. It is compiled by the tests on every platform but can't be
+  run, so it stays a shim. (CI's mutation run covers the default members, which
+  leave this crate out.) **A run with no
+  window must not install iroh's JNI context** (the window's own glue would
+  then panic on installing it again). The `android` CI job compiles all of this
+  and runs the Kotlin's tests; **nothing has run it on a device**. **The Kotlin
+  never calls `Native` except through `Sync.backend`** (`NativeBackend`), so a
+  test can replace it with `FakeBackend`; put a decision in `SyncPolicy` or
+  `HoldWatcher`, which have no Android in them, before putting it in a class
+  that extends one. Robolectric supports up to JDK 21, which is why the job
+  isn't on the release's. The tests' coverage is what SonarCloud has for the
+  Kotlin (`createDebugUnitTestCoverageReport`, read by the `sonarcloud` job).
+  **The plugin's dependencies are locked** (`android/gradle.lockfile`) and CI
+  checks it is current: after changing a dependency, refresh it with
+  `./gradlew :tauri-plugin-background-sync:dependencies --write-locks` from
+  `src-tauri/gen/android`. Don't add `failOnNonReproducibleResolution()`: Gradle
+  refuses it beside locking.
 - **Changes from other devices reach the UI on a channel.**
   `subscribe_updates` takes a `Channel` and sends raw bytes: the graph's
   updates since what the UI is known to have (`Session::ui_updates`). That

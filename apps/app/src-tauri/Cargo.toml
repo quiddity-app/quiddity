@@ -32,9 +32,66 @@ tracing-subscriber = "0.3"
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"
 
+# The calls the Android plugin makes (`src/android.rs`), and the plugin itself.
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+tauri-plugin-background-sync = { path = "../plugins/background-sync" }
+
 [dev-dependencies]
+# For `src/android.rs`, which the tests compile on any platform.
+jni = "0.21"
 tempfile = "=3.27.0"
 tokio = { version = "=1.54.1", features = ["macros", "rt", "time"] }
 
-[lints]
-workspace = true
+# A copy of `[workspace.lints]` in the root `Cargo.toml`, which a crate can't
+# inherit and change one of. **Keep them in step.**
+[lints.rust]
+# The one change from the workspace's `forbid`: JNI exports are `no_mangle`,
+# which is unsafe, and `forbid` can't be allowed for a module. Only `android.rs`
+# does (`#![allow(unsafe_code)]` with its reason); everything else is denied.
+unsafe_code = "deny"
+missing_debug_implementations = "warn"
+unused_qualifications = "warn"
+unused_lifetimes = "warn"
+unused_import_braces = "warn"
+unit_bindings = "warn"
+let_underscore_drop = "warn"
+trivial_numeric_casts = "warn"
+single_use_lifetimes = "warn"
+redundant_lifetimes = "warn"
+explicit_outlives_requirements = "warn"
+non_ascii_idents = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+# Docs for internal crates say what a thing is for; they don't need a
+# `# Errors` or `# Panics` section on every function.
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+# Pedantic lints that don't earn their keep here: judgement calls the code
+# reads better without.
+too_many_lines = "allow"
+assert_is_empty = "allow"      # `assert!(x.is_empty())` reads better than comparing with `[]`
+needless_pass_by_value = "allow" # wasm-bindgen and `map_err` callbacks take values
+option_option = "allow"        # absent, empty and present are three states
+unnecessary_wraps = "allow"    # signatures are fixed by traits and callers
+items_after_statements = "allow"
+similar_names = "allow"
+# Restriction lints worth having, picked one by one.
+dbg_macro = "warn"
+todo = "warn"
+unimplemented = "warn"
+unwrap_used = "warn"
+allow_attributes_without_reason = "warn"
+clone_on_ref_ptr = "warn"
+str_to_string = "warn"
+mem_forget = "warn"
+exit = "warn"
+if_then_some_else_none = "warn"
+rest_pat_in_fully_bound_structs = "warn"
+unnecessary_self_imports = "warn"
+verbose_file_reads = "warn"
+empty_drop = "warn"
+absolute_paths = "warn"
