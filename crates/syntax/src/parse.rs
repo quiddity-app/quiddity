@@ -303,19 +303,37 @@ fn hash_property_line(line: &str) -> Option<String> {
     sc.at_end().then_some(key)
 }
 
-/// Splits a `key:: value` line into its key and unparsed value.
+/// Whether `key` can be written bare in a `key:: value` line: it starts with a
+/// letter, digit or underscore, doesn't end in whitespace, and has none of the
+/// characters that would end it or start something else. Any other key is
+/// bracketed, `[[x:y]]:: value`.
+pub(crate) fn is_line_key(key: &str) -> bool {
+    key.chars().next().is_some_and(is_key_start)
+        && !key.ends_with(char::is_whitespace)
+        && !key.contains([':', '#', '[', ']', '(', ')', '`'])
+}
+
+/// Splits a `key:: value` line into its key and unparsed value. The key is
+/// bare, or bracketed as it is after `#`.
 fn split_property_line(line: &str) -> Option<(String, Option<&str>)> {
     let trimmed = line.trim_start();
-    let sep = trimmed.find("::")?;
-    let (key, rest) = (&trimmed[..sep], &trimmed[sep + 2..]);
-    let key_ok = key.chars().next().is_some_and(is_key_start)
-        && !key.ends_with(char::is_whitespace)
-        && !key.contains([':', '#', '[', ']', '(', ')', '`']);
-    if !key_ok || !(rest.is_empty() || rest.starts_with([' ', '\t'])) {
+    let (key, rest) = if trimmed.starts_with("[[") {
+        let mut sc = Scanner::new(trimmed);
+        let key = parse_key(&mut sc)?;
+        (key, sc.rest().strip_prefix("::")?)
+    } else {
+        let sep = trimmed.find("::")?;
+        let key = &trimmed[..sep];
+        if !is_line_key(key) {
+            return None;
+        }
+        (key.to_owned(), &trimmed[sep + 2..])
+    };
+    if !(rest.is_empty() || rest.starts_with([' ', '\t'])) {
         return None;
     }
     let rest = rest.trim();
-    Some((key.to_owned(), (!rest.is_empty()).then_some(rest)))
+    Some((key, (!rest.is_empty()).then_some(rest)))
 }
 
 /// Parses the value part of a `key:: value` line.
@@ -922,6 +940,39 @@ mod tests {
 
     fn prop(key: &str, value: Option<Value>) -> (String, Option<Value>) {
         (key.to_owned(), value)
+    }
+
+    #[test]
+    fn a_property_line_takes_a_bracketed_key() {
+        for (line, key) in [
+            ("[[x:y]]:: 1", "x:y"),
+            ("[[-z]]:: 1", "-z"),
+            ("[[a(b)]]:: 1", "a(b)"),
+            ("[[ two words ]]:: 1", "two words"),
+            ("[[a]]:: 1", "a"),
+            ("  [[123]]:: 1", "123"),
+        ] {
+            assert_eq!(
+                parse_property_line(line),
+                Some((key.to_owned(), Some(text("1")))),
+                "{line}"
+            );
+        }
+        // Not property lines: nothing after the brackets, a space before the
+        // `::`, an empty or nested key, or a bracketed key with no `::` space.
+        for line in [
+            "[[x]]",
+            "[[x]] :: 1",
+            "[[]]:: 1",
+            "[[a[b]]:: 1",
+            "[[x]]::1",
+            "[[x]] and [[y]]:: 1",
+        ] {
+            assert_eq!(parse_property_line(line), None, "{line}");
+        }
+        let block = parse_block("[[x:y]]:: see [[Link]]");
+        assert_eq!(block.properties.len(), 1);
+        assert_eq!(block.links, vec![link("Link")]);
     }
 
     #[test]

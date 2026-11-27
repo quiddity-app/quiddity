@@ -33,6 +33,7 @@
 	- Inside a link, `#` starts a qualifier instead, as [[Links]] describes.
 - Property lines
 	- A key starts with a letter, digit or underscore, may contain spaces, and may not contain `:`, `#`, backticks, brackets or parentheses, so prose that mentions a `key:: value` code span stays prose.
+	- A key that holds what a bare one can't is bracketed, as it is after `#`: `[[x:y]]:: 1`. The formatter writes one that way when it has to, so a link's qualifier, whose key may be almost anything, can always be written as a property. A key can't hold `[` or `]` or be blank, in either form.
 	- A line of nothing but `#key` is the same as a property line with no value, and is how one is written.
 	- In a property line a comma means nothing special: `note:: a, b` is the text "a, b".
 - Meta-property lines
