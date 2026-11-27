@@ -120,6 +120,8 @@ interface Remote {
   focus: string[];
   /** What each push said it was typing in. */
   typed: string[][];
+  /** How many times the page said the network may have changed. */
+  networkChanges: number;
   /** The devices the page asked to let in. */
   allowed: string[];
   /** How the page asked to go on from a graph that wouldn't open. */
@@ -273,6 +275,9 @@ export const memoryBackend: Backend = {
   async focus(blocks) {
     remote().focus = blocks;
   },
+  async networkChanged() {
+    remote().networkChanges += 1;
+  },
   // A made-up device, and the shell's check that an ID is one (a 32-byte key
   // in hex), so the screen can be tried and tested outside the app.
   async deviceId() {
@@ -352,6 +357,7 @@ function remote(): Remote {
     kept: [],
     focus: [],
     typed: [],
+    networkChanges: 0,
     allowed: [],
     recovered: [],
     graphRequests: [],

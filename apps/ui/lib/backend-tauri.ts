@@ -44,6 +44,9 @@ export const tauriBackend: Backend = {
   async focus(blocks) {
     await invoke('set_focus', { blocks });
   },
+  async networkChanged() {
+    await invoke('network_changed');
+  },
   async deviceId() {
     return await invoke<string>('device_id');
   },

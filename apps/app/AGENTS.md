@@ -12,7 +12,7 @@ holds its own replica and answers its own queries (see `apps/ui` and
   resolves against the lowest `rust-version` in the workspace, which is why
   there is one, in the root `Cargo.toml`, and the app and `quiddity-node`
   inherit it.
-- **Eighteen commands.** `load_graph` returns a snapshot and `push_updates`
+- **Nineteen commands.** `load_graph` returns a snapshot and `push_updates`
   takes Loro updates as the request body, imports them, saves and sends them
   to other devices, both as raw bytes rather than JSON arrays. Updates that
   arrive out of order are held by Loro until their causes do.
@@ -23,7 +23,14 @@ holds its own replica and answers its own queries (see `apps/ui` and
   `subscribe_status` takes a `Channel` and sends how this device stands with
   the others (`Session::sync_details`: the state's word and what it rests on, as
   an object, including this device's ID and the network log) each time it changes.
-  `subscribe_updates` is below. `device_id` and `allow_device` are for letting
+  `subscribe_updates` is below. `network_changed` calls the endpoint's
+  `network_change` (`Running` keeps the endpoint, filled and emptied by the
+  network task so a graph switched away from leaves none): the UI says it when the page is
+  shown again, because a phone's sockets and relay connection don't survive the
+  screen being off and iroh can't see that on Android. A woken phone was seen
+  dialling for minutes without connecting; this is the remedy iroh documents for
+  it, and not yet confirmed on a phone. It does nothing with the network off.
+  `device_id` and `allow_device` are for letting
   another device in (see `docs/App sync.md`); the Devices page calls them.
   `list_graphs`, `switch_graph` and `create_graph` are for the UI's graph picker
   (below). `set_entity_open` says whether the UI has an entity open, for the macOS

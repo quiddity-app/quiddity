@@ -93,8 +93,15 @@ test('a hidden page has no block open, and has it again when shown', async ({
     page.evaluate(() => window.__quiddityRemote?.typed.at(-1)?.length);
   expect(await last()).toBe(1);
 
+  // Going to sleep says nothing of the network; waking up does, since the
+  // sockets and relay connection of a phone don't survive being asleep.
+  const networkChanges = () =>
+    page.evaluate(() => window.__quiddityRemote?.networkChanges);
+  expect(await networkChanges()).toBe(0);
+
   await setHidden(false);
   await expect.poll(focus).toBe(1);
+  await expect.poll(networkChanges).toBe(1);
 });
 
 test('leaving a block that was only typed in is still told as typing', async ({

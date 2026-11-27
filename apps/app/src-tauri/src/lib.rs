@@ -14,8 +14,9 @@ mod updates;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
+use iroh::Endpoint;
 use quiddity_node::events::Level;
 use quiddity_node::keyring::Keyring;
 use serde::Serialize;
@@ -55,6 +56,10 @@ struct Tasks {
     stop: Option<oneshot::Sender<()>>,
     network: Option<JoinHandle<()>>,
     others: Vec<JoinHandle<()>>,
+    /// The network's endpoint while it is up, for `network_changed`. Shared
+    /// with the network task, which fills it and empties it, so that a graph
+    /// switched away from leaves nothing behind to be told.
+    endpoint: Arc<Mutex<Option<Endpoint>>>,
 }
 
 impl Running {
@@ -239,6 +244,26 @@ async fn subscribe_updates(
     Ok(())
 }
 
+/// Tells the network the device may have moved: the page is shown again, after
+/// the screen was off or the app in the background. A phone's sockets and relay
+/// connection don't survive that, and iroh can't see it happen on every
+/// system (Android's network changes aren't visible to native code), so without
+/// this it dials on a dead socket until it gives up. It does no harm when
+/// nothing changed, and nothing when the network is off.
+#[tauri::command]
+async fn network_changed(running: State<'_, Running>) -> Result<(), Error> {
+    let endpoint = running
+        .tasks()
+        .endpoint
+        .lock()
+        .expect("endpoint lock poisoned")
+        .clone();
+    if let Some(endpoint) = endpoint {
+        endpoint.network_change().await;
+    }
+    Ok(())
+}
+
 /// Tells the UI how this device stands with the others, now and each time it
 /// changes, as `Session::sync_details` says.
 #[tauri::command]
@@ -402,6 +427,7 @@ fn start_network(session: &Session, running: &Running) {
     };
     let (peer, store) = (session.peer().clone(), session.store().clone());
     let (stop, stopped) = oneshot::channel();
+    let slot = Arc::clone(&running.tasks().endpoint);
     let task = tauri::async_runtime::spawn(async move {
         let started = match store.key() {
             Ok(key) => quiddity_node::serve_at(&peer, key, local, known)
@@ -421,9 +447,11 @@ fn start_network(session: &Session, running: &Running) {
                     ),
                 );
                 let saver = quiddity_node::save_on_change(peer, store);
+                *slot.lock().expect("endpoint lock poisoned") = Some(server.endpoint().clone());
                 // The endpoint lives until the graph is switched away from
                 // (or the app ends, which drops the sender).
                 let _ = stopped.await;
+                slot.lock().expect("endpoint lock poisoned").take();
                 saver.abort();
                 if let Err(e) = server.shutdown().await {
                     warn!(error = %e, "couldn't close the endpoint");
@@ -555,6 +583,7 @@ pub fn run() {
             set_focus,
             subscribe_updates,
             subscribe_status,
+            network_changed,
             device_id,
             allow_device,
             put_blob,

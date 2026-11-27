@@ -34,6 +34,10 @@ export interface Backend {
   /** The blocks being edited, which other devices see. Backends with no
    * other devices don't have it. */
   focus?(blocks: string[]): Promise<void>;
+  /** The page is shown again, after the screen was off or the app in the
+   * background, so the network may have changed under it. Backends with no
+   * network don't have it. */
+  networkChanged?(): Promise<void>;
   /** Calls `onUpdates` with what other devices change, for as long as the
    * page lives. Backends with no other devices don't have it. */
   subscribe?(onUpdates: (updates: Uint8Array) => void): Promise<void>;
@@ -588,13 +592,21 @@ export class Graph {
   /** The page has been hidden or shown. A hidden page has no block open, so
    * the shell ends the typing it was holding back, and sends it, while it can:
    * a phone that is put to sleep stops the shell too, and its timers with it.
-   * Shown again, the block being edited is open once more. */
+   * Shown again, the block being edited is open once more, and the network is
+   * told it may have changed: a phone's sockets don't survive being asleep. */
   setHidden(hidden: boolean) {
     if (this.hidden === hidden) {
       return;
     }
     this.hidden = hidden;
     void this.report();
+    if (!hidden) {
+      this.backend
+        .networkChanged?.()
+        .catch((error) =>
+          console.error("Couldn't tell the network it may have changed", error),
+        );
+    }
   }
 
   /** Tells the shell which block is open, as it is by the time it hears:
