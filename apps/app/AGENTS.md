@@ -26,7 +26,7 @@ holds its own replica and answers its own queries (see `apps/ui` and
   `subscribe_updates` is below. `network_changed` calls the endpoint's
   `network_change` (`Running` keeps the endpoint, filled and emptied by the
   network task so a graph switched away from leaves none): the UI says it when the page is
-  shown again, because a phone's sockets and relay connection don't survive the
+  shown again or the browser reports `online`, because a phone's sockets and relay connection don't survive the
   screen being off and iroh can't see that on Android. A woken phone was seen
   dialling for minutes without connecting; this is the remedy iroh documents for
   it, and not yet confirmed on a phone. It then calls `Peer::retry_now`, so the

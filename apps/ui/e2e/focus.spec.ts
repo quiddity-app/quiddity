@@ -104,6 +104,20 @@ test('a hidden page has no block open, and has it again when shown', async ({
   await expect.poll(networkChanges).toBe(1);
 });
 
+test('the browser saying it is online tells the network it may have changed', async ({
+  page,
+}) => {
+  await openEntity(page, 'Loro');
+  const networkChanges = () =>
+    page.evaluate(() => window.__quiddityRemote?.networkChanges);
+  expect(await networkChanges()).toBe(0);
+
+  // A phone moving from Wi-Fi to mobile data, or getting a signal back, while
+  // the app is open: the page was never hidden, so only this says so.
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await expect.poll(networkChanges).toBe(1);
+});
+
 test('leaving a block that was only typed in is still told as typing', async ({
   page,
 }) => {
