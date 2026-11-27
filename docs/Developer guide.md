@@ -21,6 +21,7 @@ favourite:: true
 	- [[App sync]]: how the desktop app joins in.
 	- [[Presence]]: who is here, and which blocks they have open.
 	- [[Sync status]]: how a device stands with the others, as the app's cloud shows it.
+	- [[Background sync]]: syncing while the app isn't open, planned.
 	- [[Publish gate]]: holding back typing nobody can see.
 	- [[Blob transfer]]: fetching the bytes of binaries from another device.
 	- [[Compaction]]: what history each device keeps.

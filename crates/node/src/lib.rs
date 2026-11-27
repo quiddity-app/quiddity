@@ -858,6 +858,42 @@ impl Peer {
         self.inner.status_changes.subscribe()
     }
 
+    /// Waits until this device has nothing left to do with the others, or
+    /// `timeout` passes, and says how it stands (see [`SyncState::is_settled`]).
+    ///
+    /// For a run that isn't going to stay: a background job that has to know
+    /// when to stop. It settles once *any* listed device is connected and
+    /// there is nothing it has and this device lacks, so it doesn't wait for
+    /// every device, most of which will be asleep. A state that isn't settled
+    /// at the timeout (`Offline`, nobody reached, or `Behind`, cut off
+    /// part-way) is the answer, not an error: whether to try again soon is the
+    /// caller's to decide.
+    ///
+    /// What this device has sent counts as delivered once it is written to the
+    /// connection, which is when `theirs` is updated: a caller that is about
+    /// to stop must close the endpoint gracefully ([`Server::shutdown`]), which
+    /// waits for what is in flight.
+    ///
+    /// **A replica that hasn't joined a graph is `Alone` until it meets a
+    /// device**, since it lists nobody, so this returns at once for it: a
+    /// caller that has no graph yet should wait for a connection first.
+    pub async fn settled(&self, timeout: Duration) -> SyncState {
+        // Subscribed before looking, so a change between the two isn't missed.
+        let mut changes = self.subscribe_status();
+        let wait = async {
+            loop {
+                let state = self.sync_state();
+                if state.is_settled() || changes.changed().await.is_err() {
+                    return state;
+                }
+            }
+        };
+        match tokio::time::timeout(timeout, wait).await {
+            Ok(state) => state,
+            Err(_) => self.sync_state(),
+        }
+    }
+
     fn syncs(&self) -> MutexGuard<'_, BTreeMap<u64, (String, Version)>> {
         self.inner
             .syncs
@@ -1143,6 +1179,14 @@ pub struct ConnectedDevice {
 }
 
 impl SyncState {
+    /// Whether there is nothing more to wait for: no one to sync with, or
+    /// connected with nothing outstanding. `Offline` isn't (a device may yet
+    /// be reached) and neither is `Behind`.
+    #[must_use]
+    pub const fn is_settled(self) -> bool {
+        matches!(self, Self::Alone | Self::Synced | Self::Present)
+    }
+
     /// The state as one lower-case word, for output that a program reads.
     #[must_use]
     pub const fn as_str(self) -> &'static str {

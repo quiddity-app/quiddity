@@ -1179,6 +1179,97 @@ async fn the_sync_state_follows_connections_typing_and_presence() {
     shut_down(routers, task).await;
 }
 
+/// A background run waits for the sync and no longer: at once with nobody to
+/// sync with, and at the timeout, saying how far it got, with somebody who
+/// isn't there.
+#[tokio::test]
+async fn settled_waits_for_a_connection_and_gives_up_at_the_timeout() {
+    let alone = Peer::new(Graph::new(), Allowed::Only(HashSet::new()), "me");
+    // A timeout well inside the test's own, and well beyond "at once": a
+    // `settled` that waited for a change it doesn't need fails here in two
+    // seconds, rather than hanging until the test is killed.
+    let started = std::time::Instant::now();
+    assert_eq!(
+        alone.settled(Duration::from_secs(2)).await,
+        SyncState::Alone
+    );
+    assert!(
+        started.elapsed() < Duration::from_secs(1),
+        "nothing to wait for"
+    );
+
+    alone.allow("someone").unwrap();
+    let started = std::time::Instant::now();
+    assert_eq!(
+        alone.settled(Duration::from_millis(300)).await,
+        SyncState::Offline
+    );
+    assert!(
+        started.elapsed() >= Duration::from_millis(300),
+        "it waited for the device that might yet arrive"
+    );
+}
+
+/// Settling means what the other device has is here, not merely that it
+/// connected: a blank device is `Behind` until its graph has arrived.
+#[tokio::test]
+async fn settled_returns_once_the_peers_graph_has_arrived() {
+    let laptop = Peer::new(Graph::new(), Allowed::Any, "laptop");
+    edit(&laptop, "before connecting");
+    let phone = Peer::new(Graph::blank(), Allowed::Any, "phone");
+    let (laptop_router, laptop_addr) = listen(&laptop).await;
+    let (phone_router, _) = listen(&phone).await;
+    let (dialler, endpoint) = (phone.clone(), phone_router.endpoint().clone());
+    let task = tokio::spawn(async move {
+        drop(dialler.connect(&endpoint, laptop_addr, None).await);
+    });
+
+    // A blank device lists nobody, so is alone until it has met one: wait for
+    // that. What the laptop has is still on its way.
+    eventually("the laptop", || !phone.sync_details().connected.is_empty()).await;
+    assert_eq!(
+        phone.settled(Duration::from_secs(10)).await,
+        SyncState::Synced
+    );
+    assert_eq!(layout(phone.graph()), layout(laptop.graph()));
+    shut_down(vec![laptop_router, phone_router], task).await;
+}
+
+/// Which states a background run may stop in.
+#[test]
+fn only_alone_and_connected_with_nothing_outstanding_are_settled() {
+    for (state, settled) in [
+        (SyncState::Alone, true),
+        (SyncState::Offline, false),
+        (SyncState::Behind, false),
+        (SyncState::Synced, true),
+        (SyncState::Present, true),
+    ] {
+        assert_eq!(state.is_settled(), settled, "{state:?}");
+    }
+}
+
+/// Typing held back for devices that can't see it is not settled: the run
+/// ends with the state, so that the caller knows it was cut off.
+#[tokio::test]
+async fn settled_does_not_count_held_typing_as_done() {
+    let (laptop, phone, routers, task) = connected_pair(Duration::from_mins(1)).await;
+    assert_eq!(
+        phone.settled(Duration::from_secs(10)).await,
+        SyncState::Synced
+    );
+    type_into(&phone, "elsewhere", "private");
+    assert_eq!(
+        phone.settled(Duration::from_millis(300)).await,
+        SyncState::Behind
+    );
+    phone.end_edit();
+    assert!(phone.settled(Duration::from_secs(10)).await.is_settled());
+    // Settled says the edit has been sent, not that the laptop has it yet.
+    converged(&[&laptop, &phone]).await;
+    shut_down(routers, task).await;
+}
+
 /// Where there is no lookup (local), a listed device is dialled at the address
 /// it is known at, and not otherwise.
 #[tokio::test]
