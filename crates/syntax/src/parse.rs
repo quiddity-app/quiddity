@@ -320,6 +320,13 @@ fn split_property_line(line: &str) -> Option<(String, Option<&str>)> {
     let (key, rest) = if trimmed.starts_with("[[") {
         let mut sc = Scanner::new(trimmed);
         let key = parse_key(&mut sc)?;
+        // The key ends at the first `]]`, but a link's qualifier can hold one
+        // in its value. A line that begins with a link reaching past it is
+        // that link, not a key: `[[a#b("x ]]:: y")]]`.
+        let mut link = Scanner::new(trimmed);
+        if parse_link(&mut link).is_some() && link.pos != sc.pos {
+            return None;
+        }
         (key, sc.rest().strip_prefix("::")?)
     } else {
         let sep = trimmed.find("::")?;
@@ -940,6 +947,33 @@ mod tests {
 
     fn prop(key: &str, value: Option<Value>) -> (String, Option<Value>) {
         (key.to_owned(), value)
+    }
+
+    /// A link's qualifier can hold `]]` and `::` in its value, and a bracketed
+    /// key ends at the first `]]`, so a line that began with such a link was
+    /// read as a key and a value, and the link was lost. The `block` fuzz
+    /// target found it by formatting a link and reading it back.
+    #[test]
+    fn a_link_with_a_separator_in_a_qualifier_is_not_a_bracketed_key() {
+        for line in [
+            r#"[[Book#author("a ]]:: [[Jane]]")]]"#,
+            "[[Book#author(a ]]:: [[Jane]])]]",
+        ] {
+            assert_eq!(parse_property_line(line), None, "{line}");
+            let block = parse_block(line);
+            assert!(block.properties.is_empty(), "{line}");
+            assert_eq!(block.links.len(), 1, "{line}");
+            assert_eq!(block.links[0].name, "Book", "{line}");
+        }
+        // As the fuzzer had it: a link read out of text, written and read again.
+        let read = parse_block("See [[b#a(x ]]:: [[c]])]]");
+        let [link] = read.links.as_slice() else {
+            panic!("one link: {:?}", read.links);
+        };
+        assert_eq!(
+            parse_block(&crate::format::format_link(link)).links,
+            std::slice::from_ref(link)
+        );
     }
 
     #[test]

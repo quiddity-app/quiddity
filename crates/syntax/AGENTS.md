@@ -11,6 +11,11 @@ The reference parser and formatter for block text: `key:: value` lines,
 - **Nested values quote `[[` and `((`** even when they read back alone:
   `[[x#p(a [[b] c])]] see x]]` would otherwise read as a link reaching past the
   `)`. Whether a value is safe can't be judged from the value alone.
+- **A line that starts with a link is a bracketed key only if the key is the whole link.**
+  A bracketed key ends at the first `]]`, but a link's qualifier can hold one in
+  its value (`[[a#b("x ]]:: y")]]`), so `split_property_line` also reads the
+  line's start as a link and refuses it if the link reaches past the key. The
+  `block` fuzz target found it, by formatting a link and reading it back.
 - **Lists start `[ ` when the first item starts with `[`**, so `[[[x]]]`
   isn't read as a link.
 - **Link escaping is context-free**: `\`, `[` and `]` always, and `#`
